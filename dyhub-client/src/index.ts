@@ -95,3 +95,52 @@ export function connectDyhub(port: number, roomId: string, handlers: DyhubHandle
     ws.close();
   };
 }
+
+/** Gift fields DyHub sends (see its GiftEvent). Older DyHub builds omit groupId / repeatEnd. */
+export interface DyhubGiftData {
+  giftId: string;
+  giftName?: string;
+  diamondCount?: number;
+  repeatCount?: number;
+  repeatEnd?: boolean;
+  groupId?: string;
+}
+
+/**
+ * Turns DyHub gift events into "how many new gifts", like DouyinBarrageGrab does.
+ * Douyin pushes several messages per send: combo progress with a growing repeatCount,
+ * then a closing repeatEnd copy. They share giftId + groupId but not msgId, so DyHub's
+ * own dedupe lets them all through.
+ */
+export class GiftCounter {
+  private readonly groups = new Map<string, { count: number; seenAt: number }>();
+
+  constructor(
+    /** Forget a group this long after its last message. */
+    private readonly ttlMs = 10_000,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  /** New gifts this event adds: 0 for non-gifts, duplicates and out-of-order messages. */
+  add(event: DyhubEvent): number {
+    if (event.type !== 'gift') return 0;
+    const gift = event.data as unknown as DyhubGiftData;
+    const now = this.now();
+    for (const [key, group] of this.groups) {
+      if (now - group.seenAt > this.ttlMs) this.groups.delete(key);
+    }
+
+    const key = `${event.roomId}-${gift.giftId}-${gift.groupId ?? ''}`;
+    const previous = this.groups.get(key);
+    if (gift.repeatEnd && previous) {
+      this.groups.delete(key);
+      return 0;
+    }
+    const total = Math.max(1, gift.repeatCount ?? 0);
+    const counted = previous?.count ?? 0;
+    if (total <= counted) return 0;
+    // Without a groupId there is nothing to merge on, so every message counts.
+    if (gift.groupId) this.groups.set(key, { count: total, seenAt: now });
+    return total - counted;
+  }
+}

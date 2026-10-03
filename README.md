@@ -13,7 +13,7 @@ pnpm monorepo for falling-block game experiments.
 ```text
 tetris/               # the game app
 config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
-dyhub-client/         # @dy-apps/dyhub-client: connectDyhub, port/room validation (TS source, no build step)
+dyhub-client/         # @dy-apps/dyhub-client: connectDyhub, port/room validation, GiftCounter (TS source, no build step)
 eslint.config.js      # one flat config for every package (per-app sections inside)
 .prettierrc.json      # repo-wide formatting (+ .prettierignore)
 tsconfig.base.json    # packages extend this

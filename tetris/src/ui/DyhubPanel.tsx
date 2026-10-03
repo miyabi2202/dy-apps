@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   connectDyhub,
   DYHUB_PORT_HINT,
+  GiftCounter,
+  type DyhubGiftData,
   isRoomId,
   parsePort,
   type DyhubStatus,
@@ -42,6 +44,7 @@ export function DyhubPanel() {
       return;
     }
     if (port === null || !canConnect) return;
+    const gifts = new GiftCounter();
     disconnectRef.current = connectDyhub(port, roomId.trim(), {
       onStatus: (next, info) => {
         setStatus(next);
@@ -50,6 +53,13 @@ export function DyhubPanel() {
         else console.info('[dyhub]', STATUS_TEXT[next]);
       },
       onEvent: (ev) => {
+        if (ev.type === 'gift') {
+          const added = gifts.add(ev);
+          const { giftName } = ev.data as unknown as DyhubGiftData;
+          const what = added ? `送出 ${giftName} +${added}` : `${giftName}（重复推送，不计数）`;
+          console.log('[dyhub]', ev.user?.nickname, what, ev);
+          return;
+        }
         console.log('[dyhub]', ev.user?.nickname, ev.data?.content ?? ev.type, ev);
       },
     });
@@ -83,7 +93,7 @@ export function DyhubPanel() {
             value={roomId}
             disabled={connected}
             inputMode="numeric"
-            placeholder="如 708764876300"
+            placeholder="如 484088206186"
             onChange={(e) => setRoomId(e.target.value)}
             {...stylex.props(ui.input)}
           />
