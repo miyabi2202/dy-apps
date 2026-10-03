@@ -64,7 +64,6 @@ src/
     effects.ts     # 4 curse effects, fog/seal timers, permanent haste, gravity formula
     game.ts        # GameEngine: phases, lock sequence, 3-piece settlement, log
   adapters/local-gift.ts  # the only gift source: button clicks → GiftBatchInput
-  adapters/dyhub.ts       # DyHub WebSocket client (debug panel only; not wired to gifts yet)
   input/keyboard.ts       # DAS/ARR, focus and scroll handling
   render/board.ts         # Canvas 2D board and previews, devicePixelRatio aware
   loop.ts                 # rAF loop, frame clamp, auto-pause when hidden
@@ -90,7 +89,7 @@ Measured on 2026-10-03 on an Apple M1 Max (macOS 26.6), Node 25.9, Chromium (Pla
 
 | Suite                      | Result                                            |
 | -------------------------- | ------------------------------------------------- |
-| `pnpm test` (Jest)         | 63 / 63 passed                                    |
+| `pnpm test` (Jest)         | 60 / 60 passed                                    |
 | Stress (engine)            | 31,440 gifts, 30 settlements, ≈ 44 ms             |
 | `pnpm test:e2e` (Chromium) | 10 / 10 passed                                    |
 | E2E UI stress              | 30,000 gifts (3 × 10,000 batches) + drops, passes |
@@ -114,7 +113,7 @@ Where the spec left room, these are the choices made:
 
 - Simplified wall kicks (`(0,0), (-1,0), (1,0), (-2,0), (2,0), (0,-1), (0,-2)`). This is **not SRS**.
 - No Web Worker. A 10,000-gift batch takes a few milliseconds on the main thread, so no "processing" indicator is shown.
-- Live gifts aren't wired in yet. The DyHub panel at the bottom of the page connects to `ws://localhost:<port>/ws` for one room and only logs chat and gift events to the browser console. DyHub gift events report `ts` in microseconds and chat in milliseconds, so use `receivedAt` when wiring them up.
+- Live gifts aren't wired in yet. The DyHub panel at the bottom of the page uses `@dy-apps/dyhub-client` (in `dyhub-client/` at the repo root). It connects to `ws://localhost:<port>/ws` for one room and only logs chat and gift events to the browser console. DyHub gift events report `ts` in microseconds and chat in milliseconds, so use `receivedAt` when wiring them up.
 - No OBS transparent mode, sound or persistence. A page refresh starts a new game, as the spec requires.
 - The spec suggests Vitest. This project uses Jest because the toolchain was set up with it. The tests cover the same requirements.
 - `window.__blockLab` exposes the engine for browser tests and debugging.

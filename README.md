@@ -2,16 +2,18 @@
 
 pnpm monorepo for falling-block game experiments.
 
-| Package                     | Path      | What it is                                               |
-| --------------------------- | --------- | -------------------------------------------------------- |
-| [`@dy-apps/tetris`](tetris) | `tetris/` | 方块干预实验室: block game with simulated audience gifts |
-| [`@dy-apps/config`](config) | `config/` | Shared Vite, Jest, Playwright and Browserslist presets   |
+| Package                                 | Path            | What it is                                               |
+| --------------------------------------- | --------------- | -------------------------------------------------------- |
+| [`@dy-apps/tetris`](tetris)             | `tetris/`       | 方块干预实验室: block game with simulated audience gifts |
+| [`@dy-apps/config`](config)             | `config/`       | Shared Vite, Jest, Playwright and Browserslist presets   |
+| [`@dy-apps/dyhub-client`](dyhub-client) | `dyhub-client/` | Browser client for DyHub's live-room WebSocket events    |
 
 ## Layout
 
 ```text
 tetris/               # the game app
 config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
+dyhub-client/         # @dy-apps/dyhub-client: connectDyhub, port/room validation (TS source, no build step)
 eslint.config.js      # one flat config for every package (per-app sections inside)
 .prettierrc.json      # repo-wide formatting (+ .prettierignore)
 tsconfig.base.json    # packages extend this

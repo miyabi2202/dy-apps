@@ -39,7 +39,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['tetris/**/*.test.{ts,tsx}', 'tetris/src/setupTests.ts'],
+    files: ['tetris/**/*.test.{ts,tsx}', 'tetris/src/setupTests.ts', 'dyhub-client/tests/**/*.ts'],
     languageOptions: { globals: globals.jest },
   },
 

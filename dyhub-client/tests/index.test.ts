@@ -1,4 +1,4 @@
-import { dyhubUrl, isRoomId, parsePort } from '../../src/adapters/dyhub';
+import { dyhubUrl, isRoomId, parsePort } from '../src/index';
 
 describe('dyhub settings', () => {
   it('accepts ports 1–65535 written as plain digits', () => {

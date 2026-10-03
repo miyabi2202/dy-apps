@@ -1,0 +1,20 @@
+{
+  "name": "@dy-apps/dyhub-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser client for DyHub's live-room WebSocket event stream.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@dy-apps/config": "workspace:*",
+    "@types/jest": "^30.0.0",
+    "jest": "catalog:",
+    "typescript": "catalog:"
+  }
+}

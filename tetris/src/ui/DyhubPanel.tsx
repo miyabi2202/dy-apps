@@ -6,7 +6,7 @@ import {
   isRoomId,
   parsePort,
   type DyhubStatus,
-} from '../adapters/dyhub';
+} from '@dy-apps/dyhub-client';
 import { ui } from './styles';
 import { colors } from './tokens.stylex';
 
