@@ -5,7 +5,7 @@ pnpm monorepo for falling-block game experiments.
 | Package                     | Path      | What it is                                               |
 | --------------------------- | --------- | -------------------------------------------------------- |
 | [`@dy-apps/tetris`](tetris) | `tetris/` | 方块干预实验室: block game with simulated audience gifts |
-| [`@dy-apps/config`](config) | `config/` | Shared Vite, Jest and Playwright presets for the apps    |
+| [`@dy-apps/config`](config) | `config/` | Shared Vite, Jest, Playwright and Browserslist presets   |
 
 ## Layout
 
@@ -61,6 +61,11 @@ export default createPlaywrightConfig({ appRoot: import.meta.dirname });
 // jest.config.js
 import { createJestConfig } from '@dy-apps/config/jest';
 export default createJestConfig({ setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'] });
+```
+
+```
+# .browserslistrc
+extends @dy-apps/config/browserslist-config
 ```
 
 The presets are plain JavaScript with `.d.ts` types, because Jest can't load a TypeScript config without extra tooling. `@dy-apps/config` owns the plugins and transforms (StyleX, React, SWC, jsdom). Apps only depend on the CLIs they run (`vite`, `jest`, `@playwright/test`), and those versions come from the catalog.

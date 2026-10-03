@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Shared Vite, Jest and Playwright presets for apps in this repo.",
+  "description": "Shared Vite, Jest, Playwright and Browserslist presets for apps in this repo.",
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
@@ -19,7 +19,8 @@
     "./playwright": {
       "types": "./playwright.d.ts",
       "default": "./playwright.js"
-    }
+    },
+    "./browserslist-config": "./browserslist-config.cjs"
   },
   "dependencies": {
     "@stylexjs/unplugin": "^0.19.1",

@@ -5,6 +5,6 @@
     "checkJs": false,
     "types": ["node"]
   },
-  "include": ["*.js", "*.d.ts", "jest/*.cjs"],
+  "include": ["*.js", "*.cjs", "*.d.ts", "jest/*.cjs"],
   "exclude": ["node_modules"]
 }
