@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LocalGiftAdapter } from '../../src/adapters/local-gift';
 import { GameEngine } from '../../src/core/game';
@@ -22,33 +22,30 @@ describe('App', () => {
     expect(screen.queryByText(/祝福/)).not.toBeInTheDocument();
     expect(screen.getByTestId('board')).toBeInTheDocument();
     expect(screen.getByTestId('countdown')).toHaveTextContent('再落下 3 块，诅咒结算');
+    expect(screen.getByTestId('speed')).toHaveTextContent('×1.0');
+    expect(screen.getByTestId('pending')).toHaveTextContent('暂无');
+    expect(screen.getByTestId('gift-history')).toHaveTextContent('尚未送礼');
   });
 
-  it('example B through the UI: 10 forced garbage hits', async () => {
-    const { engine, user } = setup();
-    for (let i = 0; i < 10; i += 1) {
+  it('shows pending counts and logs each batch under the sender', async () => {
+    const { user } = setup();
+    for (let i = 0; i < 4; i += 1) {
       await user.click(screen.getByRole('button', { name: '诅咒队送 1 份星光' }));
     }
-    const panel = screen.getByTestId('panel-team');
-    expect(within(panel).getByTestId('slot-0')).toHaveTextContent('垃圾行 Lv.1');
-    expect(within(panel).getByTestId('slot-0')).toHaveTextContent('锁定');
-    expect(within(panel).getByTestId('slot-1')).toHaveTextContent('垃圾行 Lv.3');
-    expect(within(panel).getByTestId('slot-1')).toHaveTextContent('能量 7/7');
-    expect(within(panel).getByTestId('slot-2')).toHaveTextContent('空');
-    expect(within(panel).getByTestId('reserve')).toHaveTextContent('垃圾行2');
-    expect(engine.team.overflowEnergy).toBe(0);
+    // constantRng(0) always hits and always draws the first curse, 垃圾行.
+    const pending = screen.getByTestId('pending');
+    expect(pending).toHaveTextContent('垃圾行×4');
+    expect(pending).not.toHaveTextContent('加速');
+    const history = screen.getByTestId('gift-history');
+    expect(history).toHaveTextContent('foo 送出 1 份星光');
+    expect(history).toHaveTextContent('垃圾行 ×1');
   });
 
-  it('reports misses and overflow distinctly', async () => {
-    const { engine, user } = setup(constantRng(0.99));
+  it('logs a batch that triggered nothing', async () => {
+    const { user } = setup(constantRng(0.99));
     await user.click(screen.getByRole('button', { name: '诅咒队送 10 份星光' }));
-    expect(screen.getByTestId('batch')).toHaveTextContent('未触发，队列没有改变');
-
-    act(() => {
-      engine.setProbability(1);
-    });
-    await user.click(screen.getByRole('button', { name: '诅咒队送 100 份星光' }));
-    expect(screen.getByTestId('batch')).toHaveTextContent('已触发，但容量已满，仅记录贡献');
+    expect(screen.getByTestId('gift-history')).toHaveTextContent('foo 送出 10 份星光未触发诅咒');
+    expect(screen.getByTestId('pending')).toHaveTextContent('暂无');
   });
 
   it('rejects invalid custom counts without changing state', async () => {

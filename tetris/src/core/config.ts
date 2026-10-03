@@ -18,7 +18,8 @@ export const CONFIG = {
     linesPerStep: 10,
     minMs: 140,
     maxMs: 1800,
-    hasteMultipliers: [0.8, 0.65, 0.5],
+    /** Drop-interval multiplier per haste; it stacks for the rest of the game. */
+    hasteMultiplier: 0.8,
   },
   score: {
     softDropPerCell: 1,
@@ -27,27 +28,20 @@ export const CONFIG = {
     lineClear: [0, 100, 300, 500, 800],
   },
   gifts: {
-    defaultProbability: 0.6,
-    probabilityOptions: [0, 0.25, 0.5, 0.6, 0.75, 1],
+    defaultProbability: 0.15,
+    probabilityOptions: [0.1, 0.15, 0.2],
     minBatch: 1,
     maxBatch: 10_000,
     quickBatches: [1, 10, 100],
+    /** Gift batches kept for the right-hand info box. */
+    historySize: 50,
   },
-  queue: {
-    capacity: 3,
-    nodeMaxEnergy: 7,
-    reserveCapacity: 21,
-    /** Minimum energy for Lv.1, Lv.2, Lv.3. */
-    levelThresholds: [1, 3, 7],
-    promoteMinLevel: 2,
-    /** Nodes that have waited this many settlements cannot be overtaken. */
-    waitProtection: 2,
+  effects: {
+    /** Pieces that one fog / seal lasts. */
+    fogLocks: 1,
+    sealLocks: 1,
   },
   settlement: { everyLocks: 3 },
-  effects: {
-    /** Duration of haste, in locks. */
-    timedLocks: 3,
-  },
   log: { maxEntries: 10 },
   frame: { maxDtMs: 100 },
 } as const;
@@ -58,12 +52,10 @@ export const TEAM_INFO = { name: '诅咒队', short: '诅咒' } as const;
 
 export const GIFT_NAME = '星光';
 
-export const EFFECT_INFO: Record<
-  EffectType,
-  { name: string; levels: readonly [string, string, string] }
-> = {
-  garbage: { name: '垃圾行', levels: ['+1 行', '+2 行', '+3 行'] },
-  haste: { name: '加速', levels: ['下降间隔 ×0.8', '×0.65', '×0.5'] },
-  fog: { name: '迷雾', levels: ['隐藏预览 1 块', '2 块', '3 块'] },
-  seal: { name: '封存', levels: ['禁用暂存 1 块', '2 块', '3 块'] },
+/** What one curse does when it fires. */
+export const EFFECT_INFO: Record<EffectType, { name: string; description: string }> = {
+  garbage: { name: '垃圾行', description: '底部加 1 行垃圾' },
+  haste: { name: '加速', description: '下降间隔永久 ×0.8，可叠加' },
+  fog: { name: '迷雾', description: '隐藏预览 1 块' },
+  seal: { name: '封存', description: '禁用暂存 1 块' },
 };

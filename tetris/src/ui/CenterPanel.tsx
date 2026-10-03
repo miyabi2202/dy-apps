@@ -1,11 +1,10 @@
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, type RefObject } from 'react';
-import { CONFIG } from '../core/config';
+import { CONFIG, EFFECT_POOL } from '../core/config';
 import type { GameEngine } from '../core/game';
-import { netGarbage } from '../core/interventions';
 import type { PieceType } from '../core/types';
 import { drawMiniPiece } from '../render/board';
-import { nodeLabel } from './format';
+import { effectName } from './format';
 import { ui } from './styles';
 import { colors } from './tokens.stylex';
 
@@ -26,12 +25,10 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
   const { effects } = engine;
 
   const timed: string[] = [];
-  if (effects.haste)
-    timed.push(`加速 Lv.${effects.haste.level} · 剩 ${effects.haste.remainingLocks} 块`);
   if (effects.fog) timed.push(`迷雾 · 剩 ${effects.fog.remainingLocks} 块`);
   if (effects.seal) timed.push(`封存 · 剩 ${effects.seal.remainingLocks} 块`);
 
-  const next = engine.team.queue[0];
+  const firingNext = EFFECT_POOL.filter((type) => engine.team.pending[type] > 0);
 
   return (
     <section aria-label="棋盘" {...stylex.props(ui.panel, styles.center)}>
@@ -84,6 +81,10 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
               ))}
             </div>
           )}
+          <div {...stylex.props(ui.subTitle, styles.speedTitle)}>速度</div>
+          <div data-testid="speed" {...stylex.props(styles.speed)}>
+            ×{engine.speedMultiplier.toFixed(1)}
+          </div>
         </div>
       </div>
 
@@ -102,11 +103,9 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
           </div>
         </div>
         <div>
-          <div {...stylex.props(ui.subTitle)}>下次结算（已锁定）</div>
-          <div {...stylex.props(styles.infoText, styles.curseText)} data-testid="next-locked">
-            {next
-              ? `${nodeLabel(next)}${next.type === 'garbage' ? `（净 ${netGarbage(next)} 行）` : ''}`
-              : '无'}
+          <div {...stylex.props(ui.subTitle)}>下次结算（每种各 1 个）</div>
+          <div {...stylex.props(styles.infoText, styles.curseText)} data-testid="next-settlement">
+            {firingNext.length ? firingNext.map(effectName).join('、') : '无'}
           </div>
         </div>
       </div>
@@ -311,6 +310,18 @@ const styles = stylex.create({
       default: 'repeat(3, minmax(0, 1fr))',
       '@media (min-width: 520px)': 'minmax(0, 1fr)',
     },
+  },
+  speedTitle: {
+    marginTop: 4,
+  },
+  speed: {
+    borderRadius: 6,
+    paddingBlock: 6,
+    backgroundColor: colors.panelRaised,
+    fontSize: 18,
+    fontVariantNumeric: 'tabular-nums',
+    fontWeight: 700,
+    textAlign: 'center',
   },
   fog: {
     borderRadius: 6,

@@ -3,7 +3,7 @@ import { CONFIG } from '../../src/core/config';
 import { GameEngine } from '../../src/core/game';
 import { createPiece } from '../../src/core/pieces';
 import { constantRng, sequenceRng } from '../../src/core/random';
-import { boardWithRows, dropOnEmpty, makeNode, setActive, startedEngine } from '../helpers';
+import { boardWithRows, dropOnEmpty, setActive, startedEngine } from '../helpers';
 
 const { rows, cols } = CONFIG.board;
 
@@ -213,10 +213,10 @@ describe('hold', () => {
 
   it('hold does not count as a lock or advance timed effects', () => {
     const engine = startedEngine();
-    engine.effects.haste = { level: 1, remainingLocks: 3 };
+    engine.effects.fog = { remainingLocks: 3 };
     engine.holdPiece();
     expect(engine.lockedPieceCount).toBe(0);
-    expect(engine.effects.haste.remainingLocks).toBe(3);
+    expect(engine.effects.fog.remainingLocks).toBe(3);
   });
 
   it('seal blocks hold without clearing the stored piece', () => {
@@ -224,7 +224,7 @@ describe('hold', () => {
     engine.holdPiece();
     const stored = engine.hold;
     dropOnEmpty(engine, 1);
-    engine.effects.seal = { level: 1, remainingLocks: 1 };
+    engine.effects.seal = { remainingLocks: 1 };
     expect(engine.holdPiece()).toBe(false);
     expect(engine.hold).toBe(stored);
   });
@@ -233,7 +233,7 @@ describe('hold', () => {
 describe('preview', () => {
   it('fog hides the preview only', () => {
     const engine = startedEngine();
-    engine.effects.fog = { level: 2, remainingLocks: 2 };
+    engine.effects.fog = { remainingLocks: 2 };
     expect(engine.previewHidden).toBe(true);
     expect(engine.ghostY).not.toBeNull();
     dropOnEmpty(engine, 2);
@@ -253,28 +253,51 @@ describe('settlement cycle', () => {
     expect(engine.settlementCount).toBe(3);
   });
 
-  it('slot timing is 3 - locks % 3 + index * 3', () => {
+  it('fires each pending curse type once per settlement; the rest waits', () => {
     const engine = startedEngine();
-    dropOnEmpty(engine, 1);
-    expect([0, 1, 2].map((i) => engine.locksUntilSlot(i))).toEqual([2, 5, 8]);
+    engine.team.pending = { garbage: 2, haste: 1, fog: 1, seal: 0 };
+    dropOnEmpty(engine, 2);
+    engine.board = createBoard();
+    setActive(engine, 'O');
+    engine.hardDrop();
+    const fired = engine.lastSettlement!.executed.map((e) => e.type);
+    expect(fired).toEqual(['garbage', 'haste', 'fog']);
+    expect(engine.board.filter((row) => row.includes('G') && row.includes(null))).toHaveLength(1);
+    expect(engine.effects.hasteMultiplier).toBeCloseTo(0.8);
+    expect(engine.previewHidden).toBe(true);
+    expect(engine.team.pending).toEqual({ garbage: 1, haste: 0, fog: 0, seal: 0 });
+    expect(engine.log[0]!.text).toContain('执行 垃圾行、加速、迷雾');
   });
 
-  it('example E: line clears on the settling lock cancel garbage first', () => {
+  it('fog and seal last one piece', () => {
+    const engine = startedEngine();
+    engine.team.pending = { garbage: 0, haste: 0, fog: 1, seal: 1 };
+    dropOnEmpty(engine, 3);
+    expect(engine.previewHidden).toBe(true);
+    expect(engine.holdBlocked).toBe(true);
+    dropOnEmpty(engine, 1);
+    expect(engine.previewHidden).toBe(false);
+    expect(engine.holdBlocked).toBe(false);
+  });
+
+  it('example E: line clears on the settling lock cancel pending garbage first', () => {
     const engine = startedEngine();
     dropOnEmpty(engine, 2);
-    engine.team.queue = [makeNode('garbage', 7)];
+    engine.team.pending.garbage = 3;
     engine.board = boardWithRows([rows - 1, rows - 2], [4, 5]);
     setActive(engine, 'O');
     engine.hardDrop();
     expect(engine.lines).toBe(2);
-    expect(engine.lastSettlement!.executed!.outcome).toMatchObject({ netGarbage: 1 });
-    expect(engine.team.spentEnergy).toBe(7);
+    expect(engine.team.canceledCount).toBe(2);
+    // One garbage was left, so it fired; nothing remains.
+    expect(engine.lastSettlement!.executed.map((e) => e.type)).toEqual(['garbage']);
+    expect(engine.team.pending.garbage).toBe(0);
   });
 
   it('garbage pushing blocks off the top ends the game', () => {
     const engine = startedEngine();
     dropOnEmpty(engine, 2);
-    engine.team.queue = [makeNode('garbage', 1)];
+    engine.team.pending.garbage = 1;
     engine.board = createBoard();
     engine.board[0]![0] = 'G';
     engine.board[1]![9] = 'G';
@@ -315,51 +338,45 @@ describe('settlement cycle', () => {
   });
 });
 
-describe('example F: timed effects', () => {
-  it('haste gained on lock 3 covers pieces 4-6 and expires on lock 6', () => {
+describe('example F: haste and speed', () => {
+  it('haste never expires', () => {
     const engine = startedEngine();
-    engine.team.queue = [makeNode('haste', 1)];
+    engine.team.pending.haste = 1;
     dropOnEmpty(engine, 3);
-    expect(engine.effects.haste).toEqual({ level: 1, remainingLocks: 3 });
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
-    engine.pause();
-    engine.resume();
-    engine.rotate(1);
-    engine.holdPiece();
-    expect(engine.effects.haste!.remainingLocks).toBe(3);
-    dropOnEmpty(engine, 2);
-    expect(engine.effects.haste!.remainingLocks).toBe(1);
-    dropOnEmpty(engine, 1);
-    expect(engine.effects.haste).toBeNull();
-    expect(engine.gravityIntervalMs).toBe(850);
+    dropOnEmpty(engine, 30);
+    expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
+    expect(engine.speedMultiplier).toBeCloseTo(1.25);
   });
 
-  it('reapplying replaces the level and resets duration', () => {
+  it('pending hastes stack one settlement at a time', () => {
     const engine = startedEngine();
-    engine.team.queue = [makeNode('haste', 1), makeNode('haste', 7)];
+    engine.team.pending.haste = 3;
     dropOnEmpty(engine, 3);
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
-    dropOnEmpty(engine, 3);
-    expect(engine.effects.haste).toEqual({ level: 3, remainingLocks: 3 });
-    expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.5);
+    dropOnEmpty(engine, 6);
+    expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8 ** 3);
+    expect(engine.team.pending.haste).toBe(0);
   });
 
   it('gravity interval follows the formula and clamps', () => {
     const engine = startedEngine();
+    expect(engine.speedMultiplier).toBe(1);
     engine.lines = 100;
     expect(engine.gravityIntervalMs).toBe(280);
-    engine.effects.haste = { level: 3, remainingLocks: 3 };
+    engine.effects.hasteMultiplier = 0.01;
     expect(engine.gravityIntervalMs).toBe(140);
+    expect(engine.speedMultiplier).toBeCloseTo(850 / 140);
   });
 });
 
 describe('phases', () => {
   it('allows gifts before start and while paused, rejects after game over', () => {
     const engine = new GameEngine({ seed: 1, giftRng: constantRng(0) });
-    expect(engine.sendGifts(5).ok).toBe(true);
+    expect(engine.sendGifts('foo', 5).ok).toBe(true);
     engine.start();
     engine.pause();
-    expect(engine.sendGifts(5).ok).toBe(true);
+    expect(engine.sendGifts('foo', 5).ok).toBe(true);
     engine.resume();
     engine.board = createBoard();
     engine.board[0]![4] = 'G';
@@ -369,7 +386,7 @@ describe('phases', () => {
     engine.hardDrop();
     expect(engine.phase).toBe('gameOver');
     const before = JSON.stringify(engine.team);
-    expect(engine.sendGifts(10).ok).toBe(false);
+    expect(engine.sendGifts('foo', 10).ok).toBe(false);
     expect(JSON.stringify(engine.team)).toBe(before);
   });
 
@@ -383,17 +400,19 @@ describe('phases', () => {
     const engine = new GameEngine({ seed: 1, giftRng: sequenceRng([0, 0.1]) });
     engine.setProbability(0.25);
     engine.start();
-    engine.sendGifts(50);
+    engine.sendGifts('foo', 50);
     dropOnEmpty(engine, 3);
+    engine.effects.hasteMultiplier = 0.5;
     engine.restart();
     expect(engine.phase).toBe('ready');
     expect(engine.probability).toBe(0.25);
     expect(engine.team.giftCount).toBe(0);
-    expect(engine.team.queue).toEqual([]);
+    expect(engine.team.pending).toEqual({ garbage: 0, haste: 0, fog: 0, seal: 0 });
+    expect(engine.giftHistory).toEqual([]);
     expect(engine.score).toBe(0);
     expect(engine.lockedPieceCount).toBe(0);
     expect(engine.settlementCount).toBe(0);
-    expect(engine.effects.haste).toBeNull();
+    expect(engine.effects.hasteMultiplier).toBe(1);
     expect(engine.hold).toBeNull();
     expect(engine.board.flat().every((c) => c === null)).toBe(true);
   });

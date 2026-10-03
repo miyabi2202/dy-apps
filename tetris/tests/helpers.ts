@@ -3,34 +3,12 @@ import { EFFECT_POOL } from '../src/core/config';
 import { GameEngine, type EngineOptions } from '../src/core/game';
 import { createPiece } from '../src/core/pieces';
 import { constantRng, sequenceRng, type Rng } from '../src/core/random';
-import type { Board, EffectNode, EffectType, IdSource, PieceType } from '../src/core/types';
-
-export function makeIds(): IdSource {
-  let node = 0;
-  let order = 0;
-  return { nextNodeId: () => (node += 1), nextReserveOrder: () => (order += 1) };
-}
+import type { Board, EffectType, PieceType } from '../src/core/types';
 
 /** Gift RNG draws that always hit and always pick `type`. */
 export function forceEffectRng(type: EffectType): Rng {
   const index = EFFECT_POOL.indexOf(type);
   return sequenceRng([0, (index + 0.5) / EFFECT_POOL.length]);
-}
-
-export function makeNode(
-  type: EffectType,
-  energy: number,
-  extra: Partial<EffectNode> = {},
-): EffectNode {
-  return {
-    id: Math.floor(Math.random() * 1e9),
-    type,
-    energy,
-    waitedSettlements: 0,
-    promoted: false,
-    canceledLines: 0,
-    ...extra,
-  };
 }
 
 /** Engine with a fixed piece sequence (O pieces by default) and a started game. */

@@ -1,5 +1,5 @@
 import { clearFullLines, collides, createBoard } from './board';
-import { CONFIG, EFFECT_INFO, GIFT_NAME, TEAM_INFO } from './config';
+import { CONFIG, EFFECT_INFO, GIFT_NAME } from './config';
 import {
   applyCurse,
   createEffects,
@@ -9,16 +9,14 @@ import {
   type EffectsState,
 } from './effects';
 import { isValidBatchCount, isValidProbability, processGiftBatch } from './gifts';
-import { cancelGarbage, createTeam, levelOf, settleTeam } from './interventions';
+import { cancelGarbage, createTeam, settleTeam } from './interventions';
 import { BagGenerator, createPiece, KICK_OFFSETS, pieceCells, rotateMatrix } from './pieces';
 import { deriveSeed, mulberry32, type Rng } from './random';
 import type {
   ActivePiece,
   Board,
-  EffectNode,
   EffectType,
   GiftBatchResult,
-  IdSource,
   Phase,
   PieceType,
   TeamState,
@@ -32,7 +30,7 @@ export interface EngineOptions {
   probability?: number;
 }
 
-export type LogKind = 'gift' | 'miss' | 'overflow' | 'promote' | 'settle' | 'cancel' | 'system';
+export type LogKind = 'gift' | 'miss' | 'settle' | 'cancel' | 'system';
 
 export interface LogEntry {
   id: number;
@@ -42,9 +40,13 @@ export interface LogEntry {
 
 export interface SettlementReport {
   index: number;
-  executed: { node: EffectNode; outcome: CurseOutcome } | null;
-  promotedEffects: EffectType[];
+  /** Curses that fired, in queue order. Empty when the queue was empty. */
+  /** Curses that fired, one per type. Empty when nothing was pending. */
+  executed: { type: EffectType; outcome: CurseOutcome }[];
 }
+
+/** A gift batch as kept in the engine's history, with a stable id for rendering. */
+export type GiftHistoryEntry = GiftBatchResult & { id: number };
 
 export type GiftResponse = { ok: true; result: GiftBatchResult } | { ok: false; error: string };
 
@@ -64,7 +66,8 @@ export class GameEngine {
   team: TeamState = createTeam();
   effects: EffectsState = createEffects();
   probability: number;
-  lastBatch: GiftBatchResult | null = null;
+  /** Recent gift batches, newest first, at most CONFIG.gifts.historySize. */
+  giftHistory: GiftHistoryEntry[] = [];
   lastSettlement: SettlementReport | null = null;
   log: LogEntry[] = [];
   gameOverReason: string | null = null;
@@ -79,15 +82,9 @@ export class GameEngine {
   private gravityMs = 0;
   private lockMs = 0;
   private lockResets = 0;
-  private nodeId = 0;
-  private reserveOrder = 0;
   private logId = 0;
+  private batchId = 0;
   private readonly listeners: Set<Listener> = new Set();
-
-  readonly ids: IdSource = {
-    nextNodeId: () => (this.nodeId += 1),
-    nextReserveOrder: () => (this.reserveOrder += 1),
-  };
 
   constructor(options: EngineOptions = {}) {
     const seed = options.seed ?? Math.floor(Math.random() * 2 ** 32);
@@ -125,13 +122,13 @@ export class GameEngine {
     return CONFIG.settlement.everyLocks - (this.lockedPieceCount % CONFIG.settlement.everyLocks);
   }
 
-  /** Locks until the node at queue `index` executes. */
-  locksUntilSlot(index: number): number {
-    return this.piecesUntilSettlement + index * CONFIG.settlement.everyLocks;
-  }
-
   get gravityIntervalMs(): number {
     return gravityIntervalMs(this.lines, this.effects);
+  }
+
+  /** Current fall speed relative to the starting speed (line-clear speed-ups and haste). */
+  get speedMultiplier(): number {
+    return CONFIG.gravity.baseMs / this.gravityIntervalMs;
   }
 
   get preview(): PieceType[] {
@@ -200,7 +197,7 @@ export class GameEngine {
     this.settlementCount = 0;
     this.team = createTeam();
     this.effects = createEffects();
-    this.lastBatch = null;
+    this.giftHistory = [];
     this.lastSettlement = null;
     this.log = [];
     this.gameOverReason = null;
@@ -225,7 +222,7 @@ export class GameEngine {
 
   // ---------------------------------------------------------------- gifts
 
-  sendGifts(count: number): GiftResponse {
+  sendGifts(sender: string, count: number): GiftResponse {
     if (this.phase === 'gameOver') return { ok: false, error: '游戏已结束，不能送礼。' };
     if (!isValidBatchCount(count)) {
       return {
@@ -234,35 +231,27 @@ export class GameEngine {
       };
     }
     const p = this.probability;
-    const result = processGiftBatch(this.team, count, p, this.giftRng, this.ids);
-    this.lastBatch = result;
+    const result = processGiftBatch(this.team, sender, count, p, this.giftRng);
+    this.batchId += 1;
+    this.giftHistory.unshift({ ...result, id: this.batchId });
+    if (this.giftHistory.length > CONFIG.gifts.historySize) {
+      this.giftHistory.length = CONFIG.gifts.historySize;
+    }
     this.logBatch(result);
     this.emit();
     return { ok: true, result };
   }
 
   private logBatch(r: GiftBatchResult): void {
-    const team = TEAM_INFO.name;
+    const head = `${r.sender} 送出 ${r.count} 份${GIFT_NAME}`;
     if (r.hits === 0) {
-      this.pushLog('miss', `${team}送出 ${r.count} 份${GIFT_NAME}：未触发，队列没有改变。`);
+      this.pushLog('miss', `${head}：未触发诅咒。`);
       return;
     }
     const effects = (Object.entries(r.effects) as [EffectType, number][])
       .map(([type, n]) => `${EFFECT_INFO[type].name}×${n}`)
       .join('、');
-    const parts = [`入队/合并 ${r.queuedEnergy}`];
-    if (r.reservedEnergy) parts.push(`储备 ${r.reservedEnergy}`);
-    if (r.overflowEnergy) parts.push(`满额记账 ${r.overflowEnergy}`);
-    this.pushLog(
-      'gift',
-      `${team}送出 ${r.count} 份${GIFT_NAME}：触发 ${r.hits}（${effects}），未触发 ${r.misses}；${parts.join('，')}。`,
-    );
-    if (r.overflowEnergy > 0) {
-      this.pushLog('overflow', `${team}：${r.overflowEnergy} 点已触发，但容量已满，仅记录贡献。`);
-    }
-    for (const type of r.promotedEffects) {
-      this.pushLog('promote', `${team}：${EFFECT_INFO[type].name}升级后插队前移一位。`);
-    }
+    this.pushLog('gift', `${head}：触发 ${r.hits}（${effects}），未触发 ${r.misses}。`);
   }
 
   // ---------------------------------------------------------------- piece control
@@ -441,41 +430,23 @@ export class GameEngine {
     this.emit();
   }
 
-  /** Atomic settlement: the head pops, the reserve refills, then the head runs. */
+  /** Atomic settlement: every curse type with anything pending fires once. */
   private settle(): void {
     this.settlementCount += 1;
-    const settled = settleTeam(this.team, this.ids);
-    const report: SettlementReport = {
-      index: this.settlementCount,
-      executed: settled.executed
-        ? {
-            node: settled.executed,
-            outcome: applyCurse(this.effects, this.board, settled.executed, this.garbageRng),
-          }
-        : null,
-      promotedEffects: settled.promotedEffects,
-    };
+    const report: SettlementReport = { index: this.settlementCount, executed: [] };
+    for (const type of settleTeam(this.team)) {
+      const outcome = applyCurse(this.effects, this.board, type, this.garbageRng);
+      report.executed.push({ type, outcome });
+      if (outcome.toppedOut) break;
+    }
     this.lastSettlement = report;
     this.logSettlement(report);
-    if (report.executed?.outcome.toppedOut) this.endGame('垃圾行将方块挤出顶部');
+    if (report.executed.some((e) => e.outcome.toppedOut)) this.endGame('垃圾行将方块挤出顶部');
   }
 
   private logSettlement(r: SettlementReport): void {
-    let text = '队列为空';
-    if (r.executed) {
-      const { node, outcome } = r.executed;
-      text = `执行 ${EFFECT_INFO[node.type].name} Lv.${levelOf(node.energy)}`;
-      if (node.type === 'garbage') {
-        text += `，净增 ${outcome.netGarbage} 行`;
-        if (node.canceledLines) text += `（消行已抵消 ${node.canceledLines}）`;
-      }
-    }
+    const names = r.executed.map(({ type }) => EFFECT_INFO[type].name);
+    const text = names.length ? `执行 ${names.join('、')}` : '没有待执行的诅咒';
     this.pushLog('settle', `第 ${r.index} 次结算：${text}。`);
-    for (const type of r.promotedEffects) {
-      this.pushLog(
-        'promote',
-        `${TEAM_INFO.name}：储备强化${EFFECT_INFO[type].name}后插队前移一位。`,
-      );
-    }
   }
 }

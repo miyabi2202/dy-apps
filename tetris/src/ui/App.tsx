@@ -98,7 +98,7 @@ export function App({ engine, gifts, keyboard }: Props) {
               确认重新开始？
             </h2>
             <p {...stylex.props(ui.muted)}>
-              将清空棋盘、分数、队列、储备、效果和送礼记录。触发概率保持{' '}
+              将清空棋盘、分数、待执行诅咒、效果和送礼记录。触发概率保持{' '}
               {percent(engine.probability)}。
             </p>
             <div {...stylex.props(styles.dialogButtons)}>

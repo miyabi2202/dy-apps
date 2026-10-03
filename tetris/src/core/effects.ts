@@ -1,22 +1,20 @@
 import { addGarbageRows } from './board';
 import { CONFIG } from './config';
-import { levelOf, netGarbage } from './interventions';
 import type { Rng } from './random';
-import type { Board, EffectNode, TimedPieceEffect } from './types';
-
-const E = CONFIG.effects;
+import type { Board, EffectType, TimedPieceEffect } from './types';
 
 export interface EffectsState {
-  haste: TimedPieceEffect | null;
+  /** Product of every haste applied this game; 1 means no haste. Never expires. */
+  hasteMultiplier: number;
   fog: TimedPieceEffect | null;
   seal: TimedPieceEffect | null;
 }
 
-export type TimedKey = 'haste' | 'fog' | 'seal';
-export const TIMED_KEYS: readonly TimedKey[] = ['haste', 'fog', 'seal'];
+export type TimedKey = 'fog' | 'seal';
+export const TIMED_KEYS: readonly TimedKey[] = ['fog', 'seal'];
 
 export function createEffects(): EffectsState {
-  return { haste: null, fog: null, seal: null };
+  return { hasteMultiplier: 1, fog: null, seal: null };
 }
 
 /** Called once per lock, before any new effect is applied. */
@@ -32,39 +30,33 @@ export function tickTimedEffects(effects: EffectsState): void {
 export function gravityIntervalMs(totalLines: number, effects: EffectsState): number {
   const g = CONFIG.gravity;
   const base = Math.max(g.minBaseMs, g.baseMs - Math.floor(totalLines / g.linesPerStep) * g.stepMs);
-  const haste = effects.haste ? g.hasteMultipliers[effects.haste.level - 1]! : 1;
-  return Math.min(g.maxMs, Math.max(g.minMs, base * haste));
+  return Math.min(g.maxMs, Math.max(g.minMs, base * effects.hasteMultiplier));
 }
 
 export interface CurseOutcome {
-  /** Garbage rows added, after line-clear cancellation. */
-  netGarbage: number;
   /** True when garbage pushed blocks off the top. */
   toppedOut: boolean;
 }
 
+/** Fire one curse. */
 export function applyCurse(
   effects: EffectsState,
   board: Board,
-  node: EffectNode,
+  type: EffectType,
   garbageRng: Rng,
 ): CurseOutcome {
-  const level = levelOf(node.energy);
-  const out: CurseOutcome = { netGarbage: 0, toppedOut: false };
-  switch (node.type) {
+  switch (type) {
     case 'garbage':
-      out.netGarbage = netGarbage(node);
-      out.toppedOut = addGarbageRows(board, out.netGarbage, garbageRng);
-      break;
+      return { toppedOut: addGarbageRows(board, 1, garbageRng) };
     case 'haste':
-      effects.haste = { level, remainingLocks: E.timedLocks };
+      effects.hasteMultiplier *= CONFIG.gravity.hasteMultiplier;
       break;
     case 'fog':
-      effects.fog = { level, remainingLocks: level };
+      effects.fog = { remainingLocks: CONFIG.effects.fogLocks };
       break;
     case 'seal':
-      effects.seal = { level, remainingLocks: level };
+      effects.seal = { remainingLocks: CONFIG.effects.sealLocks };
       break;
   }
-  return out;
+  return { toppedOut: false };
 }
