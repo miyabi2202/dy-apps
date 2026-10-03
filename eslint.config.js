@@ -1,15 +1,15 @@
 import js from '@eslint/js';
+import react from '@eslint-react/eslint-plugin';
 import stylex from '@stylexjs/eslint-plugin';
 import prettier from 'eslint-config-prettier';
-import react from '@eslint-react/eslint-plugin';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+// One flat config for the whole monorepo. Each package's tsconfig.json is
+// found automatically by the project service.
 export default tseslint.config(
-  {
-    ignores: ['dist', 'dist-webpack', 'coverage', 'playwright-report', 'test-results'],
-  },
+  { ignores: ['**/dist', '**/coverage', '**/playwright-report', '**/test-results'] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -18,20 +18,15 @@ export default tseslint.config(
       globals: { ...globals.browser, ...globals.node },
     },
   },
+  { files: ['**/*.{js,cjs}'], ...tseslint.configs.disableTypeChecked },
+
+  // tetris: React + StyleX
   {
-    files: ['**/*.{js,cjs}'],
-    ...tseslint.configs.disableTypeChecked,
-  },
-  {
-    files: ['**/*.cjs'],
-    languageOptions: { sourceType: 'commonjs' },
-  },
-  {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['tetris/src/**/*.{ts,tsx}'],
     ...react.configs['recommended-type-checked'],
   },
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['tetris/src/**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': reactHooks,
       '@stylexjs': stylex,
@@ -44,8 +39,10 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.test.{ts,tsx}', 'src/setupTests.ts'],
+    files: ['tetris/**/*.test.{ts,tsx}', 'tetris/src/setupTests.ts'],
     languageOptions: { globals: globals.jest },
   },
+
+  // Last, so formatting is left entirely to Prettier.
   prettier,
 );

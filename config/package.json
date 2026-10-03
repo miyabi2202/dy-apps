@@ -1,0 +1,44 @@
+{
+  "name": "@dy-apps/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared Vite, Jest and Playwright presets for apps in this repo.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    "./vite": {
+      "types": "./vite.d.ts",
+      "default": "./vite.js"
+    },
+    "./jest": {
+      "types": "./jest.d.ts",
+      "default": "./jest.js"
+    },
+    "./playwright": {
+      "types": "./playwright.d.ts",
+      "default": "./playwright.js"
+    }
+  },
+  "dependencies": {
+    "@stylexjs/unplugin": "^0.19.1",
+    "@swc/core": "^1.16.13",
+    "@swc/jest": "^0.2.39",
+    "@vitejs/plugin-react": "^6.1.1",
+    "identity-obj-proxy": "^3.0.0",
+    "jest-environment-jsdom": "catalog:"
+  },
+  "peerDependencies": {
+    "@playwright/test": "catalog:",
+    "jest": "catalog:",
+    "vite": "catalog:"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "jest": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

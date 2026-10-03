@@ -1,6 +1,5 @@
 node_modules
 dist
-dist-webpack
 coverage
 playwright-report
 test-results

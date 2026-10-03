@@ -1,40 +1,75 @@
-# Tetris
+# dy-apps
 
-React + TypeScript web app styled with [StyleX](https://stylexjs.com). It builds with either Vite or webpack.
+pnpm monorepo for falling-block game experiments.
+
+| Package                     | Path      | What it is                                               |
+| --------------------------- | --------- | -------------------------------------------------------- |
+| [`@dy-apps/tetris`](tetris) | `tetris/` | 方块干预实验室: block game with simulated audience gifts |
+| [`@dy-apps/config`](config) | `config/` | Shared Vite, Jest and Playwright presets for the apps    |
+
+## Layout
+
+```text
+tetris/               # the game app
+config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
+eslint.config.js      # one flat config for every package (per-app sections inside)
+.prettierrc.json      # repo-wide formatting (+ .prettierignore)
+tsconfig.base.json    # packages extend this
+package.json          # private root: shared tooling + scripts that fan out to packages
+pnpm-workspace.yaml   # workspace packages and the version catalog for shared tools
+pnpm-lock.yaml
+```
 
 ## Requirements
 
 - Node.js 22 or later
 - pnpm 11 (`corepack enable`)
 
-## Getting started
+## Commands
+
+Run from the repo root.
 
 ```sh
 pnpm install
-pnpm exec playwright install chromium   # once, for e2e tests
-pnpm dev                                # Vite dev server on http://localhost:5173
+pnpm dev            # tetris dev server
+pnpm build          # build every package
+pnpm typecheck      # tsc in every package
+pnpm lint           # ESLint, whole repo
+pnpm test           # Jest in every package
+pnpm test:e2e       # Playwright in every package (run `pnpm --filter @dy-apps/tetris exec playwright install chromium` once)
+pnpm format         # Prettier, whole repo (format:check to verify)
+pnpm check          # format:check + typecheck + lint + test
 ```
 
-## Scripts
+To target one package: `pnpm --filter @dy-apps/tetris <script>`.
 
-| Script               | What it does                                              |
-| -------------------- | --------------------------------------------------------- |
-| `pnpm dev`           | Vite dev server (port 5173)                               |
-| `pnpm build`         | Type-check, then Vite production build into `dist/`       |
-| `pnpm preview`       | Serve `dist/` (port 4173)                                 |
-| `pnpm dev:webpack`   | webpack dev server (port 8080)                            |
-| `pnpm build:webpack` | Type-check, then webpack production build `dist-webpack/` |
-| `pnpm typecheck`     | `tsc --noEmit`                                            |
-| `pnpm lint`          | ESLint, with any warning treated as a failure             |
-| `pnpm format`        | Prettier write (`format:check` to verify only)            |
-| `pnpm test`          | Jest unit/component tests (`src/**/*.test.tsx`)           |
-| `pnpm test:e2e`      | Playwright tests (`e2e/`) against a Vite production build |
-| `pnpm check`         | typecheck + lint + format check + unit tests              |
+## Shared config presets
 
-## Tooling notes
+Apps keep one short file per tool, using the default filenames so no `--config` flags are needed:
 
-- **StyleX** is compiled by `@stylexjs/unplugin` in both Vite and webpack. Jest compiles it with `@stylexjs/babel-plugin` (see `babel.config.cjs`).
-- **Babel** (`babel.config.cjs`) is used only by webpack and Jest. Vite uses its own transform.
-- **ESLint** uses a flat config (`eslint.config.js`): typescript-eslint (type-checked), `@eslint-react`, `react-hooks`, `@stylexjs/eslint-plugin`, and `eslint-config-prettier`.
-- **Pre-commit**: Husky runs lint-staged, which runs ESLint and Prettier on staged files.
-- TypeScript is pinned to 6.0.x because typescript-eslint does not support TS 7 yet.
+```ts
+// vite.config.ts
+import { createViteConfig } from '@dy-apps/config/vite';
+export default createViteConfig(import.meta.dirname);
+
+// playwright.config.ts
+import { createPlaywrightConfig } from '@dy-apps/config/playwright';
+export default createPlaywrightConfig({ appRoot: import.meta.dirname });
+```
+
+```js
+// jest.config.js
+import { createJestConfig } from '@dy-apps/config/jest';
+export default createJestConfig({ setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'] });
+```
+
+The presets are plain JavaScript with `.d.ts` types, because Jest can't load a TypeScript config without extra tooling. `@dy-apps/config` owns the plugins and transforms (StyleX, React, SWC, jsdom). Apps only depend on the CLIs they run (`vite`, `jest`, `@playwright/test`), and those versions come from the catalog.
+
+## Adding an app
+
+1. Create `<name>/` at the repo root with a `package.json` named `@dy-apps/<name>` (`build`, `typecheck`, `lint`, `test` scripts).
+2. Add `<name>` to `packages` in `pnpm-workspace.yaml`.
+3. Add `"@dy-apps/config": "workspace:*"` and the config files above.
+4. Add a `tsconfig.json` that extends `../tsconfig.base.json`.
+5. Add a section for `<name>/**` to `eslint.config.js` if it needs extra rules.
+6. Use `"catalog:"` for shared tools so versions stay in sync, then run `pnpm install`.
