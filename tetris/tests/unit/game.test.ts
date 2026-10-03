@@ -213,10 +213,10 @@ describe('hold', () => {
 
   it('hold does not count as a lock or advance timed effects', () => {
     const engine = startedEngine();
-    engine.effects.slow = { level: 1, remainingLocks: 3 };
+    engine.effects.haste = { level: 1, remainingLocks: 3 };
     engine.holdPiece();
     expect(engine.lockedPieceCount).toBe(0);
-    expect(engine.effects.slow.remainingLocks).toBe(3);
+    expect(engine.effects.haste.remainingLocks).toBe(3);
   });
 
   it('seal blocks hold without clearing the stored piece', () => {
@@ -230,36 +230,7 @@ describe('hold', () => {
   });
 });
 
-describe('long-piece credits and preview', () => {
-  it('preview shows I for pending credits and spawns match the preview', () => {
-    const engine = startedEngine();
-    engine.effects.longCredits = 2;
-    const raw = [...engine.upcoming];
-    expect(engine.preview).toEqual(['I', 'I', raw[2]]);
-    dropOnEmpty(engine, 1);
-    expect(engine.active!.type).toBe('I');
-    expect(engine.effects.longCredits).toBe(1);
-    // The sequence entry was still consumed.
-    expect(engine.upcoming[0]).toBe(raw[1]);
-  });
-
-  it('a swap from a non-empty hold does not consume a credit; an empty hold does', () => {
-    const engine = startedEngine();
-    engine.effects.longCredits = 1;
-    engine.holdPiece(); // empty hold: takes next from sequence -> I
-    expect(engine.active!.type).toBe('I');
-    expect(engine.effects.longCredits).toBe(0);
-
-    const e2 = startedEngine();
-    e2.holdPiece();
-    dropOnEmpty(e2, 1);
-    e2.effects.longCredits = 1;
-    const stored = e2.hold;
-    e2.holdPiece();
-    expect(e2.active!.type).toBe(stored);
-    expect(e2.effects.longCredits).toBe(1);
-  });
-
+describe('preview', () => {
   it('fog hides the preview only', () => {
     const engine = startedEngine();
     engine.effects.fog = { level: 2, remainingLocks: 2 };
@@ -288,57 +259,22 @@ describe('settlement cycle', () => {
     expect([0, 1, 2].map((i) => engine.locksUntilSlot(i))).toEqual([2, 5, 8]);
   });
 
-  it('example D: shield runs before garbage', () => {
-    const engine = startedEngine();
-    engine.teams.bless.queue = [makeNode('shield', 3)];
-    engine.teams.curse.queue = [makeNode('garbage', 7)];
-    dropOnEmpty(engine, 3);
-    const report = engine.lastSettlement!;
-    expect(report.curse!.outcome).toMatchObject({
-      rawGarbage: 3,
-      shieldAbsorbed: 2,
-      netGarbage: 1,
-    });
-    expect(engine.effects.shield).toBe(0);
-    const garbageRows = engine.board.filter((row) => row.filter((c) => c === 'G').length === 9);
-    expect(garbageRows).toHaveLength(1);
-  });
-
   it('example E: line clears on the settling lock cancel garbage first', () => {
     const engine = startedEngine();
     dropOnEmpty(engine, 2);
-    engine.teams.curse.queue = [makeNode('garbage', 7)];
+    engine.team.queue = [makeNode('garbage', 7)];
     engine.board = boardWithRows([rows - 1, rows - 2], [4, 5]);
     setActive(engine, 'O');
     engine.hardDrop();
     expect(engine.lines).toBe(2);
-    expect(engine.lastSettlement!.curse!.outcome).toMatchObject({ rawGarbage: 1, netGarbage: 1 });
-    expect(engine.teams.curse.spentEnergy).toBe(7);
-  });
-
-  it('clear removes bottom rows with no score or line credit', () => {
-    const engine = startedEngine();
-    dropOnEmpty(engine, 2);
-    engine.teams.bless.queue = [makeNode('clear', 3)];
-    engine.board = boardWithRows([rows - 1, rows - 2, rows - 3], [0]);
-    setActive(engine, 'O');
-    engine.active!.x = 0;
-    engine.active!.y = 0;
-    engine.board[0]![9] = 'G'; // marker row that should not move off
-    const scoreBefore = engine.score;
-    const drop = engine.ghostY! - engine.active!.y;
-    engine.hardDrop();
-    expect(engine.lines).toBe(0);
-    expect(engine.score).toBe(scoreBefore + drop * 2);
-    // The O landed on rows 15-16 above the three filled rows, then 2 bottom rows were removed.
-    expect(engine.board[rows - 1]!.filter(Boolean).length).toBeGreaterThan(0);
-    expect(engine.board[0]!.every((c) => c === null)).toBe(true);
+    expect(engine.lastSettlement!.executed!.outcome).toMatchObject({ netGarbage: 1 });
+    expect(engine.team.spentEnergy).toBe(7);
   });
 
   it('garbage pushing blocks off the top ends the game', () => {
     const engine = startedEngine();
     dropOnEmpty(engine, 2);
-    engine.teams.curse.queue = [makeNode('garbage', 1)];
+    engine.team.queue = [makeNode('garbage', 1)];
     engine.board = createBoard();
     engine.board[0]![0] = 'G';
     engine.board[1]![9] = 'G';
@@ -382,7 +318,7 @@ describe('settlement cycle', () => {
 describe('example F: timed effects', () => {
   it('haste gained on lock 3 covers pieces 4-6 and expires on lock 6', () => {
     const engine = startedEngine();
-    engine.teams.curse.queue = [makeNode('haste', 1)];
+    engine.team.queue = [makeNode('haste', 1)];
     dropOnEmpty(engine, 3);
     expect(engine.effects.haste).toEqual({ level: 1, remainingLocks: 3 });
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
@@ -398,15 +334,13 @@ describe('example F: timed effects', () => {
     expect(engine.gravityIntervalMs).toBe(850);
   });
 
-  it('reapplying replaces the level and resets duration; slow and haste multiply', () => {
+  it('reapplying replaces the level and resets duration', () => {
     const engine = startedEngine();
-    engine.teams.bless.queue = [makeNode('slow', 7)];
-    engine.teams.curse.queue = [makeNode('haste', 1), makeNode('haste', 7)];
+    engine.team.queue = [makeNode('haste', 1), makeNode('haste', 7)];
     dropOnEmpty(engine, 3);
-    expect(engine.gravityIntervalMs).toBeCloseTo(850 * 1.75 * 0.8);
+    expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
     dropOnEmpty(engine, 3);
     expect(engine.effects.haste).toEqual({ level: 3, remainingLocks: 3 });
-    expect(engine.effects.slow).toBeNull();
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.5);
   });
 
@@ -416,31 +350,16 @@ describe('example F: timed effects', () => {
     expect(engine.gravityIntervalMs).toBe(280);
     engine.effects.haste = { level: 3, remainingLocks: 3 };
     expect(engine.gravityIntervalMs).toBe(140);
-    engine.lines = 0;
-    engine.effects.haste = null;
-    engine.effects.slow = { level: 3, remainingLocks: 3 };
-    expect(engine.gravityIntervalMs).toBeCloseTo(1487.5);
-  });
-
-  it('shield caps at 6 and long credits at 3', () => {
-    const engine = startedEngine();
-    engine.effects.shield = 5;
-    engine.effects.longCredits = 2;
-    engine.teams.bless.queue = [makeNode('shield', 7), makeNode('long', 7)];
-    dropOnEmpty(engine, 3);
-    expect(engine.effects.shield).toBe(6);
-    dropOnEmpty(engine, 3);
-    expect(engine.effects.longCredits).toBeLessThanOrEqual(3);
   });
 });
 
 describe('phases', () => {
   it('allows gifts before start and while paused, rejects after game over', () => {
     const engine = new GameEngine({ seed: 1, giftRng: constantRng(0) });
-    expect(engine.sendGifts('bless', 5).ok).toBe(true);
+    expect(engine.sendGifts(5).ok).toBe(true);
     engine.start();
     engine.pause();
-    expect(engine.sendGifts('curse', 5).ok).toBe(true);
+    expect(engine.sendGifts(5).ok).toBe(true);
     engine.resume();
     engine.board = createBoard();
     engine.board[0]![4] = 'G';
@@ -449,9 +368,9 @@ describe('phases', () => {
     engine.active!.x = 0;
     engine.hardDrop();
     expect(engine.phase).toBe('gameOver');
-    const before = JSON.stringify(engine.teams);
-    expect(engine.sendGifts('bless', 10).ok).toBe(false);
-    expect(JSON.stringify(engine.teams)).toBe(before);
+    const before = JSON.stringify(engine.team);
+    expect(engine.sendGifts(10).ok).toBe(false);
+    expect(JSON.stringify(engine.team)).toBe(before);
   });
 
   it('pieces cannot move before start', () => {
@@ -464,17 +383,17 @@ describe('phases', () => {
     const engine = new GameEngine({ seed: 1, giftRng: sequenceRng([0, 0.1]) });
     engine.setProbability(0.25);
     engine.start();
-    engine.sendGifts('bless', 50);
+    engine.sendGifts(50);
     dropOnEmpty(engine, 3);
     engine.restart();
     expect(engine.phase).toBe('ready');
     expect(engine.probability).toBe(0.25);
-    expect(engine.teams.bless.giftCount).toBe(0);
-    expect(engine.teams.bless.queue).toEqual([]);
+    expect(engine.team.giftCount).toBe(0);
+    expect(engine.team.queue).toEqual([]);
     expect(engine.score).toBe(0);
     expect(engine.lockedPieceCount).toBe(0);
     expect(engine.settlementCount).toBe(0);
-    expect(engine.effects.shield).toBe(0);
+    expect(engine.effects.haste).toBeNull();
     expect(engine.hold).toBeNull();
     expect(engine.board.flat().every((c) => c === null)).toBe(true);
   });

@@ -7,18 +7,15 @@ interface LabWindow {
       active: { x: number; y: number } | null;
       lockedPieceCount: number;
       settlementCount: number;
-      teams: Record<
-        'bless' | 'curse',
-        {
-          giftCount: number;
-          hitCount: number;
-          missCount: number;
-          overflowEnergy: number;
-          spentEnergy: number;
-          queue: { energy: number }[];
-          reserve: Record<string, { energy: number }>;
-        }
-      >;
+      team: {
+        giftCount: number;
+        hitCount: number;
+        missCount: number;
+        overflowEnergy: number;
+        spentEnergy: number;
+        queue: { energy: number }[];
+        reserve: Record<string, { energy: number }>;
+      };
     };
   };
 }
@@ -37,18 +34,16 @@ const engineState = (page: Page) =>
 const conservation = (page: Page) =>
   page.evaluate(() => {
     const e = (window as unknown as LabWindow).__blockLab.engine;
-    return (['bless', 'curse'] as const).map((side) => {
-      const t = e.teams[side];
-      const queue = t.queue.reduce((s, n) => s + n.energy, 0);
-      const reserve = Object.values(t.reserve).reduce((s, r) => s + r.energy, 0);
-      return {
-        gifts: t.giftCount,
-        okGifts: t.giftCount === t.hitCount + t.missCount,
-        okEnergy: t.hitCount === queue + reserve + t.spentEnergy + t.overflowEnergy,
-        queueLen: t.queue.length,
-        reserve,
-      };
-    });
+    const t = e.team;
+    const queue = t.queue.reduce((s, n) => s + n.energy, 0);
+    const reserve = Object.values(t.reserve).reduce((s, r) => s + r.energy, 0);
+    return {
+      gifts: t.giftCount,
+      okGifts: t.giftCount === t.hitCount + t.missCount,
+      okEnergy: t.hitCount === queue + reserve + t.spentEnergy + t.overflowEnergy,
+      queueLen: t.queue.length,
+      reserve,
+    };
   });
 
 let consoleErrors: string[] = [];
@@ -66,10 +61,10 @@ test.afterEach(() => {
   expect(consoleErrors).toEqual([]);
 });
 
-test('renders a real canvas board, both teams and controls', async ({ page }) => {
+test('renders a real canvas board, the curse team and controls', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '方块干预实验室' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /祝福队/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: /诅咒队/ })).toBeVisible();
+  await expect(page.getByText(/祝福/)).toHaveCount(0);
   await page.getByRole('button', { name: '开始游戏' }).click();
 
   const colours = await page.getByTestId('board').evaluate((el) => {
@@ -86,10 +81,9 @@ test('renders a real canvas board, both teams and controls', async ({ page }) =>
 });
 
 test('gift buttons, start, pause, resume and restart with confirmation', async ({ page }) => {
-  await page.getByRole('button', { name: '祝福队送 10 份星光' }).click();
+  await page.getByRole('button', { name: '诅咒队送 10 份星光' }).click();
   await page.getByRole('button', { name: '诅咒队送 100 份星光' }).click();
-  await expect(page.getByTestId('totals-bless')).toContainText('10');
-  await expect(page.getByTestId('totals-curse')).toContainText('100');
+  await expect(page.getByTestId('totals')).toContainText('礼物份数110');
 
   await page.getByRole('button', { name: '开始游戏' }).click();
   expect((await engineState(page)).phase).toBe('playing');
@@ -106,7 +100,7 @@ test('gift buttons, start, pause, resume and restart with confirmation', async (
   await page.getByRole('button', { name: '重新开始' }).click();
   await page.getByRole('button', { name: '确认重开' }).click();
   expect((await engineState(page)).phase).toBe('ready');
-  await expect(page.getByTestId('totals-bless')).not.toContainText('10');
+  await expect(page.getByTestId('totals')).toContainText('礼物份数0');
 });
 
 test('arrow keys and space control the board after clicking a gift button, without scrolling', async ({
@@ -114,7 +108,7 @@ test('arrow keys and space control the board after clicking a gift button, witho
 }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
   await page.getByRole('button', { name: '开始游戏' }).click();
-  await page.getByRole('button', { name: '祝福队送 1 份星光' }).click();
+  await page.getByRole('button', { name: '诅咒队送 1 份星光' }).click();
   const scrollBefore = await page.evaluate(() => window.scrollY);
   const before = await engineState(page);
 
@@ -129,7 +123,7 @@ test('arrow keys and space control the board after clicking a gift button, witho
   expect(after.locks).toBe(1);
   expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
   // Space was consumed by the game, not by the focused gift button.
-  await expect(page.getByTestId('totals-bless')).toContainText('礼物份数1');
+  await expect(page.getByTestId('totals')).toContainText('礼物份数1');
 });
 
 test('holding an arrow key auto-repeats with DAS/ARR', async ({ page }) => {
@@ -190,41 +184,34 @@ test('narrow layout puts the board first and never scrolls horizontally', async 
   );
   expect(overflow).toBeLessThanOrEqual(0);
   const board = await page.getByTestId('board').boundingBox();
-  const bless = await page.getByTestId('panel-bless').boundingBox();
-  expect(board!.y).toBeLessThan(bless!.y);
+  const team = await page.getByTestId('panel-team').boundingBox();
+  expect(board!.y).toBeLessThan(team!.y);
   expect(board!.width).toBeLessThanOrEqual(320);
 });
 
-test('desktop layout: bless left, board centre, curse right', async ({ page }) => {
+test('desktop layout: board left, curse team right', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  const bless = await page.getByTestId('panel-bless').boundingBox();
   const board = await page.getByTestId('board').boundingBox();
-  const curse = await page.getByTestId('panel-curse').boundingBox();
-  expect(bless!.x).toBeLessThan(board!.x);
-  expect(board!.x).toBeLessThan(curse!.x);
+  const team = await page.getByTestId('panel-team').boundingBox();
+  expect(board!.x).toBeLessThan(team!.x);
+  expect(Math.abs(board!.y - team!.y)).toBeLessThan(200);
 });
 
 test('30,000 gifts through the UI stay bounded and the game keeps working', async ({ page }) => {
   await page.getByRole('button', { name: '开始游戏' }).click();
-  for (const side of ['祝福队', '诅咒队'] as const) {
-    const input = page.getByRole('spinbutton', { name: `${side}自定义份数` });
-    await input.fill('10000');
-  }
+  await page.getByRole('spinbutton', { name: '诅咒队自定义份数' }).fill('10000');
   const started = Date.now();
   for (let i = 0; i < 3; i += 1) {
-    await page.getByRole('button', { name: '祝福队送出自定义份数' }).click();
     await page.getByRole('button', { name: '诅咒队送出自定义份数' }).click();
     await page.keyboard.press('Space');
   }
   const elapsed = Date.now() - started;
-  const teams = await conservation(page);
-  for (const t of teams) {
-    expect(t.gifts).toBe(30_000);
-    expect(t.okGifts).toBe(true);
-    expect(t.okEnergy).toBe(true);
-    expect(t.queueLen).toBeLessThanOrEqual(3);
-    expect(t.reserve).toBeLessThanOrEqual(21);
-  }
+  const t = await conservation(page);
+  expect(t.gifts).toBe(30_000);
+  expect(t.okGifts).toBe(true);
+  expect(t.okEnergy).toBe(true);
+  expect(t.queueLen).toBeLessThanOrEqual(3);
+  expect(t.reserve).toBeLessThanOrEqual(21);
   const s = await engineState(page);
   if (s.phase === 'playing') {
     await page.keyboard.press('ArrowRight');
@@ -238,7 +225,7 @@ test('30,000 gifts through the UI stay bounded and the game keeps working', asyn
   }
   test
     .info()
-    .annotations.push({ type: 'timing', description: `60,000 gifts + 3 drops: ${elapsed} ms` });
+    .annotations.push({ type: 'timing', description: `30,000 gifts + 3 drops: ${elapsed} ms` });
 });
 
 test('custom count input keeps arrow keys for itself', async ({ page }) => {

@@ -1,6 +1,6 @@
 # 方块干预实验室 (Block Intervention Lab)
 
-A single-player falling-block game where two simulated audience teams — 祝福队 (bless) and 诅咒队 (curse) — send the same virtual gift, 星光, to trigger random interventions. Interventions queue up and resolve every 3 locked pieces. The product spec is [`hand_over.md`](hand_over.md); the UI is in Simplified Chinese.
+A single-player falling-block game where a simulated audience team, 诅咒队 (curse), sends a virtual gift, 星光, to trigger random curses against the player. Curses queue up and resolve every 3 locked pieces. The product spec is [`hand_over.md`](hand_over.md); the UI is in Simplified Chinese.
 
 Everything runs locally: no live-stream API, payments, backend or network access at runtime.
 
@@ -58,10 +58,10 @@ src/
     types.ts
     random.ts      # seedable RNG, Fisher–Yates, independent streams
     pieces.ts      # matrices, rotation, simplified kicks, 7-bag
-    board.ts       # collision, line clears, garbage, bottom-row removal
+    board.ts       # collision, line clears, garbage
     interventions.ts  # queue, merge, promotion, reserve, settlement, conservation
     gifts.ts       # per-gift trigger + effect draw, batch stats
-    effects.ts     # 8 effects, timed states, gravity formula
+    effects.ts     # 4 curse effects, timed states, gravity formula
     game.ts        # GameEngine: phases, lock sequence, 3-piece settlement, log
   adapters/local-gift.ts  # the only gift source: button clicks → GiftBatchInput
   input/keyboard.ts       # DAS/ARR, focus and scroll handling
@@ -78,22 +78,22 @@ The engine updates the board every frame. The React panels re-render only when t
 
 ## Testing
 
-- **Unit (Jest):** covers the 7-bag, collision, movement, rotation and kicks, the ghost piece, scoring, gravity remainder, 500 ms lock delay, the 12-reset limit, and free air moves. It also covers hold, seal, long-piece credits matching the preview, settling every 3 locks, empty queues, shield/clear running before garbage, top-out, line-clear cancellation, timed-effect windows, pause, and gift rules by phase. Every deterministic example from spec §14 (A–G) has a test. Probability tests use fixed RNG sequences, so none of them can fail at random.
+- **Unit (Jest):** covers the 7-bag, collision, movement, rotation and kicks, the ghost piece, scoring, gravity remainder, 500 ms lock delay, the 12-reset limit, and free air moves. It also covers hold, seal, fog, settling every 3 locks, empty queues, top-out, line-clear cancellation, timed-effect windows, pause, and gift rules by phase. Every deterministic example from spec §14 (A–G) has a test, except D (shield before garbage), which went away with the bless team. Probability tests use fixed RNG sequences, so none of them can fail at random.
 - **Integration (Jest + Testing Library):** example B through the real UI, distinct miss and overflow messages, invalid input rejection, start/pause/resume/restart confirmation, and keyboard focus after button clicks.
-- **Stress:** 30,000+ mixed gifts for both teams, with 0–5 locks between batches. Capacity, conservation and bounded state are checked after every batch, and the game is checked to still be playable afterwards.
-- **E2E (Playwright, Chromium):** real Canvas pixels and DPR sizing, gift buttons, phase controls, arrow/Space after clicking a gift button with no scroll, DAS/ARR hold, rapid hard drops, auto-pause on hidden with no catch-up, 320 px and desktop layouts, 60,000 UI gifts, and focus handling for the number input. Every test also asserts there were no console errors.
+- **Stress:** 30,000+ gifts in mixed batch sizes, with 0–5 locks between batches. Capacity, conservation and bounded state are checked after every batch, and the game is checked to still be playable afterwards.
+- **E2E (Playwright, Chromium):** real Canvas pixels and DPR sizing, gift buttons, phase controls, arrow/Space after clicking a gift button with no scroll, DAS/ARR hold, rapid hard drops, auto-pause on hidden with no catch-up, 320 px and desktop layouts, 30,000 UI gifts, and focus handling for the number input. Every test also asserts there were no console errors.
 
 ### Recorded results
 
-Measured on 2026-10-02 on an Apple M1 Max (macOS 26.6), Node 25.9, Chromium (Playwright 1.63 headless shell):
+Measured on 2026-10-03 on an Apple M1 Max (macOS 26.6), Node 25.9, Chromium (Playwright 1.63 headless shell):
 
-| Suite                      | Result                                             |
-| -------------------------- | -------------------------------------------------- |
-| `pnpm test` (Jest)         | 79 / 79 passed                                     |
-| Stress (engine)            | 30,171 gifts, 41 settlements, ≈ 83 ms              |
-| `pnpm test:e2e` (Chromium) | 10 / 10 passed                                     |
-| E2E UI stress              | 60,000 gifts (6 × 10,000 batches) + drops, ≈ 0.5 s |
-| `pnpm build` (Vite)        | succeeds                                           |
+| Suite                      | Result                                            |
+| -------------------------- | ------------------------------------------------- |
+| `pnpm test` (Jest)         | 73 / 73 passed                                    |
+| Stress (engine)            | 31,440 gifts, 30 settlements, ≈ 60 ms             |
+| `pnpm test:e2e` (Chromium) | 10 / 10 passed                                    |
+| E2E UI stress              | 30,000 gifts (3 × 10,000 batches) + drops, passes |
+| `pnpm build` (Vite)        | succeeds                                          |
 
 These timings depend on the hardware. **Windows, Edge and Firefox were not tested.** Only Chromium on macOS was run.
 

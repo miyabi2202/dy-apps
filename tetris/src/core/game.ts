@@ -1,12 +1,10 @@
 import { clearFullLines, collides, createBoard } from './board';
-import { CONFIG, EFFECT_INFO, GIFT_NAME, SIDE_INFO } from './config';
+import { CONFIG, EFFECT_INFO, GIFT_NAME, TEAM_INFO } from './config';
 import {
-  applyBless,
   applyCurse,
   createEffects,
   gravityIntervalMs,
   tickTimedEffects,
-  type BlessOutcome,
   type CurseOutcome,
   type EffectsState,
 } from './effects';
@@ -23,7 +21,6 @@ import type {
   IdSource,
   Phase,
   PieceType,
-  Side,
   TeamState,
 } from './types';
 
@@ -40,15 +37,13 @@ export type LogKind = 'gift' | 'miss' | 'overflow' | 'promote' | 'settle' | 'can
 export interface LogEntry {
   id: number;
   kind: LogKind;
-  side?: Side;
   text: string;
 }
 
 export interface SettlementReport {
   index: number;
-  bless: { node: EffectNode; outcome: BlessOutcome } | null;
-  curse: { node: EffectNode; outcome: CurseOutcome } | null;
-  promotedEffects: Record<Side, EffectType[]>;
+  executed: { node: EffectNode; outcome: CurseOutcome } | null;
+  promotedEffects: EffectType[];
 }
 
 export type GiftResponse = { ok: true; result: GiftBatchResult } | { ok: false; error: string };
@@ -61,16 +56,15 @@ export class GameEngine {
   active: ActivePiece | null = null;
   hold: PieceType | null = null;
   canHold = true;
-  /** Raw upcoming sequence, before long-piece substitution. */
   upcoming: PieceType[] = [];
   score = 0;
   lines = 0;
   lockedPieceCount = 0;
   settlementCount = 0;
-  teams: Record<Side, TeamState> = { bless: createTeam(), curse: createTeam() };
+  team: TeamState = createTeam();
   effects: EffectsState = createEffects();
   probability: number;
-  lastBatch: Record<Side, GiftBatchResult | null> = { bless: null, curse: null };
+  lastBatch: GiftBatchResult | null = null;
   lastSettlement: SettlementReport | null = null;
   log: LogEntry[] = [];
   gameOverReason: string | null = null;
@@ -119,9 +113,9 @@ export class GameEngine {
     for (const listener of this.listeners) listener();
   }
 
-  private pushLog(kind: LogKind, text: string, side?: Side): void {
+  private pushLog(kind: LogKind, text: string): void {
     this.logId += 1;
-    this.log.unshift({ id: this.logId, kind, side, text });
+    this.log.unshift({ id: this.logId, kind, text });
     if (this.log.length > CONFIG.log.maxEntries) this.log.length = CONFIG.log.maxEntries;
   }
 
@@ -140,11 +134,8 @@ export class GameEngine {
     return gravityIntervalMs(this.lines, this.effects);
   }
 
-  /** What the next pieces will actually be, including pending long-piece credits. */
   get preview(): PieceType[] {
-    return this.upcoming
-      .slice(0, CONFIG.sequence.visiblePreview)
-      .map((type, i) => (i < this.effects.longCredits ? 'I' : type));
+    return this.upcoming.slice(0, CONFIG.sequence.visiblePreview);
   }
 
   get previewHidden(): boolean {
@@ -163,12 +154,7 @@ export class GameEngine {
 
   /** True when restarting would discard something. */
   get hasProgress(): boolean {
-    return (
-      this.phase !== 'ready' ||
-      this.lockedPieceCount > 0 ||
-      this.teams.bless.giftCount > 0 ||
-      this.teams.curse.giftCount > 0
-    );
+    return this.phase !== 'ready' || this.lockedPieceCount > 0 || this.team.giftCount > 0;
   }
 
   // ---------------------------------------------------------------- phases
@@ -212,9 +198,9 @@ export class GameEngine {
     this.lines = 0;
     this.lockedPieceCount = 0;
     this.settlementCount = 0;
-    this.teams = { bless: createTeam(), curse: createTeam() };
+    this.team = createTeam();
     this.effects = createEffects();
-    this.lastBatch = { bless: null, curse: null };
+    this.lastBatch = null;
     this.lastSettlement = null;
     this.log = [];
     this.gameOverReason = null;
@@ -239,7 +225,7 @@ export class GameEngine {
 
   // ---------------------------------------------------------------- gifts
 
-  sendGifts(side: Side, count: number): GiftResponse {
+  sendGifts(count: number): GiftResponse {
     if (this.phase === 'gameOver') return { ok: false, error: '游戏已结束，不能送礼。' };
     if (!isValidBatchCount(count)) {
       return {
@@ -248,17 +234,17 @@ export class GameEngine {
       };
     }
     const p = this.probability;
-    const result = processGiftBatch(this.teams[side], side, count, p, this.giftRng, this.ids);
-    this.lastBatch[side] = result;
+    const result = processGiftBatch(this.team, count, p, this.giftRng, this.ids);
+    this.lastBatch = result;
     this.logBatch(result);
     this.emit();
     return { ok: true, result };
   }
 
   private logBatch(r: GiftBatchResult): void {
-    const team = SIDE_INFO[r.side].name;
+    const team = TEAM_INFO.name;
     if (r.hits === 0) {
-      this.pushLog('miss', `${team}送出 ${r.count} 份${GIFT_NAME}：未触发，队列没有改变。`, r.side);
+      this.pushLog('miss', `${team}送出 ${r.count} 份${GIFT_NAME}：未触发，队列没有改变。`);
       return;
     }
     const effects = (Object.entries(r.effects) as [EffectType, number][])
@@ -270,17 +256,12 @@ export class GameEngine {
     this.pushLog(
       'gift',
       `${team}送出 ${r.count} 份${GIFT_NAME}：触发 ${r.hits}（${effects}），未触发 ${r.misses}；${parts.join('，')}。`,
-      r.side,
     );
     if (r.overflowEnergy > 0) {
-      this.pushLog(
-        'overflow',
-        `${team}：${r.overflowEnergy} 点已触发，但容量已满，仅记录贡献。`,
-        r.side,
-      );
+      this.pushLog('overflow', `${team}：${r.overflowEnergy} 点已触发，但容量已满，仅记录贡献。`);
     }
     for (const type of r.promotedEffects) {
-      this.pushLog('promote', `${team}：${EFFECT_INFO[type].name}升级后插队前移一位。`, r.side);
+      this.pushLog('promote', `${team}：${EFFECT_INFO[type].name}升级后插队前移一位。`);
     }
   }
 
@@ -405,14 +386,9 @@ export class GameEngine {
     this.lockResets = 0;
   }
 
-  /** Take the next piece from the sequence, applying a long-piece credit if any. */
   private spawnNext(): void {
-    let type = this.upcoming.shift()!;
+    const type = this.upcoming.shift()!;
     this.fillUpcoming();
-    if (this.effects.longCredits > 0) {
-      this.effects.longCredits -= 1;
-      type = 'I';
-    }
     this.spawn(type);
   }
 
@@ -444,9 +420,9 @@ export class GameEngine {
     if (cleared > 0) {
       this.score += CONFIG.score.lineClear[cleared] ?? 0;
       this.lines += cleared;
-      const canceled = cancelGarbage(this.teams.curse, cleared);
+      const canceled = cancelGarbage(this.team, cleared);
       if (canceled > 0) {
-        this.pushLog('cancel', `消除 ${cleared} 行，抵消待执行垃圾 ${canceled} 行。`, 'curse');
+        this.pushLog('cancel', `消除 ${cleared} 行，抵消待执行垃圾 ${canceled} 行。`);
       }
     }
 
@@ -465,61 +441,41 @@ export class GameEngine {
     this.emit();
   }
 
-  /** Atomic settlement: both heads pop, reserves refill, bless runs, then curse. */
+  /** Atomic settlement: the head pops, the reserve refills, then the head runs. */
   private settle(): void {
     this.settlementCount += 1;
-    const bless = settleTeam(this.teams.bless, this.ids);
-    const curse = settleTeam(this.teams.curse, this.ids);
-
+    const settled = settleTeam(this.team, this.ids);
     const report: SettlementReport = {
       index: this.settlementCount,
-      bless: null,
-      curse: null,
-      promotedEffects: { bless: bless.promotedEffects, curse: curse.promotedEffects },
+      executed: settled.executed
+        ? {
+            node: settled.executed,
+            outcome: applyCurse(this.effects, this.board, settled.executed, this.garbageRng),
+          }
+        : null,
+      promotedEffects: settled.promotedEffects,
     };
-    if (bless.executed) {
-      report.bless = {
-        node: bless.executed,
-        outcome: applyBless(this.effects, this.board, bless.executed),
-      };
-    }
-    if (curse.executed) {
-      report.curse = {
-        node: curse.executed,
-        outcome: applyCurse(this.effects, this.board, curse.executed, this.garbageRng),
-      };
-    }
     this.lastSettlement = report;
     this.logSettlement(report);
-    if (report.curse?.outcome.toppedOut) this.endGame('垃圾行将方块挤出顶部');
+    if (report.executed?.outcome.toppedOut) this.endGame('垃圾行将方块挤出顶部');
   }
 
   private logSettlement(r: SettlementReport): void {
-    const describe = (node: EffectNode) =>
-      `${EFFECT_INFO[node.type].name} Lv.${levelOf(node.energy)}`;
-    const parts: string[] = [];
-    parts.push(r.bless ? `祝福执行 ${describe(r.bless.node)}` : '祝福队列为空');
-    if (r.curse) {
-      let text = `诅咒执行 ${describe(r.curse.node)}`;
-      if (r.curse.node.type === 'garbage') {
-        const o = r.curse.outcome;
-        text += `，净增 ${o.netGarbage} 行`;
-        if (o.shieldAbsorbed) text += `（护盾抵消 ${o.shieldAbsorbed}）`;
-        if (r.curse.node.canceledLines) text += `（消行已抵消 ${r.curse.node.canceledLines}）`;
+    let text = '队列为空';
+    if (r.executed) {
+      const { node, outcome } = r.executed;
+      text = `执行 ${EFFECT_INFO[node.type].name} Lv.${levelOf(node.energy)}`;
+      if (node.type === 'garbage') {
+        text += `，净增 ${outcome.netGarbage} 行`;
+        if (node.canceledLines) text += `（消行已抵消 ${node.canceledLines}）`;
       }
-      parts.push(text);
-    } else {
-      parts.push('诅咒队列为空');
     }
-    this.pushLog('settle', `第 ${r.index} 次结算：${parts.join('；')}。`);
-    for (const side of ['bless', 'curse'] as const) {
-      for (const type of r.promotedEffects[side]) {
-        this.pushLog(
-          'promote',
-          `${SIDE_INFO[side].name}：储备强化${EFFECT_INFO[type].name}后插队前移一位。`,
-          side,
-        );
-      }
+    this.pushLog('settle', `第 ${r.index} 次结算：${text}。`);
+    for (const type of r.promotedEffects) {
+      this.pushLog(
+        'promote',
+        `${TEAM_INFO.name}：储备强化${EFFECT_INFO[type].name}后插队前移一位。`,
+      );
     }
   }
 }

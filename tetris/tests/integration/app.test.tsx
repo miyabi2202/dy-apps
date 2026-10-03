@@ -16,49 +16,49 @@ function setup(giftRng = constantRng(0)) {
 }
 
 describe('App', () => {
-  it('shows both teams, the board and the countdown', () => {
+  it('shows the curse team only, the board and the countdown', () => {
     setup();
-    expect(screen.getByRole('heading', { name: /祝福队/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /诅咒队/ })).toBeInTheDocument();
+    expect(screen.queryByText(/祝福/)).not.toBeInTheDocument();
     expect(screen.getByTestId('board')).toBeInTheDocument();
-    expect(screen.getByTestId('countdown')).toHaveTextContent('再落下 3 块，双方结算');
+    expect(screen.getByTestId('countdown')).toHaveTextContent('再落下 3 块，诅咒结算');
   });
 
-  it('example B through the UI: 10 forced shields', async () => {
+  it('example B through the UI: 10 forced garbage hits', async () => {
     const { engine, user } = setup();
     for (let i = 0; i < 10; i += 1) {
-      await user.click(screen.getByRole('button', { name: '祝福队送 1 份星光' }));
+      await user.click(screen.getByRole('button', { name: '诅咒队送 1 份星光' }));
     }
-    const panel = screen.getByTestId('panel-bless');
-    expect(within(panel).getByTestId('slot-0')).toHaveTextContent('护盾 Lv.1');
+    const panel = screen.getByTestId('panel-team');
+    expect(within(panel).getByTestId('slot-0')).toHaveTextContent('垃圾行 Lv.1');
     expect(within(panel).getByTestId('slot-0')).toHaveTextContent('锁定');
-    expect(within(panel).getByTestId('slot-1')).toHaveTextContent('护盾 Lv.3');
+    expect(within(panel).getByTestId('slot-1')).toHaveTextContent('垃圾行 Lv.3');
     expect(within(panel).getByTestId('slot-1')).toHaveTextContent('能量 7/7');
     expect(within(panel).getByTestId('slot-2')).toHaveTextContent('空');
-    expect(within(panel).getByTestId('reserve-bless')).toHaveTextContent('护盾2');
-    expect(engine.teams.bless.overflowEnergy).toBe(0);
+    expect(within(panel).getByTestId('reserve')).toHaveTextContent('垃圾行2');
+    expect(engine.team.overflowEnergy).toBe(0);
   });
 
   it('reports misses and overflow distinctly', async () => {
     const { engine, user } = setup(constantRng(0.99));
     await user.click(screen.getByRole('button', { name: '诅咒队送 10 份星光' }));
-    expect(screen.getByTestId('batch-curse')).toHaveTextContent('未触发，队列没有改变');
+    expect(screen.getByTestId('batch')).toHaveTextContent('未触发，队列没有改变');
 
     act(() => {
       engine.setProbability(1);
     });
     await user.click(screen.getByRole('button', { name: '诅咒队送 100 份星光' }));
-    expect(screen.getByTestId('batch-curse')).toHaveTextContent('已触发，但容量已满，仅记录贡献');
+    expect(screen.getByTestId('batch')).toHaveTextContent('已触发，但容量已满，仅记录贡献');
   });
 
   it('rejects invalid custom counts without changing state', async () => {
     const { engine, user } = setup();
-    const input = screen.getByRole('spinbutton', { name: '祝福队自定义份数' });
+    const input = screen.getByRole('spinbutton', { name: '诅咒队自定义份数' });
     await user.clear(input);
     await user.type(input, '0');
-    await user.click(screen.getByRole('button', { name: '祝福队送出自定义份数' }));
+    await user.click(screen.getByRole('button', { name: '诅咒队送出自定义份数' }));
     expect(screen.getByRole('alert')).toHaveTextContent('份数必须是');
-    expect(engine.teams.bless.giftCount).toBe(0);
+    expect(engine.team.giftCount).toBe(0);
   });
 
   it('starts, pauses, resumes and confirms restart in-page', async () => {
@@ -83,14 +83,14 @@ describe('App', () => {
   it('keyboard drives the piece after clicking a gift button', async () => {
     const { engine, user } = setup();
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
-    await user.click(screen.getByRole('button', { name: '祝福队送 1 份星光' }));
+    await user.click(screen.getByRole('button', { name: '诅咒队送 1 份星光' }));
     const x = engine.active!.x;
     await user.keyboard('{ArrowLeft}');
     expect(engine.active!.x).toBe(x - 1);
     await user.keyboard(' ');
     expect(engine.lockedPieceCount).toBe(1);
     // Space did not also activate the focused gift button.
-    expect(engine.teams.bless.giftCount).toBe(1);
+    expect(engine.team.giftCount).toBe(1);
   });
 
   it('typing in the custom count field does not move the piece', async () => {

@@ -1,4 +1,4 @@
-import { EFFECT_POOLS } from '../../src/core/config';
+import { EFFECT_POOL } from '../../src/core/config';
 import { GameEngine } from '../../src/core/game';
 import { processGiftBatch } from '../../src/core/gifts';
 import { createTeam, isConserved } from '../../src/core/interventions';
@@ -15,7 +15,7 @@ function checkBatchAccounting(r: GiftBatchResult) {
 describe('example A: probability boundaries', () => {
   it('0% -> 100 misses, queue and reserve unchanged', () => {
     const team = createTeam();
-    const r = processGiftBatch(team, 'bless', 100, 0, mulberry32(1), makeIds());
+    const r = processGiftBatch(team, 100, 0, mulberry32(1), makeIds());
     expect(r.misses).toBe(100);
     expect(team.queue).toEqual([]);
     expect(team.reserve).toEqual({});
@@ -24,7 +24,7 @@ describe('example A: probability boundaries', () => {
 
   it('100% -> 100 hits with random effects', () => {
     const team = createTeam();
-    const r = processGiftBatch(team, 'curse', 100, 1, mulberry32(1), makeIds());
+    const r = processGiftBatch(team, 100, 1, mulberry32(1), makeIds());
     expect(r.hits).toBe(100);
     expect(Object.keys(r.effects).length).toBeGreaterThan(1);
     checkBatchAccounting(r);
@@ -32,29 +32,26 @@ describe('example A: probability boundaries', () => {
 
   it('a trigger draw exactly equal to p misses', () => {
     const team = createTeam();
-    const r = processGiftBatch(team, 'bless', 1, 0.6, constantRng(0.6), makeIds());
+    const r = processGiftBatch(team, 1, 0.6, constantRng(0.6), makeIds());
     expect(r.misses).toBe(1);
-    const r2 = processGiftBatch(team, 'bless', 1, 0.6, sequenceRng([0.5999, 0]), makeIds());
+    const r2 = processGiftBatch(team, 1, 0.6, sequenceRng([0.5999, 0]), makeIds());
     expect(r2.hits).toBe(1);
   });
 
-  it.each(['bless', 'curse'] as const)(
-    '%s draws cover four equal quarters of its own pool',
-    (side) => {
-      const draws: [number, string][] = [
-        [0, EFFECT_POOLS[side][0]!],
-        [0.2499, EFFECT_POOLS[side][0]!],
-        [0.25, EFFECT_POOLS[side][1]!],
-        [0.5, EFFECT_POOLS[side][2]!],
-        [0.75, EFFECT_POOLS[side][3]!],
-        [0.9999, EFFECT_POOLS[side][3]!],
-      ];
-      for (const [u, expected] of draws) {
-        const r = processGiftBatch(createTeam(), side, 1, 1, sequenceRng([0, u]), makeIds());
-        expect(Object.keys(r.effects)).toEqual([expected]);
-      }
-    },
-  );
+  it('draws cover four equal quarters of the pool', () => {
+    const draws: [number, string][] = [
+      [0, EFFECT_POOL[0]!],
+      [0.2499, EFFECT_POOL[0]!],
+      [0.25, EFFECT_POOL[1]!],
+      [0.5, EFFECT_POOL[2]!],
+      [0.75, EFFECT_POOL[3]!],
+      [0.9999, EFFECT_POOL[3]!],
+    ];
+    for (const [u, expected] of draws) {
+      const r = processGiftBatch(createTeam(), 1, 1, sequenceRng([0, u]), makeIds());
+      expect(Object.keys(r.effects)).toEqual([expected]);
+    }
+  });
 });
 
 describe('batches', () => {
@@ -65,9 +62,9 @@ describe('batches', () => {
     const singleRng = mulberry32(123);
     const batchIds = makeIds();
     const singleIds = makeIds();
-    processGiftBatch(batchTeam, 'curse', 100, 0.6, batchRng, batchIds);
+    processGiftBatch(batchTeam, 100, 0.6, batchRng, batchIds);
     for (let i = 0; i < 100; i += 1) {
-      processGiftBatch(singleTeam, 'curse', 1, 0.6, singleRng, singleIds);
+      processGiftBatch(singleTeam, 1, 0.6, singleRng, singleIds);
     }
     expect(singleTeam).toEqual(batchTeam);
   });
@@ -76,7 +73,7 @@ describe('batches', () => {
     const team = createTeam();
     const rng = mulberry32(77);
     for (let i = 0; i < 30; i += 1) {
-      const r = processGiftBatch(team, i % 2 ? 'bless' : 'curse', 1 + i * 7, 0.6, rng, makeIds());
+      const r = processGiftBatch(team, 1 + i * 7, 0.6, rng, makeIds());
       checkBatchAccounting(r);
       expect(isConserved(team)).toBe(true);
     }
@@ -85,19 +82,19 @@ describe('batches', () => {
   it('rejects invalid counts without touching state', () => {
     const engine = new GameEngine({ seed: 1 });
     for (const bad of [0, -1, 1.5, 10_001, Number.NaN]) {
-      const res = engine.sendGifts('bless', bad);
+      const res = engine.sendGifts(bad);
       expect(res.ok).toBe(false);
     }
-    expect(engine.teams.bless.giftCount).toBe(0);
-    expect(engine.sendGifts('bless', 10_000).ok).toBe(true);
+    expect(engine.team.giftCount).toBe(0);
+    expect(engine.sendGifts(10_000).ok).toBe(true);
   });
 
   it('uses the probability at the start of the batch; later changes only affect later batches', () => {
     const engine = new GameEngine({ seed: 1, giftRng: constantRng(0.3) });
     engine.setProbability(0.25);
-    const first = engine.sendGifts('bless', 10);
+    const first = engine.sendGifts(10);
     engine.setProbability(0.5);
-    const second = engine.sendGifts('bless', 10);
+    const second = engine.sendGifts(10);
     expect(first.ok && first.result.hits).toBe(0);
     expect(second.ok && second.result.hits).toBe(10);
   });
@@ -105,8 +102,7 @@ describe('batches', () => {
   it('gifts do not change the native piece sequence', () => {
     const a = new GameEngine({ seed: 5 });
     const b = new GameEngine({ seed: 5 });
-    b.sendGifts('bless', 500);
-    b.sendGifts('curse', 500);
+    b.sendGifts(1000);
     expect(b.upcoming).toEqual(a.upcoming);
   });
 });

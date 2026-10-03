@@ -1,10 +1,10 @@
 import * as stylex from '@stylexjs/stylex';
 import { useState } from 'react';
 import type { LocalGiftAdapter } from '../adapters/local-gift';
-import { CONFIG, EFFECT_INFO, EFFECT_POOLS, GIFT_NAME, SIDE_INFO } from '../core/config';
+import { CONFIG, EFFECT_INFO, EFFECT_POOL, GIFT_NAME, TEAM_INFO } from '../core/config';
 import type { GameEngine } from '../core/game';
 import { levelOf, netGarbage, reserveTotal } from '../core/interventions';
-import type { EffectNode, GiftBatchResult, Side } from '../core/types';
+import type { EffectNode, GiftBatchResult } from '../core/types';
 import { effectName, percent } from './format';
 import { ui } from './styles';
 import { colors } from './tokens.stylex';
@@ -12,34 +12,26 @@ import { colors } from './tokens.stylex';
 interface Props {
   engine: GameEngine;
   gifts: LocalGiftAdapter;
-  side: Side;
 }
 
-export function TeamPanel({ engine, gifts, side }: Props) {
-  const team = engine.teams[side];
-  const info = SIDE_INFO[side];
+export function TeamPanel({ engine, gifts }: Props) {
+  const { team } = engine;
   const disabled = engine.phase === 'gameOver';
   const [custom, setCustom] = useState('1000');
   const [error, setError] = useState<string | null>(null);
 
   const send = (count: number) => {
-    const res = gifts.send(side, count);
+    const res = gifts.send(count);
     setError(res.ok ? null : res.error);
   };
 
-  const accent = side === 'bless' ? styles.blessAccent : styles.curseAccent;
-  const pool = EFFECT_POOLS[side];
-
   return (
     <section
-      aria-label={info.name}
-      data-testid={`panel-${side}`}
-      {...stylex.props(ui.panel, styles.panel, accent)}
+      aria-label={TEAM_INFO.name}
+      data-testid="panel-team"
+      {...stylex.props(ui.panel, styles.panel)}
     >
-      <h2 {...stylex.props(styles.title, side === 'bless' ? styles.blessText : styles.curseText)}>
-        {side === 'bless' ? '✚ ' : '✖ '}
-        {info.name}
-      </h2>
+      <h2 {...stylex.props(styles.title)}>✖ {TEAM_INFO.name}</h2>
 
       <div {...stylex.props(styles.giftCard)}>
         <div {...stylex.props(styles.giftHeader)}>
@@ -49,8 +41,8 @@ export function TeamPanel({ engine, gifts, side }: Props) {
           <div>
             <div {...stylex.props(styles.giftName)}>{GIFT_NAME}</div>
             <div {...stylex.props(ui.muted)}>
-              触发概率 {percent(engine.probability)}，命中后从{info.short}效果池四选一（各{' '}
-              {percent(1 / pool.length)}）
+              触发概率 {percent(engine.probability)}，命中后从{TEAM_INFO.short}效果池四选一（各{' '}
+              {percent(1 / EFFECT_POOL.length)}）
             </div>
           </div>
         </div>
@@ -60,12 +52,9 @@ export function TeamPanel({ engine, gifts, side }: Props) {
               key={n}
               type="button"
               disabled={disabled}
-              aria-label={`${info.name}送 ${n} 份${GIFT_NAME}`}
+              aria-label={`${TEAM_INFO.name}送 ${n} 份${GIFT_NAME}`}
               onClick={() => send(n)}
-              {...stylex.props(
-                ui.button,
-                side === 'bless' ? styles.blessButton : styles.curseButton,
-              )}
+              {...stylex.props(ui.button, styles.giftButton)}
             >
               送 {n} 份
             </button>
@@ -88,14 +77,14 @@ export function TeamPanel({ engine, gifts, side }: Props) {
               step={1}
               value={custom}
               onChange={(e) => setCustom(e.target.value)}
-              aria-label={`${info.name}自定义份数`}
+              aria-label={`${TEAM_INFO.name}自定义份数`}
               {...stylex.props(ui.input)}
             />
           </label>
           <button
             type="submit"
             disabled={disabled}
-            aria-label={`${info.name}送出自定义份数`}
+            aria-label={`${TEAM_INFO.name}送出自定义份数`}
             {...stylex.props(ui.button)}
           >
             送出
@@ -109,7 +98,7 @@ export function TeamPanel({ engine, gifts, side }: Props) {
         <details {...stylex.props(styles.details)}>
           <summary {...stylex.props(styles.summary)}>效果池</summary>
           <ul {...stylex.props(styles.poolList)}>
-            {pool.map((type) => (
+            {EFFECT_POOL.map((type) => (
               <li key={type}>
                 <strong>{EFFECT_INFO[type].name}</strong>：{EFFECT_INFO[type].levels.join(' / ')}
               </li>
@@ -118,10 +107,10 @@ export function TeamPanel({ engine, gifts, side }: Props) {
         </details>
       </div>
 
-      <BatchSummary result={engine.lastBatch[side]} />
+      <BatchSummary result={engine.lastBatch} />
 
       <h3 {...stylex.props(ui.subTitle)}>待执行队列</h3>
-      <ol {...stylex.props(styles.queue)} aria-label={`${info.name}待执行队列`}>
+      <ol {...stylex.props(styles.queue)} aria-label={`${TEAM_INFO.name}待执行队列`}>
         {Array.from({ length: CONFIG.queue.capacity }, (_, i) => (
           <QueueSlot
             key={i}
@@ -135,8 +124,8 @@ export function TeamPanel({ engine, gifts, side }: Props) {
       <h3 {...stylex.props(ui.subTitle)}>
         储备 {reserveTotal(team)} / {CONFIG.queue.reserveCapacity}
       </h3>
-      <ul {...stylex.props(styles.reserve)} data-testid={`reserve-${side}`}>
-        {pool.map((type) => (
+      <ul {...stylex.props(styles.reserve)} data-testid="reserve">
+        {EFFECT_POOL.map((type) => (
           <li key={type} {...stylex.props(styles.reserveItem)}>
             <span>{effectName(type)}</span>
             <strong>{team.reserve[type]?.energy ?? 0}</strong>
@@ -145,7 +134,7 @@ export function TeamPanel({ engine, gifts, side }: Props) {
       </ul>
 
       <h3 {...stylex.props(ui.subTitle)}>累计</h3>
-      <dl {...stylex.props(ui.statGrid)} data-testid={`totals-${side}`}>
+      <dl {...stylex.props(ui.statGrid)} data-testid="totals">
         <Stat label="礼物份数" value={team.giftCount} />
         <Stat label="命中" value={team.hitCount} />
         <Stat label="未触发" value={team.missCount} />
@@ -177,7 +166,7 @@ function BatchSummary({ result }: { result: GiftBatchResult | null }) {
   }
   const effects = Object.entries(result.effects) as [keyof typeof EFFECT_INFO, number][];
   return (
-    <div {...stylex.props(styles.batch)} data-testid={`batch-${result.side}`}>
+    <div {...stylex.props(styles.batch)} data-testid="batch">
       <h3 {...stylex.props(ui.subTitle)}>
         最近批次 · {result.count} 份（概率 {percent(result.triggerProbability)}）
       </h3>
@@ -280,16 +269,14 @@ function QueueSlot({
 
 const styles = stylex.create({
   panel: {
+    borderTopColor: colors.curse,
     borderTopWidth: 4,
   },
-  blessAccent: { borderTopColor: colors.bless },
-  curseAccent: { borderTopColor: colors.curse },
   title: {
     margin: 0,
+    color: colors.curse,
     fontSize: 20,
   },
-  blessText: { color: colors.bless },
-  curseText: { color: colors.curse },
   giftCard: {
     padding: 12,
     borderRadius: 10,
@@ -316,14 +303,7 @@ const styles = stylex.create({
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
   },
-  blessButton: {
-    borderColor: colors.bless,
-    backgroundColor: {
-      default: colors.blessSoft,
-      ':hover': 'rgba(52, 211, 153, 0.25)',
-    },
-  },
-  curseButton: {
+  giftButton: {
     borderColor: colors.curse,
     backgroundColor: {
       default: colors.curseSoft,

@@ -35,13 +35,6 @@ export function clearFullLines(board: Board): number {
   return cleared;
 }
 
-/** Remove the bottom `n` rows whether or not they are full. */
-export function removeBottomRows(board: Board, n: number): void {
-  const count = Math.min(n, rows);
-  board.splice(rows - count, count);
-  for (let i = 0; i < count; i += 1) board.unshift(emptyRow());
-}
-
 /**
  * Push `n` garbage rows in from the bottom, each with one random hole.
  * Returns true if a non-empty row was pushed off the top (game over).

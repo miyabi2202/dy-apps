@@ -1,4 +1,4 @@
-import type { EffectType, Side } from './types';
+import type { EffectType } from './types';
 
 /** Every gameplay number lives here. UI and engine code must not hard-code these. */
 export const CONFIG = {
@@ -18,7 +18,6 @@ export const CONFIG = {
     linesPerStep: 10,
     minMs: 140,
     maxMs: 1800,
-    slowPerLevel: 0.25,
     hasteMultipliers: [0.8, 0.65, 0.5],
   },
   score: {
@@ -46,45 +45,25 @@ export const CONFIG = {
   },
   settlement: { everyLocks: 3 },
   effects: {
-    shieldMax: 6,
-    longMaxCredits: 3,
-    /** Duration of slow/haste, in locks. */
+    /** Duration of haste, in locks. */
     timedLocks: 3,
   },
   log: { maxEntries: 10 },
   frame: { maxDtMs: 100 },
 } as const;
 
-export const EFFECT_POOLS: Record<Side, readonly EffectType[]> = {
-  bless: ['shield', 'clear', 'long', 'slow'],
-  curse: ['garbage', 'haste', 'fog', 'seal'],
-};
+export const EFFECT_POOL: readonly EffectType[] = ['garbage', 'haste', 'fog', 'seal'];
 
-export const SIDE_INFO: Record<Side, { name: string; short: string }> = {
-  bless: { name: '祝福队', short: '祝福' },
-  curse: { name: '诅咒队', short: '诅咒' },
-};
+export const TEAM_INFO = { name: '诅咒队', short: '诅咒' } as const;
 
 export const GIFT_NAME = '星光';
 
 export const EFFECT_INFO: Record<
   EffectType,
-  { name: string; side: Side; levels: readonly [string, string, string] }
+  { name: string; levels: readonly [string, string, string] }
 > = {
-  shield: { name: '护盾', side: 'bless', levels: ['+1 层', '+2 层', '+3 层'] },
-  clear: {
-    name: '清障',
-    side: 'bless',
-    levels: ['移除底部 1 行', '移除底部 2 行', '移除底部 3 行'],
-  },
-  long: {
-    name: '长条补给',
-    side: 'bless',
-    levels: ['接下来 1 个新生方块为 I', '接下来 2 个为 I', '接下来 3 个为 I'],
-  },
-  slow: { name: '缓速', side: 'bless', levels: ['下降间隔 ×1.25', '×1.5', '×1.75'] },
-  garbage: { name: '垃圾行', side: 'curse', levels: ['+1 行', '+2 行', '+3 行'] },
-  haste: { name: '加速', side: 'curse', levels: ['下降间隔 ×0.8', '×0.65', '×0.5'] },
-  fog: { name: '迷雾', side: 'curse', levels: ['隐藏预览 1 块', '2 块', '3 块'] },
-  seal: { name: '封存', side: 'curse', levels: ['禁用暂存 1 块', '2 块', '3 块'] },
+  garbage: { name: '垃圾行', levels: ['+1 行', '+2 行', '+3 行'] },
+  haste: { name: '加速', levels: ['下降间隔 ×0.8', '×0.65', '×0.5'] },
+  fog: { name: '迷雾', levels: ['隐藏预览 1 块', '2 块', '3 块'] },
+  seal: { name: '封存', levels: ['禁用暂存 1 块', '2 块', '3 块'] },
 };

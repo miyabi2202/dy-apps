@@ -9,8 +9,6 @@ export const colors = stylex.defineVars({
   muted: '#94a3b8',
   accent: '#38bdf8',
   warn: '#fbbf24',
-  bless: '#34d399',
-  blessSoft: 'rgba(52, 211, 153, 0.12)',
   curse: '#f87171',
   curseSoft: 'rgba(248, 113, 113, 0.12)',
 });

@@ -22,15 +22,11 @@ export function LogPanel({ engine }: { engine: GameEngine }) {
         <summary {...stylex.props(styles.summary)}>规则说明</summary>
         <ul {...stylex.props(styles.ruleList)}>
           <li>
-            双方都只送「星光」。点击哪一侧的按钮决定阵营；每份独立判定是否触发，命中后从本阵营四种效果中等概率抽取，产生
-            1 点能量。
+            观众送「星光」。每份独立判定是否触发，命中后从四种诅咒效果中等概率抽取，产生 1 点能量。
           </li>
+          <li>每落定 {CONFIG.settlement.everyLocks} 块，执行队头一个效果。空队列也推进周期。</li>
           <li>
-            每落定 {CONFIG.settlement.everyLocks}{' '}
-            块，双方各执行队头一个效果（先祝福后诅咒）。空队列也推进周期。
-          </li>
-          <li>
-            每队最多 {Q.capacity} 个槽位。第 1
+            队列最多 {Q.capacity} 个槽位。第 1
             位锁定，不再强化也不会被越过。未锁定区同类效果合并，每个最多 {Q.nodeMaxEnergy} 点：1–2
             点 Lv.1，3–6 点 Lv.2，7 点 Lv.3。
           </li>
@@ -39,13 +35,10 @@ export function LogPanel({ engine }: { engine: GameEngine }) {
             次结算的效果不会被越过。
           </li>
           <li>
-            放不进队列的能量进入储备（每队共 {Q.reserveCapacity}{' '}
+            放不进队列的能量进入储备（共 {Q.reserveCapacity}{' '}
             点），只在结算时补位；储备满后的能量只记账，不产生效果。
           </li>
-          <li>
-            主播一次消 N 行，可抵消队列中最多 N
-            行待执行垃圾（由近到远）；护盾在祝福执行后再抵消剩余垃圾。
-          </li>
+          <li>主播一次消 N 行，可抵消队列中最多 N 行待执行垃圾（由近到远）。</li>
         </ul>
       </details>
     </section>
@@ -93,7 +86,7 @@ const styles = stylex.create({
   overflow: { borderInlineStartColor: colors.warn, color: colors.warn },
   promote: { borderInlineStartColor: colors.accent },
   settle: { borderInlineStartColor: colors.warn },
-  cancel: { borderInlineStartColor: colors.bless },
+  cancel: { borderInlineStartColor: colors.accent },
   rules: {
     fontSize: 13,
   },

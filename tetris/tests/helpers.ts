@@ -1,9 +1,9 @@
 import { createBoard } from '../src/core/board';
-import { EFFECT_POOLS } from '../src/core/config';
+import { EFFECT_POOL } from '../src/core/config';
 import { GameEngine, type EngineOptions } from '../src/core/game';
 import { createPiece } from '../src/core/pieces';
 import { constantRng, sequenceRng, type Rng } from '../src/core/random';
-import type { Board, EffectNode, EffectType, IdSource, PieceType, Side } from '../src/core/types';
+import type { Board, EffectNode, EffectType, IdSource, PieceType } from '../src/core/types';
 
 export function makeIds(): IdSource {
   let node = 0;
@@ -13,9 +13,8 @@ export function makeIds(): IdSource {
 
 /** Gift RNG draws that always hit and always pick `type`. */
 export function forceEffectRng(type: EffectType): Rng {
-  const side: Side = EFFECT_POOLS.bless.includes(type) ? 'bless' : 'curse';
-  const index = EFFECT_POOLS[side].indexOf(type);
-  return sequenceRng([0, (index + 0.5) / 4]);
+  const index = EFFECT_POOL.indexOf(type);
+  return sequenceRng([0, (index + 0.5) / EFFECT_POOL.length]);
 }
 
 export function makeNode(

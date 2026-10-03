@@ -76,14 +76,11 @@ export function App({ engine, gifts, keyboard }: Props) {
       </header>
 
       <main {...stylex.props(styles.columns)}>
-        <div {...stylex.props(styles.bless)}>
-          <TeamPanel engine={engine} gifts={gifts} side="bless" />
-        </div>
         <div {...stylex.props(styles.centerCol)}>
           <CenterPanel engine={engine} boardRef={boardRef} onRestart={requestRestart} />
         </div>
-        <div {...stylex.props(styles.curse)}>
-          <TeamPanel engine={engine} gifts={gifts} side="curse" />
+        <div {...stylex.props(styles.teamCol)}>
+          <TeamPanel engine={engine} gifts={gifts} />
         </div>
       </main>
 
@@ -131,7 +128,7 @@ export function App({ engine, gifts, keyboard }: Props) {
   );
 }
 
-const WIDE = '@media (min-width: 1100px)';
+const WIDE = '@media (min-width: 900px)';
 
 const styles = stylex.create({
   page: {
@@ -179,19 +176,19 @@ const styles = stylex.create({
   columns: {
     gap: 14,
     gridTemplateAreas: {
-      [WIDE]: '"bless center curse"',
-      default: '"center" "bless" "curse"',
+      [WIDE]: '"center team"',
+      default: '"center" "team"',
     },
     alignItems: 'start',
     display: 'grid',
     gridTemplateColumns: {
-      [WIDE]: 'minmax(280px, 1fr) minmax(0, 520px) minmax(280px, 1fr)',
+      [WIDE]: 'minmax(0, 520px) minmax(320px, 560px)',
       default: 'minmax(0, 1fr)',
     },
+    justifyContent: 'center',
   },
-  bless: { gridArea: 'bless', minWidth: 0 },
   centerCol: { gridArea: 'center', minWidth: 0 },
-  curse: { gridArea: 'curse', minWidth: 0 },
+  teamCol: { gridArea: 'team', minWidth: 0 },
   backdrop: {
     inset: 0,
     padding: 16,

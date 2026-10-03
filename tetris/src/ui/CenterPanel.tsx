@@ -26,16 +26,12 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
   const { effects } = engine;
 
   const timed: string[] = [];
-  if (effects.slow)
-    timed.push(`缓速 Lv.${effects.slow.level} · 剩 ${effects.slow.remainingLocks} 块`);
   if (effects.haste)
     timed.push(`加速 Lv.${effects.haste.level} · 剩 ${effects.haste.remainingLocks} 块`);
   if (effects.fog) timed.push(`迷雾 · 剩 ${effects.fog.remainingLocks} 块`);
   if (effects.seal) timed.push(`封存 · 剩 ${effects.seal.remainingLocks} 块`);
-  if (effects.longCredits) timed.push(`长条补给 · 剩 ${effects.longCredits} 个`);
 
-  const nextBless = engine.teams.bless.queue[0];
-  const nextCurse = engine.teams.curse.queue[0];
+  const next = engine.team.queue[0];
 
   return (
     <section aria-label="棋盘" {...stylex.props(ui.panel, styles.center)}>
@@ -45,7 +41,7 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
         {...stylex.props(styles.countdown, engine.settlementCount > 0 && styles.flash)}
       >
         <span>
-          再落下 <strong>{engine.piecesUntilSettlement}</strong> 块，双方结算
+          再落下 <strong>{engine.piecesUntilSettlement}</strong> 块，诅咒结算
         </span>
         <span {...stylex.props(styles.pips)} aria-hidden>
           {Array.from({ length: every }, (_, i) => (
@@ -95,7 +91,7 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
         <Stat label="分数" value={engine.score} />
         <Stat label="消行" value={engine.lines} />
         <Stat label="落块" value={engine.lockedPieceCount} />
-        <Stat label="护盾" value={`${effects.shield}/${CONFIG.effects.shieldMax}`} />
+        <Stat label="结算" value={engine.settlementCount} />
       </dl>
 
       <div {...stylex.props(styles.infoRow)}>
@@ -107,17 +103,10 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
         </div>
         <div>
           <div {...stylex.props(ui.subTitle)}>下次结算（已锁定）</div>
-          <div {...stylex.props(styles.infoText)} data-testid="next-locked">
-            <span {...stylex.props(styles.blessText)}>
-              祝福：{nextBless ? nodeLabel(nextBless) : '无'}
-            </span>
-            <br />
-            <span {...stylex.props(styles.curseText)}>
-              诅咒：
-              {nextCurse
-                ? `${nodeLabel(nextCurse)}${nextCurse.type === 'garbage' ? `（净 ${netGarbage(nextCurse)} 行）` : ''}`
-                : '无'}
-            </span>
+          <div {...stylex.props(styles.infoText, styles.curseText)} data-testid="next-locked">
+            {next
+              ? `${nodeLabel(next)}${next.type === 'garbage' ? `（净 ${netGarbage(next)} 行）` : ''}`
+              : '无'}
           </div>
         </div>
       </div>
@@ -367,7 +356,6 @@ const styles = stylex.create({
     lineHeight: 1.6,
     marginTop: 2,
   },
-  blessText: { color: colors.bless },
   curseText: { color: colors.curse },
   touch: {
     gap: 6,

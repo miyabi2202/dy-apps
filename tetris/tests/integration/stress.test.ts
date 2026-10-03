@@ -2,27 +2,22 @@ import { CONFIG } from '../../src/core/config';
 import { GameEngine } from '../../src/core/game';
 import { isConserved, queueEnergy, reserveTotal } from '../../src/core/interventions';
 import { mulberry32 } from '../../src/core/random';
-import type { Side } from '../../src/core/types';
 import { dropOnEmpty } from '../helpers';
 
 function assertBounded(engine: GameEngine) {
-  for (const side of ['bless', 'curse'] as const) {
-    const team = engine.teams[side];
-    expect(isConserved(team)).toBe(true);
-    expect(team.queue.length).toBeLessThanOrEqual(CONFIG.queue.capacity);
-    expect(Object.keys(team.reserve).length).toBeLessThanOrEqual(4);
-    expect(reserveTotal(team)).toBeLessThanOrEqual(CONFIG.queue.reserveCapacity);
-    for (const node of team.queue) {
-      expect(node.energy).toBeGreaterThanOrEqual(1);
-      expect(node.energy).toBeLessThanOrEqual(CONFIG.queue.nodeMaxEnergy);
-    }
-    const unlocked = team.queue.slice(1).map((n) => n.type);
-    expect(new Set(unlocked).size).toBe(unlocked.length);
+  const { team } = engine;
+  expect(isConserved(team)).toBe(true);
+  expect(team.queue.length).toBeLessThanOrEqual(CONFIG.queue.capacity);
+  expect(Object.keys(team.reserve).length).toBeLessThanOrEqual(4);
+  expect(reserveTotal(team)).toBeLessThanOrEqual(CONFIG.queue.reserveCapacity);
+  for (const node of team.queue) {
+    expect(node.energy).toBeGreaterThanOrEqual(1);
+    expect(node.energy).toBeLessThanOrEqual(CONFIG.queue.nodeMaxEnergy);
   }
+  const unlocked = team.queue.slice(1).map((n) => n.type);
+  expect(new Set(unlocked).size).toBe(unlocked.length);
   expect(engine.log.length).toBeLessThanOrEqual(CONFIG.log.maxEntries);
   expect(engine.upcoming.length).toBeLessThanOrEqual(CONFIG.sequence.minBuffer);
-  expect(engine.effects.shield).toBeLessThanOrEqual(CONFIG.effects.shieldMax);
-  expect(engine.effects.longCredits).toBeLessThanOrEqual(CONFIG.effects.longMaxCredits);
 }
 
 describe('stress', () => {
@@ -33,9 +28,8 @@ describe('stress', () => {
     let sent = 0;
     const started = performance.now();
     while (sent < 30_000) {
-      const side: Side = driver.next() < 0.5 ? 'bless' : 'curse';
       const count = 1 + Math.floor(driver.next() * 1500);
-      const res = engine.sendGifts(side, count);
+      const res = engine.sendGifts(count);
       expect(res.ok).toBe(true);
       if (res.ok) {
         const r = res.result;
@@ -49,8 +43,7 @@ describe('stress', () => {
     }
     const elapsed = performance.now() - started;
 
-    const totalGifts = engine.teams.bless.giftCount + engine.teams.curse.giftCount;
-    expect(totalGifts).toBe(sent);
+    expect(engine.team.giftCount).toBe(sent);
     expect(engine.settlementCount).toBeGreaterThan(0);
 
     // Still playable afterwards.
@@ -69,9 +62,9 @@ describe('stress', () => {
 
   it('10,000 gifts in one batch is processed in one call with O(1) retained state', () => {
     const engine = new GameEngine({ seed: 3 });
-    const res = engine.sendGifts('curse', 10_000);
+    const res = engine.sendGifts(10_000);
     expect(res.ok).toBe(true);
-    const team = engine.teams.curse;
+    const { team } = engine;
     expect(queueEnergy(team) + reserveTotal(team)).toBeLessThanOrEqual(
       CONFIG.queue.capacity * CONFIG.queue.nodeMaxEnergy + CONFIG.queue.reserveCapacity,
     );

@@ -1,7 +1,7 @@
-import { CONFIG, EFFECT_POOLS } from './config';
+import { CONFIG, EFFECT_POOL } from './config';
 import { addHit } from './interventions';
 import { randomInt, type Rng } from './random';
-import type { GiftBatchResult, IdSource, Side, TeamState } from './types';
+import type { GiftBatchResult, IdSource, TeamState } from './types';
 
 export function isValidBatchCount(count: unknown): count is number {
   return (
@@ -19,20 +19,17 @@ export function isValidProbability(p: unknown): p is number {
 /**
  * Resolve a batch of 星光 gifts one at a time, in order, using the probability
  * snapshot `probability`. Each gift: `u < p` hits, then a second draw picks one
- * of the side's four effects uniformly.
+ * of the four curse effects uniformly.
  */
 export function processGiftBatch(
   team: TeamState,
-  side: Side,
   count: number,
   probability: number,
   rng: Rng,
   ids: IdSource,
 ): GiftBatchResult {
   if (!isValidBatchCount(count)) throw new RangeError(`Invalid gift count: ${String(count)}`);
-  const pool = EFFECT_POOLS[side];
   const result: GiftBatchResult = {
-    side,
     count,
     triggerProbability: probability,
     hits: 0,
@@ -52,7 +49,7 @@ export function processGiftBatch(
       result.misses += 1;
       continue;
     }
-    const type = pool[randomInt(rng, pool.length)]!;
+    const type = EFFECT_POOL[randomInt(rng, EFFECT_POOL.length)]!;
     team.hitCount += 1;
     result.hits += 1;
     result.effects[type] = (result.effects[type] ?? 0) + 1;

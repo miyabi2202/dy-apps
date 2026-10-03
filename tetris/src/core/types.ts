@@ -1,7 +1,4 @@
-export type Side = 'bless' | 'curse';
-export type BlessEffect = 'shield' | 'clear' | 'long' | 'slow';
-export type CurseEffect = 'garbage' | 'haste' | 'fog' | 'seal';
-export type EffectType = BlessEffect | CurseEffect;
+export type EffectType = 'garbage' | 'haste' | 'fog' | 'seal';
 export type Phase = 'ready' | 'playing' | 'paused' | 'gameOver';
 export type PieceType = 'I' | 'O' | 'T' | 'S' | 'Z' | 'J' | 'L';
 export type Level = 1 | 2 | 3;
@@ -49,7 +46,6 @@ export interface TeamState {
 }
 
 export interface GiftBatchResult {
-  side: Side;
   count: number;
   triggerProbability: number;
   hits: number;
@@ -70,14 +66,13 @@ export interface TimedPieceEffect {
   level: Level;
 }
 
-/** Monotonic id sources shared by both teams. */
+/** Monotonic id sources for the team's nodes and reserve. */
 export interface IdSource {
   nextNodeId(): number;
   nextReserveOrder(): number;
 }
 
 export interface GiftBatchInput {
-  side: Side;
   /** Positive integer, 1..maxBatch. */
   count: number;
 }

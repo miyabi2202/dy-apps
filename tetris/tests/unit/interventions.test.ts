@@ -34,24 +34,24 @@ describe('levels', () => {
 });
 
 describe('example B: locked head and same-type merging', () => {
-  it('10 forced shields: locked 1, second slot 7, reserve 2', () => {
+  it('10 forced garbage hits: locked 1, second slot 7, reserve 2', () => {
     const team = createTeam();
     const ids = makeIds();
-    hit(team, 'shield', ids, 10);
+    hit(team, 'garbage', ids, 10);
     expect(team.queue.map((n) => [n.type, n.energy])).toEqual([
-      ['shield', 1],
-      ['shield', 7],
+      ['garbage', 1],
+      ['garbage', 7],
     ]);
     expect(levelOf(team.queue[0]!.energy)).toBe(1);
     expect(levelOf(team.queue[1]!.energy)).toBe(3);
-    expect(team.reserve.shield?.energy).toBe(2);
+    expect(team.reserve.garbage?.energy).toBe(2);
     expect(team.overflowEnergy).toBe(0);
     expect(isConserved(team)).toBe(true);
   });
 
-  it('100 forced shields: queue 1+7, reserve 21, overflow 71', () => {
+  it('100 forced garbage hits: queue 1+7, reserve 21, overflow 71', () => {
     const team = createTeam();
-    hit(team, 'shield', makeIds(), 100);
+    hit(team, 'garbage', makeIds(), 100);
     expect(queueEnergy(team)).toBe(8);
     expect(reserveTotal(team)).toBe(21);
     expect(team.overflowEnergy).toBe(71);
@@ -73,12 +73,12 @@ describe('example B: locked head and same-type merging', () => {
   it('only one unlocked node per type; full queue sends hits to reserve', () => {
     const team = createTeam();
     const ids = makeIds();
-    hit(team, 'shield', ids);
-    hit(team, 'clear', ids);
-    hit(team, 'long', ids);
-    hit(team, 'slow', ids);
-    expect(team.queue.map((n) => n.type)).toEqual(['shield', 'clear', 'long']);
-    expect(team.reserve.slow?.energy).toBe(1);
+    hit(team, 'garbage', ids);
+    hit(team, 'haste', ids);
+    hit(team, 'fog', ids);
+    hit(team, 'seal', ids);
+    expect(team.queue.map((n) => n.type)).toEqual(['garbage', 'haste', 'fog']);
+    expect(team.reserve.seal?.energy).toBe(1);
   });
 });
 
@@ -137,43 +137,43 @@ describe('settlement and reserve refill', () => {
   it('pops the head, ages the rest, and empty queues still settle', () => {
     const team = createTeam();
     expect(settleTeam(team, makeIds()).executed).toBeNull();
-    team.queue = [makeNode('shield', 2), makeNode('clear', 1)];
+    team.queue = [makeNode('garbage', 2), makeNode('haste', 1)];
     const r = settleTeam(team, makeIds());
-    expect(r.executed?.type).toBe('shield');
+    expect(r.executed?.type).toBe('garbage');
     expect(team.spentEnergy).toBe(2);
     expect(team.queue[0]!.waitedSettlements).toBe(1);
   });
 
   it('strengthens unlocked nodes, but not the new head', () => {
     const team = createTeam();
-    team.queue = [makeNode('shield', 1), makeNode('clear', 1), makeNode('slow', 1)];
+    team.queue = [makeNode('garbage', 1), makeNode('haste', 1), makeNode('seal', 1)];
     team.reserve = {
-      clear: { energy: 4, firstQueuedOrder: 1 },
-      slow: { energy: 10, firstQueuedOrder: 2 },
+      haste: { energy: 4, firstQueuedOrder: 1 },
+      seal: { energy: 10, firstQueuedOrder: 2 },
     };
     settleTeam(team, makeIds());
-    // clear became the locked head: not strengthened. slow is unlocked: +6 to 7.
+    // haste became the locked head: not strengthened. seal is unlocked: +6 to 7.
     expect(team.queue.map((n) => [n.type, n.energy])).toEqual([
-      ['clear', 1],
-      ['slow', 7],
-      ['clear', 4],
+      ['haste', 1],
+      ['seal', 7],
+      ['haste', 4],
     ]);
-    expect(team.reserve).toEqual({ slow: { energy: 4, firstQueuedOrder: 2 } });
+    expect(team.reserve).toEqual({ seal: { energy: 4, firstQueuedOrder: 2 } });
   });
 
   it('creates nodes in reserve order, max one per type and 7 energy each', () => {
     const team = createTeam();
-    team.queue = [makeNode('shield', 1)];
+    team.queue = [makeNode('garbage', 1)];
     team.reserve = {
-      long: { energy: 9, firstQueuedOrder: 5 },
-      clear: { energy: 2, firstQueuedOrder: 3 },
+      fog: { energy: 9, firstQueuedOrder: 5 },
+      haste: { energy: 2, firstQueuedOrder: 3 },
     };
     settleTeam(team, makeIds());
     expect(team.queue.map((n) => [n.type, n.energy, n.waitedSettlements])).toEqual([
-      ['clear', 2, 0],
-      ['long', 7, 0],
+      ['haste', 2, 0],
+      ['fog', 7, 0],
     ]);
-    expect(team.reserve).toEqual({ long: { energy: 2, firstQueuedOrder: 5 } });
+    expect(team.reserve).toEqual({ fog: { energy: 2, firstQueuedOrder: 5 } });
   });
 
   // With capacity 3, at most two nodes remain after the pop, so this exercises the
@@ -208,9 +208,9 @@ describe('settlement and reserve refill', () => {
   it('new arrivals never release the reserve early', () => {
     const team = createTeam();
     const ids = makeIds();
-    hit(team, 'shield', ids, 10); // [1, 7], reserve 2
-    hit(team, 'clear', ids); // creates third slot
-    expect(team.reserve.shield?.energy).toBe(2);
+    hit(team, 'garbage', ids, 10); // [1, 7], reserve 2
+    hit(team, 'haste', ids); // creates third slot
+    expect(team.reserve.garbage?.energy).toBe(2);
     expect(team.queue).toHaveLength(3);
   });
 });
