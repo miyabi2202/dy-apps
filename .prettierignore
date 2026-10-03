@@ -1,0 +1,7 @@
+dist
+dist-webpack
+coverage
+playwright-report
+test-results
+pnpm-lock.yaml
+hand_over.md
