@@ -16,10 +16,9 @@ function setup(giftRng = constantRng(0)) {
 }
 
 describe('App', () => {
-  it('shows the curse team only, the board and the countdown', () => {
+  it('shows the board, the countdown and the curse panel, with no team names', () => {
     setup();
-    expect(screen.getByRole('heading', { name: /诅咒队/ })).toBeInTheDocument();
-    expect(screen.queryByText(/祝福/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/诅咒队|祝福/)).not.toBeInTheDocument();
     expect(screen.getByTestId('board')).toBeInTheDocument();
     expect(screen.getByTestId('countdown')).toHaveTextContent('再落下 3 块，诅咒结算');
     expect(screen.getByTestId('speed')).toHaveTextContent('×1.0');
@@ -30,7 +29,7 @@ describe('App', () => {
   it('shows pending counts and logs each batch under the sender', async () => {
     const { user } = setup();
     for (let i = 0; i < 4; i += 1) {
-      await user.click(screen.getByRole('button', { name: '诅咒队送 1 份星光' }));
+      await user.click(screen.getByRole('button', { name: '送 1 份星光' }));
     }
     // constantRng(0) always hits and always draws the first curse, 垃圾行.
     const pending = screen.getByTestId('pending');
@@ -43,17 +42,17 @@ describe('App', () => {
 
   it('logs a batch that triggered nothing', async () => {
     const { user } = setup(constantRng(0.99));
-    await user.click(screen.getByRole('button', { name: '诅咒队送 10 份星光' }));
+    await user.click(screen.getByRole('button', { name: '送 10 份星光' }));
     expect(screen.getByTestId('gift-history')).toHaveTextContent('foo 送出 10 份星光未触发诅咒');
     expect(screen.getByTestId('pending')).toHaveTextContent('暂无');
   });
 
   it('rejects invalid custom counts without changing state', async () => {
     const { engine, user } = setup();
-    const input = screen.getByRole('spinbutton', { name: '诅咒队自定义份数' });
+    const input = screen.getByRole('spinbutton', { name: '自定义份数' });
     await user.clear(input);
     await user.type(input, '0');
-    await user.click(screen.getByRole('button', { name: '诅咒队送出自定义份数' }));
+    await user.click(screen.getByRole('button', { name: '送出自定义份数' }));
     expect(screen.getByRole('alert')).toHaveTextContent('份数必须是');
     expect(engine.team.giftCount).toBe(0);
   });
@@ -80,7 +79,7 @@ describe('App', () => {
   it('keyboard drives the piece after clicking a gift button', async () => {
     const { engine, user } = setup();
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
-    await user.click(screen.getByRole('button', { name: '诅咒队送 1 份星光' }));
+    await user.click(screen.getByRole('button', { name: '送 1 份星光' }));
     const x = engine.active!.x;
     await user.keyboard('{ArrowLeft}');
     expect(engine.active!.x).toBe(x - 1);
@@ -94,7 +93,7 @@ describe('App', () => {
     const { engine, user } = setup();
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
     const x = engine.active!.x;
-    const input = screen.getByRole('spinbutton', { name: '诅咒队自定义份数' });
+    const input = screen.getByRole('spinbutton', { name: '自定义份数' });
     await user.click(input);
     await user.keyboard('{ArrowLeft}{ArrowLeft}');
     expect(engine.active!.x).toBe(x);

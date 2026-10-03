@@ -12,7 +12,6 @@ interface LabWindow {
         hitCount: number;
         missCount: number;
         firedCount: number;
-        canceledCount: number;
         pending: Record<string, number>;
       };
     };
@@ -38,7 +37,7 @@ const conservation = (page: Page) =>
     return {
       gifts: t.giftCount,
       okGifts: t.giftCount === t.hitCount + t.missCount,
-      okCurses: t.hitCount === pending + t.firedCount + t.canceledCount,
+      okCurses: t.hitCount === pending + t.firedCount,
     };
   });
 
@@ -57,10 +56,10 @@ test.afterEach(() => {
   expect(consoleErrors).toEqual([]);
 });
 
-test('renders a real canvas board, the curse team and controls', async ({ page }) => {
+test('renders a real canvas board, the curse panel and controls', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '方块干预实验室' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /诅咒队/ })).toBeVisible();
-  await expect(page.getByText(/祝福/)).toHaveCount(0);
+  await expect(page.getByTestId('panel-team')).toBeVisible();
+  await expect(page.getByText(/诅咒队|祝福/)).toHaveCount(0);
   await page.getByRole('button', { name: '开始游戏' }).click();
 
   const colours = await page.getByTestId('board').evaluate((el) => {
@@ -77,8 +76,8 @@ test('renders a real canvas board, the curse team and controls', async ({ page }
 });
 
 test('gift buttons, start, pause, resume and restart with confirmation', async ({ page }) => {
-  await page.getByRole('button', { name: '诅咒队送 10 份星光' }).click();
-  await page.getByRole('button', { name: '诅咒队送 100 份星光' }).click();
+  await page.getByRole('button', { name: '送 10 份星光' }).click();
+  await page.getByRole('button', { name: '送 100 份星光' }).click();
   const history = page.getByTestId('gift-history');
   await expect(history).toContainText('foo 送出 100 份星光');
   await expect(history).toContainText('foo 送出 10 份星光');
@@ -88,7 +87,7 @@ test('gift buttons, start, pause, resume and restart with confirmation', async (
   expect((await engineState(page)).phase).toBe('playing');
   await page.getByRole('button', { name: '暂停' }).click();
   await expect(page.getByTestId('overlay-paused')).toBeVisible();
-  await page.getByRole('button', { name: '诅咒队送 1 份星光' }).click();
+  await page.getByRole('button', { name: '送 1 份星光' }).click();
   await page.getByRole('button', { name: '继续游戏' }).click();
   expect((await engineState(page)).phase).toBe('playing');
 
@@ -107,7 +106,7 @@ test('arrow keys and space control the board after clicking a gift button, witho
 }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
   await page.getByRole('button', { name: '开始游戏' }).click();
-  await page.getByRole('button', { name: '诅咒队送 1 份星光' }).click();
+  await page.getByRole('button', { name: '送 1 份星光' }).click();
   const scrollBefore = await page.evaluate(() => window.scrollY);
   const before = await engineState(page);
 
@@ -198,10 +197,10 @@ test('desktop layout: board left, curse team right', async ({ page }) => {
 
 test('30,000 gifts through the UI stay bounded and the game keeps working', async ({ page }) => {
   await page.getByRole('button', { name: '开始游戏' }).click();
-  await page.getByRole('spinbutton', { name: '诅咒队自定义份数' }).fill('10000');
+  await page.getByRole('spinbutton', { name: '自定义份数' }).fill('10000');
   const started = Date.now();
   for (let i = 0; i < 3; i += 1) {
-    await page.getByRole('button', { name: '诅咒队送出自定义份数' }).click();
+    await page.getByRole('button', { name: '送出自定义份数' }).click();
     await page.keyboard.press('Space');
   }
   const elapsed = Date.now() - started;
@@ -228,7 +227,7 @@ test('30,000 gifts through the UI stay bounded and the game keeps working', asyn
 test('custom count input keeps arrow keys for itself', async ({ page }) => {
   await page.getByRole('button', { name: '开始游戏' }).click();
   const before = await engineState(page);
-  await page.getByRole('spinbutton', { name: '诅咒队自定义份数' }).click();
+  await page.getByRole('spinbutton', { name: '自定义份数' }).click();
   await page.keyboard.press('ArrowLeft');
   await page.keyboard.press('ArrowLeft');
   expect((await engineState(page)).active!.x).toBe(before.active!.x);

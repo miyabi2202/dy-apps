@@ -38,8 +38,8 @@ export const CONFIG = {
   },
   effects: {
     /** Pieces that one fog / seal lasts. */
-    fogLocks: 1,
-    sealLocks: 1,
+    fogLocks: 3,
+    sealLocks: 3,
   },
   settlement: { everyLocks: 3 },
   log: { maxEntries: 10 },
@@ -48,14 +48,12 @@ export const CONFIG = {
 
 export const EFFECT_POOL: readonly EffectType[] = ['garbage', 'haste', 'fog', 'seal'];
 
-export const TEAM_INFO = { name: '诅咒队', short: '诅咒' } as const;
-
 export const GIFT_NAME = '星光';
 
 /** What one curse does when it fires. */
 export const EFFECT_INFO: Record<EffectType, { name: string; description: string }> = {
   garbage: { name: '垃圾行', description: '底部加 1 行垃圾' },
   haste: { name: '加速', description: '下降间隔永久 ×0.8，可叠加' },
-  fog: { name: '迷雾', description: '隐藏预览 1 块' },
-  seal: { name: '封存', description: '禁用暂存 1 块' },
+  fog: { name: '迷雾', description: '隐藏预览 3 块' },
+  seal: { name: '封存', description: '禁用暂存 3 块' },
 };

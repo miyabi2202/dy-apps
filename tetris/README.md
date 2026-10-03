@@ -1,6 +1,6 @@
 # 方块干预实验室 (Block Intervention Lab)
 
-A single-player falling-block game where a simulated audience team, 诅咒队 (curse), sends a virtual gift, 星光, to trigger random curses against the player. Each triggered curse adds to a pending count, and every 3 locked pieces each curse with anything pending fires once. The product spec is [`hand_over.md`](hand_over.md); the UI is in Simplified Chinese.
+A single-player falling-block game where a simulated audience sends a virtual gift, 星光, to trigger random curses against the player. Each triggered curse adds to a pending count, and every 3 locked pieces each curse with anything pending fires once. The product spec is [`hand_over.md`](hand_over.md); the UI is in Simplified Chinese.
 
 Everything runs locally: no live-stream API, payments, backend or network access at runtime.
 
@@ -59,7 +59,7 @@ src/
     random.ts      # seedable RNG, Fisher–Yates, independent streams
     pieces.ts      # matrices, rotation, simplified kicks, 7-bag
     board.ts       # collision, line clears, garbage
-    interventions.ts  # pending curse counts, settlement, garbage cancellation, conservation
+    interventions.ts  # pending curse counts, settlement, conservation
     gifts.ts       # per-gift trigger + curse draw, batch results with sender
     effects.ts     # 4 curse effects, fog/seal timers, permanent haste, gravity formula
     game.ts        # GameEngine: phases, lock sequence, 3-piece settlement, log
@@ -78,7 +78,7 @@ The engine updates the board every frame. The React panels re-render only when t
 
 ## Testing
 
-- **Unit (Jest):** covers the 7-bag, collision, movement, rotation and kicks, the ghost piece, scoring, gravity remainder, 500 ms lock delay, the 12-reset limit, and free air moves. It also covers hold, seal, fog, settling every 3 locks with each pending curse firing once, empty queues, top-out, line-clear cancellation, one-piece fog/seal, permanent stacking haste, the bounded gift history, pause, and gift rules by phase. Spec §14 examples A, E, F and G have tests; B, C and D described the energy queue and the bless team, which no longer exist. Probability tests use fixed RNG sequences, so none of them can fail at random.
+- **Unit (Jest):** covers the 7-bag, collision, movement, rotation and kicks, the ghost piece, scoring, gravity remainder, 500 ms lock delay, the 12-reset limit, and free air moves. It also covers hold, seal, fog, settling every 3 locks with each pending curse firing once, empty queues, top-out, line clears leaving pending garbage alone, three-piece fog/seal, permanent stacking haste, the bounded gift history, pause, and gift rules by phase. Spec §14 examples A, F and G have tests; B, C, D and E described the energy queue, the bless team and line-clear cancellation, which no longer exist. Probability tests use fixed RNG sequences, so none of them can fail at random.
 - **Integration (Jest + Testing Library):** pending counts and the per-sender gift history in the real UI, batches that trigger nothing, invalid input rejection, start/pause/resume/restart confirmation, and keyboard focus after button clicks.
 - **Stress:** 30,000+ gifts in mixed batch sizes, with 0–5 locks between batches. Conservation and bounded history/log are checked after every batch, and the game is checked to still be playable afterwards.
 - **E2E (Playwright, Chromium):** real Canvas pixels and DPR sizing, gift buttons, phase controls, arrow/Space after clicking a gift button with no scroll, DAS/ARR hold, rapid hard drops, auto-pause on hidden with no catch-up, 320 px and desktop layouts, 30,000 UI gifts, and focus handling for the number input. Every test also asserts there were no console errors.
@@ -89,8 +89,8 @@ Measured on 2026-10-03 on an Apple M1 Max (macOS 26.6), Node 25.9, Chromium (Pla
 
 | Suite                      | Result                                            |
 | -------------------------- | ------------------------------------------------- |
-| `pnpm test` (Jest)         | 60 / 60 passed                                    |
-| Stress (engine)            | 31,440 gifts, 30 settlements, ≈ 42 ms             |
+| `pnpm test` (Jest)         | 59 / 59 passed                                    |
+| Stress (engine)            | 31,440 gifts, 30 settlements, ≈ 44 ms             |
 | `pnpm test:e2e` (Chromium) | 10 / 10 passed                                    |
 | E2E UI stress              | 30,000 gifts (3 × 10,000 batches) + drops, passes |
 | `pnpm build` (Vite)        | succeeds                                          |
@@ -101,10 +101,10 @@ These timings depend on the hardware. **Windows, Edge and Firefox were not teste
 
 Where the spec left room, these are the choices made:
 
-- **Fog / seal duration:** one curse lasts one piece. Fog hides the whole preview while active.
+- **Fog / seal duration:** one curse lasts three pieces; firing again while active restarts the count. Fog hides the whole preview while active.
 - **Restart confirmation:** the dialog appears whenever there is anything to lose, including after game over.
 - **Lock resets:** a move or rotation resets the lock timer only if the piece was grounded before it (up to 12 times). A piece that slides off a ledge and lands again restarts its 500 ms timer, as standard.
-- **Curse queue:** no energy, levels, slots or reserve. Each triggered gift adds 1 to its curse's pending count, with no cap. At each settlement every curse type with a pending count fires once (in the order 垃圾行, 加速, 迷雾, 封存) and the rest keeps waiting, so a large gift becomes a steady stream rather than an instant loss. Clearing N lines removes up to N pending 垃圾行.
+- **Curse queue:** no energy, levels, slots or reserve. Each triggered gift adds 1 to its curse's pending count, with no cap. At each settlement every curse type with a pending count fires once (in the order 垃圾行, 加速, 迷雾, 封存) and the rest keeps waiting, so a large gift becomes a steady stream rather than an instant loss. Line clears only score; they don't affect pending curses.
 - **Haste:** permanent and stacking. Each haste multiplies the drop interval by 0.8 for the rest of the game, down to the 140 ms floor, and restart resets it. The 速度 box beside the preview shows the current fall speed relative to the starting speed, including line-clear speed-ups.
 - **Gift sender:** every local batch is credited to the placeholder sender `foo` until a live-stream adapter supplies real viewer names. The gift history keeps the last 50 batches.
 - **Trigger chance:** 10%, 15% (default) or 20%.

@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { useState } from 'react';
 import type { LocalGiftAdapter } from '../adapters/local-gift';
-import { CONFIG, EFFECT_INFO, EFFECT_POOL, GIFT_NAME, TEAM_INFO } from '../core/config';
+import { CONFIG, EFFECT_INFO, EFFECT_POOL, GIFT_NAME } from '../core/config';
 import type { GameEngine, GiftHistoryEntry } from '../core/game';
 import { effectName, percent } from './format';
 import { ui } from './styles';
@@ -16,13 +16,7 @@ export function TeamPanel({ engine, gifts }: Props) {
   const pending = EFFECT_POOL.filter((type) => engine.team.pending[type] > 0);
 
   return (
-    <section
-      aria-label={TEAM_INFO.name}
-      data-testid="panel-team"
-      {...stylex.props(ui.panel, styles.panel)}
-    >
-      <h2 {...stylex.props(styles.title)}>✖ {TEAM_INFO.name}</h2>
-
+    <section aria-label="诅咒" data-testid="panel-team" {...stylex.props(ui.panel, styles.panel)}>
       <h3 {...stylex.props(ui.subTitle, styles.sectionTitle)}>待执行诅咒</h3>
       {pending.length ? (
         <ul {...stylex.props(styles.pending)} data-testid="pending">
@@ -95,7 +89,7 @@ function GiftControls({ engine, gifts }: Props) {
         <div>
           <div {...stylex.props(styles.giftName)}>{GIFT_NAME}</div>
           <div {...stylex.props(ui.muted)}>
-            触发概率 {percent(engine.probability)}，命中后从{TEAM_INFO.short}效果池四选一（各{' '}
+            触发概率 {percent(engine.probability)}，命中后从诅咒池四选一（各{' '}
             {percent(1 / EFFECT_POOL.length)}）
           </div>
         </div>
@@ -106,7 +100,7 @@ function GiftControls({ engine, gifts }: Props) {
             key={n}
             type="button"
             disabled={disabled}
-            aria-label={`${TEAM_INFO.name}送 ${n} 份${GIFT_NAME}`}
+            aria-label={`送 ${n} 份${GIFT_NAME}`}
             onClick={() => send(n)}
             {...stylex.props(ui.button, styles.giftButton)}
           >
@@ -131,14 +125,14 @@ function GiftControls({ engine, gifts }: Props) {
             step={1}
             value={custom}
             onChange={(e) => setCustom(e.target.value)}
-            aria-label={`${TEAM_INFO.name}自定义份数`}
+            aria-label="自定义份数"
             {...stylex.props(ui.input)}
           />
         </label>
         <button
           type="submit"
           disabled={disabled}
-          aria-label={`${TEAM_INFO.name}送出自定义份数`}
+          aria-label="送出自定义份数"
           {...stylex.props(ui.button)}
         >
           送出
@@ -167,11 +161,6 @@ const styles = stylex.create({
   panel: {
     borderTopColor: colors.curse,
     borderTopWidth: 4,
-  },
-  title: {
-    margin: 0,
-    color: colors.curse,
-    fontSize: 20,
   },
   giftCard: {
     padding: 12,

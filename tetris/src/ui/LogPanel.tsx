@@ -28,9 +28,9 @@ export function LogPanel({ engine }: { engine: GameEngine }) {
           </li>
           <li>
             垃圾行：底部加 1 行；加速：下降间隔永久 ×{CONFIG.gravity.hasteMultiplier}
-            并叠加，最快 {CONFIG.gravity.minMs} ms/格；迷雾：隐藏预览 1 块；封存：禁用暂存 1 块。
+            并叠加，最快 {CONFIG.gravity.minMs} ms/格；迷雾：隐藏预览 {CONFIG.effects.fogLocks}{' '}
+            块；封存：禁用暂存 {CONFIG.effects.sealLocks} 块；再次触发会重新计时。
           </li>
-          <li>主播一次消 N 行，可抵消最多 N 个待执行的垃圾行。</li>
         </ul>
       </details>
     </section>
@@ -43,8 +43,6 @@ function kindStyle(kind: LogKind) {
       return styles.miss;
     case 'settle':
       return styles.settle;
-    case 'cancel':
-      return styles.cancel;
     default:
       return null;
   }
@@ -72,7 +70,6 @@ const styles = stylex.create({
   },
   miss: { color: colors.muted },
   settle: { borderInlineStartColor: colors.warn },
-  cancel: { borderInlineStartColor: colors.accent },
   rules: {
     fontSize: 13,
   },

@@ -23,8 +23,6 @@ export interface TeamState {
   missCount: number;
   /** Curses that have fired at a settlement. */
   firedCount: number;
-  /** Pending garbage removed by line clears. */
-  canceledCount: number;
 }
 
 export interface GiftBatchResult {

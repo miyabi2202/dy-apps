@@ -1,6 +1,5 @@
 import {
   addHit,
-  cancelGarbage,
   createTeam,
   isConserved,
   pendingTotal,
@@ -44,19 +43,5 @@ describe('settlement', () => {
     const team = createTeam();
     expect(settleTeam(team)).toEqual([]);
     expect(team.firedCount).toBe(0);
-  });
-});
-
-describe('line-clear garbage cancellation', () => {
-  it('cancels up to N pending garbage and nothing else', () => {
-    const team = createTeam();
-    hit(team, 'garbage', 3);
-    hit(team, 'fog', 1);
-    expect(cancelGarbage(team, 2)).toBe(2);
-    expect(team.pending).toEqual({ garbage: 1, haste: 0, fog: 1, seal: 0 });
-    expect(cancelGarbage(team, 4)).toBe(1);
-    expect(team.pending.garbage).toBe(0);
-    expect(team.canceledCount).toBe(3);
-    expect(isConserved(team)).toBe(true);
   });
 });

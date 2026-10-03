@@ -9,7 +9,7 @@ import {
   type EffectsState,
 } from './effects';
 import { isValidBatchCount, isValidProbability, processGiftBatch } from './gifts';
-import { cancelGarbage, createTeam, settleTeam } from './interventions';
+import { createTeam, settleTeam } from './interventions';
 import { BagGenerator, createPiece, KICK_OFFSETS, pieceCells, rotateMatrix } from './pieces';
 import { deriveSeed, mulberry32, type Rng } from './random';
 import type {
@@ -30,7 +30,7 @@ export interface EngineOptions {
   probability?: number;
 }
 
-export type LogKind = 'gift' | 'miss' | 'settle' | 'cancel' | 'system';
+export type LogKind = 'gift' | 'miss' | 'settle' | 'system';
 
 export interface LogEntry {
   id: number;
@@ -409,10 +409,6 @@ export class GameEngine {
     if (cleared > 0) {
       this.score += CONFIG.score.lineClear[cleared] ?? 0;
       this.lines += cleared;
-      const canceled = cancelGarbage(this.team, cleared);
-      if (canceled > 0) {
-        this.pushLog('cancel', `消除 ${cleared} 行，抵消待执行垃圾 ${canceled} 行。`);
-      }
     }
 
     tickTimedEffects(this.effects);

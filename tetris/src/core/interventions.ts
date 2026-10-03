@@ -8,7 +8,6 @@ export function createTeam(): TeamState {
     hitCount: 0,
     missCount: 0,
     firedCount: 0,
-    canceledCount: 0,
   };
 }
 
@@ -21,14 +20,6 @@ export function addHit(team: TeamState, type: EffectType): void {
   team.pending[type] += 1;
 }
 
-/** Cancel up to `lines` pending garbage curses. Returns how many were cancelled. */
-export function cancelGarbage(team: TeamState, lines: number): number {
-  const canceled = Math.min(team.pending.garbage, lines);
-  team.pending.garbage -= canceled;
-  team.canceledCount += canceled;
-  return canceled;
-}
-
 /** One settlement: every curse type with anything pending fires once. */
 export function settleTeam(team: TeamState): EffectType[] {
   const fired = EFFECT_POOL.filter((type) => team.pending[type] > 0);
@@ -37,10 +28,10 @@ export function settleTeam(team: TeamState): EffectType[] {
   return fired;
 }
 
-/** Every gift either missed or triggered, and every triggered curse is pending, fired or cancelled. */
+/** Every gift either missed or triggered, and every triggered curse is pending or fired. */
 export function isConserved(team: TeamState): boolean {
   return (
     team.giftCount === team.hitCount + team.missCount &&
-    team.hitCount === pendingTotal(team) + team.firedCount + team.canceledCount
+    team.hitCount === pendingTotal(team) + team.firedCount
   );
 }

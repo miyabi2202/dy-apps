@@ -269,10 +269,12 @@ describe('settlement cycle', () => {
     expect(engine.log[0]!.text).toContain('执行 垃圾行、加速、迷雾');
   });
 
-  it('fog and seal last one piece', () => {
+  it('fog and seal last three pieces', () => {
     const engine = startedEngine();
     engine.team.pending = { garbage: 0, haste: 0, fog: 1, seal: 1 };
     dropOnEmpty(engine, 3);
+    expect(engine.effects.fog).toEqual({ remainingLocks: 3 });
+    dropOnEmpty(engine, 2);
     expect(engine.previewHidden).toBe(true);
     expect(engine.holdBlocked).toBe(true);
     dropOnEmpty(engine, 1);
@@ -280,7 +282,7 @@ describe('settlement cycle', () => {
     expect(engine.holdBlocked).toBe(false);
   });
 
-  it('example E: line clears on the settling lock cancel pending garbage first', () => {
+  it('line clears do not cancel pending garbage', () => {
     const engine = startedEngine();
     dropOnEmpty(engine, 2);
     engine.team.pending.garbage = 3;
@@ -288,10 +290,8 @@ describe('settlement cycle', () => {
     setActive(engine, 'O');
     engine.hardDrop();
     expect(engine.lines).toBe(2);
-    expect(engine.team.canceledCount).toBe(2);
-    // One garbage was left, so it fired; nothing remains.
     expect(engine.lastSettlement!.executed.map((e) => e.type)).toEqual(['garbage']);
-    expect(engine.team.pending.garbage).toBe(0);
+    expect(engine.team.pending.garbage).toBe(2);
   });
 
   it('garbage pushing blocks off the top ends the game', () => {
