@@ -9,3 +9,4 @@ playwright/.cache
 *.log
 .env*.local
 .claude/settings.local.json
+.wrangler
