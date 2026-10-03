@@ -98,4 +98,21 @@ describe('App', () => {
     await user.keyboard('{ArrowLeft}{ArrowLeft}');
     expect(engine.active!.x).toBe(x);
   });
+
+  it('dyhub panel only connects with a valid port and room number', async () => {
+    const { user } = setup();
+    const connect = screen.getByRole('button', { name: '连接' });
+    const port = screen.getByRole('textbox', { name: '端口' });
+    const room = screen.getByRole('textbox', { name: '直播间号' });
+    expect(port).toHaveValue('');
+    expect(room).toHaveValue('');
+    expect(connect).toBeDisabled();
+    await user.type(port, '8757');
+    expect(connect).toBeDisabled();
+    await user.type(room, '12a');
+    expect(connect).toBeDisabled();
+    await user.clear(room);
+    await user.type(room, '167920210669');
+    expect(connect).toBeEnabled();
+  });
 });

@@ -6,6 +6,7 @@ import type { GameEngine } from '../core/game';
 import type { KeyboardController } from '../input/keyboard';
 import { startGameLoop } from '../loop';
 import { CenterPanel } from './CenterPanel';
+import { DyhubPanel } from './DyhubPanel';
 import { percent } from './format';
 import { LogPanel } from './LogPanel';
 import { ui } from './styles';
@@ -85,6 +86,8 @@ export function App({ engine, gifts, keyboard }: Props) {
       </main>
 
       <LogPanel engine={engine} />
+
+      <DyhubPanel />
 
       {confirming && (
         <div {...stylex.props(styles.backdrop)}>
