@@ -15,12 +15,11 @@ export const BORDER_LABELS: Record<BorderStyle, string> = {
 export interface FontPreset {
   label: string;
   family: string;
-  /** Google Fonts family to load on demand; local fonts leave this out. */
-  google?: string;
 }
 
 const CJK_FALLBACK = "'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif";
 
+/** Local fonts only: nothing is fetched, so it works offline and in mainland China. */
 export const FONT_PRESETS = {
   sans: { label: '黑体', family: CJK_FALLBACK },
   rounded: {
@@ -29,21 +28,6 @@ export const FONT_PRESETS = {
   },
   serif: { label: '宋体', family: "'Songti SC', 'SimSun', 'Noto Serif SC', serif" },
   kai: { label: '楷体', family: "'Kaiti SC', 'STKaiti', 'KaiTi', serif" },
-  kuaile: {
-    label: '站酷快乐体',
-    family: `'ZCOOL KuaiLe', ${CJK_FALLBACK}`,
-    google: 'ZCOOL KuaiLe',
-  },
-  huangyou: {
-    label: '站酷庆科黄油体',
-    family: `'ZCOOL QingKe HuangYou', ${CJK_FALLBACK}`,
-    google: 'ZCOOL QingKe HuangYou',
-  },
-  mashan: {
-    label: '马善政毛笔',
-    family: `'Ma Shan Zheng', 'Kaiti SC', 'KaiTi', serif`,
-    google: 'Ma Shan Zheng',
-  },
 } satisfies Record<string, FontPreset>;
 
 export type FontKey = keyof typeof FONT_PRESETS | 'custom';

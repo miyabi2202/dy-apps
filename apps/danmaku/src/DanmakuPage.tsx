@@ -5,12 +5,10 @@ import { COMMIT_HASH, SHORT_COMMIT_HASH } from './build';
 import { createFakeMessage } from './demo';
 import {
   DEFAULT_SETTINGS,
-  FONT_PRESETS,
   fontFamily,
   loadSettings,
   saveSettings,
   settingsToParams,
-  type FontPreset,
   type Settings,
 } from './settings';
 import { colors } from './tokens.stylex';
@@ -68,7 +66,6 @@ export function DanmakuPage() {
   }, []);
 
   useDemo(demoRunning, demoIntervalMs, push);
-  useGoogleFont(settings);
 
   // Only the editor saves: an OBS source opened from a link mustn't overwrite the editor's config.
   useEffect(() => {
@@ -143,22 +140,6 @@ function useDemo(running: boolean, intervalMs: number, push: (m: DanmakuMessage)
     schedule(Math.min(intervalMs, 300));
     return () => clearTimeout(timer);
   }, [running, intervalMs, push]);
-}
-
-/** Adds the stylesheet for a Google Fonts preset the first time it's chosen. */
-function useGoogleFont(settings: Settings) {
-  const preset: FontPreset | undefined =
-    settings.font === 'custom' ? undefined : FONT_PRESETS[settings.font];
-  const google = preset?.google;
-  useEffect(() => {
-    if (!google) return;
-    const href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(google).replace(/%20/g, '+')}&display=swap`;
-    if (document.querySelector(`link[href="${href}"]`)) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = href;
-    document.head.appendChild(link);
-  }, [google]);
 }
 
 const styles = stylex.create({
