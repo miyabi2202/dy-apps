@@ -1,26 +1,41 @@
 # dy-apps
 
-pnpm monorepo for falling-block game experiments.
+pnpm monorepo of small live-stream apps, served as one site: an index page at `/` and each app on its own route.
 
-| Package                                 | Path            | What it is                                               |
-| --------------------------------------- | --------------- | -------------------------------------------------------- |
-| [`@dy-apps/tetris`](tetris)             | `tetris/`       | 方块干预实验室: block game with simulated audience gifts |
-| [`@dy-apps/config`](config)             | `config/`       | Shared Vite, Jest, Playwright and Browserslist presets   |
-| [`@dy-apps/dyhub-client`](dyhub-client) | `dyhub-client/` | Browser client for DyHub's live-room WebSocket events    |
+| Package                                 | Path            | What it is                                                      |
+| --------------------------------------- | --------------- | --------------------------------------------------------------- |
+| [`@dy-apps/site`](site)                 | `site/`         | The deployed SPA: index page, React Router, Vite build, Workers |
+| [`@dy-apps/tetris`](apps/tetris)        | `apps/tetris/`  | 方块干预实验室 at `/tetris`: block game with audience curses    |
+| [`@dy-apps/config`](config)             | `config/`       | Shared Vite, Jest, Playwright and Browserslist presets          |
+| [`@dy-apps/dyhub-client`](dyhub-client) | `dyhub-client/` | Browser client for DyHub's live-room WebSocket events           |
 
 ## Layout
 
 ```text
-tetris/               # the game app
+site/                 # the one deployed app: index page + a lazily loaded route per app
+  src/apps.ts         #   registry of apps (path, title, description, lazy page import)
+  tests/e2e/          #   Playwright against the production build
+  wrangler.jsonc      #   Cloudflare Workers static-assets deploy (SPA fallback for deep links)
+apps/<name>/          # one package per app: exports its page component and a tiny `meta`
 config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
 dyhub-client/         # @dy-apps/dyhub-client: connectDyhub, port/room validation, GiftCounter (TS source, no build step)
-eslint.config.js      # one flat config for every package (per-app sections inside)
+eslint.config.js      # one flat config for every package
 .prettierrc.json      # repo-wide formatting (+ .prettierignore)
 tsconfig.base.json    # packages extend this
 package.json          # private root: shared tooling + scripts that fan out to packages
 pnpm-workspace.yaml   # workspace packages and the version catalog for shared tools
 pnpm-lock.yaml
 ```
+
+## Code splitting
+
+The site's Vite build (`config/vite.js`) splits output so each page downloads only what it needs:
+
+- **One chunk per app** (`app-<name>-*.js`), loaded by React Router's route `lazy` only when its path is visited. The index imports just each app's `meta`, not its code.
+- **Long-lived vendor chunks**: `react` (React, ReactDOM, React Router) and `stylex` (StyleX runtime). They change only on dependency upgrades, so browsers keep them cached across deploys.
+- **CSS is one file.** StyleX compiles every component's styles into shared atomic classes in a single stylesheet, so it isn't split per app; it's small and hashed for long-term caching.
+
+The site's e2e tests check that `/` never requests an `app-*` chunk.
 
 ## Requirements
 
@@ -33,21 +48,21 @@ Run from the repo root.
 
 ```sh
 pnpm install
-pnpm dev            # tetris dev server
-pnpm build          # build every package
+pnpm dev            # site dev server → http://localhost:5173 (index) and /tetris
+pnpm build          # build the site (type-check + Vite) → site/dist/
 pnpm typecheck      # tsc in every package
 pnpm lint           # ESLint, whole repo
 pnpm test           # Jest in every package
-pnpm test:e2e       # Playwright in every package (run `pnpm --filter @dy-apps/tetris exec playwright install chromium` once)
+pnpm test:e2e       # Playwright against the built site (run `pnpm --filter @dy-apps/site exec playwright install chromium` once)
 pnpm format         # Prettier, whole repo (format:check to verify)
 pnpm check          # format:check + typecheck + lint + test
 ```
 
-To target one package: `pnpm --filter @dy-apps/tetris <script>`.
+To target one package: `pnpm --filter @dy-apps/<name> <script>`.
 
 ## Shared config presets
 
-Apps keep one short file per tool, using the default filenames so no `--config` flags are needed:
+Packages keep one short file per tool, using the default filenames so no `--config` flags are needed. The site uses the Vite and Playwright presets; apps use the Jest preset:
 
 ```ts
 // vite.config.ts
@@ -74,9 +89,8 @@ The presets are plain JavaScript with `.d.ts` types, because Jest can't load a T
 
 ## Adding an app
 
-1. Create `<name>/` at the repo root with a `package.json` named `@dy-apps/<name>` (`build`, `typecheck`, `lint`, `test` scripts).
-2. Add `<name>` to `packages` in `pnpm-workspace.yaml`.
-3. Add `"@dy-apps/config": "workspace:*"` and the config files above.
-4. Add a `tsconfig.json` that extends `../tsconfig.base.json`.
-5. Add a section for `<name>/**` to `eslint.config.js` if it needs extra rules.
-6. Use `"catalog:"` for shared tools so versions stay in sync, then run `pnpm install`.
+1. Create `apps/<name>/` with a `package.json` named `@dy-apps/<name>` and `"exports": { ".": "./src/index.ts", "./meta": "./src/meta.ts" }`. Put React in `peerDependencies` (and `devDependencies` for tests).
+2. Export the page component from `src/index.ts`, and `meta = { path, title, description }` from `src/meta.ts`. Keep `meta.ts` free of imports so the index stays small.
+3. Add `"@dy-apps/<name>": "workspace:*"` to `site/package.json` and one entry to `site/src/apps.ts`.
+4. Add a `tsconfig.json` that extends `../../tsconfig.base.json`, plus `jest.config.js` if it has tests. `apps/*` is already in `pnpm-workspace.yaml` and the ESLint config.
+5. Use `"catalog:"` for shared tools so versions stay in sync, then run `pnpm install`.

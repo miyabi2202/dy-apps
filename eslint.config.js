@@ -20,13 +20,13 @@ export default tseslint.config(
   },
   { files: ['**/*.{js,cjs}'], ...tseslint.configs.disableTypeChecked },
 
-  // tetris: React + StyleX
+  // React + StyleX: the site and every app
   {
-    files: ['tetris/src/**/*.{ts,tsx}'],
+    files: ['site/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}'],
     ...react.configs['recommended-type-checked'],
   },
   {
-    files: ['tetris/src/**/*.{ts,tsx}'],
+    files: ['site/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': reactHooks,
       '@stylexjs': stylex,
@@ -39,7 +39,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['tetris/**/*.test.{ts,tsx}', 'tetris/src/setupTests.ts', 'dyhub-client/tests/**/*.ts'],
+    files: ['apps/*/tests/**/*.{ts,tsx}', 'apps/*/src/setupTests.ts', 'dyhub-client/tests/**/*.ts'],
     languageOptions: { globals: globals.jest },
   },
 

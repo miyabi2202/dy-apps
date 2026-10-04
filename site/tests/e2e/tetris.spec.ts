@@ -49,7 +49,7 @@ test.beforeEach(async ({ page }) => {
     if (m.type() === 'error') consoleErrors.push(m.text());
   });
   page.on('pageerror', (e) => consoleErrors.push(String(e)));
-  await page.goto('/?seed=1');
+  await page.goto('/tetris?seed=1');
 });
 
 test.afterEach(() => {

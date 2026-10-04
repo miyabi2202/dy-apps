@@ -1,9 +1,0 @@
-// Cloudflare Workers static-assets deploy of this app.
-// `name` must match the Worker name in the Cloudflare dashboard.
-{
-  "name": "dy-apps",
-  "compatibility_date": "2026-10-01",
-  "assets": {
-    "directory": "./dist",
-  },
-}

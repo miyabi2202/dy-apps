@@ -1,7 +1,8 @@
 packages:
+  - apps/*
   - config
   - dyhub-client
-  - tetris
+  - site
 
 # Shared tool versions; reference them with "catalog:" in any package.json.
 catalog:

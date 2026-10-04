@@ -8,24 +8,20 @@ Everything runs locally: no live-stream API, payments, backend or network access
 
 - Node.js 22 or later
 - pnpm 11 (`corepack enable`)
-- For browser tests: Chromium via Playwright (installed below)
+- For browser tests: Chromium via Playwright (see the root README)
 
 ## Commands
 
-This app is the `@dy-apps/tetris` package in the repo's pnpm workspace. Install once from the repo root, then run the scripts from `tetris/` (or from the root with `pnpm --filter @dy-apps/tetris <script>`). All scripts are plain Node CLIs, so they work in PowerShell/cmd as well as Bash.
+This app is the `@dy-apps/tetris` package in the repo's pnpm workspace. It has no build of its own: it exports `TetrisPage` (and a small `meta`), and `@dy-apps/site` serves it at **`/tetris`**. Install once from the repo root, then run these from `apps/tetris/` (or from the root with `pnpm --filter @dy-apps/tetris <script>`):
 
 ```sh
-pnpm install                            # at the repo root
-pnpm exec playwright install chromium   # once, for e2e tests
-
-pnpm dev            # Vite dev server → http://localhost:5173
-pnpm build          # type-check + production build → dist/
-pnpm preview        # serve dist/ → http://localhost:4173
+pnpm install        # at the repo root
 pnpm typecheck      # tsc
 pnpm lint           # ESLint (root eslint.config.js)
 pnpm test           # Jest: unit, integration and stress tests
-pnpm test:e2e       # Playwright: builds, serves, and drives Chromium
 ```
+
+To play or run browser tests, use the site from the repo root: `pnpm dev` (then open http://localhost:5173/tetris) and `pnpm test:e2e`. The game's Playwright tests live in `site/tests/e2e/tetris.spec.ts`.
 
 Formatting is repo-wide: `pnpm format` / `pnpm format:check` at the root.
 
@@ -49,10 +45,11 @@ Held keys use the game's own repeat timing (DAS 150 ms, ARR 45 ms), not the OS k
 ## Project layout
 
 ```text
-vite.config.ts     # \
-jest.config.js     #  > thin wrappers around the presets in @dy-apps/config
-playwright.config.ts # /
+jest.config.js     # thin wrapper around the Jest preset in @dy-apps/config
 src/
+  index.ts         # package entry: TetrisPage
+  meta.ts          # path / title / description for the site index (no imports)
+  TetrisPage.tsx   # the /tetris route: creates the engine (?seed=), window.__blockLab
   core/            # DOM-free engine — all rules live here
     config.ts      # every gameplay number
     types.ts
@@ -71,7 +68,7 @@ src/
 tests/
   unit/            # engine rules, acceptance examples A–G
   integration/     # React UI (Testing Library), 30k-gift stress
-  e2e/             # Playwright in Chromium
+                   # (Playwright e2e: site/tests/e2e/tetris.spec.ts)
 ```
 
 The engine updates the board every frame. The React panels re-render only when the engine bumps its `version` (gifts, locks, phase changes, holds). Movement and gravity don't trigger re-renders.

@@ -1,0 +1,11 @@
+// Cloudflare Workers static-assets deploy of the site.
+// `name` must match the Worker name in the Cloudflare dashboard.
+{
+  "name": "dy-apps",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // Client-side routes (/tetris, …) are served index.html so deep links and refreshes work.
+    "not_found_handling": "single-page-application",
+  },
+}

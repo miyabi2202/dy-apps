@@ -1,4 +1,4 @@
-/* Global resets. Component styles live in StyleX; this file also gives the Vite
+/* Site-wide resets. Component styles live in StyleX; this file also gives the Vite
    build a CSS asset that the StyleX plugin appends its output to.
    Kept in a layer declared first so StyleX's layered rules always win. */
 @layer reset {
@@ -12,9 +12,6 @@
   body {
     margin: 0;
     min-height: 100%;
-    background-color: #0a0f1c;
-    color: #e5e7eb;
-    color-scheme: dark;
   }
 
   button,

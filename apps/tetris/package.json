@@ -3,26 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "方块干预实验室: the block game, exported as a page for @dy-apps/site.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./meta": "./src/meta.ts"
+  },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint --max-warnings 0 .",
     "lint:fix": "eslint --fix .",
     "test": "jest",
-    "test:watch": "jest --watch",
-    "test:e2e": "playwright test"
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@dy-apps/dyhub-client": "workspace:*",
-    "@stylexjs/stylex": "^0.19.1",
+    "@stylexjs/stylex": "^0.19.1"
+  },
+  "peerDependencies": {
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@dy-apps/config": "workspace:*",
-    "@playwright/test": "catalog:",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
@@ -33,7 +35,8 @@
     "eslint": "catalog:",
     "globals": "catalog:",
     "jest": "catalog:",
-    "typescript": "catalog:",
-    "vite": "catalog:"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "catalog:"
   }
 }
