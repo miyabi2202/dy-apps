@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { DEFAULT_SETTINGS, type Settings } from '../../src/settings';
-import type { DanmakuMessage } from '../../src/types';
+import type { DanmakuMessage, DanmakuUser } from '../../src/types';
 import { MessageCard } from '../../src/ui/MessageCard';
 
 const message: DanmakuMessage = {
@@ -10,10 +10,14 @@ const message: DanmakuMessage = {
   ts: 0,
 };
 
-function renderCard(settings: Partial<Settings> = {}, onLanded = jest.fn()) {
+function renderCard(
+  settings: Partial<Settings> = {},
+  onLanded = jest.fn(),
+  fansClub?: DanmakuUser['fansClub'],
+) {
   const view = render(
     <MessageCard
-      message={message}
+      message={{ ...message, user: { ...message.user, fansClub } }}
       settings={{ ...DEFAULT_SETTINGS, ...settings }}
       animate
       onLanded={onLanded}
@@ -25,9 +29,21 @@ function renderCard(settings: Partial<Settings> = {}, onLanded = jest.fn()) {
 describe('MessageCard', () => {
   it('shows the avatar initial and name, then the message', () => {
     const { card } = renderCard();
-    const header = card.querySelector('header')!;
-    expect(header).toHaveTextContent('摸摸鱼大师');
+    expect(card).toHaveTextContent(/^摸摸鱼大师666666$/);
     expect(screen.getByText('666666').tagName).toBe('P');
+  });
+
+  it('shows the fan-club level between the name and the message', () => {
+    const { card } = renderCard({}, jest.fn(), { name: '甄选', level: 12 });
+    const badge = screen.getByTestId('fans-club-level');
+    expect(badge).toHaveTextContent('♥12');
+    expect(badge).toHaveAttribute('title', '甄选 粉丝团 12 级');
+    expect(card).toHaveTextContent(/^摸摸鱼大师♥12666666$/);
+  });
+
+  it('shows no fan-club badge for non-members', () => {
+    renderCard();
+    expect(screen.queryByTestId('fans-club-level')).not.toBeInTheDocument();
   });
 
   it('shows the avatar image when there is one, and falls back to the initial if it fails', () => {
@@ -43,7 +59,7 @@ describe('MessageCard', () => {
     expect(img).toHaveAttribute('src', 'https://example.com/a.png');
     fireEvent.error(img);
     expect(container.querySelector('img')).toBeNull();
-    expect(container.querySelector('header')).toHaveTextContent('摸摸鱼大师');
+    expect(container.querySelector('article')).toHaveTextContent(/^摸摸鱼大师/);
   });
 
   it.each([

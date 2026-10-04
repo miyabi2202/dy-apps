@@ -3,6 +3,8 @@ export interface DanmakuUser {
   nickname: string;
   /** Falls back to a generated initial avatar when missing or broken. */
   avatarUrl?: string;
+  /** This room's fan club; missing when the user isn't a member. */
+  fansClub?: { name: string; level: number };
 }
 
 export interface DanmakuMessage {

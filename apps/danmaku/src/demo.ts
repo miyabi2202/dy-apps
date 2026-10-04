@@ -49,7 +49,12 @@ const TEXTS = [
   '好耶！',
 ];
 
-const USERS: DanmakuUser[] = NICKNAMES.map((nickname, i) => ({ id: `demo-user-${i}`, nickname }));
+/** About two thirds of the fake viewers are in the fan club, at levels spread over 1–25. */
+const USERS: DanmakuUser[] = NICKNAMES.map((nickname, i) => ({
+  id: `demo-user-${i}`,
+  nickname,
+  fansClub: i % 3 === 2 ? undefined : { name: '弹幕墙', level: ((i * 7) % 25) + 1 },
+}));
 
 const pick = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)]!;
 

@@ -28,11 +28,17 @@ describe('createFakeMessage', () => {
       expect(m.text).not.toBe('');
       expect(m.user.nickname).not.toBe('');
     }
-    // Same user id → same nickname, so per-user colours stay consistent.
-    const names = new Map<string, string>();
+    // Same user id → same user (nickname, fan club), so colours and badges stay consistent.
+    const users = new Map<string, unknown>();
     for (const { user } of messages) {
-      expect(names.get(user.id) ?? user.nickname).toBe(user.nickname);
-      names.set(user.id, user.nickname);
+      expect(users.get(user.id) ?? user).toEqual(user);
+      users.set(user.id, user);
+    }
+    const levels = messages.map((m) => m.user.fansClub?.level);
+    expect(levels).toContain(undefined);
+    for (const level of levels.filter((l) => l !== undefined)) {
+      expect(level).toBeGreaterThanOrEqual(1);
+      expect(level).toBeLessThanOrEqual(25);
     }
   });
 });

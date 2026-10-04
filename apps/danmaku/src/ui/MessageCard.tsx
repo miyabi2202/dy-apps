@@ -22,6 +22,8 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
   const glow = `hsl(${hue} 90% 60% / 0.55)`;
   const nameColor = `hsl(${hue} 90% ${nameLightness(hue)}%)`;
 
+  const { fansClub } = message.user;
+
   const onAnimationEnd = (e: AnimationEvent) => {
     if (e.target === e.currentTarget) onLanded();
   };
@@ -60,25 +62,54 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
           )}
         />
       )}
-      <header {...stylex.props(styles.header)}>
+      {/* Grid: avatar | name on the first row, fan-club badge | message below them. */}
+      <div {...stylex.props(styles.avatar)}>
         <Avatar user={message.user} hue={hue} ring={main} />
-        <span
-          {...stylex.props(
-            styles.name,
-            styles.nameColor(nameColor),
-            border === 'neon' && styles.nameGlow(glow),
-          )}
-        >
-          {message.user.nickname}
-        </span>
-      </header>
+      </div>
+      <span
+        {...stylex.props(
+          styles.name,
+          styles.nameColor(nameColor),
+          border === 'neon' && styles.nameGlow(glow),
+        )}
+      >
+        {message.user.nickname}
+      </span>
+      {fansClub && <FansClubBadge level={fansClub.level} name={fansClub.name} />}
       <p {...stylex.props(styles.text)}>{message.text}</p>
     </article>
   );
 }
 
-// Never larger than the card and never rotated: both would push a wide card's edge out
-// in proportion to its width. The fixed -6px overshoot stays inside the row's padding.
+/** Fan-club level as a small heart pill, coloured by tier like Douyin's badges. */
+function FansClubBadge({ level, name }: { level: number; name: string }) {
+  return (
+    <span {...stylex.props(styles.badgeSlot)}>
+      <span
+        title={`${name} 粉丝团 ${level} 级`}
+        data-testid="fans-club-level"
+        {...stylex.props(styles.badge, styles.badgeTier(fansClubTier(level)))}
+      >
+        ♥{level}
+      </span>
+    </span>
+  );
+}
+
+const FANS_CLUB_TIERS = [
+  { from: 1, colors: ['#5eead4', '#14b8a6'] },
+  { from: 6, colors: ['#7dd3fc', '#3b82f6'] },
+  { from: 11, colors: ['#c4b5fd', '#8b5cf6'] },
+  { from: 16, colors: ['#fda4af', '#f43f5e'] },
+  { from: 21, colors: ['#fde68a', '#f59e0b'] },
+] as const;
+
+function fansClubTier(level: number): string {
+  let [from, to]: readonly string[] = FANS_CLUB_TIERS[0].colors;
+  for (const t of FANS_CLUB_TIERS) if (level >= t.from) [from, to] = t.colors;
+  return `linear-gradient(135deg, ${from}, ${to})`;
+}
+
 /**
  * HSL renders blue–purple hues much darker than others at the same lightness, so their
  * names are hard to read on a dark card. Lift the lightness around hue 255, tapering off
@@ -88,6 +119,8 @@ function nameLightness(hue: number): number {
   return 66 + 14 * Math.max(0, 1 - Math.abs(hue - 255) / 55);
 }
 
+// Never larger than the card and never rotated: both would push a wide card's edge out
+// in proportion to its width. The fixed -6px overshoot stays inside the row's padding.
 const flyIn = stylex.keyframes({
   '0%': { opacity: 0, transform: 'translate(70px, 28px) scale(0.82)' },
   '60%': { opacity: 1, transform: 'translate(-6px, -2px)' },
@@ -103,9 +136,14 @@ const styles = stylex.create({
   card: {
     borderColor: 'transparent',
     borderStyle: 'solid',
+    gridTemplateAreas: '"avatar name" "badge text"',
     paddingBlock: '0.5em',
     paddingInline: '0.75em',
     color: '#f8fafc',
+    columnGap: '0.5em',
+    display: 'grid',
+    // Fixed to the avatar's width (1.9em at 0.82em), so a wide badge never shifts the text.
+    gridTemplateColumns: '1.56em minmax(0, 1fr)',
     position: 'relative',
   },
   shape: (width: number, radius: number, fill: number) => ({
@@ -159,15 +197,40 @@ const styles = stylex.create({
     backgroundImage: `linear-gradient(90deg, ${a}, ${b}, ${c}, ${a}, ${b}, ${c}, ${a})`,
     backgroundSize: '200% 100%',
   }),
-  header: {
-    gap: '0.5em',
-    alignItems: 'center',
+  avatar: {
+    gridArea: 'avatar',
     display: 'flex',
     fontSize: '0.82em',
-    minWidth: 0,
+    justifyContent: 'center',
   },
+  // Same top margin and line height as the message's first line, so the badge centres on it.
+  badgeSlot: {
+    gridArea: 'badge',
+    alignItems: 'center',
+    alignSelf: 'start',
+    display: 'flex',
+    justifyContent: 'center',
+    height: '1.45em',
+    marginTop: '0.3em',
+  },
+  badge: {
+    borderRadius: 999,
+    paddingInline: '0.45em',
+    color: '#fff',
+    fontSize: '0.62em',
+    fontVariantNumeric: 'tabular-nums',
+    fontWeight: 800,
+    justifySelf: 'center',
+    lineHeight: 1.5,
+    textShadow: '0 1px 1px rgba(0, 0, 0, 0.35)',
+    whiteSpace: 'nowrap',
+  },
+  badgeTier: (gradient: string) => ({ backgroundImage: gradient }),
   name: {
+    gridArea: 'name',
     overflow: 'hidden',
+    alignSelf: 'center',
+    fontSize: '0.82em',
     fontWeight: 700,
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -175,6 +238,7 @@ const styles = stylex.create({
   nameColor: (color: string) => ({ color }),
   nameGlow: (glow: string) => ({ textShadow: `0 0 8px ${glow}` }),
   text: {
+    gridArea: 'text',
     lineHeight: 1.45,
     overflowWrap: 'anywhere',
     textShadow: '0 1px 2px rgba(0, 0, 0, 0.6)',
