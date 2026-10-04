@@ -116,7 +116,8 @@ export function readSettings(search: string, base: Settings = DEFAULT_SETTINGS):
   const q = new URLSearchParams(search);
   const num = (key: NumericKey) => {
     const raw = q.get(PARAMS[key]);
-    const n = raw === null ? NaN : Number(raw);
+    // Number('') is 0, so an empty `?size=` must count as missing, not as the minimum.
+    const n = raw === null || raw.trim() === '' ? NaN : Number(raw);
     const [min, max] = RANGES[key];
     return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : base[key];
   };

@@ -5,8 +5,8 @@
     "jsx": "react-jsx",
     "allowJs": true,
     "checkJs": false,
-    "types": ["node"]
+    "types": ["node", "jest", "@testing-library/jest-dom"]
   },
-  "include": ["src", "*.ts", "*.js"],
+  "include": ["src", "tests", "*.ts", "*.js"],
   "exclude": ["node_modules", "dist"]
 }
