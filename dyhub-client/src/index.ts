@@ -24,13 +24,24 @@ export function dyhubUrl(port: number, roomId: string): string {
   return `ws://localhost:${port}/ws?roomId=${roomId}&types=${DYHUB_EVENT_TYPES.join(',')}`;
 }
 
+/** Event user. Levels need miyabi2202/dyhub with payGrade/fansClub support. */
+export interface DyhubUser {
+  id: string;
+  nickname: string;
+  avatar?: string;
+  /** Douyin wealth level (User.payGrade.level); missing when the message doesn't carry it. */
+  payLevel?: number;
+  /** The fan club shown for the user, usually this room's streamer's; missing when not a member. */
+  fansClub?: { name: string; level: number; status?: number; anchorId?: string };
+}
+
 /** Subset of DyHub's DanmakuEvent that consumers rely on. */
 export interface DyhubEvent {
   id: string;
   roomId: string;
   type: string;
   ts: number;
-  user?: { id: string; nickname: string };
+  user?: DyhubUser;
   data?: Record<string, unknown>;
 }
 
