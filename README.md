@@ -40,6 +40,30 @@ The site's Vite build (`config/vite.js`) splits output so each page downloads on
 
 The site's e2e tests check that `/` never requests an `app-*` chunk.
 
+## DyHub (live-room events)
+
+Live chat and gifts come from [DyHub](https://github.com/ymstar/dyhub), a Douyin live-room event hub that runs on your own machine. The apps need **our fork, [miyabi2202/dyhub](https://github.com/miyabi2202/dyhub) (`main`)**, not upstream. The fork adds:
+
+- Correct gift fields, including `groupId` and `repeatEnd`, which `GiftCounter` needs to count each gift once (upstream PR [ymstar/dyhub#4](https://github.com/ymstar/dyhub/pull/4), not merged yet)
+- 网页登录 in the console: log in to Douyin in a pop-up window and the cookie is saved. Gift events need a logged-in cookie
+- A fix so a room isn't marked closed when some other WebSocket on the live page closes
+- The console's live feed merges the messages of one gift send
+
+Run it on the machine that opens the app (the streaming PC, for OBS):
+
+```sh
+git clone https://github.com/miyabi2202/dyhub.git
+cd dyhub
+npm install
+npm run build && npm start   # console → http://localhost:8757
+```
+
+It needs Node.js 20+ and Chrome installed. Log in once from the console (网页登录) to receive gifts. See the fork's README for environment variables such as `DYHUB_PORT`.
+
+Apps connect through [`@dy-apps/dyhub-client`](dyhub-client) to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (DyHub's default is `8757`) and the room ID (the number in `live.douyin.com/<id>`), and DyHub starts collecting that room. The address is always `localhost`, so DyHub must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
+
+Status: the tetris page's DyHub panel connects and logs chat and gift events. The danmaku overlay doesn't connect yet and only shows demo messages.
+
 ## Requirements
 
 - Node.js 22 or later
