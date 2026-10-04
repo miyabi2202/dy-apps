@@ -1,0 +1,33 @@
+/* Index and 404 pages: plain content with spacing only. Plain CSS rather than StyleX so
+   `/` never loads the StyleX runtime (the site e2e tests check this). */
+.plain {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+.plain h1 {
+  margin: 0 0 24px;
+}
+
+.plain h2 {
+  margin: 32px 0 8px;
+  font-size: 20px;
+}
+
+.plain ul {
+  margin: 0;
+  padding-left: 24px;
+}
+
+.plain li {
+  margin: 8px 0;
+}
+
+.plain__footer {
+  margin-top: 48px;
+  font-size: 13px;
+  opacity: 0.6;
+}

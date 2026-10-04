@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@dy-apps/danmaku": "workspace:*",
+    "@dy-apps/dyhub-guide": "workspace:*",
     "@dy-apps/tetris": "workspace:*",
     "@stylexjs/stylex": "^0.19.1",
     "react": "^19.3.0",

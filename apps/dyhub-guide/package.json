@@ -1,0 +1,33 @@
+{
+  "name": "@dy-apps/dyhub-guide",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DyHub Windows 安装教程: a step-by-step guide for streamers, exported as a page for @dy-apps/site.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./meta": "./src/meta.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --max-warnings 0 .",
+    "lint:fix": "eslint --fix ."
+  },
+  "dependencies": {
+    "@dy-apps/local-storage": "workspace:*",
+    "@stylexjs/stylex": "^0.19.1"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "catalog:",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "catalog:"
+  }
+}
