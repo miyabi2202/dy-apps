@@ -2,12 +2,14 @@
 
 pnpm monorepo of small live-stream apps, served as one site: an index page at `/` and each app on its own route.
 
-| Package                                 | Path            | What it is                                                      |
-| --------------------------------------- | --------------- | --------------------------------------------------------------- |
-| [`@dy-apps/site`](site)                 | `site/`         | The deployed SPA: index page, React Router, Vite build, Workers |
-| [`@dy-apps/tetris`](apps/tetris)        | `apps/tetris/`  | 方块干预实验室 at `/tetris`: block game with audience curses    |
-| [`@dy-apps/config`](config)             | `config/`       | Shared Vite, Jest, Playwright and Browserslist presets          |
-| [`@dy-apps/dyhub-client`](dyhub-client) | `dyhub-client/` | Browser client for DyHub's live-room WebSocket events           |
+| Package                                   | Path             | What it is                                                      |
+| ----------------------------------------- | ---------------- | --------------------------------------------------------------- |
+| [`@dy-apps/site`](site)                   | `site/`          | The deployed SPA: index page, React Router, Vite build, Workers |
+| [`@dy-apps/tetris`](apps/tetris)          | `apps/tetris/`   | 方块干预实验室 at `/tetris`: block game with audience curses    |
+| [`@dy-apps/danmaku`](apps/danmaku)        | `apps/danmaku/`  | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS          |
+| [`@dy-apps/config`](config)               | `config/`        | Shared Vite, Jest, Playwright and Browserslist presets          |
+| [`@dy-apps/dyhub-client`](dyhub-client)   | `dyhub-client/`  | Browser client for DyHub's live-room WebSocket events           |
+| [`@dy-apps/local-storage`](local-storage) | `local-storage/` | Typed, validated, namespaced localStorage values for every app  |
 
 ## Layout
 
@@ -19,6 +21,7 @@ site/                 # the one deployed app: index page + a lazily loaded route
 apps/<name>/          # one package per app: exports its page component and a tiny `meta`
 config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
 dyhub-client/         # @dy-apps/dyhub-client: connectDyhub, port/room validation, GiftCounter (TS source, no build step)
+local-storage/        # @dy-apps/local-storage: createStore for `dy-apps:<app>.<key>` values (TS source, no build step)
 eslint.config.js      # one flat config for every package
 .prettierrc.json      # repo-wide formatting (+ .prettierignore)
 tsconfig.base.json    # packages extend this

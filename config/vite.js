@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import stylex from '@stylexjs/unplugin';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
@@ -33,11 +34,29 @@ const APP_CHUNKS = {
   priority: 5,
 };
 
+/**
+ * The commit being built: Cloudflare Workers Builds and GitHub Actions set it in the
+ * environment; locally it comes from git. Exposed to pages as `__COMMIT_HASH__`.
+ */
+function commitHash() {
+  const fromEnv = process.env.WORKERS_CI_COMMIT_SHA || process.env.GITHUB_SHA;
+  if (fromEnv) return fromEnv;
+  try {
+    return execSync('git rev-parse HEAD', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
 /** React + StyleX site. `appRoot` is the directory holding index.html. */
 export function createViteConfig(appRoot) {
   return defineConfig({
     root: appRoot,
     plugins: [stylex.vite({ useCSSLayers: true }), react()],
+    define: { __COMMIT_HASH__: JSON.stringify(commitHash()) },
     build: {
       outDir: 'dist',
       rolldownOptions: { output: { codeSplitting: { groups: [...VENDOR_CHUNKS, APP_CHUNKS] } } },

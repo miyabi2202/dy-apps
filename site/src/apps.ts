@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import { meta as danmaku } from '@dy-apps/danmaku/meta';
 import { meta as tetris } from '@dy-apps/tetris/meta';
 
 export interface AppEntry {
@@ -13,4 +14,5 @@ export interface AppEntry {
 /** Every app on the site, in index order. To add one: a package in apps/, its meta, and a line here. */
 export const APPS: readonly AppEntry[] = [
   { ...tetris, load: () => import('@dy-apps/tetris').then((m) => m.TetrisPage) },
+  { ...danmaku, load: () => import('@dy-apps/danmaku').then((m) => m.DanmakuPage) },
 ];

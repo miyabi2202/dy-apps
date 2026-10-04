@@ -2,6 +2,7 @@ packages:
   - apps/*
   - config
   - dyhub-client
+  - local-storage
   - site
 
 # Shared tool versions; reference them with "catalog:" in any package.json.
