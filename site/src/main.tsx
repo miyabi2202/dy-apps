@@ -3,8 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { PAGES } from './apps';
-import { IndexPage } from './IndexPage';
-import { NotFoundPage } from './NotFoundPage';
+import { IndexPage } from './index-page';
+import { NotFoundPage } from './not-found-page';
 import './global.css';
 
 const router = createBrowserRouter([

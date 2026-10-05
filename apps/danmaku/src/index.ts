@@ -1,1 +1,1 @@
-export { DanmakuPage } from './DanmakuPage';
+export { DanmakuPage } from './danmaku-page';

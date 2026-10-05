@@ -14,8 +14,8 @@ import {
   type Settings,
 } from './settings';
 import type { DanmakuMessage } from './types';
-import { Controls, DEMO_INTERVAL_RANGE } from './ui/Controls';
-import { MessageList } from './ui/MessageList';
+import { Controls, DEMO_INTERVAL_RANGE } from './ui/controls';
+import { MessageList } from './ui/message-list';
 
 /** Older messages are dropped past this, so a long stream doesn't grow memory forever. */
 const MAX_MESSAGES = 1000;

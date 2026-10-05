@@ -4,7 +4,7 @@ import { LocalGiftAdapter } from '../../src/adapters/local-gift';
 import { GameEngine } from '../../src/core/game';
 import { constantRng } from '../../src/core/random';
 import { KeyboardController } from '../../src/input/keyboard';
-import { App } from '../../src/ui/App';
+import { App } from '../../src/ui/app';
 
 function setup(giftRng = constantRng(0)) {
   const engine = new GameEngine({ seed: 1, giftRng });

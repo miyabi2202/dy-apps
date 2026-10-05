@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { DEFAULT_SETTINGS, type Settings } from '../../src/settings';
 import type { DanmakuMessage, DanmakuUser } from '../../src/types';
-import { MessageCard } from '../../src/ui/MessageCard';
+import { MessageCard } from '../../src/ui/message-card';
 
 const message: DanmakuMessage = {
   id: 'm1',

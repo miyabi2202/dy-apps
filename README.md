@@ -108,7 +108,7 @@ export default createPlaywrightConfig({ appRoot: import.meta.dirname });
 ```js
 // jest.config.js
 import { createJestConfig } from '@dy-apps/config/jest';
-export default createJestConfig({ setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'] });
+export default createJestConfig({ setupFilesAfterEnv: ['<rootDir>/src/setup-tests.ts'] });
 ```
 
 ```

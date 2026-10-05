@@ -1,1 +1,1 @@
-export { TetrisPage } from './TetrisPage';
+export { TetrisPage } from './tetris-page';

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { LocalGiftAdapter } from './adapters/local-gift';
 import { GameEngine } from './core/game';
 import { KeyboardController } from './input/keyboard';
-import { App } from './ui/App';
+import { App } from './ui/app';
 
 /** `?seed=123` makes piece, garbage and gift randomness reproducible. */
 function seedFromUrl(): number | undefined {

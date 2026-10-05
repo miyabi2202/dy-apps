@@ -7,12 +7,12 @@ import { CONFIG } from '../core/config';
 import type { GameEngine } from '../core/game';
 import type { KeyboardController } from '../input/keyboard';
 import { startGameLoop } from '../loop';
-import { CenterPanel } from './CenterPanel';
-import { DyhubPanel } from './DyhubPanel';
+import { CenterPanel } from './center-panel';
+import { DyhubPanel } from './dyhub-panel';
 import { percent } from './format';
-import { LogPanel } from './LogPanel';
-import { TeamPanel } from './TeamPanel';
-import { useEngineVersion } from './useEngine';
+import { LogPanel } from './log-panel';
+import { TeamPanel } from './team-panel';
+import { useEngineVersion } from './use-engine';
 
 interface Props {
   engine: GameEngine;

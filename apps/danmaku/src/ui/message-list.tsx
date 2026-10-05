@@ -5,7 +5,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { Settings } from '../settings';
 import type { DanmakuMessage } from '../types';
-import { MessageCard } from './MessageCard';
+import { MessageCard } from './message-card';
 
 /** How close to the bottom (px) still counts as following new messages. */
 const STICK_THRESHOLD = 40;

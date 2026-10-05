@@ -41,7 +41,7 @@ export default tseslint.config(
   {
     files: [
       'apps/*/tests/**/*.{ts,tsx}',
-      'apps/*/src/setupTests.ts',
+      'apps/*/src/setup-tests.ts',
       'dyhub-client/tests/**/*.ts',
       'local-storage/tests/**/*.ts',
     ],

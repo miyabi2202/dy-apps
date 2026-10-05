@@ -49,7 +49,7 @@ jest.config.js     # thin wrapper around the Jest preset in @dy-apps/config
 src/
   index.ts         # package entry: TetrisPage
   meta.ts          # path / title / description for the site index (no imports)
-  TetrisPage.tsx   # the /tetris route: creates the engine (?seed=), window.__blockLab
+  tetris-page.tsx  # the /tetris route: creates the engine (?seed=), window.__blockLab
   core/            # DOM-free engine — all rules live here
     config.ts      # every gameplay number
     types.ts

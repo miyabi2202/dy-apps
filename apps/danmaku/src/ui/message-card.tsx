@@ -2,7 +2,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { AnimationEvent } from 'react';
 import type { Settings } from '../settings';
 import { hueFor, type DanmakuMessage } from '../types';
-import { Avatar } from './Avatar';
+import { Avatar } from './avatar';
 
 interface Props {
   message: DanmakuMessage;

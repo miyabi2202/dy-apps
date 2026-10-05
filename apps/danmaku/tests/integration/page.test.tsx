@@ -1,6 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { DanmakuPage } from '../../src/DanmakuPage';
+import { DanmakuPage } from '../../src/danmaku-page';
 
 const SETTINGS_KEY = 'dy-apps:danmaku.settings';
 
