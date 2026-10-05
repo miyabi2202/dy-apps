@@ -50,7 +50,9 @@ interface SelectProps extends Omit<ComponentProps<'select'>, 'className' | 'styl
 
 export function Select({ id, xstyle, ...rest }: SelectProps) {
   const fieldId = useFieldId();
-  return <select id={id ?? fieldId} {...rest} {...stylex.props(styles.control, xstyle)} />;
+  return (
+    <select id={id ?? fieldId} {...rest} {...stylex.props(styles.control, styles.select, xstyle)} />
+  );
 }
 
 const styles = stylex.create({
@@ -80,5 +82,15 @@ const styles = stylex.create({
     minHeight: 36,
     minWidth: 0,
     width: '100%',
+  },
+  // The native arrow ignores padding and hugs the border, so draw our own: a small
+  // triangle from two gradients, inset like the text and coloured with a token.
+  select: {
+    backgroundPosition: 'calc(100% - 18px) 55%, calc(100% - 13px) 55%',
+    appearance: 'none',
+    backgroundImage: `linear-gradient(45deg, transparent 50%, ${colors.muted} 50%), linear-gradient(135deg, ${colors.muted} 50%, transparent 50%)`,
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: '5px 5px',
+    paddingInlineEnd: space.xxl,
   },
 });
