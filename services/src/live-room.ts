@@ -2,7 +2,7 @@ import { isRoomId, parsePort } from './dyhub';
 import { createStore, type Store } from './local-storage';
 
 /** The port and room number as typed, valid or not (a ConnectionForm's value). */
-export interface RoomFields {
+export interface Connection {
   port: string;
   roomId: string;
 }
@@ -13,7 +13,7 @@ export interface LiveRoom {
 }
 
 /** The room to connect to, or null if the port or room number isn't valid. */
-export function liveRoomFrom(fields: RoomFields): LiveRoom | null {
+export function liveRoomFrom(fields: Connection): LiveRoom | null {
   const port = parsePort(fields.port.trim());
   const roomId = fields.roomId.trim();
   return port !== null && isRoomId(roomId) ? { port, roomId } : null;
@@ -37,8 +37,8 @@ export function setLiveRoomParams(params: URLSearchParams, room: LiveRoom): void
  * What an app's connection form last held, valid or not, so a reload keeps the typing.
  * Stored as `<app>.connection`.
  */
-export function createConnectionStore(app: string): Store<RoomFields> {
-  return createStore<RoomFields>(`${app}.connection`, {
+export function createConnectionStore(app: string): Store<Connection> {
+  return createStore<Connection>(`${app}.connection`, {
     fallback: { port: '', roomId: '' },
     parse: (raw) => {
       if (typeof raw !== 'object' || raw === null) return undefined;

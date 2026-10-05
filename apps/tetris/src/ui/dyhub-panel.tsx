@@ -1,4 +1,4 @@
-import { ConnectionForm, Panel, text, type Connection } from '@dy-apps/ui';
+import { ConnectionForm, Panel, text } from '@dy-apps/ui';
 import { colors } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState } from 'react';
@@ -7,6 +7,7 @@ import {
   DYHUB_STATUS_TEXT,
   DyhubClient,
   liveRoomFrom,
+  type Connection,
   type DyhubStatus,
 } from '@dy-apps/services';
 

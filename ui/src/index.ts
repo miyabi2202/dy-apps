@@ -2,7 +2,7 @@
 export { COMMIT_HASH, SHORT_COMMIT_HASH } from './build';
 export { Button, ButtonLink, type ButtonVariant } from './button';
 export { Checkbox } from './checkbox';
-export { ConnectionForm, type Connection } from './connection-form';
+export { ConnectionForm } from './connection-form';
 export { CopyButton, copyText } from './copy-button';
 export { Field, Input, Select, useFieldId } from './form';
 export { Column, Grid, Row, type Space } from './layout';

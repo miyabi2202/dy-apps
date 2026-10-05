@@ -325,6 +325,9 @@ importers:
 
   ui:
     dependencies:
+      '@dy-apps/services':
+        specifier: workspace:*
+        version: link:../services
       '@stylexjs/stylex':
         specifier: ^0.19.1
         version: 0.19.1

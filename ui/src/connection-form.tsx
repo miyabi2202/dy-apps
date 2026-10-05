@@ -1,12 +1,8 @@
+import type { Connection } from '@dy-apps/services';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from './button';
 import { Field, Input } from './form';
 import { Row } from './layout';
-
-export interface Connection {
-  port: string;
-  roomId: string;
-}
 
 interface ConnectionFormProps {
   value: Connection;

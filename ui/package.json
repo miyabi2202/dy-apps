@@ -16,6 +16,7 @@
     "build-storybook": "storybook build --output-dir storybook-static"
   },
   "dependencies": {
+    "@dy-apps/services": "workspace:*",
     "@stylexjs/stylex": "^0.19.1"
   },
   "peerDependencies": {

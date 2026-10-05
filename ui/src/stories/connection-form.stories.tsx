@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { fn } from 'storybook/test';
-import { ConnectionForm, type Connection } from '../connection-form';
+import type { Connection } from '@dy-apps/services';
+import { ConnectionForm } from '../connection-form';
 
 const meta = {
   title: 'ConnectionForm',

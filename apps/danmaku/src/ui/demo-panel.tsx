@@ -1,22 +1,14 @@
-import { DYHUB_PORT_HINT, DYHUB_STATUS_TEXT, type DyhubStatus } from '@dy-apps/services';
 import {
-  Button,
-  ConnectionForm,
-  Panel,
-  Row,
-  Select,
-  Slider,
-  text,
+  DYHUB_PORT_HINT,
+  DYHUB_STATUS_TEXT,
   type Connection,
-} from '@dy-apps/ui';
+  type DyhubStatus,
+} from '@dy-apps/services';
+import { Button, ConnectionForm, Panel, Row, Select, Slider, text } from '@dy-apps/ui';
 import { colors } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
+import { DEMO_INTERVAL_RANGE, DEMO_SOURCES, type DemoSource } from '../config';
 import type { DyhubState } from '../use-dyhub';
-
-export const DEMO_INTERVAL_RANGE = [150, 3000] as const;
-
-export const DEMO_SOURCES = ['fake', 'live'] as const;
-export type DemoSource = (typeof DEMO_SOURCES)[number];
 
 const SOURCE_LABELS: Record<DemoSource, string> = {
   fake: '模拟数据',

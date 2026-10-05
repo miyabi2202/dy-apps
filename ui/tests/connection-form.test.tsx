@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type ComponentProps } from 'react';
-import { ConnectionForm, type Connection } from '../src';
+import type { Connection } from '@dy-apps/services';
+import { ConnectionForm } from '../src';
 
 type Props = ComponentProps<typeof ConnectionForm>;
 

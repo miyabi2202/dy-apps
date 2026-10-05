@@ -4,12 +4,13 @@ import {
   liveRoomFrom,
   readLiveRoom,
   setLiveRoomParams,
-  type LiveRoom,
+  type Connection,
 } from '@dy-apps/services';
 import { Button, Column, Page, text } from '@dy-apps/ui';
 import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
 import { useCallback, useEffect, useState } from 'react';
 import { createFakeMessage } from './demo';
+import { DEMO_INTERVAL_RANGE, DEMO_SOURCES, type DanmakuConfig, type DemoSource } from './config';
 import { connectionStore } from './dyhub';
 import {
   DEFAULT_SETTINGS,
@@ -17,11 +18,10 @@ import {
   loadSettings,
   saveSettings,
   settingsToParams,
-  type Settings,
 } from './settings';
 import { addMessage, type DanmakuMessage } from './types';
 import { Controls } from './ui/controls';
-import { DEMO_INTERVAL_RANGE, DEMO_SOURCES, DemoPanel, type DemoSource } from './ui/demo-panel';
+import { DemoPanel } from './ui/demo-panel';
 import { MessageList } from './ui/message-list';
 import { useDyhub, type CreateDyhubClient } from './use-dyhub';
 
@@ -47,26 +47,30 @@ function clampDemoInterval(ms: number): number | undefined {
 interface PageOptions {
   /** `?obs=1`: overlay only, no editor chrome, transparent background. */
   obs: boolean;
-  settings: Settings;
   /** `?demo=<ms>` or `?port=…&room=…`: start the demo straight away (useful in an OBS source). */
   autoDemo: boolean;
-  demoSource: DemoSource;
-  demoIntervalMs: number;
-  /** `?port=…&room=…`: demo with real chat from this live room. */
-  liveRoom: LiveRoom | null;
+  /** From the URL where it says, otherwise what was saved last time. */
+  config: DanmakuConfig;
 }
 
 function optionsFromUrl(): PageOptions {
   const q = new URLSearchParams(window.location.search);
   const demo = q.get('demo');
+  // `?port=…&room=…`: demo with real chat from this live room.
   const liveRoom = readLiveRoom(window.location.search);
   return {
     obs: q.get('obs') === '1',
-    settings: loadSettings(window.location.search),
     autoDemo: demo !== null || liveRoom !== null,
-    demoSource: liveRoom ? 'live' : demo !== null ? 'fake' : demoSourceStore.read(),
-    demoIntervalMs: (demo && clampDemoInterval(Number(demo))) || demoIntervalStore.read(),
-    liveRoom,
+    config: {
+      ...(liveRoom
+        ? { port: String(liveRoom.port), roomId: liveRoom.roomId }
+        : connectionStore.read()),
+      style: loadSettings(window.location.search),
+      demo: {
+        source: liveRoom ? 'live' : demo !== null ? 'fake' : demoSourceStore.read(),
+        intervalMs: (demo && clampDemoInterval(Number(demo))) || demoIntervalStore.read(),
+      },
+    },
   };
 }
 
@@ -78,16 +82,16 @@ interface Props {
 /** The 弹幕墙 route: an editor with live preview, or (`?obs=1`) the bare overlay for OBS. */
 export function DanmakuPage({ createClient }: Props) {
   const [initial] = useState(optionsFromUrl);
-  const [settings, setSettings] = useState(initial.settings);
+  const { config } = initial;
+  const [settings, setSettings] = useState(config.style);
   const [messages, setMessages] = useState<readonly DanmakuMessage[]>([]);
   const [demoRunning, setDemoRunning] = useState(initial.autoDemo);
-  const [demoSource, setDemoSource] = useState(initial.demoSource);
-  const [demoIntervalMs, setDemoIntervalMs] = useState(initial.demoIntervalMs);
-  const [connection, setConnection] = useState(() =>
-    initial.liveRoom
-      ? { port: String(initial.liveRoom.port), roomId: initial.liveRoom.roomId }
-      : connectionStore.read(),
-  );
+  const [demoSource, setDemoSource] = useState(config.demo.source);
+  const [demoIntervalMs, setDemoIntervalMs] = useState(config.demo.intervalMs);
+  const [connection, setConnection] = useState<Connection>({
+    port: config.port,
+    roomId: config.roomId,
+  });
   const liveRoom = liveRoomFrom(connection);
 
   const push = useCallback((message: DanmakuMessage) => {
