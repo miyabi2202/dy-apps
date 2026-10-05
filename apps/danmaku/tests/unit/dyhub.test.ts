@@ -1,6 +1,8 @@
 import { GiftCounter, type DyhubEvent } from '@dy-apps/dyhub-client';
 import {
   connectionStore,
+  likeCount,
+  likeMessage,
   liveRoomFrom,
   messageFromEvent,
   readLiveRoom,
@@ -100,6 +102,47 @@ describe('messageFromEvent', () => {
     ];
     const counts = combo.map((ev) => messageFromEvent(ev, gifts.add(ev))?.gift?.count ?? null);
     expect(counts).toEqual([1, 4, null]);
+  });
+});
+
+describe('likes', () => {
+  const like = (data: Record<string, unknown>): DyhubEvent => ({
+    id: 'l1',
+    roomId: 'r1',
+    type: 'like',
+    ts: 300,
+    user: dyhubUser,
+    data,
+  });
+
+  it("reads a like event's taps, counting a missing or bad count as one", () => {
+    expect(likeCount(like({ count: 5, total: 100 }))).toBe(5);
+    expect(likeCount(like({}))).toBe(1);
+    expect(likeCount(like({ count: 0 }))).toBe(1);
+    expect(likeCount(like({ count: '5' }))).toBe(1);
+  });
+
+  it("makes one card from a run's last event and total", () => {
+    expect(likeMessage(like({ count: 2 }), 37)).toEqual({
+      id: 'like-l1',
+      user: {
+        id: 'u1',
+        nickname: '奶茶不加糖',
+        avatarUrl: 'https://example.com/a.png',
+        fansClub: { name: '弹幕墙', level: 12 },
+      },
+      text: '',
+      likes: 37,
+      ts: 300,
+    });
+  });
+
+  it('makes no card without a user', () => {
+    expect(likeMessage({ ...like({}), user: undefined }, 3)).toBeNull();
+  });
+
+  it('leaves likes out of messageFromEvent, which only does chats and gifts', () => {
+    expect(messageFromEvent(like({ count: 3 }), 0)).toBeNull();
   });
 });
 

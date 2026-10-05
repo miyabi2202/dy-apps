@@ -25,8 +25,11 @@ describe('createFakeMessage', () => {
     const messages = Array.from({ length: 200 }, createFakeMessage);
     expect(new Set(messages.map((m) => m.id)).size).toBe(200);
     for (const m of messages) {
-      // A chat has text; a gift has none, and a name and a positive count instead.
-      if (m.gift) {
+      // A chat has text; a gift or a run of likes has none, and a count instead.
+      if (m.likes !== undefined) {
+        expect(m.text).toBe('');
+        expect(m.likes).toBeGreaterThan(0);
+      } else if (m.gift) {
         expect(m.text).toBe('');
         expect(m.gift.name).not.toBe('');
         expect(m.gift.count).toBeGreaterThan(0);
@@ -37,7 +40,8 @@ describe('createFakeMessage', () => {
       expect(m.user.nickname).not.toBe('');
     }
     expect(messages.some((m) => m.gift)).toBe(true);
-    expect(messages.some((m) => !m.gift)).toBe(true);
+    expect(messages.some((m) => m.likes)).toBe(true);
+    expect(messages.some((m) => m.text)).toBe(true);
     // Same user id → same user (nickname, fan club), so colours and badges stay consistent.
     const users = new Map<string, unknown>();
     for (const { user } of messages) {

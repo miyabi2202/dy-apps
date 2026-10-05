@@ -29,6 +29,12 @@ describe('dyhub settings', () => {
       'ws://localhost:8757/ws?roomId=167920210669&types=chat,gift',
     );
   });
+
+  it('subscribes to the event types asked for', () => {
+    expect(dyhubUrl(8757, '1', ['chat', 'gift', 'like'])).toBe(
+      'ws://localhost:8757/ws?roomId=1&types=chat,gift,like',
+    );
+  });
 });
 
 describe('GiftCounter', () => {

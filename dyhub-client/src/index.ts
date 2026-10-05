@@ -6,7 +6,11 @@
 
 /** DyHub's own default port, shown as a hint only. */
 export const DYHUB_PORT_HINT = '8757';
+/** The events subscribed to unless a caller asks for others. */
 export const DYHUB_EVENT_TYPES = ['chat', 'gift'] as const;
+
+/** Event types DyHub can stream (its DanmakuEvent `type`). */
+export type DyhubEventType = 'chat' | 'gift' | 'member' | 'follow' | 'like' | 'room' | 'unknown';
 
 /** A TCP port, 1–65535, or null. */
 export function parsePort(value: string): number | null {
@@ -20,8 +24,12 @@ export function isRoomId(value: string): boolean {
   return /^\d+$/.test(value);
 }
 
-export function dyhubUrl(port: number, roomId: string): string {
-  return `ws://localhost:${port}/ws?roomId=${roomId}&types=${DYHUB_EVENT_TYPES.join(',')}`;
+export function dyhubUrl(
+  port: number,
+  roomId: string,
+  types: readonly DyhubEventType[] = DYHUB_EVENT_TYPES,
+): string {
+  return `ws://localhost:${port}/ws?roomId=${roomId}&types=${types.join(',')}`;
 }
 
 /** Event user. Levels need miyabi2202/dyhub with payGrade/fansClub support. */
@@ -57,10 +65,15 @@ export interface DyhubHandlers {
  * reports progress with __connecting / __connected / __error frames.
  * Returns a function that closes the connection.
  */
-export function connectDyhub(port: number, roomId: string, handlers: DyhubHandlers): () => void {
+export function connectDyhub(
+  port: number,
+  roomId: string,
+  handlers: DyhubHandlers,
+  types: readonly DyhubEventType[] = DYHUB_EVENT_TYPES,
+): () => void {
   let ws: WebSocket;
   try {
-    ws = new WebSocket(dyhubUrl(port, roomId));
+    ws = new WebSocket(dyhubUrl(port, roomId, types));
   } catch (e) {
     handlers.onStatus('error', e instanceof Error ? e.message : String(e));
     return () => {};

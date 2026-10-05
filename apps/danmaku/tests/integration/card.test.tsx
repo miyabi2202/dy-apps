@@ -123,3 +123,18 @@ describe('MessageCard with a gift', () => {
     expect(screen.getByTestId('gift')).toHaveTextContent('🎁');
   });
 });
+
+describe('MessageCard with likes', () => {
+  it('shows the run of likes instead of a message', () => {
+    render(
+      <MessageCard
+        message={{ ...message, text: '', likes: 37 }}
+        settings={DEFAULT_SETTINGS}
+        animate={false}
+        onLanded={jest.fn()}
+      />,
+    );
+    expect(screen.getByTestId('likes')).toHaveTextContent('点赞❤️×37');
+    expect(screen.queryByText('666666')).not.toBeInTheDocument();
+  });
+});

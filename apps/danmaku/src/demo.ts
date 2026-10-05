@@ -80,11 +80,18 @@ const pick = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * ite
 
 let seq = 0;
 
-/** A random message from a random fake viewer; about one in six is a gift. */
+/** How many likes a fake viewer sends before pausing: a few taps, or a long run. */
+const LIKE_COUNTS = [1, 3, 8, 15, 30, 99, 520];
+
+/** A random message from a random fake viewer; about one in six is a gift, one in eight likes. */
 export function createFakeMessage(): DanmakuMessage {
   const ts = Date.now();
   const id = `demo-${ts}-${seq++}`;
-  if (Math.random() < 1 / 6) {
+  const roll = Math.random();
+  if (roll < 1 / 8) {
+    return { id, user: pick(USERS), text: '', likes: pick(LIKE_COUNTS), ts };
+  }
+  if (roll < 1 / 8 + 1 / 6) {
     const gift: DanmakuGift = { ...pick(GIFTS), count: pick(GIFT_COUNTS) };
     return { id, user: pick(USERS), text: '', gift, ts };
   }

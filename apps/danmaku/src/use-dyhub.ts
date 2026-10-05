@@ -1,6 +1,18 @@
-import { connectDyhub, GiftCounter, type DyhubStatus } from '@dy-apps/dyhub-client';
+import {
+  connectDyhub,
+  GiftCounter,
+  type DyhubEvent,
+  type DyhubStatus,
+} from '@dy-apps/dyhub-client';
 import { useEffect, useState } from 'react';
-import { messageFromEvent, type LiveRoom } from './dyhub';
+import {
+  DANMAKU_EVENT_TYPES,
+  likeCount,
+  likeMessage,
+  messageFromEvent,
+  type LiveRoom,
+} from './dyhub';
+import { LikeBatcher } from './like-batcher';
 import type { DanmakuMessage } from './types';
 
 export type ConnectDyhub = typeof connectDyhub;
@@ -14,13 +26,15 @@ export interface DyhubState {
 }
 
 /**
- * Stays connected to `room` while it's set, pushing each chat message and gift. When the
- * connection fails or drops, it tries again after a few seconds.
+ * Stays connected to `room` while it's set, pushing each chat message and gift, and each
+ * user's likes once they pause. When the connection fails or drops, it tries again after
+ * a few seconds.
  */
 export function useDyhub(
   room: LiveRoom | null,
   push: (m: DanmakuMessage) => void,
   connect: ConnectDyhub = connectDyhub,
+  likeQuietMs?: number,
 ): DyhubState {
   const [state, setState] = useState<DyhubState>({ status: 'idle' });
   const port = room?.port;
@@ -31,31 +45,48 @@ export function useDyhub(
     let disconnect = () => {};
     let retry: ReturnType<typeof setTimeout> | undefined;
     const gifts = new GiftCounter();
+    const likes = new LikeBatcher<DyhubEvent>({
+      quietMs: likeQuietMs,
+      onFlush: (last, total) => {
+        const message = likeMessage(last, total);
+        if (message) push(message);
+      },
+    });
     const open = () => {
-      disconnect = connect(port, roomId, {
-        onStatus: (status, detail) => {
-          setState({ status, detail });
-          if (status === 'error' || status === 'closed') {
-            clearTimeout(retry);
-            retry = setTimeout(() => {
-              disconnect();
-              open();
-            }, RETRY_MS);
-          }
+      disconnect = connect(
+        port,
+        roomId,
+        {
+          onStatus: (status, detail) => {
+            setState({ status, detail });
+            if (status === 'error' || status === 'closed') {
+              clearTimeout(retry);
+              retry = setTimeout(() => {
+                disconnect();
+                open();
+              }, RETRY_MS);
+            }
+          },
+          onEvent: (ev) => {
+            if (ev.type === 'like') {
+              if (ev.user) likes.add(ev.user.id, ev, likeCount(ev));
+              return;
+            }
+            const message = messageFromEvent(ev, gifts.add(ev));
+            if (message) push(message);
+          },
         },
-        onEvent: (ev) => {
-          const message = messageFromEvent(ev, gifts.add(ev));
-          if (message) push(message);
-        },
-      });
+        DANMAKU_EVENT_TYPES,
+      );
     };
     open();
     return () => {
       clearTimeout(retry);
+      likes.clear();
       disconnect();
       setState({ status: 'idle' });
     };
-  }, [port, roomId, push, connect]);
+  }, [port, roomId, push, connect, likeQuietMs]);
 
   return room ? state : { status: 'idle' };
 }

@@ -15,12 +15,14 @@ export interface DanmakuGift {
   iconUrl?: string;
 }
 
-/** A chat message, or a gift (whose `text` is empty). */
+/** A chat message, a gift or a run of likes (the last two have an empty `text`). */
 export interface DanmakuMessage {
   id: string;
   user: DanmakuUser;
   text: string;
   gift?: DanmakuGift;
+  /** How many likes the user sent, added up until they stopped for a while. */
+  likes?: number;
   ts: number;
 }
 

@@ -80,6 +80,12 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
       </div>
       {message.gift ? (
         <GiftLine gift={message.gift} />
+      ) : message.likes ? (
+        <p data-testid="likes" {...stylex.props(styles.text, styles.gift)}>
+          <span {...stylex.props(styles.giftVerb)}>点赞</span>
+          <span aria-hidden>❤️</span>
+          <span {...stylex.props(styles.giftCount, styles.likeCount)}>×{message.likes}</span>
+        </p>
       ) : (
         <p {...stylex.props(styles.text)}>{message.text}</p>
       )}
@@ -293,6 +299,9 @@ const styles = stylex.create({
     fontSize: '1.15em',
     fontVariantNumeric: 'tabular-nums',
     fontWeight: 800,
+  },
+  likeCount: {
+    color: '#f9a8d4',
   },
   text: {
     gridArea: 'text',
