@@ -21,3 +21,11 @@ Use lowercase words joined by `-`, like `message-card.tsx` or `use-engine.ts`. D
 
 - Build UI from `@dy-apps/ui` whenever you can, and use its tokens for colour, spacing and radius.
 - Before creating a new component in an app, check whether another app already has something similar. If it does, move it into `@dy-apps/ui` and use it from both apps.
+
+## Dependency injection
+
+Pass dependencies in, so tests can swap them for fakes without `jest.mock`.
+
+- Anything a test needs to control comes in through a constructor option, function parameter or prop, with the real thing as the default. That includes randomness, time, the network (`WebSocket`, `fetch`) and the objects a class works with. For example, `GameEngine` takes `pieceRng`, and `GiftCounter` takes `now`.
+- Build and wire the real objects in one place, at the page's entry, like `createGame()` in `tetris-page.tsx`.
+- Wire by hand. Don't add a DI container or decorators.
