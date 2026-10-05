@@ -2,7 +2,6 @@ import { DYHUB_PORT_HINT, type DyhubStatus } from '@dy-apps/dyhub-client';
 import {
   Button,
   ConnectionForm,
-  Field,
   Panel,
   Row,
   Select,
@@ -53,20 +52,20 @@ interface Props {
 export function DemoPanel(props: Props) {
   const { running, source, liveState } = props;
   return (
-    <Panel title="演示" gap="md">
-      <Field label="数据来源">
-        <Select
-          value={source}
-          disabled={running}
-          onChange={(e) => props.onSourceChange(e.target.value as DemoSource)}
-        >
-          {DEMO_SOURCES.map((s) => (
-            <option key={s} value={s}>
-              {SOURCE_LABELS[s]}
-            </option>
-          ))}
-        </Select>
-      </Field>
+    <Panel title="数据来源" gap="md">
+      {/* The panel title says what this picks, so no visible label of its own. */}
+      <Select
+        aria-label="数据来源"
+        value={source}
+        disabled={running}
+        onChange={(e) => props.onSourceChange(e.target.value as DemoSource)}
+      >
+        {DEMO_SOURCES.map((s) => (
+          <option key={s} value={s}>
+            {SOURCE_LABELS[s]}
+          </option>
+        ))}
+      </Select>
       {source === 'fake' ? (
         <Slider
           label="平均间隔"
@@ -91,7 +90,7 @@ export function DemoPanel(props: Props) {
           disabled={!running && !props.canStart}
           onClick={props.onToggle}
         >
-          {running ? '停止演示' : '开始演示'}
+          {running ? '停止预览' : '开始预览'}
         </Button>
         <Button onClick={props.onClear}>清空</Button>
         <span {...stylex.props(text.muted)}>{props.count} 条</span>

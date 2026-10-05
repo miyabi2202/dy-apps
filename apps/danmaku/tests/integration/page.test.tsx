@@ -43,7 +43,7 @@ describe('DanmakuPage editor', () => {
 
   it('runs the demo until stopped, and clears', async () => {
     const { user } = setup();
-    await user.click(screen.getByRole('button', { name: '开始演示' }));
+    await user.click(screen.getByRole('button', { name: '开始预览' }));
     advance(10_000);
     const spawned = count();
     expect(spawned).toBeGreaterThan(3);
@@ -51,7 +51,7 @@ describe('DanmakuPage editor', () => {
       within(screen.getByTestId('danmaku-list')).getAllByRole('article').length,
     ).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole('button', { name: '停止演示' }));
+    await user.click(screen.getByRole('button', { name: '停止预览' }));
     advance(10_000);
     expect(count()).toBe(spawned);
 
@@ -62,7 +62,7 @@ describe('DanmakuPage editor', () => {
 
   it('starts the demo straight away with ?demo', () => {
     setup('/danmaku?demo=300');
-    expect(screen.getByRole('button', { name: '停止演示' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '停止预览' })).toBeInTheDocument();
     advance(3000);
     expect(count()).toBeGreaterThan(0);
   });
@@ -102,7 +102,7 @@ describe('DanmakuPage editor', () => {
     expect(link().searchParams.get('border')).toBe('ribbon');
     expect(link().searchParams.has('demo')).toBe(false);
 
-    await user.click(screen.getByRole('button', { name: '开始演示' }));
+    await user.click(screen.getByRole('button', { name: '开始预览' }));
     expect(link().searchParams.get('demo')).toBe('900');
   });
 });
