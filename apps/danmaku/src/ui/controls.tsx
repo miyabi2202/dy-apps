@@ -1,7 +1,18 @@
-import { Button, Field, Grid, Input, Panel, Row, Select, text, useFieldId } from '@dy-apps/ui';
-import { colors, fontSize, space } from '@dy-apps/ui/tokens.stylex';
+import {
+  Button,
+  Checkbox,
+  CopyButton,
+  Field,
+  Grid,
+  Input,
+  Panel,
+  Row,
+  Select,
+  Slider,
+  text,
+} from '@dy-apps/ui';
+import { radius } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import { useEffect, useState } from 'react';
 import {
   BORDER_LABELS,
   BORDER_STYLES,
@@ -46,7 +57,8 @@ export function Controls(props: Props) {
           <Slider
             label="平均间隔"
             value={props.demoIntervalMs}
-            range={DEMO_INTERVAL_RANGE}
+            min={DEMO_INTERVAL_RANGE[0]}
+            max={DEMO_INTERVAL_RANGE[1]}
             step={50}
             unit="ms"
             onChange={props.onDemoIntervalChange}
@@ -66,40 +78,50 @@ export function Controls(props: Props) {
               ))}
             </Select>
           </Field>
-          <label {...stylex.props(styles.check)}>
-            <input
-              type="checkbox"
-              checked={settings.perUser}
-              onChange={(e) => onChange({ perUser: e.target.checked })}
-            />
-            每位用户不同颜色
-          </label>
+          <Checkbox
+            label="每位用户不同颜色"
+            checked={settings.perUser}
+            onChange={(e) => onChange({ perUser: e.target.checked })}
+          />
           <Slider
             label="色相"
             value={settings.hue}
-            range={RANGES.hue}
+            min={RANGES.hue[0]}
+            max={RANGES.hue[1]}
             disabled={settings.perUser}
             onChange={(hue) => onChange({ hue })}
-            swatch={`hsl(${settings.hue} 90% 66%)`}
+            addon={
+              !settings.perUser && (
+                <span
+                  {...stylex.props(
+                    styles.swatch,
+                    styles.swatchColor(`hsl(${settings.hue} 90% 66%)`),
+                  )}
+                />
+              )
+            }
           />
           <Slider
             label="粗细"
             value={settings.borderWidth}
-            range={RANGES.borderWidth}
+            min={RANGES.borderWidth[0]}
+            max={RANGES.borderWidth[1]}
             unit="px"
             onChange={(borderWidth) => onChange({ borderWidth })}
           />
           <Slider
             label="圆角"
             value={settings.radius}
-            range={RANGES.radius}
+            min={RANGES.radius[0]}
+            max={RANGES.radius[1]}
             unit="px"
             onChange={(radius) => onChange({ radius })}
           />
           <Slider
             label="底色不透明度"
             value={settings.opacity}
-            range={RANGES.opacity}
+            min={RANGES.opacity[0]}
+            max={RANGES.opacity[1]}
             unit="%"
             onChange={(opacity) => onChange({ opacity })}
           />
@@ -130,7 +152,8 @@ export function Controls(props: Props) {
           <Slider
             label="字号"
             value={settings.fontSize}
-            range={RANGES.fontSize}
+            min={RANGES.fontSize[0]}
+            max={RANGES.fontSize[1]}
             unit="px"
             onChange={(fontSize) => onChange({ fontSize })}
           />
@@ -145,28 +168,11 @@ export function Controls(props: Props) {
 }
 
 function ObsLink({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1500);
-    return () => clearTimeout(t);
-  }, [copied]);
-
-  const copy = () => {
-    navigator.clipboard.writeText(url).then(
-      () => setCopied(true),
-      () => {},
-    );
-  };
-
   return (
     <>
       <Row gap="md">
         <Input readOnly aria-label="OBS 链接" value={url} onFocus={(e) => e.target.select()} />
-        <Button onClick={copy} xstyle={styles.noShrink}>
-          {copied ? '已复制' : '复制'}
-        </Button>
+        <CopyButton value={url} xstyle={styles.noShrink} />
       </Row>
       <p {...stylex.props(text.muted, styles.hint)}>
         在 OBS
@@ -176,81 +182,12 @@ function ObsLink({ url }: { url: string }) {
   );
 }
 
-interface SliderProps {
-  label: string;
-  value: number;
-  range: readonly [number, number];
-  onChange: (value: number) => void;
-  step?: number;
-  unit?: string;
-  disabled?: boolean;
-  swatch?: string;
-}
-
-function Slider(props: SliderProps) {
-  return (
-    <Field label={props.label}>
-      <SliderControl {...props} />
-    </Field>
-  );
-}
-
-/** A range input with its current value; takes the Field's id so the label points at it. */
-function SliderControl({
-  value,
-  range,
-  onChange,
-  step = 1,
-  unit = '',
-  disabled,
-  swatch,
-}: SliderProps) {
-  const id = useFieldId();
-  return (
-    <Row gap="md">
-      <input
-        id={id}
-        type="range"
-        min={range[0]}
-        max={range[1]}
-        step={step}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
-        {...stylex.props(styles.grow)}
-      />
-      {swatch && !disabled && <span {...stylex.props(styles.swatch, styles.swatchColor(swatch))} />}
-      <output htmlFor={id} {...stylex.props(styles.value, disabled && styles.dim)}>
-        {value}
-        {unit}
-      </output>
-    </Row>
-  );
-}
-
 const styles = stylex.create({
-  check: {
-    gap: space.sm,
-    alignItems: 'center',
-    display: 'flex',
-    fontSize: fontSize.sm,
-  },
-  grow: {
-    flexGrow: 1,
-    minWidth: 0,
-  },
   noShrink: {
     flexShrink: 0,
   },
-  value: {
-    fontSize: fontSize.xs,
-    fontVariantNumeric: 'tabular-nums',
-    textAlign: 'end',
-    width: 52,
-  },
-  dim: { color: colors.muted },
   swatch: {
-    borderRadius: '50%',
+    borderRadius: radius.pill,
     flexShrink: 0,
     height: 14,
     width: 14,

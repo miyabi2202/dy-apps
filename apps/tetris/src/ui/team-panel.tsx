@@ -177,7 +177,7 @@ const styles = stylex.create({
     backgroundColor: {
       default: colors.dangerSoft,
       ':disabled': colors.panel,
-      ':hover': 'rgba(248, 113, 113, 0.25)',
+      ':hover': `color-mix(in srgb, ${colors.danger} 25%, transparent)`,
     },
   },
   grow: {
@@ -214,7 +214,7 @@ const styles = stylex.create({
     paddingInline: space.md,
     backgroundColor: colors.panelRaised,
     display: 'flex',
-    fontSize: 15,
+    fontSize: fontSize.lg,
     justifyContent: 'space-between',
   },
   pendingCount: {

@@ -14,7 +14,23 @@ export function Button({ variant = 'default', type = 'button', xstyle, ...rest }
   return <button type={type} {...rest} {...stylex.props(styles.base, variants[variant], xstyle)} />;
 }
 
+interface ButtonLinkProps extends Omit<ComponentProps<'a'>, 'className' | 'style'> {
+  variant?: ButtonVariant;
+  xstyle?: stylex.StyleXStyles;
+}
+
+/** A link that looks like a Button, for actions that navigate or open a page. */
+export function ButtonLink({ variant = 'default', xstyle, ...rest }: ButtonLinkProps) {
+  return <a {...rest} {...stylex.props(styles.base, styles.link, variants[variant], xstyle)} />;
+}
+
 const styles = stylex.create({
+  link: {
+    textDecoration: 'none',
+    alignItems: 'center',
+    display: 'inline-flex',
+    justifyContent: 'center',
+  },
   base: {
     borderColor: colors.border,
     borderRadius: radius.md,

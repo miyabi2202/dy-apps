@@ -4,6 +4,7 @@ import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useState } from 'react';
 import { SECTIONS, type GuideSection } from './content';
+import { Callout } from './ui/blocks';
 
 const TITLE = 'Windows 新手安装教程';
 const STEPS = SECTIONS.filter((s) => s.step !== undefined);
@@ -72,9 +73,9 @@ export function GuidePage() {
               这份教程手把手教你在 <b>Windows 10 / Windows 11</b> 电脑上把 DyHub
               跑起来。不需要任何编程基础，跟着一步一步做就行。
             </p>
-            <p {...stylex.props(styles.note)}>
+            <Callout kind="tip">
               本教程用到的所有下载地址，在国内都可以直接打开，不需要对网络做任何额外设置。
-            </p>
+            </Callout>
             <p {...stylex.props(styles.lead)}>
               整个过程分为 {STEPS.length} 步，第一次大约需要 <b>20～30 分钟</b>：
             </p>
@@ -293,15 +294,6 @@ const styles = stylex.create({
   lead: {
     marginBlock: space.md,
   },
-  note: {
-    borderRadius: radius.md,
-    marginBlock: space.lg,
-    paddingBlock: space.md,
-    paddingInline: space.lg,
-    backgroundColor: colors.accentSoft,
-    color: colors.accent,
-    fontSize: 15,
-  },
   overviewLink: {
     borderColor: {
       default: colors.border,
@@ -318,7 +310,7 @@ const styles = stylex.create({
     backgroundColor: colors.panel,
     color: colors.text,
     display: 'flex',
-    fontSize: 15,
+    fontSize: fontSize.lg,
     height: '100%',
   },
   badge: {

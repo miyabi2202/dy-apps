@@ -1,45 +1,7 @@
-import { Button, Row, text } from '@dy-apps/ui';
+import { ButtonLink, CopyButton, Row, text } from '@dy-apps/ui';
 import { colors, fonts, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import { useEffect, useState, type ReactNode } from 'react';
-
-/** Copies text, falling back to a hidden textarea where the Clipboard API is unavailable. */
-async function copyText(value: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    const area = document.createElement('textarea');
-    area.value = value;
-    area.style.position = 'fixed';
-    area.style.opacity = '0';
-    document.body.appendChild(area);
-    area.select();
-    const ok = document.execCommand('copy');
-    area.remove();
-    return ok;
-  }
-}
-
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1600);
-    return () => clearTimeout(t);
-  }, [copied]);
-
-  return (
-    <Button
-      variant="primary"
-      onClick={() => void copyText(value).then(setCopied)}
-      xstyle={styles.copy}
-    >
-      {copied ? '✓ 已复制' : '复制'}
-    </Button>
-  );
-}
+import type { ReactNode } from 'react';
 
 /** A command to paste into 命令提示符, with a big copy button. */
 export function Cmd({ children }: { children: string }) {
@@ -50,7 +12,7 @@ export function Cmd({ children }: { children: string }) {
       </figcaption>
       <Row gap="lg" xstyle={styles.cmd}>
         <code {...stylex.props(styles.cmdText)}>{children}</code>
-        <CopyButton value={children} />
+        <CopyButton variant="primary" value={children} xstyle={styles.copy} />
       </Row>
     </figure>
   );
@@ -82,10 +44,10 @@ export function OpenLink({ href }: { href: string }) {
           {href}
         </a>
         <Row gap="md">
-          <a href={href} target="_blank" rel="noreferrer" {...stylex.props(styles.open)}>
+          <ButtonLink href={href} target="_blank" rel="noreferrer">
             打开 ↗
-          </a>
-          <CopyButton value={href} />
+          </ButtonLink>
+          <CopyButton variant="primary" value={href} xstyle={styles.copy} />
         </Row>
       </Row>
     </figure>
@@ -138,7 +100,7 @@ const styles = stylex.create({
     color: colors.text,
     flexGrow: 1,
     fontFamily: fonts.mono,
-    fontSize: 15,
+    fontSize: fontSize.lg,
     overflowWrap: 'anywhere',
     minWidth: 0,
   },
@@ -178,24 +140,6 @@ const styles = stylex.create({
     fontSize: fontSize.md,
     overflowWrap: 'anywhere',
     minWidth: 0,
-  },
-  // A link that looks like a default Button (an <a>, since it opens a page).
-  open: {
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderStyle: 'solid',
-    borderWidth: 1,
-    paddingInline: space.lg,
-    textDecoration: 'none',
-    alignItems: 'center',
-    backgroundColor: {
-      default: colors.panelRaised,
-      ':hover': colors.border,
-    },
-    color: colors.text,
-    display: 'inline-flex',
-    fontSize: fontSize.md,
-    minHeight: 36,
   },
   callout: {
     borderRadius: radius.md,

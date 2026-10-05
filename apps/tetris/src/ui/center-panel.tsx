@@ -15,8 +15,8 @@ interface Props {
 }
 
 const fadeIn = stylex.keyframes({
-  from: { backgroundColor: 'rgba(251, 191, 36, 0.45)' },
-  to: { backgroundColor: 'rgba(251, 191, 36, 0)' },
+  from: { backgroundColor: `color-mix(in srgb, ${colors.warn} 45%, transparent)` },
+  to: { backgroundColor: 'transparent' },
 });
 
 export function CenterPanel({ engine, boardRef, onRestart }: Props) {
@@ -243,7 +243,7 @@ const styles = stylex.create({
     paddingInline: space.md,
     alignItems: 'center',
     display: 'flex',
-    fontSize: 15,
+    fontSize: fontSize.lg,
     justifyContent: 'space-between',
   },
   flash: {
@@ -331,7 +331,7 @@ const styles = stylex.create({
   fog: {
     borderRadius: radius.sm,
     alignItems: 'center',
-    backgroundColor: 'rgba(148, 163, 184, 0.18)',
+    backgroundColor: `color-mix(in srgb, ${colors.muted} 18%, transparent)`,
     color: colors.muted,
     display: 'flex',
     fontSize: fontSize.sm,
@@ -345,7 +345,7 @@ const styles = stylex.create({
     borderRadius: radius.sm,
     gap: space.md,
     alignItems: 'center',
-    backgroundColor: 'rgba(10, 15, 28, 0.82)',
+    backgroundColor: `color-mix(in srgb, ${colors.bg} 82%, transparent)`,
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',

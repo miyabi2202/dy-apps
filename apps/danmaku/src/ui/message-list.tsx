@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@dy-apps/ui';
-import { fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
+import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { Settings } from '../settings';
@@ -105,7 +105,7 @@ const styles = stylex.create({
   scroller: {
     display: 'flex',
     flexDirection: 'column',
-    scrollbarColor: 'rgba(148, 163, 184, 0.5) transparent',
+    scrollbarColor: `color-mix(in srgb, ${colors.muted} 50%, transparent) transparent`,
     scrollbarWidth: 'thin',
     height: '100%',
     overflowX: 'hidden',

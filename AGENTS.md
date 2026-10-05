@@ -16,3 +16,8 @@ Run `pnpm test:e2e` to check.
 ## File names
 
 Use lowercase words joined by `-`, like `message-card.tsx` or `use-engine.ts`. Dots are only for extensions and suffixes (`.test.ts`, `.stylex.ts`). The exceptions are `README.md` and `AGENTS.md`, which tools look for by exact name.
+
+## Reusing components
+
+- Build UI from `@dy-apps/ui` whenever you can, and use its tokens for colour, spacing and radius.
+- Before creating a new component in an app, check whether another app already has something similar. If it does, move it into `@dy-apps/ui` and use it from both apps.
