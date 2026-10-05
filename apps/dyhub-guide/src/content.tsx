@@ -1,7 +1,13 @@
 import * as stylex from '@stylexjs/stylex';
 import type { ReactNode } from 'react';
 import { colors, space } from '@dy-apps/ui/tokens.stylex';
-import { C, Callout, Cmd, Kbd, OpenLink, Out } from './ui/blocks';
+import connectRoom from './assets/connect-room.png';
+import connectSuccess from './assets/connect-success.png';
+import eventsFlowing from './assets/events-flowing.png';
+import npmStart from './assets/npm-start.png';
+import roomId from './assets/room-id.png';
+import webLogin from './assets/web-login.png';
+import { C, Callout, Cmd, Kbd, OpenLink, Out, Shot } from './ui/blocks';
 
 export interface GuideSection {
   id: string;
@@ -370,15 +376,94 @@ Resolving deltas: 100% ..., done.`}
         <H3>8.5 启动</H3>
         <Cmd>npm start</Cmd>
         <P>
-          启动成功后会看到 DyHub 输出的启动信息，其中会提到端口 <C>8757</C>。
-        </P>
-        <P>
           如果弹出 <b>“Windows 安全中心警报 / Windows Defender 防火墙已阻止此应用的部分功能”</b>
           ，点击 <b>允许访问</b>。
         </P>
-        <H3>8.6 打开控制台</H3>
-        <OpenLink href="http://localhost:8757" />
-        <P>看到 DyHub 控制台页面，就大功告成了 🎉</P>
+        <P>启动成功后，命令提示符里会出现 DyHub 的启动信息：</P>
+        <Shot
+          src={npmStart}
+          alt="npm start 的输出，红框标出了“管理台就绪: http://localhost:8757”这一行"
+          label="启动成功后的样子"
+        />
+        <P>
+          找到上图<b>红框</b>里“管理台就绪”这一行，把后面的地址 <C>http://localhost:8757</C>{' '}
+          复制下来，粘贴到浏览器的地址栏里，按回车。
+        </P>
+        <P>看到 DyHub 控制台页面，就说明启动成功了。</P>
+        <H3>8.6 登录抖音账号</H3>
+        <Callout kind="warn">
+          <b>不登录就收不到礼物消息！</b>
+          没登录时只能看到弹幕、进场等消息，观众送的礼物一条都不会显示。 所以这一步一定要做。
+        </Callout>
+        <P>在控制台页面找到“登录 Cookie”这一栏：</P>
+        <Shot
+          src={webLogin}
+          alt="控制台的登录 Cookie 栏，红框标出“记住我”，箭头指向“网页登录”按钮"
+          label="控制台里的登录栏"
+          width={329}
+        />
+        <Ol>
+          <li>
+            先勾选红框里的 <b>记住我</b>。这样下次启动 DyHub 时不用重新登录。
+          </li>
+          <li>
+            再点击箭头指向的 <b>网页登录</b> 按钮，会弹出一个打开了抖音的 Chrome 窗口。
+          </li>
+          <li>在这个窗口里登录你的抖音账号（扫码或手机验证码都可以）。</li>
+          <li>
+            登录成功后窗口会自动关闭，“登录 Cookie”后面会显示 <b>已设置（登录态 ✓）</b>。
+          </li>
+        </Ol>
+        <Callout>
+          一定要<b>先勾选“记住我”再点网页登录</b>。顺序反了的话，登录信息不会被保存。
+        </Callout>
+        <H3>8.7 连接直播间</H3>
+        <P>
+          用浏览器打开你要连接的抖音直播间，看地址栏：<C>live.douyin.com/</C> 后面的那一串数字就是
+          <b>房间号</b>。
+        </P>
+        <Shot
+          src={roomId}
+          alt="浏览器地址栏 live.douyin.com/484088206186，红框标出了后面的数字"
+          label="地址栏里的房间号"
+        />
+        <P>
+          把房间号复制下来，回到 DyHub 控制台，粘贴到“连接直播间”下面的输入框里，再点击 <b>连接</b>
+          。
+        </P>
+        <Shot
+          src={connectRoom}
+          alt="控制台的连接直播间栏，箭头指向房间号输入框，右边是连接按钮"
+          label="把房间号粘贴到这里"
+          width={357}
+        />
+        <Callout>
+          嫌只复制数字麻烦的话，直接把整个直播间链接粘贴进去也可以，DyHub 会自动取出房间号。
+        </Callout>
+        <P>
+          点击连接后会弹出连接进度，三项都打上 ✓ 并显示 <b>连接成功</b>、<b>弹幕采集已开始</b>：
+        </P>
+        <Shot
+          src={connectSuccess}
+          alt="连接成功的弹窗：显示房间号，三项进度都已打勾，底部写着弹幕采集已开始"
+          label="连接成功的样子"
+          width={384}
+        />
+        <P>
+          弹窗关闭后，左边的 <b>已连接房间</b> 里会出现这个直播间，显示 <b>直播中</b>
+          ；右边会不断冒出直播间里的消息（进场、弹幕等）。<b>看到消息在滚动，才是真正连接成功</b>：
+        </P>
+        <Shot
+          src={eventsFlowing}
+          alt="控制台：左边已连接房间显示直播中，右边列出进场和弹幕消息"
+          label="真正连接成功的样子"
+        />
+        <Callout>如果迟迟没有消息，可能只是直播间里暂时没人说话或进场，等一会儿再看。</Callout>
+        <Callout kind="warn">
+          能看到弹幕，却一直没有礼物消息？说明还没登录成功，请回到 <A href="#step-8">8.6 步</A>
+          重新登录。
+        </Callout>
+        <P>到这里就大功告成了 🎉</P>
         <Callout kind="warn">
           <b>使用期间不要关闭命令提示符窗口</b>，关掉窗口 DyHub 就停止运行了。
         </Callout>

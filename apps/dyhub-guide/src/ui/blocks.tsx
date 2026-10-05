@@ -54,6 +54,30 @@ export function OpenLink({ href }: { href: string }) {
   );
 }
 
+/** A screenshot of what the reader should see. Full width unless `width` (CSS px) is given. */
+export function Shot({
+  src,
+  alt,
+  label,
+  width,
+}: {
+  src: string;
+  alt: string;
+  label: string;
+  width?: number;
+}) {
+  return (
+    <figure {...stylex.props(styles.block)}>
+      <figcaption {...stylex.props(text.muted, styles.caption)}>{label}</figcaption>
+      <img
+        src={src}
+        alt={alt}
+        {...stylex.props(styles.shot, width !== undefined && styles.shotWidth(width))}
+      />
+    </figure>
+  );
+}
+
 type CalloutKind = 'tip' | 'warn' | 'bad';
 const CALLOUT_ICON: Record<CalloutKind, string> = { tip: '💡', warn: '⚠️', bad: '❌' };
 
@@ -86,6 +110,19 @@ const styles = stylex.create({
   caption: {
     marginBottom: space.sm,
   },
+  shot: {
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderStyle: 'solid',
+    borderWidth: 1,
+    display: 'block',
+    height: 'auto',
+    maxWidth: '100%',
+    width: '100%',
+  },
+  shotWidth: (width: number) => ({
+    width,
+  }),
   cmd: {
     borderColor: colors.border,
     borderRadius: radius.md,
