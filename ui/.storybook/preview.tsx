@@ -4,14 +4,18 @@ import './preview.css';
 
 const preview: Preview = {
   // Every story sits on an app page, so it gets the dark background, text colour and font.
+  // A story sets `parameters: { page: false }` to opt out.
   decorators: [
-    (Story) => (
-      <Page>
-        <div style={{ padding: 24 }}>
-          <Story />
-        </div>
-      </Page>
-    ),
+    (Story, { parameters }) =>
+      parameters.page === false ? (
+        <Story />
+      ) : (
+        <Page>
+          <div style={{ padding: 24 }}>
+            <Story />
+          </div>
+        </Page>
+      ),
   ],
   parameters: {
     layout: 'fullscreen',
