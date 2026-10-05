@@ -24,7 +24,12 @@ export function messageFromEvent(ev: DyhubEvent, newGifts: number): DanmakuMessa
       id: gift.groupId ? `gift-${user.id}-${gift.giftId}-${gift.groupId}` : ev.id,
       user,
       text: '',
-      gift: { name: gift.giftName || '礼物', count: newGifts, iconUrl: gift.giftIcon },
+      gift: {
+        name: gift.giftName || '礼物',
+        count: newGifts,
+        diamonds: gift.diamondCount,
+        iconUrl: gift.giftIcon,
+      },
       ts: ev.ts,
     };
   }

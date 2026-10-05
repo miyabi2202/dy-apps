@@ -54,8 +54,17 @@ const TEXTS = [
   '好耶！',
 ];
 
-/** Real Douyin gift names; the demo has no icons, so cards show 🎁. */
-const GIFTS = ['小心心', '玫瑰', '人气票', '棒棒糖', '你最好看', '加油鸭', '鲜花', '嘉年华'];
+/** Douyin gifts with rough diamond prices; the demo has no icons, so cards show 🎁. */
+const GIFTS = [
+  { name: '小心心', diamonds: 1 },
+  { name: '玫瑰', diamonds: 1 },
+  { name: '人气票', diamonds: 1 },
+  { name: '棒棒糖', diamonds: 9 },
+  { name: '你最好看', diamonds: 2 },
+  { name: '加油鸭', diamonds: 15 },
+  { name: '鲜花', diamonds: 10 },
+  { name: '嘉年华', diamonds: 30000 },
+];
 
 /** Mostly single gifts, sometimes a big combo, to preview both ends. */
 const GIFT_COUNTS = [1, 1, 1, 1, 3, 5, 10, 66, 188, 1314];
@@ -76,7 +85,7 @@ export function createFakeMessage(): DanmakuMessage {
   const ts = Date.now();
   const id = `demo-${ts}-${seq++}`;
   if (Math.random() < 1 / 6) {
-    const gift: DanmakuGift = { name: pick(GIFTS), count: pick(GIFT_COUNTS) };
+    const gift: DanmakuGift = { ...pick(GIFTS), count: pick(GIFT_COUNTS) };
     return { id, user: pick(USERS), text: '', gift, ts };
   }
   return { id, user: pick(USERS), text: pick(TEXTS), ts };

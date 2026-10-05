@@ -33,6 +33,15 @@ describe('addMessage', () => {
     expect(next.at(-1)).toEqual(gift('g', 8, 2));
   });
 
+  it("keeps the gift's price when merging, so the total follows the count", () => {
+    const priced = (count: number): DanmakuMessage => ({
+      ...gift('g', count),
+      gift: { name: '玫瑰', count, diamonds: 10 },
+    });
+    const next = addMessage([priced(5)], priced(3), 10);
+    expect(next[0]!.gift).toEqual({ name: '玫瑰', count: 8, diamonds: 10 });
+  });
+
   it('keeps a combo of hundreds as one card', () => {
     let messages: readonly DanmakuMessage[] = [];
     for (let i = 0; i < 300; i++) messages = addMessage(messages, gift('g', 1), 10);

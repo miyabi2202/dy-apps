@@ -10,6 +10,8 @@ export interface DanmakuUser {
 export interface DanmakuGift {
   name: string;
   count: number;
+  /** Price of one gift in Douyin diamonds; missing when DyHub doesn't send it. */
+  diamonds?: number;
   iconUrl?: string;
 }
 

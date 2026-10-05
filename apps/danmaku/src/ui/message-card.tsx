@@ -87,7 +87,10 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
   );
 }
 
-/** 送出 <icon> <name> ×<count>; the count grows as a combo goes on. */
+/**
+ * 送出 <icon> <name> ×<count>（<total>钻）. The count, and so the total, grows as a combo
+ * goes on.
+ */
 function GiftLine({ gift }: { gift: DanmakuGift }) {
   const [iconBroken, setIconBroken] = useState(false);
   return (
@@ -106,6 +109,11 @@ function GiftLine({ gift }: { gift: DanmakuGift }) {
       )}
       <span {...stylex.props(styles.giftName)}>{gift.name}</span>
       <span {...stylex.props(styles.giftCount)}>×{gift.count}</span>
+      {gift.diamonds ? (
+        <span data-testid="gift-diamonds" {...stylex.props(styles.giftVerb)}>
+          （{(gift.diamonds * gift.count).toLocaleString('zh-CN')}钻）
+        </span>
+      ) : null}
     </p>
   );
 }

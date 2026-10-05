@@ -58,14 +58,14 @@ describe('messageFromEvent', () => {
     expect(messageFromEvent({ ...chatEvent('hi'), type: 'like' }, 0)).toBeNull();
   });
 
-  it('turns a gift into a card with its name, icon and new count', () => {
+  it('turns a gift into a card with its name, icon, price and new count', () => {
     const message = messageFromEvent(
-      giftEvent({ groupId: 'grp', giftIcon: 'https://example.com/rose.png' }),
+      giftEvent({ groupId: 'grp', giftIcon: 'https://example.com/rose.png', diamondCount: 10 }),
       3,
     );
     expect(message).toMatchObject({
       text: '',
-      gift: { name: '玫瑰', count: 3, iconUrl: 'https://example.com/rose.png' },
+      gift: { name: '玫瑰', count: 3, diamonds: 10, iconUrl: 'https://example.com/rose.png' },
       ts: 200,
     });
   });

@@ -30,6 +30,7 @@ describe('createFakeMessage', () => {
         expect(m.text).toBe('');
         expect(m.gift.name).not.toBe('');
         expect(m.gift.count).toBeGreaterThan(0);
+        expect(m.gift.diamonds).toBeGreaterThan(0);
       } else {
         expect(m.text).not.toBe('');
       }
