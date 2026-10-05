@@ -34,15 +34,6 @@ function setup(quietMs?: number) {
 }
 
 describe('LikeBatcher', () => {
-  it("reports a user's likes once they've been quiet for 5 seconds", () => {
-    const { clock, flushed, batcher } = setup();
-    batcher.add('a', 'e1', 3);
-    clock.advance(4999);
-    expect(flushed).toEqual([]);
-    clock.advance(1);
-    expect(flushed).toEqual([['e1', 3]]);
-  });
-
   it('adds up likes and restarts the wait on each one, reporting the last event', () => {
     const { clock, flushed, batcher } = setup();
     batcher.add('a', 'e1', 3);

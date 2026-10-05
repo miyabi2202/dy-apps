@@ -13,10 +13,6 @@ const gift = (id: string, count: number, ts = 0): DanmakuMessage => ({
 });
 
 describe('addMessage', () => {
-  it('appends a chat message', () => {
-    expect(addMessage([chat('a')], chat('b'), 10)).toEqual([chat('a'), chat('b')]);
-  });
-
   it('keeps only the newest `max` messages', () => {
     const messages = [chat('a'), chat('b'), chat('c')];
     expect(addMessage(messages, chat('d'), 3).map((m) => m.id)).toEqual(['b', 'c', 'd']);

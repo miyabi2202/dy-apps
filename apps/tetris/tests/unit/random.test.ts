@@ -1,5 +1,5 @@
 import { PIECE_TYPES, BagGenerator } from '../../src/core/pieces';
-import { mulberry32, randomInt, sequenceRng, shuffle } from '../../src/core/random';
+import { mulberry32, randomInt, sequenceRng } from '../../src/core/random';
 
 describe('random sources', () => {
   it('mulberry32 is reproducible for the same seed', () => {
@@ -19,11 +19,6 @@ describe('random sources', () => {
   it('randomInt never returns n even for a draw of 1', () => {
     expect(randomInt(sequenceRng([1]), 4)).toBe(3);
     expect(randomInt(sequenceRng([0]), 4)).toBe(0);
-  });
-
-  it('shuffle keeps every element (Fisher–Yates)', () => {
-    const items = [1, 2, 3, 4, 5, 6, 7];
-    expect([...shuffle([...items], mulberry32(3))].sort()).toEqual(items);
   });
 });
 

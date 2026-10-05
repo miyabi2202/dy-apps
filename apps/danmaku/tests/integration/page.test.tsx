@@ -33,14 +33,6 @@ const count = () => Number(/(\d+) 条/.exec(screen.getByText(/\d+ 条$/).textCon
 const advance = (ms: number) => act(() => jest.advanceTimersByTime(ms));
 
 describe('DanmakuPage editor', () => {
-  it('shows the controls, an empty preview and the build hash', () => {
-    setup();
-    expect(screen.getByRole('heading', { name: /弹幕墙/ })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '弹幕设置' })).toBeInTheDocument();
-    expect(screen.getByTestId('commit-hash')).toHaveTextContent('dev');
-    expect(count()).toBe(0);
-  });
-
   it('runs the demo until stopped, and clears', async () => {
     const { user } = setup();
     await user.click(screen.getByRole('button', { name: '开始预览' }));

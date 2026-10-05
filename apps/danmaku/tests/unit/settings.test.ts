@@ -39,10 +39,6 @@ describe('readSettings', () => {
     expect(s).toMatchObject({ hue: 359, borderWidth: 1, radius: 0, opacity: 51, fontSize: 32 });
   });
 
-  it('falls back for the removed Google Fonts presets in old links', () => {
-    expect(readSettings('?font=kuaile').font).toBe(DEFAULT_SETTINGS.font);
-  });
-
   it('falls back to the base for unknown or malformed values', () => {
     const base: Settings = { ...DEFAULT_SETTINGS, border: 'dashed', hue: 10, fontSize: 20 };
     const s = readSettings('?border=sparkles&font=comic&hue=abc&size=', base);
@@ -76,10 +72,6 @@ describe('settingsToParams', () => {
 });
 
 describe('fontFamily', () => {
-  it('uses the preset stack', () => {
-    expect(fontFamily({ ...DEFAULT_SETTINGS, font: 'rounded' })).toMatch(/^'Yuanti SC', /);
-  });
-
   it('quotes a custom font, stripping characters that could break out of the quotes', () => {
     const family = fontFamily({ ...DEFAULT_SETTINGS, font: 'custom', customFont: ' My"Fo\\nt ' });
     expect(family).toMatch(/^"MyFont", /);

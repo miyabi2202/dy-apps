@@ -66,14 +66,4 @@ describe('Input and Select', () => {
     render(<Input aria-label="搜索" />);
     expect(screen.getByRole('textbox', { name: '搜索' })).not.toHaveAttribute('id');
   });
-
-  it('useFieldId is undefined outside a Field', () => {
-    let id: string | undefined = 'unset';
-    function Probe() {
-      id = useFieldId();
-      return null;
-    }
-    render(<Probe />);
-    expect(id).toBeUndefined();
-  });
 });

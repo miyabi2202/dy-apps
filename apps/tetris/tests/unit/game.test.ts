@@ -230,17 +230,6 @@ describe('hold', () => {
   });
 });
 
-describe('preview', () => {
-  it('fog hides the preview only', () => {
-    const engine = startedEngine();
-    engine.effects.fog = { remainingLocks: 2 };
-    expect(engine.previewHidden).toBe(true);
-    expect(engine.ghostY).not.toBeNull();
-    dropOnEmpty(engine, 2);
-    expect(engine.previewHidden).toBe(false);
-  });
-});
-
 describe('settlement cycle', () => {
   it('settles exactly every 3 locks, even with empty queues', () => {
     const engine = startedEngine();

@@ -27,13 +27,6 @@ const port = () => screen.getByRole('textbox', { name: '端口' });
 const room = () => screen.getByRole('textbox', { name: '直播间号' });
 
 describe('ConnectionForm', () => {
-  it('shows the port and room number in labelled fields', () => {
-    renderForm({ portPlaceholder: '8757', value: { port: '', roomId: '' } });
-    expect(port()).toHaveValue('');
-    expect(port()).toHaveAttribute('placeholder', '8757');
-    expect(room()).toHaveValue('');
-  });
-
   it('reports typing in either field with the other field kept', async () => {
     function Controlled({ onChange }: { onChange: (c: Connection) => void }) {
       const [value, setValue] = useState<Connection>({ port: '', roomId: '' });

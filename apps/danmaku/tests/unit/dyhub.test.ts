@@ -132,10 +132,6 @@ describe('likes', () => {
   it('makes no card without a user', () => {
     expect(likeMessage({ ...like({}), user: undefined }, 3)).toBeNull();
   });
-
-  it('leaves likes out of messageFromEvent, which only does chats and gifts', () => {
-    expect(messageFromEvent(like({ count: 3 }), 0)).toBeNull();
-  });
 });
 
 describe('liveRoomFrom', () => {

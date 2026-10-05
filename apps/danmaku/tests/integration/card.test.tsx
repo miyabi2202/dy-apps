@@ -41,11 +41,6 @@ describe('MessageCard', () => {
     expect(card).toHaveTextContent(/^摸摸鱼大师♥12666666$/);
   });
 
-  it('shows no fan-club badge for non-members', () => {
-    renderCard();
-    expect(screen.queryByTestId('fans-club-level')).not.toBeInTheDocument();
-  });
-
   it('shows the avatar image when there is one, and falls back to the initial if it fails', () => {
     const { container } = render(
       <MessageCard

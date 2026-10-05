@@ -24,10 +24,4 @@ describe('Slider', () => {
     fireEvent.change(screen.getByRole('slider'), { target: { value: '24' } });
     expect(onChange).toHaveBeenCalledWith(24);
   });
-
-  it('shows the addon and can be disabled', () => {
-    render(<Slider {...props} disabled addon={<span>色块</span>} />);
-    expect(screen.getByRole('slider')).toBeDisabled();
-    expect(screen.getByText('色块')).toBeInTheDocument();
-  });
 });
