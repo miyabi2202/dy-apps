@@ -1,4 +1,5 @@
 import {
+  DYHUB_GUIDE_PATH,
   DYHUB_PORT_HINT,
   DYHUB_STATUS_TEXT,
   type Connection,
@@ -86,13 +87,26 @@ export function DemoPanel(props: Props) {
         <span {...stylex.props(text.muted)}>{props.count} 条</span>
       </Row>
       {source === 'live' && (
-        <p data-testid="dyhub-status" {...stylex.props(text.muted, styles.status)}>
-          {running || props.canStart ? '状态：' : '请填写端口和直播间号 · 状态：'}
-          <span {...stylex.props(liveState.status === 'error' && styles.error)}>
-            {STATUS_TEXT[liveState.status]}
-          </span>
-          {liveState.detail && `（${liveState.detail}）`}
-        </p>
+        <>
+          <p data-testid="dyhub-status" {...stylex.props(text.muted, styles.status)}>
+            {running || props.canStart ? '状态：' : '请填写端口和直播间号 · 状态：'}
+            <span {...stylex.props(liveState.status === 'error' && styles.error)}>
+              {STATUS_TEXT[liveState.status]}
+            </span>
+            {liveState.detail && `（${liveState.detail}）`}
+          </p>
+          <p {...stylex.props(text.muted, styles.status)}>
+            还没装 DyHub？看{' '}
+            <a
+              href={DYHUB_GUIDE_PATH}
+              target="_blank"
+              rel="noreferrer"
+              {...stylex.props(styles.link)}
+            >
+              安装教程 ↗
+            </a>
+          </p>
+        </>
       )}
     </Panel>
   );
@@ -104,5 +118,8 @@ const styles = stylex.create({
   },
   error: {
     color: colors.danger,
+  },
+  link: {
+    color: colors.accent,
   },
 });

@@ -6,6 +6,8 @@
 
 /** DyHub's own default port, shown as a hint only. */
 export const DYHUB_PORT_HINT = '8757';
+/** The site route of the DyHub install guide, for apps to link to. */
+export const DYHUB_GUIDE_PATH = '/dyhub-windows';
 /** The events subscribed to unless a caller asks for others. */
 export const DYHUB_EVENT_TYPES = ['chat', 'gift'] as const;
 
