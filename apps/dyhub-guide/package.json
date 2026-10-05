@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@dy-apps/local-storage": "workspace:*",
+    "@dy-apps/ui": "workspace:*",
     "@stylexjs/stylex": "^0.19.1"
   },
   "peerDependencies": {

@@ -1,3 +1,5 @@
+import { Button, Field, Input, Panel, Row, text } from '@dy-apps/ui';
+import { colors } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -9,8 +11,6 @@ import {
   parsePort,
   type DyhubStatus,
 } from '@dy-apps/dyhub-client';
-import { ui } from './styles';
-import { colors } from './tokens.stylex';
 
 const STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
   idle: '未连接',
@@ -66,81 +66,63 @@ export function DyhubPanel() {
   };
 
   return (
-    <section aria-label="DyHub 连接" {...stylex.props(ui.panel, styles.panel)}>
-      <h2 {...stylex.props(ui.subTitle)}>DyHub 连接（调试）</h2>
+    <Panel aria-label="DyHub 连接" title="DyHub 连接（调试）" gap="md">
       <form
         noValidate
-        {...stylex.props(styles.row)}
         onSubmit={(e) => {
           e.preventDefault();
           toggle();
         }}
       >
-        <label {...stylex.props(ui.muted, styles.field, styles.portField)}>
-          端口
-          <input
-            value={portText}
-            disabled={connected}
-            inputMode="numeric"
-            placeholder={DYHUB_PORT_HINT}
-            onChange={(e) => setPortText(e.target.value)}
-            {...stylex.props(ui.input)}
-          />
-        </label>
-        <label {...stylex.props(ui.muted, styles.field)}>
-          直播间号
-          <input
-            value={roomId}
-            disabled={connected}
-            inputMode="numeric"
-            placeholder="如 484088206186"
-            onChange={(e) => setRoomId(e.target.value)}
-            {...stylex.props(ui.input)}
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={!connected && !canConnect}
-          {...stylex.props(ui.button, !connected && ui.primary)}
-        >
-          {connected ? '断开' : '连接'}
-        </button>
+        <Row gap="md" align="end" wrap>
+          <Field label="端口" xstyle={styles.portField}>
+            <Input
+              value={portText}
+              disabled={connected}
+              inputMode="numeric"
+              placeholder={DYHUB_PORT_HINT}
+              onChange={(e) => setPortText(e.target.value)}
+            />
+          </Field>
+          <Field label="直播间号" xstyle={styles.roomField}>
+            <Input
+              value={roomId}
+              disabled={connected}
+              inputMode="numeric"
+              placeholder="如 484088206186"
+              onChange={(e) => setRoomId(e.target.value)}
+            />
+          </Field>
+          <Button
+            type="submit"
+            variant={connected ? 'default' : 'primary'}
+            disabled={!connected && !canConnect}
+          >
+            {connected ? '断开' : '连接'}
+          </Button>
+        </Row>
       </form>
-      <p data-testid="dyhub-status" {...stylex.props(ui.muted, styles.status)}>
+      <p data-testid="dyhub-status" {...stylex.props(text.muted, styles.status)}>
         状态：
         <span {...stylex.props(status === 'error' && styles.error)}>{STATUS_TEXT[status]}</span>
         {detail && `（${detail}）`} · 事件只输出到浏览器控制台，不影响游戏。
       </p>
-    </section>
+    </Panel>
   );
 }
 
 const styles = stylex.create({
-  panel: {
-    gap: 8,
-  },
-  row: {
-    gap: 8,
-    alignItems: 'flex-end',
-    display: 'flex',
-    flexWrap: 'wrap',
-  },
-  field: {
-    gap: 4,
-    display: 'flex',
-    flexDirection: 'column',
+  roomField: {
     flexGrow: 1,
     minWidth: 160,
   },
   portField: {
-    flexGrow: 0,
-    minWidth: 0,
     width: 96,
   },
   status: {
     margin: 0,
   },
   error: {
-    color: colors.curse,
+    color: colors.danger,
   },
 });

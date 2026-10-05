@@ -1,10 +1,9 @@
-import * as stylex from '@stylexjs/stylex';
+import { Page } from '@dy-apps/ui';
 import { useEffect, useState } from 'react';
 import { LocalGiftAdapter } from './adapters/local-gift';
 import { GameEngine } from './core/game';
 import { KeyboardController } from './input/keyboard';
 import { App } from './ui/App';
-import { colors } from './ui/tokens.stylex';
 
 /** `?seed=123` makes piece, garbage and gift randomness reproducible. */
 function seedFromUrl(): number | undefined {
@@ -35,17 +34,8 @@ export function TetrisPage() {
   }, []);
 
   return (
-    <div {...stylex.props(styles.root)}>
+    <Page>
       <App engine={engine} gifts={gifts} keyboard={keyboard} />
-    </div>
+    </Page>
   );
 }
-
-const styles = stylex.create({
-  // Full-bleed dark background; the game's own page column is centred inside.
-  root: {
-    backgroundColor: colors.bg,
-    colorScheme: 'dark',
-    minHeight: '100vh',
-  },
-});

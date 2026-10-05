@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
 import type { ReactNode } from 'react';
-import { colors } from './tokens.stylex';
+import { colors, space } from '@dy-apps/ui/tokens.stylex';
 import { C, Callout, Cmd, Kbd, OpenLink, Out } from './ui/blocks';
 
 export interface GuideSection {
@@ -489,21 +489,21 @@ Resolving deltas: 100% ..., done.`}
 const s = stylex.create({
   h3: {
     fontSize: 18,
-    marginBottom: 8,
-    marginTop: 24,
+    marginBottom: space.md,
+    marginTop: space.xxl,
   },
   p: {
-    marginBlock: 10,
+    marginBlock: space.md,
   },
   a: {
     color: colors.accent,
     fontWeight: 600,
   },
   list: {
-    gap: 6,
-    marginBlock: 10,
+    gap: space.sm,
+    marginBlock: space.md,
     display: 'flex',
     flexDirection: 'column',
-    paddingInlineStart: 24,
+    paddingInlineStart: space.xxl,
   },
 });

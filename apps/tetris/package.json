@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@dy-apps/dyhub-client": "workspace:*",
+    "@dy-apps/ui": "workspace:*",
     "@stylexjs/stylex": "^0.19.1"
   },
   "peerDependencies": {

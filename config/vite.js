@@ -1,6 +1,8 @@
 import { execSync } from 'node:child_process';
 import stylex from '@stylexjs/unplugin';
 import react from '@vitejs/plugin-react';
+import { join, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
 /** A dependency under node_modules (pnpm's nested layout included). */
@@ -51,6 +53,21 @@ function commitHash() {
   }
 }
 
+/**
+ * First-party shared libraries go into one `lib` chunk (they're small). Otherwise the bundler
+ * parks a module used by several apps inside one of those apps' chunks, and every other app
+ * then has to download that whole app to get it.
+ */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+const SHARED_LIBS = ['ui', 'local-storage', 'dyhub-client'];
+const isSharedLib = (id) =>
+  SHARED_LIBS.some((lib) => id.startsWith(join(REPO_ROOT, lib, 'src') + sep));
+const LIB_CHUNKS = {
+  name: 'lib',
+  test: isSharedLib,
+  priority: 6,
+};
+
 /** React + StyleX site. `appRoot` is the directory holding index.html. */
 export function createViteConfig(appRoot) {
   return defineConfig({
@@ -59,7 +76,9 @@ export function createViteConfig(appRoot) {
     define: { __COMMIT_HASH__: JSON.stringify(commitHash()) },
     build: {
       outDir: 'dist',
-      rolldownOptions: { output: { codeSplitting: { groups: [...VENDOR_CHUNKS, APP_CHUNKS] } } },
+      rolldownOptions: {
+        output: { codeSplitting: { groups: [...VENDOR_CHUNKS, LIB_CHUNKS, APP_CHUNKS] } },
+      },
     },
     server: { port: 5173 },
     preview: { port: 4173 },

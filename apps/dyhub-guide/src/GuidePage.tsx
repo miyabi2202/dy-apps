@@ -1,8 +1,9 @@
 import { createStore } from '@dy-apps/local-storage';
+import { Button, Column, Grid, Page, Panel, text } from '@dy-apps/ui';
+import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useState } from 'react';
 import { SECTIONS, type GuideSection } from './content';
-import { colors } from './tokens.stylex';
 
 const TITLE = 'Windows 新手安装教程';
 const STEPS = SECTIONS.filter((s) => s.step !== undefined);
@@ -38,31 +39,33 @@ export function GuidePage() {
   const doneCount = STEPS.filter((s) => done.has(s.id)).length;
 
   return (
-    <div {...stylex.props(styles.page)}>
+    <Page xstyle={styles.page}>
       <div {...stylex.props(styles.layout)}>
         <nav aria-label="目录" {...stylex.props(styles.toc)}>
-          <p {...stylex.props(styles.tocTitle)}>目录</p>
-          <Progress done={doneCount} total={STEPS.length} />
-          <ol {...stylex.props(styles.tocList)}>
-            {SECTIONS.map((s) => (
-              <li key={s.id}>
-                <a
-                  href={`#${s.id}`}
-                  aria-current={active === s.id ? 'location' : undefined}
-                  {...stylex.props(styles.tocLink, active === s.id && styles.tocActive)}
-                >
-                  <span {...stylex.props(styles.tocMark, done.has(s.id) && styles.tocDone)}>
-                    {done.has(s.id) ? '✓' : (s.step ?? '·')}
-                  </span>
-                  {s.title}
-                </a>
-              </li>
-            ))}
-          </ol>
+          <Column gap="md">
+            <p {...stylex.props(text.caption)}>目录</p>
+            <Progress done={doneCount} total={STEPS.length} />
+            <ol {...stylex.props(styles.tocList)}>
+              {SECTIONS.map((s) => (
+                <li key={s.id}>
+                  <a
+                    href={`#${s.id}`}
+                    aria-current={active === s.id ? 'location' : undefined}
+                    {...stylex.props(styles.tocLink, active === s.id && styles.tocActive)}
+                  >
+                    <span {...stylex.props(styles.tocMark, done.has(s.id) && styles.tocDone)}>
+                      {done.has(s.id) ? '✓' : (s.step ?? '·')}
+                    </span>
+                    {s.title}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </Column>
         </nav>
 
-        <main {...stylex.props(styles.main)}>
-          <header {...stylex.props(styles.hero)}>
+        <Column gap="xxl" xstyle={styles.main}>
+          <header>
             <p {...stylex.props(styles.kicker)}>DyHub · 给主播的安装教程</p>
             <h1 {...stylex.props(styles.h1)}>{TITLE}</h1>
             <p {...stylex.props(styles.lead)}>
@@ -75,30 +78,28 @@ export function GuidePage() {
             <p {...stylex.props(styles.lead)}>
               整个过程分为 {STEPS.length} 步，第一次大约需要 <b>20～30 分钟</b>：
             </p>
-            <ol {...stylex.props(styles.overview)}>
+            <Grid min={230} gap="md">
               {STEPS.map((s) => (
-                <li key={s.id}>
-                  <a href={`#${s.id}`} {...stylex.props(styles.overviewLink)}>
-                    <span {...stylex.props(styles.badge, done.has(s.id) && styles.badgeDone)}>
-                      {done.has(s.id) ? '✓' : s.step}
-                    </span>
-                    {s.title}
-                  </a>
-                </li>
+                <a key={s.id} href={`#${s.id}`} {...stylex.props(styles.overviewLink)}>
+                  <span {...stylex.props(styles.badge, done.has(s.id) && styles.badgeDone)}>
+                    {done.has(s.id) ? '✓' : s.step}
+                  </span>
+                  {s.title}
+                </a>
               ))}
-            </ol>
+            </Grid>
           </header>
 
           {SECTIONS.map((s) => (
             <Section key={s.id} section={s} done={done.has(s.id)} onToggle={() => toggle(s.id)} />
           ))}
 
-          <footer {...stylex.props(styles.footer)}>
+          <footer {...stylex.props(text.muted, styles.footer)}>
             遇到教程里没写到的问题，把命令提示符里的文字截图发给提供程序的人。
           </footer>
-        </main>
+        </Column>
       </div>
-    </div>
+    </Page>
   );
 }
 
@@ -113,7 +114,7 @@ function Section({
 }) {
   const { id, step, title, body } = section;
   return (
-    <section id={id} aria-labelledby={`${id}-title`} {...stylex.props(styles.section)}>
+    <Panel id={id} aria-labelledby={`${id}-title`} gap="sm" xstyle={styles.section}>
       <h2 id={`${id}-title`} {...stylex.props(styles.h2)}>
         {step !== undefined && (
           <span {...stylex.props(styles.badge, styles.badgeLarge, done && styles.badgeDone)}>
@@ -125,24 +126,24 @@ function Section({
           {title}
         </span>
       </h2>
-      <div {...stylex.props(styles.body)}>{body}</div>
+      <div>{body}</div>
       {step !== undefined && (
-        <button
-          type="button"
+        <Button
+          variant={done ? 'primary' : 'default'}
           aria-pressed={done}
           onClick={onToggle}
-          {...stylex.props(styles.doneButton, done && styles.doneButtonOn)}
+          xstyle={styles.doneButton}
         >
           {done ? `✓ 第 ${step} 步已完成（点击取消）` : `这一步完成了 ✓`}
-        </button>
+        </Button>
       )}
-    </section>
+    </Panel>
   );
 }
 
 function Progress({ done, total }: { done: number; total: number }) {
   return (
-    <div {...stylex.props(styles.progress)}>
+    <Column gap="sm">
       <div
         role="progressbar"
         aria-valuemin={0}
@@ -153,10 +154,10 @@ function Progress({ done, total }: { done: number; total: number }) {
       >
         <div {...stylex.props(styles.fill(total ? done / total : 0))} />
       </div>
-      <span {...stylex.props(styles.progressText)}>
+      <span {...stylex.props(text.muted)}>
         已完成 {done} / {total} 步
       </span>
-    </div>
+    </Column>
   );
 }
 
@@ -187,21 +188,14 @@ const WIDE = '@media (min-width: 1040px)';
 
 const styles = stylex.create({
   page: {
-    backgroundColor: colors.bg,
-    color: colors.text,
-    fontFamily: "'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif",
     fontSize: 17,
     lineHeight: 1.75,
-    minHeight: '100vh',
   },
   layout: {
-    gap: 40,
+    gap: space.xxl,
     marginInline: 'auto',
-    paddingBlock: {
-      [WIDE]: 40,
-      default: 20,
-    },
-    paddingInline: 16,
+    paddingBlock: space.xxl,
+    paddingInline: space.xl,
     display: {
       [WIDE]: 'grid',
       default: 'block',
@@ -216,31 +210,25 @@ const styles = stylex.create({
       [WIDE]: 'block',
       default: 'none',
     },
-    fontSize: 14,
+    fontSize: fontSize.md,
     position: 'sticky',
     maxHeight: 'calc(100vh - 48px)',
     overflowY: 'auto',
-    top: 24,
-  },
-  tocTitle: {
-    color: colors.muted,
-    fontWeight: 700,
-    marginBottom: 8,
-    marginTop: 0,
+    top: space.xxl,
   },
   tocList: {
     margin: 0,
     padding: 0,
-    gap: 2,
+    gap: space.xxs,
     listStyle: 'none',
     display: 'flex',
     flexDirection: 'column',
   },
   tocLink: {
-    borderRadius: 6,
-    gap: 8,
-    paddingBlock: 6,
-    paddingInline: 8,
+    borderRadius: radius.sm,
+    gap: space.md,
+    paddingBlock: space.sm,
+    paddingInline: space.md,
     textDecoration: 'none',
     alignItems: 'center',
     backgroundColor: {
@@ -267,42 +255,29 @@ const styles = stylex.create({
     width: 18,
   },
   tocDone: {
-    color: colors.done,
+    color: colors.success,
     fontWeight: 700,
   },
-  progress: {
-    gap: 6,
-    display: 'flex',
-    flexDirection: 'column',
-    marginBottom: 14,
-  },
   track: {
-    borderRadius: 999,
+    borderRadius: radius.pill,
     overflow: 'hidden',
     backgroundColor: colors.border,
     height: 6,
   },
   fill: (ratio: number) => ({
-    backgroundColor: colors.done,
+    backgroundColor: colors.success,
     transitionDuration: '300ms',
     transitionProperty: 'width',
     height: '100%',
     width: `${ratio * 100}%`,
   }),
-  progressText: {
-    color: colors.muted,
-    fontSize: 13,
-  },
   main: {
     minWidth: 0,
-  },
-  hero: {
-    marginBottom: 12,
   },
   kicker: {
     margin: 0,
     color: colors.accent,
-    fontSize: 14,
+    fontSize: fontSize.md,
     fontWeight: 700,
     letterSpacing: '0.04em',
   },
@@ -312,55 +287,48 @@ const styles = stylex.create({
       default: 30,
     },
     lineHeight: 1.25,
-    marginBottom: 14,
-    marginTop: 6,
+    marginBottom: space.lg,
+    marginTop: space.sm,
   },
   lead: {
-    marginBlock: 10,
+    marginBlock: space.md,
   },
   note: {
-    borderRadius: 8,
-    marginBlock: 14,
-    paddingBlock: 8,
-    paddingInline: 14,
+    borderRadius: radius.md,
+    marginBlock: space.lg,
+    paddingBlock: space.md,
+    paddingInline: space.lg,
     backgroundColor: colors.accentSoft,
     color: colors.accent,
     fontSize: 15,
-  },
-  overview: {
-    margin: 0,
-    padding: 0,
-    gap: 8,
-    listStyle: 'none',
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
   },
   overviewLink: {
     borderColor: {
       default: colors.border,
       ':hover': colors.accent,
     },
-    borderRadius: 10,
+    borderRadius: radius.md,
     borderStyle: 'solid',
     borderWidth: 1,
-    gap: 10,
-    paddingBlock: 8,
-    paddingInline: 10,
+    gap: space.md,
+    paddingBlock: space.md,
+    paddingInline: space.md,
     textDecoration: 'none',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.panel,
     color: colors.text,
     display: 'flex',
     fontSize: 15,
+    height: '100%',
   },
   badge: {
-    borderRadius: '50%',
+    borderRadius: radius.pill,
     alignItems: 'center',
     backgroundColor: colors.accent,
     color: colors.onAccent,
     display: 'inline-flex',
     flexShrink: 0,
-    fontSize: 14,
+    fontSize: fontSize.md,
     fontWeight: 700,
     justifyContent: 'center',
     height: 28,
@@ -372,25 +340,19 @@ const styles = stylex.create({
     width: 40,
   },
   badgeDone: {
-    backgroundColor: colors.done,
+    backgroundColor: colors.success,
   },
   section: {
-    borderColor: colors.border,
-    borderRadius: 14,
-    borderStyle: 'solid',
-    borderWidth: 1,
-    paddingBlock: 22,
+    paddingBlock: space.xxl,
     paddingInline: {
-      [WIDE]: 28,
-      default: 18,
+      [WIDE]: space.xxl,
+      default: space.xl,
     },
-    backgroundColor: colors.surface,
-    marginTop: 24,
-    scrollMarginTop: 16,
+    scrollMarginTop: space.xl,
   },
   h2: {
     margin: 0,
-    gap: 14,
+    gap: space.lg,
     alignItems: 'center',
     display: 'flex',
     fontSize: 23,
@@ -399,42 +361,17 @@ const styles = stylex.create({
   stepLabel: {
     color: colors.muted,
     display: 'block',
-    fontSize: 14,
+    fontSize: fontSize.md,
     fontWeight: 600,
   },
-  body: {
-    marginTop: 8,
-  },
   doneButton: {
-    borderColor: colors.accent,
-    borderRadius: 10,
-    borderStyle: 'solid',
-    borderWidth: 2,
-    paddingInline: 20,
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': colors.accentSoft,
-    },
-    color: colors.accent,
-    cursor: 'pointer',
-    fontSize: 16,
+    fontSize: fontSize.lg,
     fontWeight: 700,
-    marginTop: 18,
+    marginTop: space.lg,
     minHeight: 46,
     width: '100%',
   },
-  doneButtonOn: {
-    borderColor: colors.done,
-    backgroundColor: {
-      default: colors.done,
-      ':hover': colors.done,
-    },
-    color: colors.onAccent,
-  },
   footer: {
-    color: colors.muted,
-    fontSize: 14,
     textAlign: 'center',
-    marginTop: 32,
   },
 });

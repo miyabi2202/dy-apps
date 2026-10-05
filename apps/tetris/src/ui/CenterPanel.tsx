@@ -1,3 +1,5 @@
+import { Button, Grid, Panel, text } from '@dy-apps/ui';
+import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, type RefObject } from 'react';
 import { CONFIG, EFFECT_POOL } from '../core/config';
@@ -5,8 +7,6 @@ import type { GameEngine } from '../core/game';
 import type { PieceType } from '../core/types';
 import { drawMiniPiece } from '../render/board';
 import { effectName } from './format';
-import { ui } from './styles';
-import { colors } from './tokens.stylex';
 
 interface Props {
   engine: GameEngine;
@@ -31,7 +31,7 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
   const firingNext = EFFECT_POOL.filter((type) => engine.team.pending[type] > 0);
 
   return (
-    <section aria-label="棋盘" {...stylex.props(ui.panel, styles.center)}>
+    <Panel aria-label="棋盘">
       <div
         key={engine.settlementCount}
         data-testid="countdown"
@@ -49,7 +49,7 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
 
       <div {...stylex.props(styles.playArea)}>
         <div {...stylex.props(styles.side, styles.holdSide)}>
-          <div {...stylex.props(ui.subTitle)}>暂存{engine.holdBlocked && '（封存中）'}</div>
+          <div {...stylex.props(text.caption)}>暂存{engine.holdBlocked && '（封存中）'}</div>
           <MiniPiece type={engine.hold} dim={engine.holdBlocked || !engine.canHold} label="暂存" />
         </div>
 
@@ -65,7 +65,7 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
         </div>
 
         <div {...stylex.props(styles.side, styles.nextSide)}>
-          <div {...stylex.props(ui.subTitle)}>后续</div>
+          <div {...stylex.props(text.caption)}>后续</div>
           {engine.previewHidden ? (
             <div {...stylex.props(styles.fog)} data-testid="preview-fog">
               迷雾
@@ -81,48 +81,48 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
               ))}
             </div>
           )}
-          <div {...stylex.props(ui.subTitle, styles.speedTitle)}>速度</div>
+          <div {...stylex.props(text.caption, styles.speedTitle)}>速度</div>
           <div data-testid="speed" {...stylex.props(styles.speed)}>
             ×{engine.speedMultiplier.toFixed(1)}
           </div>
         </div>
       </div>
 
-      <dl {...stylex.props(ui.statGrid)} data-testid="stats">
+      <dl {...stylex.props(styles.statGrid)} data-testid="stats">
         <Stat label="分数" value={engine.score} />
         <Stat label="消行" value={engine.lines} />
         <Stat label="落块" value={engine.lockedPieceCount} />
         <Stat label="结算" value={engine.settlementCount} />
       </dl>
 
-      <div {...stylex.props(styles.infoRow)}>
+      <Grid min={160} gap="md">
         <div>
-          <div {...stylex.props(ui.subTitle)}>生效中</div>
+          <div {...stylex.props(text.caption)}>生效中</div>
           <div data-testid="active-effects" {...stylex.props(styles.infoText)}>
             {timed.length ? timed.join('；') : '无'}
           </div>
         </div>
         <div>
-          <div {...stylex.props(ui.subTitle)}>下次结算（每种各 1 个）</div>
+          <div {...stylex.props(text.caption)}>下次结算（每种各 1 个）</div>
           <div {...stylex.props(styles.infoText, styles.curseText)} data-testid="next-settlement">
             {firingNext.length ? firingNext.map(effectName).join('、') : '无'}
           </div>
         </div>
-      </div>
+      </Grid>
 
       <TouchControls engine={engine} />
-      <p {...stylex.props(ui.muted, styles.keys)}>
+      <p {...stylex.props(text.muted, styles.keys)}>
         ←/→ 移动 · ↑/X 顺时针 · Z 逆时针 · ↓ 软降 · 空格 硬降 · C 暂存 · P 暂停
       </p>
-    </section>
+    </Panel>
   );
 }
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div {...stylex.props(ui.stat)}>
-      <dt {...stylex.props(ui.statLabel)}>{label}</dt>
-      <dd {...stylex.props(ui.statValue)}>{value}</dd>
+    <div {...stylex.props(styles.stat)}>
+      <dt {...stylex.props(styles.statLabel)}>{label}</dt>
+      <dd {...stylex.props(styles.statValue)}>{value}</dd>
     </div>
   );
 }
@@ -158,27 +158,19 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
       {engine.phase === 'ready' && (
         <>
           <strong {...stylex.props(styles.overlayTitle)}>准备就绪</strong>
-          <span {...stylex.props(ui.muted)}>开始前也可以先模拟送礼</span>
-          <button
-            type="button"
-            onClick={() => engine.start()}
-            {...stylex.props(ui.button, ui.primary)}
-          >
+          <span {...stylex.props(text.muted)}>开始前也可以先模拟送礼</span>
+          <Button variant="primary" onClick={() => engine.start()}>
             开始游戏
-          </button>
+          </Button>
         </>
       )}
       {engine.phase === 'paused' && (
         <>
           <strong {...stylex.props(styles.overlayTitle)}>已暂停</strong>
-          <span {...stylex.props(ui.muted)}>暂停期间仍可送礼，但不结算</span>
-          <button
-            type="button"
-            onClick={() => engine.resume()}
-            {...stylex.props(ui.button, ui.primary)}
-          >
+          <span {...stylex.props(text.muted)}>暂停期间仍可送礼，但不结算</span>
+          <Button variant="primary" onClick={() => engine.resume()}>
             继续游戏
-          </button>
+          </Button>
         </>
       )}
       {engine.phase === 'gameOver' && (
@@ -193,9 +185,9 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
             <dt>结算次数</dt>
             <dd>{engine.settlementCount}</dd>
           </dl>
-          <button type="button" onClick={onRestart} {...stylex.props(ui.button, ui.primary)}>
+          <Button variant="primary" onClick={onRestart}>
             重新开始
-          </button>
+          </Button>
         </>
       )}
     </div>
@@ -212,30 +204,43 @@ function TouchControls({ engine }: { engine: GameEngine }) {
     ['硬降', () => engine.hardDrop()],
   ];
   return (
-    <div {...stylex.props(styles.touch)} role="group" aria-label="鼠标/触屏操作">
+    <Grid columns={5} gap="sm" role="group" aria-label="鼠标/触屏操作">
       {buttons.map(([label, act]) => (
-        <button
-          key={label}
-          type="button"
-          disabled={disabled}
-          onClick={act}
-          {...stylex.props(ui.button)}
-        >
+        <Button key={label} disabled={disabled} onClick={act}>
           {label}
-        </button>
+        </Button>
       ))}
-    </div>
+    </Grid>
   );
 }
 
 const styles = stylex.create({
-  center: {
-    alignItems: 'stretch',
+  statGrid: {
+    margin: 0,
+    gap: space.sm,
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))',
+  },
+  stat: {
+    borderRadius: radius.sm,
+    paddingBlock: space.xs,
+    paddingInline: space.md,
+    backgroundColor: colors.panelRaised,
+  },
+  statLabel: {
+    color: colors.muted,
+    fontSize: fontSize.xs,
+  },
+  statValue: {
+    margin: 0,
+    fontSize: fontSize.lg,
+    fontVariantNumeric: 'tabular-nums',
+    fontWeight: 700,
   },
   countdown: {
-    borderRadius: 8,
-    paddingBlock: 6,
-    paddingInline: 10,
+    borderRadius: radius.md,
+    paddingBlock: space.sm,
+    paddingInline: space.md,
     alignItems: 'center',
     display: 'flex',
     fontSize: 15,
@@ -246,11 +251,11 @@ const styles = stylex.create({
     animationName: fadeIn,
   },
   pips: {
-    gap: 4,
+    gap: space.xs,
     display: 'flex',
   },
   pip: {
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: colors.border,
     height: 10,
     width: 22,
@@ -259,7 +264,7 @@ const styles = stylex.create({
     backgroundColor: colors.warn,
   },
   playArea: {
-    gap: 10,
+    gap: space.md,
     gridTemplateAreas: {
       default: '"hold next" "board board"',
       '@media (min-width: 520px)': '"hold board next"',
@@ -272,7 +277,7 @@ const styles = stylex.create({
     justifyContent: 'center',
   },
   side: {
-    gap: 6,
+    gap: space.sm,
     display: 'flex',
     flexDirection: 'column',
     minWidth: 0,
@@ -287,7 +292,7 @@ const styles = stylex.create({
   },
   board: {
     borderColor: colors.border,
-    borderRadius: 6,
+    borderRadius: radius.sm,
     borderStyle: 'solid',
     borderWidth: 1,
     aspectRatio: '1 / 2',
@@ -295,7 +300,7 @@ const styles = stylex.create({
     width: '100%',
   },
   mini: {
-    borderRadius: 6,
+    borderRadius: radius.sm,
     backgroundColor: colors.panelRaised,
     display: 'block',
     height: 44,
@@ -304,7 +309,7 @@ const styles = stylex.create({
     width: '100%',
   },
   previewList: {
-    gap: 6,
+    gap: space.sm,
     display: 'grid',
     gridTemplateColumns: {
       default: 'repeat(3, minmax(0, 1fr))',
@@ -312,11 +317,11 @@ const styles = stylex.create({
     },
   },
   speedTitle: {
-    marginTop: 4,
+    marginTop: space.xs,
   },
   speed: {
-    borderRadius: 6,
-    paddingBlock: 6,
+    borderRadius: radius.sm,
+    paddingBlock: space.sm,
     backgroundColor: colors.panelRaised,
     fontSize: 18,
     fontVariantNumeric: 'tabular-nums',
@@ -324,21 +329,21 @@ const styles = stylex.create({
     textAlign: 'center',
   },
   fog: {
-    borderRadius: 6,
+    borderRadius: radius.sm,
     alignItems: 'center',
     backgroundColor: 'rgba(148, 163, 184, 0.18)',
     color: colors.muted,
     display: 'flex',
-    fontSize: 13,
+    fontSize: fontSize.sm,
     justifyContent: 'center',
     textAlign: 'center',
     minHeight: 100,
   },
   overlay: {
     inset: 0,
-    padding: 16,
-    borderRadius: 6,
-    gap: 10,
+    padding: space.xl,
+    borderRadius: radius.sm,
+    gap: space.md,
     alignItems: 'center',
     backgroundColor: 'rgba(10, 15, 28, 0.82)',
     display: 'flex',
@@ -352,27 +357,17 @@ const styles = stylex.create({
   },
   summaryList: {
     margin: 0,
-    columnGap: 12,
+    columnGap: space.lg,
     display: 'grid',
     gridTemplateColumns: 'auto auto',
-    rowGap: 2,
-  },
-  infoRow: {
-    gap: 10,
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+    rowGap: space.xxs,
   },
   infoText: {
-    fontSize: 13,
+    fontSize: fontSize.sm,
     lineHeight: 1.6,
-    marginTop: 2,
+    marginTop: space.xxs,
   },
-  curseText: { color: colors.curse },
-  touch: {
-    gap: 6,
-    display: 'grid',
-    gridTemplateColumns: 'repeat(5, 1fr)',
-  },
+  curseText: { color: colors.danger },
   keys: {
     margin: 0,
     textAlign: 'center',

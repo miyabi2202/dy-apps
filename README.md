@@ -2,15 +2,16 @@
 
 pnpm monorepo of small live-stream apps, served as one site: an index page at `/` and each app on its own route.
 
-| Package                                    | Path                | What it is                                                      |
-| ------------------------------------------ | ------------------- | --------------------------------------------------------------- |
-| [`@dy-apps/site`](site)                    | `site/`             | The deployed SPA: index page, React Router, Vite build, Workers |
-| [`@dy-apps/tetris`](apps/tetris)           | `apps/tetris/`      | 方块干预实验室 at `/tetris`: block game with audience curses    |
-| [`@dy-apps/danmaku`](apps/danmaku)         | `apps/danmaku/`     | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS          |
-| [`@dy-apps/dyhub-guide`](apps/dyhub-guide) | `apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers       |
-| [`@dy-apps/config`](config)                | `config/`           | Shared Vite, Jest, Playwright and Browserslist presets          |
-| [`@dy-apps/dyhub-client`](dyhub-client)    | `dyhub-client/`     | Browser client for DyHub's live-room WebSocket events           |
-| [`@dy-apps/local-storage`](local-storage)  | `local-storage/`    | Typed, validated, namespaced localStorage values for every app  |
+| Package                                    | Path                | What it is                                                                        |
+| ------------------------------------------ | ------------------- | --------------------------------------------------------------------------------- |
+| [`@dy-apps/site`](site)                    | `site/`             | The deployed SPA: index page, React Router, Vite build, Workers                   |
+| [`@dy-apps/tetris`](apps/tetris)           | `apps/tetris/`      | 方块干预实验室 at `/tetris`: block game with audience curses                      |
+| [`@dy-apps/danmaku`](apps/danmaku)         | `apps/danmaku/`     | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                            |
+| [`@dy-apps/dyhub-guide`](apps/dyhub-guide) | `apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers                         |
+| [`@dy-apps/config`](config)                | `config/`           | Shared Vite, Jest, Playwright and Browserslist presets                            |
+| [`@dy-apps/dyhub-client`](dyhub-client)    | `dyhub-client/`     | Browser client for DyHub's live-room WebSocket events                             |
+| [`@dy-apps/local-storage`](local-storage)  | `local-storage/`    | Typed, validated, namespaced localStorage values for every app                    |
+| [`@dy-apps/ui`](ui)                        | `ui/`               | Shared design tokens and components (Button, Panel, Field, Row/Column/Grid, Page) |
 
 ## Layout
 
@@ -23,6 +24,7 @@ apps/<name>/          # one package per app: exports its page component and a ti
 config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
 dyhub-client/         # @dy-apps/dyhub-client: connectDyhub, port/room validation, GiftCounter (TS source, no build step)
 local-storage/        # @dy-apps/local-storage: createStore for `dy-apps:<app>.<key>` values (TS source, no build step)
+ui/                   # @dy-apps/ui: design tokens + the components every app reuses (TS source, no build step)
 eslint.config.js      # one flat config for every package
 .prettierrc.json      # repo-wide formatting (+ .prettierignore)
 tsconfig.base.json    # packages extend this
@@ -36,6 +38,7 @@ pnpm-lock.yaml
 The site's Vite build (`config/vite.js`) splits output so each page downloads only what it needs:
 
 - **One chunk per app** (`app-<name>-*.js`), loaded by React Router's route `lazy` only when its path is visited. The index imports just each app's `meta`, not its code.
+- **One `lib` chunk** for the first-party shared libraries (`ui`, `local-storage`, `dyhub-client`), so an app never has to download another app's chunk to get shared code.
 - **Long-lived vendor chunks**: `react` (React, ReactDOM, React Router) and `stylex` (StyleX runtime). They change only on dependency upgrades, so browsers keep them cached across deploys.
 - **CSS is one file.** StyleX compiles every component's styles into shared atomic classes in a single stylesheet, so it isn't split per app; it's small and hashed for long-term caching.
 
@@ -122,3 +125,13 @@ The presets are plain JavaScript with `.d.ts` types, because Jest can't load a T
 3. Add `"@dy-apps/<name>": "workspace:*"` to `site/package.json` and one entry to `site/src/apps.ts`.
 4. Add a `tsconfig.json` that extends `../../tsconfig.base.json`, plus `jest.config.js` if it has tests. `apps/*` is already in `pnpm-workspace.yaml` and the ESLint config.
 5. Use `"catalog:"` for shared tools so versions stay in sync, then run `pnpm install`.
+6. Build the UI from `@dy-apps/ui` (see below) instead of styling your own buttons, panels or inputs.
+
+## Design system
+
+`@dy-apps/ui` keeps every app on one design language. It holds only what more than one app actually uses:
+
+- **Tokens** in `@dy-apps/ui/tokens.stylex`: `colors`, `space`, `radius`, `fontSize`, `fonts`. Import them from that path directly, not through the package index; StyleX resolves variables by the file that defines them.
+- **Components**: `Button` (`default` / `primary` / `danger`), `Panel`, `Field` with `Input` / `Select` (and `useFieldId` for custom controls), `Row` / `Column` / `Grid` for spacing, `Page` for an app's root, and `text.muted` / `text.caption` styles.
+
+Every component takes an `xstyle` prop for one-off tweaks. Styles that stay inside an app (a game board, an overlay card) still use the tokens for colour, padding and radius rather than literal values.

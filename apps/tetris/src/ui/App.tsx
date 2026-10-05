@@ -1,3 +1,5 @@
+import { Button, Column, Field, Panel, Row, Select, text } from '@dy-apps/ui';
+import { colors, fontSize, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState } from 'react';
 import type { LocalGiftAdapter } from '../adapters/local-gift';
@@ -9,9 +11,7 @@ import { CenterPanel } from './CenterPanel';
 import { DyhubPanel } from './DyhubPanel';
 import { percent } from './format';
 import { LogPanel } from './LogPanel';
-import { ui } from './styles';
 import { TeamPanel } from './TeamPanel';
-import { colors } from './tokens.stylex';
 import { useEngineVersion } from './useEngine';
 
 interface Props {
@@ -41,40 +41,35 @@ export function App({ engine, gifts, keyboard }: Props) {
         : { label: '暂停', act: () => engine.pause() };
 
   return (
-    <div {...stylex.props(styles.page)}>
-      <header {...stylex.props(styles.header)}>
+    <Column gap="lg" xstyle={styles.page}>
+      <Row gap="lg" justify="between" wrap>
         <div>
           <h1 {...stylex.props(styles.title)}>方块干预实验室</h1>
-          <span {...stylex.props(styles.badge)}>单机测试 · 本地模拟送礼，未连接直播</span>
+          <span {...stylex.props(text.muted)}>单机测试 · 本地模拟送礼，未连接直播</span>
         </div>
-        <div {...stylex.props(styles.controls)}>
-          <label {...stylex.props(ui.muted, styles.probLabel)}>
-            礼物触发概率
-            <select
+        <Row gap="md" align="end" wrap>
+          <Field label="礼物触发概率" xstyle={styles.probField}>
+            <Select
               value={engine.probability}
               onChange={(e) => engine.setProbability(Number(e.target.value))}
-              {...stylex.props(ui.input, styles.select)}
             >
               {CONFIG.gifts.probabilityOptions.map((p) => (
                 <option key={p} value={p}>
                   {percent(p)}
                 </option>
               ))}
-            </select>
-          </label>
-          <button
-            type="button"
+            </Select>
+          </Field>
+          <Button
+            variant="primary"
             disabled={engine.phase === 'gameOver'}
             onClick={phaseButton.act}
-            {...stylex.props(ui.button, ui.primary)}
           >
             {phaseButton.label}
-          </button>
-          <button type="button" onClick={requestRestart} {...stylex.props(ui.button)}>
-            重新开始
-          </button>
-        </div>
-      </header>
+          </Button>
+          <Button onClick={requestRestart}>重新开始</Button>
+        </Row>
+      </Row>
 
       <main {...stylex.props(styles.columns)}>
         <div {...stylex.props(styles.centerCol)}>
@@ -91,43 +86,37 @@ export function App({ engine, gifts, keyboard }: Props) {
 
       {confirming && (
         <div {...stylex.props(styles.backdrop)}>
-          <div
+          <Panel
             role="dialog"
             aria-modal="true"
             aria-labelledby="restart-title"
-            {...stylex.props(ui.panel, styles.dialog)}
+            xstyle={styles.dialog}
           >
             <h2 id="restart-title" {...stylex.props(styles.dialogTitle)}>
               确认重新开始？
             </h2>
-            <p {...stylex.props(ui.muted)}>
+            <p {...stylex.props(text.muted, styles.dialogText)}>
               将清空棋盘、分数、待执行诅咒、效果和送礼记录。触发概率保持{' '}
               {percent(engine.probability)}。
             </p>
-            <div {...stylex.props(styles.dialogButtons)}>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => setConfirming(false)}
-                {...stylex.props(ui.button)}
-              >
+            <Row gap="md" justify="end">
+              <Button autoFocus onClick={() => setConfirming(false)}>
                 取消
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
                 onClick={() => {
                   setConfirming(false);
                   engine.restart();
                 }}
-                {...stylex.props(ui.button, ui.primary)}
               >
                 确认重开
-              </button>
-            </div>
-          </div>
+              </Button>
+            </Row>
+          </Panel>
         </div>
       )}
-    </div>
+    </Column>
   );
 }
 
@@ -135,49 +124,19 @@ const WIDE = '@media (min-width: 900px)';
 
 const styles = stylex.create({
   page: {
-    gap: 14,
+    padding: space.xl,
     marginInline: 'auto',
-    paddingBlock: 16,
-    paddingInline: 16,
-    backgroundColor: colors.bg,
-    color: colors.text,
-    display: 'flex',
-    flexDirection: 'column',
-    fontFamily: 'system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif',
     maxWidth: 1440,
-    minHeight: '100vh',
-  },
-  header: {
-    gap: 12,
-    alignItems: 'center',
-    display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
   },
   title: {
     margin: 0,
     fontSize: 24,
   },
-  badge: {
-    color: colors.muted,
-    fontSize: 13,
-  },
-  controls: {
-    gap: 8,
-    alignItems: 'flex-end',
-    display: 'flex',
-    flexWrap: 'wrap',
-  },
-  probLabel: {
-    gap: 2,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  select: {
+  probField: {
     width: 96,
   },
   columns: {
-    gap: 14,
+    gap: space.lg,
     gridTemplateAreas: {
       [WIDE]: '"center team"',
       default: '"center" "team"',
@@ -194,7 +153,7 @@ const styles = stylex.create({
   teamCol: { gridArea: 'team', minWidth: 0 },
   backdrop: {
     inset: 0,
-    padding: 16,
+    padding: space.xl,
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     display: 'flex',
@@ -207,11 +166,12 @@ const styles = stylex.create({
   },
   dialogTitle: {
     margin: 0,
+    color: colors.text,
     fontSize: 18,
   },
-  dialogButtons: {
-    gap: 8,
-    display: 'flex',
-    justifyContent: 'flex-end',
+  dialogText: {
+    margin: 0,
+    fontSize: fontSize.md,
+    lineHeight: 1.6,
   },
 });

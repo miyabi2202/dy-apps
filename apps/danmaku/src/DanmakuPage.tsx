@@ -1,5 +1,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { createStore } from '@dy-apps/local-storage';
+import { Button, Column, Page, Row, text } from '@dy-apps/ui';
+import { colors, fonts, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import { useCallback, useEffect, useState } from 'react';
 import { COMMIT_HASH, SHORT_COMMIT_HASH } from './build';
 import { createFakeMessage } from './demo';
@@ -11,7 +13,6 @@ import {
   settingsToParams,
   type Settings,
 } from './settings';
-import { colors } from './tokens.stylex';
 import type { DanmakuMessage } from './types';
 import { Controls, DEMO_INTERVAL_RANGE } from './ui/Controls';
 import { MessageList } from './ui/MessageList';
@@ -91,38 +92,36 @@ export function DanmakuPage() {
   const obsUrl = `${window.location.origin}${window.location.pathname}?${obsParams.toString()}`;
 
   return (
-    <div {...stylex.props(styles.editor)}>
-      <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>
-          弹幕墙
-          <code title={COMMIT_HASH} data-testid="commit-hash" {...stylex.props(styles.commit)}>
-            {SHORT_COMMIT_HASH}
-          </code>
-        </h1>
-        <button
-          type="button"
-          onClick={() => setSettings(DEFAULT_SETTINGS)}
-          {...stylex.props(styles.reset)}
-        >
-          恢复默认样式
-        </button>
-      </header>
-      <Controls
-        settings={settings}
-        onChange={(patch) => setSettings((s) => ({ ...s, ...patch }))}
-        demoRunning={demoRunning}
-        onToggleDemo={() => setDemoRunning((r) => !r)}
-        demoIntervalMs={demoIntervalMs}
-        onDemoIntervalChange={setDemoIntervalMs}
-        onClear={() => setMessages([])}
-        count={messages.length}
-        obsUrl={obsUrl}
-      />
-      <p {...stylex.props(styles.stageHint)}>预览 · 棋盘格为透明区域 · 拖动右下角调整大小</p>
-      <div {...stylex.props(styles.stage)}>
-        <div {...stylex.props(styles.fill, font)}>{list}</div>
-      </div>
-    </div>
+    <Page xstyle={styles.editor}>
+      <Column gap="lg">
+        <Row gap="lg" justify="between">
+          <h1 {...stylex.props(styles.title)}>
+            弹幕墙
+            <code title={COMMIT_HASH} data-testid="commit-hash" {...stylex.props(styles.commit)}>
+              {SHORT_COMMIT_HASH}
+            </code>
+          </h1>
+          <Button onClick={() => setSettings(DEFAULT_SETTINGS)}>恢复默认样式</Button>
+        </Row>
+        <Controls
+          settings={settings}
+          onChange={(patch) => setSettings((s) => ({ ...s, ...patch }))}
+          demoRunning={demoRunning}
+          onToggleDemo={() => setDemoRunning((r) => !r)}
+          demoIntervalMs={demoIntervalMs}
+          onDemoIntervalChange={setDemoIntervalMs}
+          onClear={() => setMessages([])}
+          count={messages.length}
+          obsUrl={obsUrl}
+        />
+        <p {...stylex.props(text.muted, styles.stageHint)}>
+          预览 · 棋盘格为透明区域 · 拖动右下角调整大小
+        </p>
+        <div {...stylex.props(styles.stage)}>
+          <div {...stylex.props(styles.fill, font)}>{list}</div>
+        </div>
+      </Column>
+    </Page>
   );
 }
 
@@ -150,62 +149,36 @@ const styles = stylex.create({
   // Fills the OBS browser source. No background, so the stream shows through.
   obs: {
     inset: 0,
-    paddingBlock: 8,
+    paddingBlock: space.md,
     position: 'fixed',
   },
   editor: {
-    padding: 20,
-    gap: 14,
-    backgroundColor: colors.bg,
-    color: colors.text,
-    colorScheme: 'dark',
-    display: 'flex',
-    flexDirection: 'column',
-    fontFamily: "'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
-    minHeight: '100vh',
-  },
-  header: {
-    gap: 12,
-    alignItems: 'center',
-    display: 'flex',
-    justifyContent: 'space-between',
+    padding: space.xl,
   },
   title: {
     margin: 0,
-    gap: 10,
+    gap: space.md,
     alignItems: 'baseline',
     display: 'flex',
     fontSize: 22,
   },
   commit: {
     color: colors.muted,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-    fontSize: 12,
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xs,
     fontWeight: 400,
-  },
-  reset: {
-    borderStyle: 'none',
-    backgroundColor: 'transparent',
-    color: {
-      default: colors.muted,
-      ':hover': colors.accent,
-    },
-    cursor: 'pointer',
-    fontSize: 13,
   },
   stageHint: {
     margin: 0,
-    color: colors.muted,
-    fontSize: 12,
   },
   // Checkerboard marks the transparent area, like an image editor.
   stage: {
     borderColor: colors.border,
-    borderRadius: 8,
+    borderRadius: radius.md,
     borderStyle: 'dashed',
     borderWidth: 1,
     overflow: 'hidden',
-    backgroundImage: 'repeating-conic-gradient(#1f2937 0 25%, #111827 0 50%)',
+    backgroundImage: `repeating-conic-gradient(${colors.panelRaised} 0 25%, ${colors.panel} 0 50%)`,
     backgroundSize: '24px 24px',
     resize: 'both',
     height: 560,

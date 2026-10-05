@@ -1,17 +1,16 @@
+import { Button, Row, text } from '@dy-apps/ui';
+import { colors, fonts, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useState, type ReactNode } from 'react';
-import { colors } from '../tokens.stylex';
-
-const MONO = "ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace";
 
 /** Copies text, falling back to a hidden textarea where the Clipboard API is unavailable. */
-async function copyText(text: string): Promise<boolean> {
+async function copyText(value: string): Promise<boolean> {
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(value);
     return true;
   } catch {
     const area = document.createElement('textarea');
-    area.value = text;
+    area.value = value;
     area.style.position = 'fixed';
     area.style.opacity = '0';
     document.body.appendChild(area);
@@ -22,7 +21,7 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-function CopyButton({ text, label = '复制' }: { text: string; label?: string }) {
+function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -32,13 +31,13 @@ function CopyButton({ text, label = '复制' }: { text: string; label?: string }
   }, [copied]);
 
   return (
-    <button
-      type="button"
-      onClick={() => void copyText(text).then(setCopied)}
-      {...stylex.props(styles.copy, copied && styles.copied)}
+    <Button
+      variant="primary"
+      onClick={() => void copyText(value).then(setCopied)}
+      xstyle={styles.copy}
     >
-      {copied ? '✓ 已复制' : label}
-    </button>
+      {copied ? '✓ 已复制' : '复制'}
+    </Button>
   );
 }
 
@@ -46,11 +45,13 @@ function CopyButton({ text, label = '复制' }: { text: string; label?: string }
 export function Cmd({ children }: { children: string }) {
   return (
     <figure {...stylex.props(styles.block)}>
-      <figcaption {...stylex.props(styles.caption)}>在命令提示符输入，然后按回车</figcaption>
-      <div {...stylex.props(styles.cmd)}>
+      <figcaption {...stylex.props(text.muted, styles.caption)}>
+        在命令提示符输入，然后按回车
+      </figcaption>
+      <Row gap="lg" xstyle={styles.cmd}>
         <code {...stylex.props(styles.cmdText)}>{children}</code>
-        <CopyButton text={children} />
-      </div>
+        <CopyButton value={children} />
+      </Row>
     </figure>
   );
 }
@@ -65,7 +66,7 @@ export function Out({
 }) {
   return (
     <figure {...stylex.props(styles.block)}>
-      <figcaption {...stylex.props(styles.caption)}>{label}</figcaption>
+      <figcaption {...stylex.props(text.muted, styles.caption)}>{label}</figcaption>
       <pre {...stylex.props(styles.out)}>{children}</pre>
     </figure>
   );
@@ -75,18 +76,18 @@ export function Out({
 export function OpenLink({ href }: { href: string }) {
   return (
     <figure {...stylex.props(styles.block)}>
-      <figcaption {...stylex.props(styles.caption)}>用浏览器打开这个地址</figcaption>
-      <div {...stylex.props(styles.link)}>
+      <figcaption {...stylex.props(text.muted, styles.caption)}>用浏览器打开这个地址</figcaption>
+      <Row gap="md" wrap xstyle={styles.link}>
         <a href={href} target="_blank" rel="noreferrer" {...stylex.props(styles.linkText)}>
           {href}
         </a>
-        <div {...stylex.props(styles.linkButtons)}>
+        <Row gap="md">
           <a href={href} target="_blank" rel="noreferrer" {...stylex.props(styles.open)}>
             打开 ↗
           </a>
-          <CopyButton text={href} />
-        </div>
-      </div>
+          <CopyButton value={href} />
+        </Row>
+      </Row>
     </figure>
   );
 }
@@ -96,12 +97,12 @@ const CALLOUT_ICON: Record<CalloutKind, string> = { tip: '💡', warn: '⚠️',
 
 export function Callout({ kind = 'tip', children }: { kind?: CalloutKind; children: ReactNode }) {
   return (
-    <aside {...stylex.props(styles.callout, calloutStyles[kind])}>
+    <Row gap="md" align="start" xstyle={[styles.callout, calloutStyles[kind]]}>
       <span aria-hidden {...stylex.props(styles.calloutIcon)}>
         {CALLOUT_ICON[kind]}
       </span>
       <div {...stylex.props(styles.calloutBody)}>{children}</div>
-    </aside>
+    </Row>
   );
 }
 
@@ -117,120 +118,92 @@ export function Kbd({ children }: { children: ReactNode }) {
 
 const styles = stylex.create({
   block: {
-    marginBlock: 14,
+    marginBlock: space.lg,
     marginInline: 0,
   },
   caption: {
-    color: colors.muted,
-    fontSize: 13,
-    marginBottom: 6,
+    marginBottom: space.sm,
   },
   cmd: {
-    borderRadius: 10,
-    gap: 12,
-    paddingBlock: 10,
-    alignItems: 'center',
-    backgroundColor: colors.codeBg,
-    display: 'flex',
-    paddingInlineEnd: 10,
-    paddingInlineStart: 16,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderStyle: 'solid',
+    borderWidth: 1,
+    paddingBlock: space.md,
+    backgroundColor: colors.bg,
+    paddingInlineEnd: space.md,
+    paddingInlineStart: space.xl,
   },
   cmdText: {
-    color: colors.codeText,
+    color: colors.text,
     flexGrow: 1,
-    fontFamily: MONO,
+    fontFamily: fonts.mono,
     fontSize: 15,
     overflowWrap: 'anywhere',
     minWidth: 0,
   },
   copy: {
-    borderRadius: 8,
-    borderStyle: 'none',
-    paddingInline: 14,
-    backgroundColor: {
-      default: colors.accent,
-      ':hover': colors.accentHover,
-    },
-    color: colors.onAccent,
-    cursor: 'pointer',
     flexShrink: 0,
-    fontSize: 14,
-    fontWeight: 600,
-    outlineOffset: 2,
-    minHeight: 36,
     minWidth: 72,
-  },
-  copied: {
-    backgroundColor: {
-      default: colors.done,
-      ':hover': colors.done,
-    },
   },
   out: {
     margin: 0,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: radius.md,
     borderStyle: 'dashed',
     borderWidth: 1,
-    paddingBlock: 10,
-    paddingInline: 16,
-    backgroundColor: colors.outputBg,
+    paddingBlock: space.md,
+    paddingInline: space.xl,
+    backgroundColor: colors.panelRaised,
     color: colors.muted,
-    fontFamily: MONO,
-    fontSize: 14,
+    fontFamily: fonts.mono,
+    fontSize: fontSize.md,
     lineHeight: 1.6,
     whiteSpace: 'pre-wrap',
     overflowX: 'auto',
   },
   link: {
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: radius.md,
     borderStyle: 'solid',
     borderWidth: 1,
-    gap: 10,
-    paddingBlock: 10,
-    paddingInline: 14,
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    display: 'flex',
-    flexWrap: 'wrap',
+    paddingBlock: space.md,
+    paddingInline: space.lg,
+    backgroundColor: colors.panelRaised,
   },
   linkText: {
     color: colors.accent,
     flexGrow: 1,
-    fontFamily: MONO,
-    fontSize: 14,
+    fontFamily: fonts.mono,
+    fontSize: fontSize.md,
     overflowWrap: 'anywhere',
     minWidth: 0,
   },
-  linkButtons: {
-    gap: 8,
-    display: 'flex',
-    flexShrink: 0,
-  },
+  // A link that looks like a default Button (an <a>, since it opens a page).
   open: {
-    borderColor: colors.accent,
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radius.md,
     borderStyle: 'solid',
     borderWidth: 1,
-    paddingInline: 14,
+    paddingInline: space.lg,
     textDecoration: 'none',
     alignItems: 'center',
-    color: colors.accent,
+    backgroundColor: {
+      default: colors.panelRaised,
+      ':hover': colors.border,
+    },
+    color: colors.text,
     display: 'inline-flex',
-    fontSize: 14,
-    fontWeight: 600,
+    fontSize: fontSize.md,
     minHeight: 36,
   },
   callout: {
-    borderRadius: 8,
-    gap: 10,
-    marginBlock: 14,
-    paddingBlock: 10,
-    paddingInline: 14,
+    borderRadius: radius.md,
+    marginBlock: space.lg,
+    paddingBlock: space.md,
+    paddingInline: space.lg,
     borderInlineStartStyle: 'solid',
     borderInlineStartWidth: 4,
-    display: 'flex',
   },
   calloutIcon: {
     flexShrink: 0,
@@ -240,22 +213,22 @@ const styles = stylex.create({
     minWidth: 0,
   },
   inline: {
-    borderRadius: 4,
+    borderRadius: radius.sm,
     paddingBlock: 1,
-    paddingInline: 5,
-    backgroundColor: colors.outputBg,
-    fontFamily: MONO,
+    paddingInline: space.xs,
+    backgroundColor: colors.panelRaised,
+    fontFamily: fonts.mono,
     fontSize: '0.9em',
     overflowWrap: 'anywhere',
   },
   kbd: {
     borderColor: colors.border,
-    borderRadius: 5,
+    borderRadius: radius.sm,
     borderStyle: 'solid',
     borderWidth: 1,
     paddingBlock: 1,
-    paddingInline: 7,
-    backgroundColor: colors.surface,
+    paddingInline: space.sm,
+    backgroundColor: colors.panelRaised,
     fontFamily: 'inherit',
     fontSize: '0.88em',
     fontWeight: 600,
@@ -265,7 +238,7 @@ const styles = stylex.create({
 });
 
 const calloutStyles = stylex.create({
-  tip: { backgroundColor: colors.tipBg, borderInlineStartColor: colors.tipBorder },
-  warn: { backgroundColor: colors.warnBg, borderInlineStartColor: colors.warnBorder },
-  bad: { backgroundColor: colors.badBg, borderInlineStartColor: colors.badBorder },
+  tip: { backgroundColor: colors.accentSoft, borderInlineStartColor: colors.accent },
+  warn: { backgroundColor: colors.warnSoft, borderInlineStartColor: colors.warn },
+  bad: { backgroundColor: colors.dangerSoft, borderInlineStartColor: colors.danger },
 });

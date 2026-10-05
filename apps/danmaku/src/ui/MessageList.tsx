@@ -1,4 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
+import { Button } from '@dy-apps/ui';
+import { fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { Settings } from '../settings';
@@ -86,9 +88,9 @@ export function MessageList({ messages, settings, bare = false }: Props) {
         </div>
       </div>
       {unread > 0 && (
-        <button type="button" onClick={() => setFollowing(true)} {...stylex.props(styles.jump)}>
+        <Button variant="primary" onClick={() => setFollowing(true)} xstyle={styles.jump}>
           {unread} 条新消息 ↓
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -121,31 +123,22 @@ const styles = stylex.create({
   height: (px: number) => ({ height: px }),
   // Padding leaves room for glows and the fly-in's sideways start.
   row: {
-    paddingBlock: 5,
-    paddingInline: 12,
+    paddingBlock: space.sm,
+    paddingInline: space.lg,
     insetInlineStart: 0,
     position: 'absolute',
     top: 0,
     width: '100%',
   },
   offset: (px: number) => ({ transform: `translateY(${px}px)` }),
+  // Positioning only; the look is the shared primary Button.
   jump: {
-    borderRadius: 999,
-    borderStyle: 'none',
-    paddingBlock: 6,
-    paddingInline: 14,
-    backgroundColor: {
-      default: 'rgba(56, 189, 248, 0.92)',
-      ':hover': '#7dd3fc',
-    },
+    borderRadius: radius.pill,
     boxShadow: '0 4px 14px rgba(0, 0, 0, 0.35)',
-    color: '#0a0f1c',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 600,
+    fontSize: fontSize.sm,
     insetInlineStart: '50%',
     position: 'absolute',
     transform: 'translateX(-50%)',
-    bottom: 12,
+    bottom: space.lg,
   },
 });

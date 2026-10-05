@@ -22,11 +22,11 @@ export default tseslint.config(
 
   // React + StyleX: the site and every app
   {
-    files: ['site/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}'],
+    files: ['site/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}', 'ui/src/**/*.{ts,tsx}'],
     ...react.configs['recommended-type-checked'],
   },
   {
-    files: ['site/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}'],
+    files: ['site/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}', 'ui/src/**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': reactHooks,
       '@stylexjs': stylex,

@@ -1,15 +1,14 @@
+import { Panel, text } from '@dy-apps/ui';
+import { colors, fontSize, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { CONFIG } from '../core/config';
 import type { GameEngine, LogKind } from '../core/game';
-import { ui } from './styles';
-import { colors } from './tokens.stylex';
 
 export function LogPanel({ engine }: { engine: GameEngine }) {
   return (
-    <section aria-label="日志与规则" {...stylex.props(ui.panel, styles.panel)}>
-      <h2 {...stylex.props(ui.subTitle)}>最近日志</h2>
+    <Panel aria-label="日志与规则" title="最近日志" gap="md">
       <ol aria-live="polite" data-testid="log" {...stylex.props(styles.log)}>
-        {engine.log.length === 0 && <li {...stylex.props(ui.muted)}>暂无记录。</li>}
+        {engine.log.length === 0 && <li {...stylex.props(text.muted)}>暂无记录。</li>}
         {engine.log.map((entry) => (
           <li key={entry.id} {...stylex.props(styles.entry, kindStyle(entry.kind))}>
             {entry.text}
@@ -33,7 +32,7 @@ export function LogPanel({ engine }: { engine: GameEngine }) {
           </li>
         </ul>
       </details>
-    </section>
+    </Panel>
   );
 }
 
@@ -49,37 +48,34 @@ function kindStyle(kind: LogKind) {
 }
 
 const styles = stylex.create({
-  panel: {
-    gap: 8,
-  },
   log: {
     margin: 0,
     padding: 0,
-    gap: 4,
+    gap: space.xs,
     listStyle: 'none',
     display: 'flex',
     flexDirection: 'column',
-    fontSize: 13,
+    fontSize: fontSize.sm,
   },
   entry: {
     borderInlineStartColor: colors.border,
     borderInlineStartStyle: 'solid',
     borderInlineStartWidth: 3,
     lineHeight: 1.5,
-    paddingInlineStart: 8,
+    paddingInlineStart: space.md,
   },
   miss: { color: colors.muted },
   settle: { borderInlineStartColor: colors.warn },
   rules: {
-    fontSize: 13,
+    fontSize: fontSize.sm,
   },
   summary: {
     color: colors.accent,
     cursor: 'pointer',
   },
   ruleList: {
-    marginBlock: 6,
+    marginBlock: space.sm,
     lineHeight: 1.7,
-    paddingInlineStart: 18,
+    paddingInlineStart: space.xl,
   },
 });
