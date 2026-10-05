@@ -5,8 +5,7 @@ import { Shell } from './shell';
 
 export function NotFoundPage() {
   return (
-    <Shell>
-      <h1 {...stylex.props(styles.title)}>页面不存在</h1>
+    <Shell title="页面不存在">
       <p {...stylex.props(styles.back)}>
         <Link to="/" {...stylex.props(styles.link)}>
           返回首页
@@ -17,7 +16,6 @@ export function NotFoundPage() {
 }
 
 const styles = stylex.create({
-  title: { margin: 0 },
   back: { margin: 0 },
   link: {
     color: colors.accent,

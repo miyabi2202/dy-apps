@@ -32,3 +32,14 @@ const meta = {
 export default meta;
 
 export const Default: StoryObj<typeof meta> = {};
+
+/** A title adds a heading with the build hash (`dev` here) and sets the tab title. */
+export const WithTitle: StoryObj<typeof meta> = {
+  args: {
+    title: '方块干预实验室',
+    subtitle: '单机测试 · 本地模拟送礼，未连接直播',
+    actions: <Button>恢复默认样式</Button>,
+    xstyle: styles.content,
+    children: <p {...stylex.props(text.muted)}>页面内容</p>,
+  },
+};

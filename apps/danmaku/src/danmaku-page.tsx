@@ -1,9 +1,8 @@
 import * as stylex from '@stylexjs/stylex';
 import { createStore } from '@dy-apps/local-storage';
-import { Button, Column, Page, Row, text } from '@dy-apps/ui';
-import { colors, fonts, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
+import { Button, Column, Page, text } from '@dy-apps/ui';
+import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
 import { useCallback, useEffect, useState } from 'react';
-import { COMMIT_HASH, SHORT_COMMIT_HASH } from './build';
 import { createFakeMessage } from './demo';
 import {
   connectionStore,
@@ -108,10 +107,6 @@ export function DanmakuPage({ connect }: Props) {
     connectionStore.write(connection);
   }, [initial.obs, settings, demoSource, demoIntervalMs, connection]);
 
-  useEffect(() => {
-    document.title = '弹幕墙';
-  }, []);
-
   const font = styles.font(fontFamily(settings), settings.fontSize);
   const list = <MessageList messages={messages} settings={settings} bare={initial.obs} />;
 
@@ -126,17 +121,12 @@ export function DanmakuPage({ connect }: Props) {
   const obsUrl = `${window.location.origin}${window.location.pathname}?${obsParams.toString()}`;
 
   return (
-    <Page xstyle={styles.editor}>
+    <Page
+      xstyle={styles.editor}
+      title="弹幕墙"
+      actions={<Button onClick={() => setSettings(DEFAULT_SETTINGS)}>恢复默认样式</Button>}
+    >
       <Column gap="lg">
-        <Row gap="lg" justify="between">
-          <h1 {...stylex.props(styles.title)}>
-            弹幕墙
-            <code title={COMMIT_HASH} data-testid="commit-hash" {...stylex.props(styles.commit)}>
-              {SHORT_COMMIT_HASH}
-            </code>
-          </h1>
-          <Button onClick={() => setSettings(DEFAULT_SETTINGS)}>恢复默认样式</Button>
-        </Row>
         <Controls
           settings={settings}
           onChange={(patch) => setSettings((s) => ({ ...s, ...patch }))}
@@ -198,19 +188,6 @@ const styles = stylex.create({
   },
   editor: {
     padding: space.xl,
-  },
-  title: {
-    margin: 0,
-    gap: space.md,
-    alignItems: 'baseline',
-    display: 'flex',
-    fontSize: 22,
-  },
-  commit: {
-    color: colors.muted,
-    fontFamily: fonts.mono,
-    fontSize: fontSize.xs,
-    fontWeight: 400,
   },
   stageHint: {
     margin: 0,

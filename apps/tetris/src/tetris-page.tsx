@@ -1,4 +1,3 @@
-import { Page } from '@dy-apps/ui';
 import { useEffect, useState } from 'react';
 import { LocalGiftAdapter } from './adapters/local-gift';
 import { GameEngine } from './core/game';
@@ -29,13 +28,5 @@ export function TetrisPage() {
     };
   }, [engine, gifts]);
 
-  useEffect(() => {
-    document.title = '方块干预实验室';
-  }, []);
-
-  return (
-    <Page>
-      <App engine={engine} gifts={gifts} keyboard={keyboard} />
-    </Page>
-  );
+  return <App engine={engine} gifts={gifts} keyboard={keyboard} />;
 }

@@ -1,23 +1,15 @@
 import { Panel, text } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import { useEffect } from 'react';
 import { Link } from 'react-router';
 import { APPS, GUIDES, type PageEntry } from './apps';
-import { SHORT_COMMIT_HASH } from './build';
 import { Shell } from './shell';
 
 export function IndexPage() {
-  useEffect(() => {
-    document.title = 'dy-apps';
-  }, []);
-
   return (
-    <Shell>
-      <h1 {...stylex.props(styles.title)}>dy-apps</h1>
+    <Shell title="dy-apps">
       <PageList title="应用" pages={APPS} />
       <PageList title="教程" pages={GUIDES} />
-      <p {...stylex.props(text.muted, styles.footer)}>构建版本 {SHORT_COMMIT_HASH}</p>
     </Shell>
   );
 }
@@ -40,9 +32,6 @@ function PageList({ title, pages }: { title: string; pages: readonly PageEntry[]
 }
 
 const styles = stylex.create({
-  title: {
-    margin: 0,
-  },
   list: {
     margin: 0,
     padding: 0,
@@ -65,8 +54,5 @@ const styles = stylex.create({
     color: colors.accent,
     fontSize: fontSize.lg,
     fontWeight: 600,
-  },
-  footer: {
-    margin: 0,
   },
 });

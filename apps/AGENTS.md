@@ -19,6 +19,10 @@ When you build or change an app, keep it heading there:
 
 A room can send a few gifts or tens of thousands: one combo can be hundreds, and a busy room keeps them coming. Design every gift reaction so the app still works, and is still fun, at both ends.
 
+## Page title and build hash
+
+Every app's page is a `Page` from `@dy-apps/ui` with a `title`. That shows the title with the build's commit hash after it, so anyone can tell which version they're looking at, and sets the browser tab's title. Put the page's buttons in `actions` and a one-line description in `subtitle`. Keep the title out of the OBS view so it never goes on stream; `apps/danmaku` renders its overlay without `Page`.
+
 ## TODO
 
 - Add a template page for new apps.

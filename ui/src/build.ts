@@ -1,4 +1,4 @@
-/** Full commit SHA of the build, substituted by the site's Vite config (`define`). */
+/** Full commit SHA of the build, substituted by the shared Vite config (`define`). */
 declare const __COMMIT_HASH__: string | undefined;
 
 /** Commit hash of this build, or 'dev' where Vite didn't inject one (e.g. Jest). */

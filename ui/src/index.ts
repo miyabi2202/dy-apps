@@ -1,4 +1,5 @@
 // Tokens are imported from '@dy-apps/ui/tokens.stylex' directly (StyleX resolves them by file).
+export { COMMIT_HASH, SHORT_COMMIT_HASH } from './build';
 export { Button, ButtonLink, type ButtonVariant } from './button';
 export { Checkbox } from './checkbox';
 export { ConnectionForm, type Connection } from './connection-form';

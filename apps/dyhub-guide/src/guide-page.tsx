@@ -22,7 +22,6 @@ export function GuidePage() {
   const active = useActiveSection();
 
   useEffect(() => {
-    document.title = `DyHub ${TITLE}`;
     // The page loads lazily, after the browser's own jump to #step-n has already failed.
     const id = decodeURIComponent(window.location.hash.slice(1));
     if (id) document.getElementById(id)?.scrollIntoView();
@@ -40,7 +39,7 @@ export function GuidePage() {
   const doneCount = STEPS.filter((s) => done.has(s.id)).length;
 
   return (
-    <Page xstyle={styles.page}>
+    <Page title={`DyHub ${TITLE}`} subtitle="给主播的安装教程" xstyle={styles.page}>
       <div {...stylex.props(styles.layout)}>
         <nav aria-label="目录" {...stylex.props(styles.toc)}>
           <Column gap="md">
@@ -67,8 +66,6 @@ export function GuidePage() {
 
         <Column gap="xxl" xstyle={styles.main}>
           <header>
-            <p {...stylex.props(styles.kicker)}>DyHub · 给主播的安装教程</p>
-            <h1 {...stylex.props(styles.h1)}>{TITLE}</h1>
             <p {...stylex.props(styles.lead)}>
               这份教程手把手教你在 <b>Windows 10 / Windows 11</b> 电脑上把 DyHub
               跑起来。不需要任何编程基础，跟着一步一步做就行。
@@ -189,21 +186,22 @@ const WIDE = '@media (min-width: 1040px)';
 
 const styles = stylex.create({
   page: {
-    fontSize: 17,
-    lineHeight: 1.75,
-  },
-  layout: {
-    gap: space.xxl,
     marginInline: 'auto',
     paddingBlock: space.xxl,
     paddingInline: space.xl,
+    fontSize: 17,
+    lineHeight: 1.75,
+    // The grid's two columns and gap, plus the padding, so the title lines up with them.
+    maxWidth: 1056,
+  },
+  layout: {
+    gap: space.xxl,
     display: {
       [WIDE]: 'grid',
       default: 'block',
     },
     gridTemplateColumns: '240px minmax(0, 760px)',
     justifyContent: 'center',
-    maxWidth: 1100,
   },
   toc: {
     alignSelf: 'start',
@@ -274,22 +272,6 @@ const styles = stylex.create({
   }),
   main: {
     minWidth: 0,
-  },
-  kicker: {
-    margin: 0,
-    color: colors.accent,
-    fontSize: fontSize.md,
-    fontWeight: 700,
-    letterSpacing: '0.04em',
-  },
-  h1: {
-    fontSize: {
-      [WIDE]: 38,
-      default: 30,
-    },
-    lineHeight: 1.25,
-    marginBottom: space.lg,
-    marginTop: space.sm,
   },
   lead: {
     marginBlock: space.md,
