@@ -1,13 +1,27 @@
+import { colors, fontSize } from '@dy-apps/ui/tokens.stylex';
+import * as stylex from '@stylexjs/stylex';
 import { Link } from 'react-router';
-import './index.css';
+import { Shell } from './shell';
 
 export function NotFoundPage() {
   return (
-    <main className="plain">
-      <h1>页面不存在</h1>
-      <p>
-        <Link to="/">返回首页</Link>
+    <Shell>
+      <h1 {...stylex.props(styles.title)}>页面不存在</h1>
+      <p {...stylex.props(styles.back)}>
+        <Link to="/" {...stylex.props(styles.link)}>
+          返回首页
+        </Link>
       </p>
-    </main>
+    </Shell>
   );
 }
+
+const styles = stylex.create({
+  title: { margin: 0 },
+  back: { margin: 0 },
+  link: {
+    color: colors.accent,
+    fontSize: fontSize.lg,
+    outlineColor: colors.accent,
+  },
+});

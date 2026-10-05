@@ -11,7 +11,7 @@ Each page should download only the code it needs.
 - Apps never import from each other. Put shared code in a shared library.
 - All our shared libraries go into one `lib` chunk. When you add a library, list it in `SHARED_LIBS` in `config/vite.js`.
 
-Run `pnpm test:e2e` to check.
+To check, run `pnpm build` and read the chunk list: each app is an `app-<name>` chunk, and `/` should request only `index`, `react`, `stylex`, `lib` and the CSS (the Network tab in `pnpm --filter @dy-apps/site preview`).
 
 ## File names
 

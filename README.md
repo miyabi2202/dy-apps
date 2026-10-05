@@ -42,7 +42,7 @@ The site's Vite build (`config/vite.js`) splits output so each page downloads on
 - **Long-lived vendor chunks**: `react` (React, ReactDOM, React Router) and `stylex` (StyleX runtime). They change only on dependency upgrades, so browsers keep them cached across deploys.
 - **CSS is one file.** StyleX compiles every component's styles into shared atomic classes in a single stylesheet, so it isn't split per app; it's small and hashed for long-term caching.
 
-The site's e2e tests check that `/` never requests an `app-*` chunk.
+The index page loads `react`, `stylex` and `lib` (it's built from `@dy-apps/ui` too) but never an `app-*` chunk.
 
 ## DyHub (live-room events)
 
