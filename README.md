@@ -22,7 +22,8 @@ site/                 # the one deployed app: index page + a lazily loaded route
 apps/<name>/          # one package per app: exports its page component and a tiny `meta`
 config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
 services/             # @dy-apps/services: shared non-UI code (TS source, no build step)
-  src/dyhub.ts        #   connectDyhub, port/room validation, GiftCounter, status text
+  src/dyhub-client.ts #   DyhubClient: onComment / onGift / onLike / onStatus, with retry
+  src/dyhub.ts        #   the raw stream (connectDyhub), port/room validation, GiftCounter, status text
   src/like-batcher.ts #   LikeBatcher: one total per viewer once they stop liking
   src/live-room.ts    #   liveRoomFrom, the room in OBS links, createConnectionStore
   src/local-storage.ts #  createStore for `dy-apps:<app>.<key>` values

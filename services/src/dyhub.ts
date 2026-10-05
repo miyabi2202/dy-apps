@@ -70,20 +70,31 @@ export interface DyhubHandlers {
   onEvent(event: DyhubEvent): void;
 }
 
+/** The part of WebSocket the client uses, so tests can pass a fake. */
+export interface DyhubSocket {
+  onmessage: ((m: MessageEvent<string>) => void) | null;
+  onerror: ((ev: Event) => void) | null;
+  onclose: ((ev: CloseEvent) => void) | null;
+  close(): void;
+}
+
+const openWebSocket = (url: string): DyhubSocket => new WebSocket(url);
+
 /**
  * Open a DyHub stream for one room. DyHub starts collecting the room if needed and
  * reports progress with __connecting / __connected / __error frames.
- * Returns a function that closes the connection.
+ * Returns a function that closes the connection. Most code wants DyhubClient instead.
  */
 export function connectDyhub(
   port: number,
   roomId: string,
   handlers: DyhubHandlers,
   types: readonly DyhubEventType[] = DYHUB_EVENT_TYPES,
+  openSocket: (url: string) => DyhubSocket = openWebSocket,
 ): () => void {
-  let ws: WebSocket;
+  let ws: DyhubSocket;
   try {
-    ws = new WebSocket(dyhubUrl(port, roomId, types));
+    ws = openSocket(dyhubUrl(port, roomId, types));
   } catch (e) {
     handlers.onStatus('error', e instanceof Error ? e.message : String(e));
     return () => {};
@@ -131,7 +142,7 @@ export function connectDyhub(
 }
 
 /** Gift fields DyHub sends (see its GiftEvent). Older DyHub builds omit groupId / repeatEnd. */
-export interface DyhubGiftData {
+export type DyhubGiftData = {
   giftId: string;
   giftName?: string;
   /** Picture of the gift on Douyin's CDN. */
@@ -140,7 +151,7 @@ export interface DyhubGiftData {
   repeatCount?: number;
   repeatEnd?: boolean;
   groupId?: string;
-}
+};
 
 /**
  * Turns DyHub gift events into "how many new gifts", like DouyinBarrageGrab does.

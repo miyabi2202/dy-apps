@@ -3,12 +3,10 @@ import { colors } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState } from 'react';
 import {
-  connectDyhub,
   DYHUB_PORT_HINT,
   DYHUB_STATUS_TEXT,
-  GiftCounter,
+  DyhubClient,
   liveRoomFrom,
-  type DyhubGiftData,
   type DyhubStatus,
 } from '@dy-apps/services';
 
@@ -17,41 +15,37 @@ export function DyhubPanel() {
   const [connection, setConnection] = useState<Connection>({ port: '', roomId: '' });
   const [status, setStatus] = useState<DyhubStatus | 'idle'>('idle');
   const [detail, setDetail] = useState<string | null>(null);
-  const disconnectRef = useRef<(() => void) | null>(null);
+  const clientRef = useRef<DyhubClient | null>(null);
 
-  useEffect(() => () => disconnectRef.current?.(), []);
+  useEffect(() => () => clientRef.current?.close(), []);
 
   const connected = status === 'opening' || status === 'roomConnecting' || status === 'ready';
   const room = liveRoomFrom(connection);
 
   const toggle = () => {
-    disconnectRef.current?.();
-    disconnectRef.current = null;
+    clientRef.current?.close();
+    clientRef.current = null;
     if (connected) {
       setStatus('idle');
       setDetail(null);
       return;
     }
     if (!room) return;
-    const gifts = new GiftCounter();
-    disconnectRef.current = connectDyhub(room.port, room.roomId, {
-      onStatus: (next, info) => {
-        setStatus(next);
-        setDetail(info ?? null);
-        if (next === 'error') console.error('[dyhub]', info);
-        else console.info('[dyhub]', DYHUB_STATUS_TEXT[next]);
-      },
-      onEvent: (ev) => {
-        if (ev.type === 'gift') {
-          const added = gifts.add(ev);
-          const { giftName } = ev.data as unknown as DyhubGiftData;
-          const what = added ? `送出 ${giftName} +${added}` : `${giftName}（重复推送，不计数）`;
-          console.log('[dyhub]', ev.user?.nickname, what, ev);
-          return;
-        }
-        console.log('[dyhub]', ev.user?.nickname, ev.data?.content ?? ev.type, ev);
-      },
+    const client = new DyhubClient(room);
+    client.onStatus((next, info) => {
+      setStatus(next);
+      setDetail(info ?? null);
+      if (next === 'error') console.error('[dyhub]', info);
+      else console.info('[dyhub]', DYHUB_STATUS_TEXT[next]);
     });
+    client.onComment((ev) => console.log('[dyhub]', ev.user?.nickname, ev.data.content, ev));
+    client.onGift((ev, added) => {
+      const { giftName } = ev.data;
+      const what = added ? `送出 ${giftName} +${added}` : `${giftName}（重复推送，不计数）`;
+      console.log('[dyhub]', ev.user?.nickname, what, ev);
+    });
+    client.connect();
+    clientRef.current = client;
   };
 
   return (

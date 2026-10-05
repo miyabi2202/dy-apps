@@ -1,32 +1,34 @@
-import type { DyhubEvent, DyhubHandlers, LiveRoom } from '@dy-apps/services';
+import type { DyhubSocket, LiveRoom } from '@dy-apps/services';
 import { act, renderHook } from '@testing-library/react';
 import type { DanmakuMessage } from '../../src/types';
-import { useDyhub } from '../../src/use-dyhub';
+import { createDyhubClient, useDyhub } from '../../src/use-dyhub';
 
-/** A fake connectDyhub that records each connection so the test can drive it. */
-function fakeConnect() {
-  const connections: {
-    port: number;
-    roomId: string;
-    handlers: DyhubHandlers;
-    types?: readonly string[];
-    closed: boolean;
-  }[] = [];
-  const connect = jest.fn(
-    (port: number, roomId: string, handlers: DyhubHandlers, types?: readonly string[]) => {
-      const c = { port, roomId, handlers, types, closed: false };
-      connections.push(c);
-      return () => {
-        c.closed = true;
-      };
-    },
-  );
-  return { connect, connections, last: () => connections.at(-1)! };
+/** The page's real DyhubClients on fake sockets, so the test can send DyHub frames. */
+function fakeClients() {
+  const sockets: (DyhubSocket & { url: string; closed: boolean })[] = [];
+  const openSocket = (url: string) => {
+    const socket = {
+      url,
+      closed: false,
+      onmessage: null,
+      onerror: null,
+      onclose: null,
+      close() {
+        socket.closed = true;
+      },
+    } as DyhubSocket & { url: string; closed: boolean };
+    sockets.push(socket);
+    return socket;
+  };
+  const create = jest.fn((r: LiveRoom) => createDyhubClient(r, openSocket));
+  const send = (frame: object) =>
+    act(() => sockets.at(-1)!.onmessage?.({ data: JSON.stringify(frame) } as MessageEvent<string>));
+  return { create, sockets, send };
 }
 
 const room: LiveRoom = { port: 8757, roomId: '123' };
 
-const gift = (repeatCount: number, extra: Record<string, unknown> = {}): DyhubEvent => ({
+const gift = (repeatCount: number, extra: Record<string, unknown> = {}) => ({
   id: `m${repeatCount}`,
   roomId: '123',
   type: 'gift',
@@ -35,7 +37,7 @@ const gift = (repeatCount: number, extra: Record<string, unknown> = {}): DyhubEv
   data: { giftId: 'g1', giftName: '玫瑰', groupId: 'grp', repeatCount, ...extra },
 });
 
-const like = (id: string, userId: string, count: number): DyhubEvent => ({
+const like = (id: string, userId: string, count: number) => ({
   id,
   roomId: '123',
   type: 'like',
@@ -45,10 +47,10 @@ const like = (id: string, userId: string, count: number): DyhubEvent => ({
 });
 
 function setup(initialRoom: LiveRoom | null = room) {
-  const fake = fakeConnect();
+  const fake = fakeClients();
   const pushed: DanmakuMessage[] = [];
   const push = (m: DanmakuMessage) => pushed.push(m);
-  const hook = renderHook(({ r }) => useDyhub(r, push, fake.connect), {
+  const hook = renderHook(({ r }) => useDyhub(r, push, fake.create), {
     initialProps: { r: initialRoom },
   });
   return { ...fake, pushed, hook };
@@ -59,47 +61,36 @@ afterEach(() => jest.useRealTimers());
 
 describe('useDyhub', () => {
   it('stays idle without a room', () => {
-    const { connect, hook } = setup(null);
-    expect(connect).not.toHaveBeenCalled();
+    const { create, hook } = setup(null);
+    expect(create).not.toHaveBeenCalled();
     expect(hook.result.current.status).toBe('idle');
   });
 
-  it('connects to the room and reports its status', () => {
-    const { last, hook } = setup();
-    expect(last()).toMatchObject({ port: 8757, roomId: '123' });
-    act(() => last().handlers.onStatus('ready'));
+  it('connects to the room for chats, gifts and likes, and reports its status', () => {
+    const { sockets, send, hook } = setup();
+    expect(sockets[0]!.url).toBe('ws://localhost:8757/ws?roomId=123&types=chat,gift,like');
+    send({ type: '__connected' });
     expect(hook.result.current.status).toBe('ready');
   });
 
   it('pushes chats, and each gift combo only by what it adds', () => {
-    const { last, pushed } = setup();
-    act(() => {
-      const onEvent = (ev: DyhubEvent) => last().handlers.onEvent(ev);
-      onEvent({ ...gift(0), id: 'c1', type: 'chat', data: { content: '来了' } });
-      onEvent(gift(1));
-      onEvent(gift(5));
-      onEvent(gift(5)); // a repeat of the same progress
-      onEvent(gift(5, { repeatEnd: true })); // the closing copy
-    });
+    const { send, pushed } = setup();
+    send({ ...gift(0), id: 'c1', type: 'chat', data: { content: '来了' } });
+    send(gift(1));
+    send(gift(5));
+    send(gift(5)); // a repeat of the same progress
+    send(gift(5, { repeatEnd: true })); // the closing copy
     expect(pushed.map((m) => m.text || `×${m.gift!.count}`)).toEqual(['来了', '×1', '×4']);
     // Both gift pushes share the combo's id, so addMessage merges them into one card.
     expect(pushed[1]!.id).toBe(pushed[2]!.id);
   });
 
-  it('subscribes to chats, gifts and likes', () => {
-    const { last } = setup();
-    expect(last().types).toEqual(['chat', 'gift', 'like']);
-  });
-
   it("pushes one card per user once they've stopped liking for 5 seconds", () => {
-    const { last, pushed } = setup();
-    const onEvent = (ev: DyhubEvent) => last().handlers.onEvent(ev);
-    act(() => {
-      onEvent(like('l1', 'a', 3));
-      onEvent(like('l2', 'b', 1));
-    });
+    const { send, pushed } = setup();
+    send(like('l1', 'a', 3));
+    send(like('l2', 'b', 1));
     act(() => jest.advanceTimersByTime(4000));
-    act(() => onEvent(like('l3', 'a', 4))); // restarts a's 5 seconds
+    send(like('l3', 'a', 4)); // restarts a's 5 seconds
     act(() => jest.advanceTimersByTime(1000));
     expect(pushed.map((m) => [m.user.id, m.likes])).toEqual([['b', 1]]);
 
@@ -111,46 +102,36 @@ describe('useDyhub', () => {
   });
 
   it('drops likes not yet shown when the room is cleared', () => {
-    const { last, pushed, hook } = setup();
-    act(() => last().handlers.onEvent(like('l1', 'a', 3)));
+    const { send, pushed, hook } = setup();
+    send(like('l1', 'a', 3));
     hook.rerender({ r: null });
     act(() => jest.advanceTimersByTime(60_000));
     expect(pushed).toEqual([]);
   });
 
-  it('retries a few seconds after an error, closing the old connection', () => {
-    const { connections, last, hook } = setup();
-    act(() => last().handlers.onStatus('error', '无法连接'));
-    expect(hook.result.current).toEqual({ status: 'error', detail: '无法连接' });
-    expect(connections).toHaveLength(1);
-
+  it('retries a few seconds after an error', () => {
+    const { sockets, hook } = setup();
+    act(() => sockets[0]!.onerror?.(new Event('error')));
+    expect(hook.result.current.status).toBe('error');
     act(() => jest.advanceTimersByTime(5000));
-    expect(connections).toHaveLength(2);
-    expect(connections[0]!.closed).toBe(true);
-  });
-
-  it('retries after the connection closes', () => {
-    const { connections, last } = setup();
-    act(() => last().handlers.onStatus('closed'));
-    act(() => jest.advanceTimersByTime(5000));
-    expect(connections).toHaveLength(2);
+    expect(sockets).toHaveLength(2);
   });
 
   it('disconnects, stops retrying and goes idle when the room is cleared', () => {
-    const { connections, last, hook } = setup();
-    act(() => last().handlers.onStatus('error'));
+    const { sockets, hook } = setup();
+    act(() => sockets[0]!.onerror?.(new Event('error')));
     hook.rerender({ r: null });
-    expect(connections[0]!.closed).toBe(true);
+    expect(sockets[0]!.closed).toBe(true);
     expect(hook.result.current.status).toBe('idle');
 
     act(() => jest.advanceTimersByTime(60_000));
-    expect(connections).toHaveLength(1);
+    expect(sockets).toHaveLength(1);
   });
 
   it('reconnects when the room changes', () => {
-    const { connections, hook } = setup();
+    const { sockets, hook } = setup();
     hook.rerender({ r: { port: 8757, roomId: '456' } });
-    expect(connections[0]!.closed).toBe(true);
-    expect(connections[1]).toMatchObject({ roomId: '456' });
+    expect(sockets[0]!.closed).toBe(true);
+    expect(sockets[1]!.url).toContain('roomId=456');
   });
 });

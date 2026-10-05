@@ -6,9 +6,6 @@ import {
 } from '@dy-apps/services';
 import type { DanmakuMessage, DanmakuUser } from './types';
 
-/** The events the wall shows. */
-export const DANMAKU_EVENT_TYPES = ['chat', 'gift', 'like'] as const;
-
 /** One card for a user's run of likes, from their last like event and the run's total. */
 export function likeMessage(last: DyhubEvent, total: number): DanmakuMessage | null {
   if (!last.user) return null;

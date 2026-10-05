@@ -23,7 +23,7 @@ import { addMessage, type DanmakuMessage } from './types';
 import { Controls } from './ui/controls';
 import { DEMO_INTERVAL_RANGE, DEMO_SOURCES, DemoPanel, type DemoSource } from './ui/demo-panel';
 import { MessageList } from './ui/message-list';
-import { useDyhub, type ConnectDyhub } from './use-dyhub';
+import { useDyhub, type CreateDyhubClient } from './use-dyhub';
 
 /** Older messages are dropped past this, so a long stream doesn't grow memory forever. */
 const MAX_MESSAGES = 1000;
@@ -72,11 +72,11 @@ function optionsFromUrl(): PageOptions {
 
 interface Props {
   /** Swapped for a fake in tests. */
-  connect?: ConnectDyhub;
+  createClient?: CreateDyhubClient;
 }
 
 /** The 弹幕墙 route: an editor with live preview, or (`?obs=1`) the bare overlay for OBS. */
-export function DanmakuPage({ connect }: Props) {
+export function DanmakuPage({ createClient }: Props) {
   const [initial] = useState(optionsFromUrl);
   const [settings, setSettings] = useState(initial.settings);
   const [messages, setMessages] = useState<readonly DanmakuMessage[]>([]);
@@ -95,7 +95,11 @@ export function DanmakuPage({ connect }: Props) {
   }, []);
 
   useDemo(demoRunning && demoSource === 'fake', demoIntervalMs, push);
-  const dyhub = useDyhub(demoRunning && demoSource === 'live' ? liveRoom : null, push, connect);
+  const dyhub = useDyhub(
+    demoRunning && demoSource === 'live' ? liveRoom : null,
+    push,
+    createClient,
+  );
   const canStartDemo = demoSource === 'fake' || liveRoom !== null;
 
   // Only the editor saves: an OBS source opened from a link mustn't overwrite the editor's config.

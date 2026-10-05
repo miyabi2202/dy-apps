@@ -1,20 +1,25 @@
 import {
-  connectDyhub,
-  GiftCounter,
+  DyhubClient,
+  type DyhubSocket,
   LikeBatcher,
-  likeCount,
-  type DyhubEvent,
+  type DyhubLikeEvent,
   type DyhubStatus,
   type LiveRoom,
 } from '@dy-apps/services';
 import { useEffect, useState } from 'react';
-import { DANMAKU_EVENT_TYPES, likeMessage, messageFromEvent } from './dyhub';
+import { likeMessage, messageFromEvent } from './dyhub';
 import type { DanmakuMessage } from './types';
-
-export type ConnectDyhub = typeof connectDyhub;
 
 /** DyHub may start after the page (OBS often opens first), so keep trying. */
 const RETRY_MS = 5000;
+
+/** Makes the client for a room; tests pass one with a fake socket. */
+export type CreateDyhubClient = (room: LiveRoom) => DyhubClient;
+
+export const createDyhubClient = (
+  room: LiveRoom,
+  openSocket?: (url: string) => DyhubSocket,
+): DyhubClient => new DyhubClient({ ...room, retryMs: RETRY_MS, openSocket });
 
 export interface DyhubState {
   status: DyhubStatus | 'idle';
@@ -29,7 +34,7 @@ export interface DyhubState {
 export function useDyhub(
   room: LiveRoom | null,
   push: (m: DanmakuMessage) => void,
-  connect: ConnectDyhub = connectDyhub,
+  create: CreateDyhubClient = createDyhubClient,
   likeQuietMs?: number,
 ): DyhubState {
   const [state, setState] = useState<DyhubState>({ status: 'idle' });
@@ -38,51 +43,30 @@ export function useDyhub(
 
   useEffect(() => {
     if (port === undefined || roomId === undefined) return;
-    let disconnect = () => {};
-    let retry: ReturnType<typeof setTimeout> | undefined;
-    const gifts = new GiftCounter();
-    const likes = new LikeBatcher<DyhubEvent>({
+    const client = create({ port, roomId });
+    const likes = new LikeBatcher<DyhubLikeEvent>({
       quietMs: likeQuietMs,
       onFlush: (last, total) => {
         const message = likeMessage(last, total);
         if (message) push(message);
       },
     });
-    const open = () => {
-      disconnect = connect(
-        port,
-        roomId,
-        {
-          onStatus: (status, detail) => {
-            setState({ status, detail });
-            if (status === 'error' || status === 'closed') {
-              clearTimeout(retry);
-              retry = setTimeout(() => {
-                disconnect();
-                open();
-              }, RETRY_MS);
-            }
-          },
-          onEvent: (ev) => {
-            if (ev.type === 'like') {
-              if (ev.user) likes.add(ev.user.id, ev, likeCount(ev));
-              return;
-            }
-            const message = messageFromEvent(ev, gifts.add(ev));
-            if (message) push(message);
-          },
-        },
-        DANMAKU_EVENT_TYPES,
-      );
+    const pushEvent = (message: DanmakuMessage | null) => {
+      if (message) push(message);
     };
-    open();
+    client.onStatus((status, detail) => setState({ status, detail }));
+    client.onComment((ev) => pushEvent(messageFromEvent(ev, 0)));
+    client.onGift((ev, newGifts) => pushEvent(messageFromEvent(ev, newGifts)));
+    client.onLike((ev, count) => {
+      if (ev.user) likes.add(ev.user.id, ev, count);
+    });
+    client.connect();
     return () => {
-      clearTimeout(retry);
+      client.close();
       likes.clear();
-      disconnect();
       setState({ status: 'idle' });
     };
-  }, [port, roomId, push, connect, likeQuietMs]);
+  }, [port, roomId, push, create, likeQuietMs]);
 
   return room ? state : { status: 'idle' };
 }
