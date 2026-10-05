@@ -18,3 +18,9 @@ When you build or change an app, keep it heading there:
 ## Scaling: lots of gifts
 
 A room can send a few gifts or tens of thousands: one combo can be hundreds, and a busy room keeps them coming. Design every gift reaction so the app still works, and is still fun, at both ends.
+
+## TODO
+
+- Add a template page for new apps.
+- Add a common config interface for the settings every app shares: the DyHub port and the room ID.
+- Refactor the existing apps to match the template.
