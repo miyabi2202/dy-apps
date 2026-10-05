@@ -2,8 +2,11 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "checkJs": false,
+    "types": ["node", "jest", "@testing-library/jest-dom"]
   },
-  "include": ["src"],
-  "exclude": ["node_modules"]
+  "include": ["src", "tests", ".storybook/*", "*.js"],
+  "exclude": ["node_modules", "storybook-static"]
 }

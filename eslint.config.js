@@ -9,7 +9,15 @@ import tseslint from 'typescript-eslint';
 // One flat config for the whole monorepo. Each package's tsconfig.json is
 // found automatically by the project service.
 export default tseslint.config(
-  { ignores: ['**/dist', '**/coverage', '**/playwright-report', '**/test-results'] },
+  {
+    ignores: [
+      '**/dist',
+      '**/coverage',
+      '**/playwright-report',
+      '**/test-results',
+      '**/storybook-static',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -44,6 +52,7 @@ export default tseslint.config(
       'apps/*/src/setup-tests.ts',
       'dyhub-client/tests/**/*.ts',
       'local-storage/tests/**/*.ts',
+      'ui/tests/**/*.{ts,tsx}',
     ],
     languageOptions: { globals: globals.jest },
   },

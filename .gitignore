@@ -10,3 +10,4 @@ playwright/.cache
 .env*.local
 .claude/settings.local.json
 .wrangler
+storybook-static

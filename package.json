@@ -14,6 +14,7 @@
     "lint": "eslint --max-warnings 0 .",
     "test": "pnpm -r test",
     "test:e2e": "pnpm -r test:e2e",
+    "storybook": "pnpm --filter @dy-apps/ui storybook",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test"

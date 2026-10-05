@@ -4,3 +4,4 @@ playwright-report
 test-results
 pnpm-lock.yaml
 hand_over.md
+storybook-static

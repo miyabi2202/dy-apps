@@ -85,6 +85,7 @@ pnpm typecheck      # tsc in every package
 pnpm lint           # ESLint, whole repo
 pnpm test           # Jest in every package
 pnpm test:e2e       # Playwright against the built site (run `pnpm --filter @dy-apps/site exec playwright install chromium` once)
+pnpm storybook      # @dy-apps/ui components and tokens in Storybook → http://localhost:6006
 pnpm format         # Prettier, whole repo (format:check to verify)
 pnpm check          # format:check + typecheck + lint + test
 ```
@@ -134,4 +135,4 @@ The presets are plain JavaScript with `.d.ts` types, because Jest can't load a T
 - **Tokens** in `@dy-apps/ui/tokens.stylex`: `colors`, `space`, `radius`, `fontSize`, `fonts`. Import them from that path directly, not through the package index; StyleX resolves variables by the file that defines them.
 - **Components**: `Button` (`default` / `primary` / `danger`), `Panel`, `Field` with `Input` / `Select` (and `useFieldId` for custom controls), `Row` / `Column` / `Grid` for spacing, `Page` for an app's root, and `text.muted` / `text.caption` styles.
 
-Every component takes an `xstyle` prop for one-off tweaks. Styles that stay inside an app (a game board, an overlay card) still use the tokens for colour, padding and radius rather than literal values.
+Browse them with `pnpm storybook`; stories live in `ui/src/stories/`, unit tests in `ui/tests/`. Every component takes an `xstyle` prop for one-off tweaks. Styles that stay inside an app (a game board, an overlay card) still use the tokens for colour, padding and radius rather than literal values.

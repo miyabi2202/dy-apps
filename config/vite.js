@@ -68,11 +68,14 @@ const LIB_CHUNKS = {
   priority: 6,
 };
 
+/** The StyleX compiler, set up the same way for the site and for Storybook. */
+export const stylexPlugin = () => stylex.vite({ useCSSLayers: true });
+
 /** React + StyleX site. `appRoot` is the directory holding index.html. */
 export function createViteConfig(appRoot) {
   return defineConfig({
     root: appRoot,
-    plugins: [stylex.vite({ useCSSLayers: true }), react()],
+    plugins: [stylexPlugin(), react()],
     define: { __COMMIT_HASH__: JSON.stringify(commitHash()) },
     build: {
       outDir: 'dist',
