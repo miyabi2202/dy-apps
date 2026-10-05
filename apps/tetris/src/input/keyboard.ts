@@ -5,19 +5,18 @@ type Action =
   'left' | 'right' | 'softDrop' | 'rotateCW' | 'rotateCCW' | 'hardDrop' | 'hold' | 'pause';
 
 export const KEY_BINDINGS: Record<string, Action> = {
-  ArrowLeft: 'left',
-  ArrowRight: 'right',
-  ArrowDown: 'softDrop',
-  ArrowUp: 'rotateCW',
-  KeyX: 'rotateCW',
-  KeyZ: 'rotateCCW',
+  KeyA: 'left',
+  KeyD: 'right',
+  KeyS: 'softDrop',
+  KeyW: 'rotateCW',
+  KeyQ: 'rotateCCW',
   Space: 'hardDrop',
   KeyC: 'hold',
   KeyP: 'pause',
 };
 
 /** Keys whose browser default (scrolling, button activation) must not fire during play. */
-const SUPPRESSED = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space']);
+const SUPPRESSED = new Set(['Space']);
 
 function isEditable(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -117,7 +116,7 @@ export class KeyboardController {
     if (action === 'softDrop') this.softDrop = null;
     if ((action === 'left' || action === 'right') && this.horizontal?.action === action) {
       // Fall back to the other direction if it is still held.
-      const other = action === 'left' ? 'ArrowRight' : 'ArrowLeft';
+      const other = action === 'left' ? 'KeyD' : 'KeyA';
       this.horizontal = this.pressed.has(other)
         ? { action: action === 'left' ? 'right' : 'left', elapsedMs: 0, repeating: false }
         : null;

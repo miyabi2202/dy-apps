@@ -31,16 +31,16 @@ Add `?seed=123` to the URL to make piece, garbage and gift randomness reproducib
 
 | Key       | Action                   |
 | --------- | ------------------------ |
-| ← / →     | Move (hold to repeat)    |
-| ↑ / X     | Rotate clockwise         |
-| Z         | Rotate counter-clockwise |
-| ↓         | Soft drop (hold)         |
+| A / D     | Move (hold to repeat)    |
+| W         | Rotate clockwise         |
+| Q         | Rotate counter-clockwise |
+| S         | Soft drop (hold)         |
 | Space     | Hard drop                |
 | C         | Hold / swap              |
 | P         | Pause / resume           |
 | Enter / P | Start (from ready)       |
 
-Held keys use the game's own repeat timing (DAS 150 ms, ARR 45 ms), not the OS key repeat. Rotate, hard drop, hold and pause ignore auto-repeat. Keys are ignored while a text field or the probability dropdown has focus. The game keeps responding to the keyboard after you click a gift button, and the arrow keys and Space don't scroll the page while a game is running. Buttons under the board (左移 / 右移 / 旋转 / 暂存 / 硬降) cover mouse and touch.
+Held keys use the game's own repeat timing (DAS 150 ms, ARR 45 ms), not the OS key repeat. Rotate, hard drop, hold and pause ignore auto-repeat. Keys are ignored while a text field or the probability dropdown has focus. The game keeps responding to the keyboard after you click a gift button, and Space doesn't scroll the page while a game is running. Buttons under the board (左移 / 右移 / 旋转 / 暂存 / 硬降) cover mouse and touch.
 
 ## Project layout
 
@@ -78,7 +78,7 @@ The engine updates the board every frame. The React panels re-render only when t
 - **Unit (Jest):** covers the 7-bag, collision, movement, rotation and kicks, the ghost piece, scoring, gravity remainder, 500 ms lock delay, the 12-reset limit, and free air moves. It also covers hold, seal, fog, settling every 3 locks with each pending curse firing once, empty queues, top-out, line clears leaving pending garbage alone, three-piece fog/seal, permanent stacking haste, the bounded gift history, pause, and gift rules by phase. Spec §14 examples A, F and G have tests; B, C, D and E described the energy queue, the bless team and line-clear cancellation, which no longer exist. Probability tests use fixed RNG sequences, so none of them can fail at random.
 - **Integration (Jest + Testing Library):** pending counts and the per-sender gift history in the real UI, batches that trigger nothing, invalid input rejection, start/pause/resume/restart confirmation, and keyboard focus after button clicks.
 - **Stress:** 30,000+ gifts in mixed batch sizes, with 0–5 locks between batches. Conservation and bounded history/log are checked after every batch, and the game is checked to still be playable afterwards.
-- **E2E (Playwright, Chromium):** real Canvas pixels and DPR sizing, gift buttons, phase controls, arrow/Space after clicking a gift button with no scroll, DAS/ARR hold, rapid hard drops, auto-pause on hidden with no catch-up, 320 px and desktop layouts, 30,000 UI gifts, and focus handling for the number input. Every test also asserts there were no console errors.
+- **E2E (Playwright, Chromium):** real Canvas pixels and DPR sizing, gift buttons, phase controls, WASD/Space after clicking a gift button with no scroll, DAS/ARR hold, rapid hard drops, auto-pause on hidden with no catch-up, 320 px and desktop layouts, 30,000 UI gifts, and focus handling for the number input. Every test also asserts there were no console errors.
 
 ### Recorded results
 

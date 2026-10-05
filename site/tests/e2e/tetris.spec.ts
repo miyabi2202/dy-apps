@@ -101,7 +101,7 @@ test('gift buttons, start, pause, resume and restart with confirmation', async (
   await expect(page.getByTestId('gift-history')).toContainText('尚未送礼');
 });
 
-test('arrow keys and space control the board after clicking a gift button, without scrolling', async ({
+test('WASD and space control the board after clicking a gift button, without scrolling', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
@@ -110,11 +110,11 @@ test('arrow keys and space control the board after clicking a gift button, witho
   const scrollBefore = await page.evaluate(() => window.scrollY);
   const before = await engineState(page);
 
-  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('KeyA');
   expect((await engineState(page)).active!.x).toBe(before.active!.x - 1);
-  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('KeyS');
   expect((await engineState(page)).active!.y).toBeGreaterThan(before.active!.y);
-  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('KeyW');
 
   await page.keyboard.press('Space');
   const after = await engineState(page);
@@ -124,14 +124,14 @@ test('arrow keys and space control the board after clicking a gift button, witho
   expect((await conservation(page)).gifts).toBe(1);
 });
 
-test('holding an arrow key auto-repeats with DAS/ARR', async ({ page }) => {
+test('holding a move key auto-repeats with DAS/ARR', async ({ page }) => {
   await page.getByRole('button', { name: '开始游戏' }).click();
-  await page.keyboard.down('ArrowRight');
+  await page.keyboard.down('KeyD');
   await page.waitForTimeout(100);
   // Within DAS (150 ms) only the initial move has happened.
   const start = await engineState(page);
   await page.waitForTimeout(500);
-  await page.keyboard.up('ArrowRight');
+  await page.keyboard.up('KeyD');
   const end = await engineState(page);
   expect(end.active!.x).toBeGreaterThan(start.active!.x);
   // Against the right wall: rightmost filled column is 9.
@@ -210,8 +210,8 @@ test('30,000 gifts through the UI stay bounded and the game keeps working', asyn
   expect(t.okCurses).toBe(true);
   const s = await engineState(page);
   if (s.phase === 'playing') {
-    await page.keyboard.press('ArrowRight');
-    await page.keyboard.press('KeyX');
+    await page.keyboard.press('KeyD');
+    await page.keyboard.press('KeyW');
     await page.keyboard.press('KeyC');
     await page.keyboard.press('Space');
     expect((await engineState(page)).locks).toBe(s.locks + 1);
@@ -224,11 +224,11 @@ test('30,000 gifts through the UI stay bounded and the game keeps working', asyn
     .annotations.push({ type: 'timing', description: `30,000 gifts + 3 drops: ${elapsed} ms` });
 });
 
-test('custom count input keeps arrow keys for itself', async ({ page }) => {
+test('custom count input keeps game keys for itself', async ({ page }) => {
   await page.getByRole('button', { name: '开始游戏' }).click();
   const before = await engineState(page);
   await page.getByRole('spinbutton', { name: '自定义份数' }).click();
-  await page.keyboard.press('ArrowLeft');
-  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('KeyA');
+  await page.keyboard.press('KeyA');
   expect((await engineState(page)).active!.x).toBe(before.active!.x);
 });

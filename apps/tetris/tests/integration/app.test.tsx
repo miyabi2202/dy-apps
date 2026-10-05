@@ -81,7 +81,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
     await user.click(screen.getByRole('button', { name: '送 1 份星光' }));
     const x = engine.active!.x;
-    await user.keyboard('{ArrowLeft}');
+    await user.keyboard('a');
     expect(engine.active!.x).toBe(x - 1);
     await user.keyboard(' ');
     expect(engine.lockedPieceCount).toBe(1);
@@ -95,7 +95,7 @@ describe('App', () => {
     const x = engine.active!.x;
     const input = screen.getByRole('spinbutton', { name: '自定义份数' });
     await user.click(input);
-    await user.keyboard('{ArrowLeft}{ArrowLeft}');
+    await user.keyboard('aa');
     expect(engine.active!.x).toBe(x);
   });
 
