@@ -10,9 +10,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Typecheck + Jest
+  ci:
+    name: CI
     runs-on: ubuntu-latest
+    env:
+      STORYBOOK_DISABLE_TELEMETRY: 1
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4 # version comes from "packageManager"
@@ -23,18 +25,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
-
-  e2e:
-    name: Playwright
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version: lts/*
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: Build site
+        run: pnpm build
+      - name: Build Storybook
+        run: pnpm --filter @dy-apps/ui build-storybook
       - run: pnpm --filter @dy-apps/site exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - if: failure()
@@ -43,18 +37,3 @@ jobs:
           name: playwright-results
           path: site/test-results
           retention-days: 7
-
-  storybook:
-    name: Storybook build
-    runs-on: ubuntu-latest
-    env:
-      STORYBOOK_DISABLE_TELEMETRY: 1
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version: lts/*
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @dy-apps/ui build-storybook
