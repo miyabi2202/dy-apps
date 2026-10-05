@@ -1,18 +1,13 @@
 import {
   connectDyhub,
   GiftCounter,
+  LikeBatcher,
+  likeCount,
   type DyhubEvent,
   type DyhubStatus,
 } from '@dy-apps/dyhub-client';
 import { useEffect, useState } from 'react';
-import {
-  DANMAKU_EVENT_TYPES,
-  likeCount,
-  likeMessage,
-  messageFromEvent,
-  type LiveRoom,
-} from './dyhub';
-import { LikeBatcher } from './like-batcher';
+import { DANMAKU_EVENT_TYPES, likeMessage, messageFromEvent, type LiveRoom } from './dyhub';
 import type { DanmakuMessage } from './types';
 
 export type ConnectDyhub = typeof connectDyhub;

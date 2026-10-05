@@ -1,7 +1,6 @@
 import { GiftCounter, type DyhubEvent } from '@dy-apps/dyhub-client';
 import {
   connectionStore,
-  likeCount,
   likeMessage,
   liveRoomFrom,
   messageFromEvent,
@@ -113,13 +112,6 @@ describe('likes', () => {
     ts: 300,
     user: dyhubUser,
     data,
-  });
-
-  it("reads a like event's taps, counting a missing or bad count as one", () => {
-    expect(likeCount(like({ count: 5, total: 100 }))).toBe(5);
-    expect(likeCount(like({}))).toBe(1);
-    expect(likeCount(like({ count: 0 }))).toBe(1);
-    expect(likeCount(like({ count: '5' }))).toBe(1);
   });
 
   it("makes one card from a run's last event and total", () => {

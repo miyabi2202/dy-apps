@@ -1,4 +1,4 @@
-import { LikeBatcher } from '../../src/like-batcher';
+import { LikeBatcher } from '../src/index';
 
 /** A fake clock: `schedule` queues callbacks and `advance` runs those that are due. */
 function fakeClock() {

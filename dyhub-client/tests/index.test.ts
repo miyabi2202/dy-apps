@@ -2,6 +2,7 @@ import {
   dyhubUrl,
   GiftCounter,
   isRoomId,
+  likeCount,
   parsePort,
   type DyhubEvent,
   type DyhubGiftData,
@@ -88,5 +89,22 @@ describe('GiftCounter', () => {
     const counter = new GiftCounter();
     expect(counter.add(gift({}))).toBe(1);
     expect(counter.add(gift({}))).toBe(1);
+  });
+});
+
+describe('likeCount', () => {
+  const like = (data: Record<string, unknown>): DyhubEvent => ({
+    id: 'l1',
+    roomId: 'r1',
+    type: 'like',
+    ts: 300,
+    data,
+  });
+
+  it("reads a like event's taps, counting a missing or bad count as one", () => {
+    expect(likeCount(like({ count: 5, total: 100 }))).toBe(5);
+    expect(likeCount(like({}))).toBe(1);
+    expect(likeCount(like({ count: 0 }))).toBe(1);
+    expect(likeCount(like({ count: '5' }))).toBe(1);
   });
 });

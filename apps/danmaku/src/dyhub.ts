@@ -12,12 +12,6 @@ import type { DanmakuMessage, DanmakuUser } from './types';
 /** The events the wall shows. */
 export const DANMAKU_EVENT_TYPES = ['chat', 'gift', 'like'] as const;
 
-/** How many likes one DyHub like event carries (Douyin batches a few taps). */
-export function likeCount(ev: DyhubEvent): number {
-  const count = ev.data?.count;
-  return typeof count === 'number' && count > 0 ? count : 1;
-}
-
 /** One card for a user's run of likes, from their last like event and the run's total. */
 export function likeMessage(last: DyhubEvent, total: number): DanmakuMessage | null {
   if (!last.user) return null;
