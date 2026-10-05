@@ -14,7 +14,7 @@
     "lint:fix": "eslint --fix ."
   },
   "dependencies": {
-    "@dy-apps/local-storage": "workspace:*",
+    "@dy-apps/services": "workspace:*",
     "@dy-apps/ui": "workspace:*",
     "@stylexjs/stylex": "^0.19.1"
   },

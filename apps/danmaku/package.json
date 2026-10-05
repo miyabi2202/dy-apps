@@ -16,8 +16,7 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
-    "@dy-apps/dyhub-client": "workspace:*",
-    "@dy-apps/local-storage": "workspace:*",
+    "@dy-apps/services": "workspace:*",
     "@dy-apps/ui": "workspace:*",
     "@stylexjs/stylex": "^0.19.1",
     "@tanstack/react-virtual": "^3.14.13"

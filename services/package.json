@@ -1,9 +1,9 @@
 {
-  "name": "@dy-apps/dyhub-client",
+  "name": "@dy-apps/services",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Browser client for DyHub's live-room WebSocket event stream.",
+  "description": "Shared non-UI code: DyHub's live-room client and room settings, and namespaced localStorage values.",
   "exports": {
     ".": "./src/index.ts"
   },

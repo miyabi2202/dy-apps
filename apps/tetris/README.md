@@ -110,7 +110,7 @@ Where the spec left room, these are the choices made:
 
 - Simplified wall kicks (`(0,0), (-1,0), (1,0), (-2,0), (2,0), (0,-1), (0,-2)`). This is **not SRS**.
 - No Web Worker. A 10,000-gift batch takes a few milliseconds on the main thread, so no "processing" indicator is shown.
-- Live gifts aren't wired in yet. The DyHub panel at the bottom of the page uses `@dy-apps/dyhub-client` (in `dyhub-client/` at the repo root). It connects to `ws://localhost:<port>/ws` for one room and only logs chat and gift events to the browser console. DyHub gift events report `ts` in microseconds and chat in milliseconds, so use `receivedAt` when wiring them up.
+- Live gifts aren't wired in yet. The DyHub panel at the bottom of the page uses `@dy-apps/services` (in `services/` at the repo root). It connects to `ws://localhost:<port>/ws` for one room and only logs chat and gift events to the browser console. DyHub gift events report `ts` in microseconds and chat in milliseconds, so use `receivedAt` when wiring them up.
 - No OBS transparent mode, sound or persistence. A page refresh starts a new game, as the spec requires.
 - The spec suggests Vitest. This project uses Jest because the toolchain was set up with it. The tests cover the same requirements.
 - `window.__blockLab` exposes the engine for browser tests and debugging.

@@ -55,6 +55,16 @@ export interface DyhubEvent {
 
 export type DyhubStatus = 'opening' | 'roomConnecting' | 'ready' | 'error' | 'closed';
 
+/** What to show for each connection status; `idle` is before connecting. */
+export const DYHUB_STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
+  idle: '未连接',
+  opening: '连接中…',
+  roomConnecting: '房间连接中…',
+  ready: '已就绪',
+  error: '连接失败',
+  closed: '已断开',
+};
+
 export interface DyhubHandlers {
   onStatus(status: DyhubStatus, detail?: string): void;
   onEvent(event: DyhubEvent): void;
@@ -175,56 +185,4 @@ export class GiftCounter {
 export function likeCount(ev: DyhubEvent): number {
   const count = ev.data?.count;
   return typeof count === 'number' && count > 0 ? count : 1;
-}
-
-/** Cancels what `schedule` set up. */
-type Cancel = () => void;
-
-export interface LikeBatcherOptions<T> {
-  /** Called once a user has stopped liking for `quietMs`, with their last event and total. */
-  onFlush: (last: T, total: number) => void;
-  quietMs?: number;
-  /** setTimeout by default; tests pass a fake clock. */
-  schedule?: (run: () => void, ms: number) => Cancel;
-}
-
-const defaultSchedule = (run: () => void, ms: number): Cancel => {
-  const timer = setTimeout(run, ms);
-  return () => clearTimeout(timer);
-};
-
-/**
- * Adds up each user's likes and reports them in one go once that user has been quiet
- * for 5 seconds. Douyin sends a like event every few taps, so a busy room would
- * otherwise bury the chat under one card per tap.
- */
-export class LikeBatcher<T> {
-  private readonly pending = new Map<string, { last: T; total: number; cancel: Cancel }>();
-  private readonly onFlush: (last: T, total: number) => void;
-  private readonly quietMs: number;
-  private readonly schedule: (run: () => void, ms: number) => Cancel;
-
-  constructor({ onFlush, quietMs = 5_000, schedule = defaultSchedule }: LikeBatcherOptions<T>) {
-    this.onFlush = onFlush;
-    this.quietMs = quietMs;
-    this.schedule = schedule;
-  }
-
-  /** Counts `count` more likes from `userId`, restarting their quiet period. */
-  add(userId: string, event: T, count: number): void {
-    const previous = this.pending.get(userId);
-    previous?.cancel();
-    const total = (previous?.total ?? 0) + Math.max(1, count);
-    const cancel = this.schedule(() => {
-      this.pending.delete(userId);
-      this.onFlush(event, total);
-    }, this.quietMs);
-    this.pending.set(userId, { last: event, total, cancel });
-  }
-
-  /** Drops every pending count without reporting it, e.g. on disconnect. */
-  clear(): void {
-    for (const { cancel } of this.pending.values()) cancel();
-    this.pending.clear();
-  }
 }

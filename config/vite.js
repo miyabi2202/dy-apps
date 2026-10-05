@@ -59,7 +59,7 @@ function commitHash() {
  * then has to download that whole app to get it.
  */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const SHARED_LIBS = ['ui', 'local-storage', 'dyhub-client'];
+const SHARED_LIBS = ['ui', 'services'];
 const isSharedLib = (id) =>
   SHARED_LIBS.some((lib) => id.startsWith(join(REPO_ROOT, lib, 'src') + sep));
 const LIB_CHUNKS = {

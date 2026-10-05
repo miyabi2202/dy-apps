@@ -1,12 +1,9 @@
-import { createStore } from '@dy-apps/local-storage';
 import {
-  isRoomId,
-  parsePort,
+  createConnectionStore,
   type DyhubEvent,
   type DyhubGiftData,
   type DyhubUser,
-} from '@dy-apps/dyhub-client';
-import type { Connection } from '@dy-apps/ui';
+} from '@dy-apps/services';
 import type { DanmakuMessage, DanmakuUser } from './types';
 
 /** The events the wall shows. */
@@ -56,38 +53,5 @@ function userFrom({ id, nickname, avatar, fansClub }: DyhubUser): DanmakuUser {
   };
 }
 
-export interface LiveRoom {
-  port: number;
-  roomId: string;
-}
-
-/** The room to connect to, or null if the port or room number isn't valid. */
-export function liveRoomFrom(c: Connection): LiveRoom | null {
-  const port = parsePort(c.port.trim());
-  const roomId = c.roomId.trim();
-  return port !== null && isRoomId(roomId) ? { port, roomId } : null;
-}
-
-/** URL parameters for the OBS link, so the overlay connects to the same room. */
-const PARAMS = { port: 'port', roomId: 'room' } as const;
-
-/** The room in a query string, or null if it's missing or invalid. */
-export function readLiveRoom(search: string): LiveRoom | null {
-  const q = new URLSearchParams(search);
-  return liveRoomFrom({ port: q.get(PARAMS.port) ?? '', roomId: q.get(PARAMS.roomId) ?? '' });
-}
-
-export function setLiveRoomParams(params: URLSearchParams, room: LiveRoom): void {
-  params.set(PARAMS.port, String(room.port));
-  params.set(PARAMS.roomId, room.roomId);
-}
-
 /** What the editor's form last held, valid or not, so a reload keeps the typing. */
-export const connectionStore = createStore<Connection>('danmaku.connection', {
-  fallback: { port: '', roomId: '' },
-  parse: (raw) => {
-    if (typeof raw !== 'object' || raw === null) return undefined;
-    const { port, roomId } = raw as Record<string, unknown>;
-    return typeof port === 'string' && typeof roomId === 'string' ? { port, roomId } : undefined;
-  },
-});
+export const connectionStore = createConnectionStore('danmaku');

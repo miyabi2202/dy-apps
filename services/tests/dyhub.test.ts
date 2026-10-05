@@ -6,7 +6,7 @@ import {
   parsePort,
   type DyhubEvent,
   type DyhubGiftData,
-} from '../src/index';
+} from '../src';
 
 describe('dyhub settings', () => {
   it('accepts ports 1–65535 written as plain digits', () => {

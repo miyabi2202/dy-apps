@@ -1,6 +1,5 @@
-import type { DyhubEvent, DyhubHandlers } from '@dy-apps/dyhub-client';
+import type { DyhubEvent, DyhubHandlers, LiveRoom } from '@dy-apps/services';
 import { act, renderHook } from '@testing-library/react';
-import type { LiveRoom } from '../../src/dyhub';
 import type { DanmakuMessage } from '../../src/types';
 import { useDyhub } from '../../src/use-dyhub';
 

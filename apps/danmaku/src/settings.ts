@@ -1,4 +1,4 @@
-import { createStore } from '@dy-apps/local-storage';
+import { createStore } from '@dy-apps/services';
 
 export const BORDER_STYLES = ['aurora', 'neon', 'gradient', 'ribbon', 'dashed', 'none'] as const;
 export type BorderStyle = (typeof BORDER_STYLES)[number];

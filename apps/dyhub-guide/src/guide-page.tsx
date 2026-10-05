@@ -1,4 +1,4 @@
-import { createStore } from '@dy-apps/local-storage';
+import { createStore } from '@dy-apps/services';
 import { Button, Column, Grid, Page, Panel, text } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';

@@ -9,8 +9,7 @@ pnpm monorepo of small live-stream apps, served as one site: an index page at `/
 | [`@dy-apps/danmaku`](apps/danmaku)         | `apps/danmaku/`     | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                            |
 | [`@dy-apps/dyhub-guide`](apps/dyhub-guide) | `apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers                         |
 | [`@dy-apps/config`](config)                | `config/`           | Shared Vite, Jest, Playwright and Browserslist presets                            |
-| [`@dy-apps/dyhub-client`](dyhub-client)    | `dyhub-client/`     | Browser client for DyHub's live-room WebSocket events                             |
-| [`@dy-apps/local-storage`](local-storage)  | `local-storage/`    | Typed, validated, namespaced localStorage values for every app                    |
+| [`@dy-apps/services`](services)            | `services/`         | Shared non-UI code: the DyHub client, room settings and localStorage values       |
 | [`@dy-apps/ui`](ui)                        | `ui/`               | Shared design tokens and components (Button, Panel, Field, Row/Column/Grid, Page) |
 
 ## Layout
@@ -22,8 +21,11 @@ site/                 # the one deployed app: index page + a lazily loaded route
   wrangler.jsonc      #   Cloudflare Workers static-assets deploy (SPA fallback for deep links)
 apps/<name>/          # one package per app: exports its page component and a tiny `meta`
 config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
-dyhub-client/         # @dy-apps/dyhub-client: connectDyhub, port/room validation, GiftCounter (TS source, no build step)
-local-storage/        # @dy-apps/local-storage: createStore for `dy-apps:<app>.<key>` values (TS source, no build step)
+services/             # @dy-apps/services: shared non-UI code (TS source, no build step)
+  src/dyhub.ts        #   connectDyhub, port/room validation, GiftCounter, status text
+  src/like-batcher.ts #   LikeBatcher: one total per viewer once they stop liking
+  src/live-room.ts    #   liveRoomFrom, the room in OBS links, createConnectionStore
+  src/local-storage.ts #  createStore for `dy-apps:<app>.<key>` values
 ui/                   # @dy-apps/ui: design tokens + the components every app reuses (TS source, no build step)
 eslint.config.js      # one flat config for every package
 .prettierrc.json      # repo-wide formatting (+ .prettierignore)
@@ -38,7 +40,7 @@ pnpm-lock.yaml
 The site's Vite build (`config/vite.js`) splits output so each page downloads only what it needs:
 
 - **One chunk per app** (`app-<name>-*.js`), loaded by React Router's route `lazy` only when its path is visited. The index imports just each app's `meta`, not its code.
-- **One `lib` chunk** for the first-party shared libraries (`ui`, `local-storage`, `dyhub-client`), so an app never has to download another app's chunk to get shared code.
+- **One `lib` chunk** for the first-party shared libraries (`ui` and `services`), so an app never has to download another app's chunk to get shared code.
 - **Long-lived vendor chunks**: `react` (React, ReactDOM, React Router) and `stylex` (StyleX runtime). They change only on dependency upgrades, so browsers keep them cached across deploys.
 - **CSS is one file.** StyleX compiles every component's styles into shared atomic classes in a single stylesheet, so it isn't split per app; it's small and hashed for long-term caching.
 
@@ -64,7 +66,7 @@ npm run build && npm start   # console → http://localhost:8757
 
 It needs Node.js 20+ and Chrome installed. Log in once from the console (网页登录) to receive gifts. See the fork's README for environment variables such as `DYHUB_PORT`.
 
-Apps connect through [`@dy-apps/dyhub-client`](dyhub-client) to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (DyHub's default is `8757`) and the room ID (the number in `live.douyin.com/<id>`), and DyHub starts collecting that room. The address is always `localhost`, so DyHub must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
+Apps connect through [`@dy-apps/services`](services) to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (DyHub's default is `8757`) and the room ID (the number in `live.douyin.com/<id>`), and DyHub starts collecting that room. The address is always `localhost`, so DyHub must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
 
 Status: the tetris page's DyHub panel connects and logs chat and gift events. The danmaku overlay doesn't connect yet and only shows demo messages.
 

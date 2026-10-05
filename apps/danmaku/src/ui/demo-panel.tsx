@@ -1,4 +1,4 @@
-import { DYHUB_PORT_HINT, type DyhubStatus } from '@dy-apps/dyhub-client';
+import { DYHUB_PORT_HINT, DYHUB_STATUS_TEXT, type DyhubStatus } from '@dy-apps/services';
 import {
   Button,
   ConnectionForm,
@@ -23,11 +23,9 @@ const SOURCE_LABELS: Record<DemoSource, string> = {
   live: '直播间（DyHub）',
 };
 
+/** useDyhub retries after an error or a drop, so say so. */
 const STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
-  idle: '未连接',
-  opening: '连接中…',
-  roomConnecting: '房间连接中…',
-  ready: '已就绪',
+  ...DYHUB_STATUS_TEXT,
   error: '连接失败，稍后重试',
   closed: '已断开，稍后重试',
 };

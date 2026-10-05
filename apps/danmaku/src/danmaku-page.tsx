@@ -1,16 +1,16 @@
 import * as stylex from '@stylexjs/stylex';
-import { createStore } from '@dy-apps/local-storage';
-import { Button, Column, Page, text } from '@dy-apps/ui';
-import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
-import { useCallback, useEffect, useState } from 'react';
-import { createFakeMessage } from './demo';
 import {
-  connectionStore,
+  createStore,
   liveRoomFrom,
   readLiveRoom,
   setLiveRoomParams,
   type LiveRoom,
-} from './dyhub';
+} from '@dy-apps/services';
+import { Button, Column, Page, text } from '@dy-apps/ui';
+import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
+import { useCallback, useEffect, useState } from 'react';
+import { createFakeMessage } from './demo';
+import { connectionStore } from './dyhub';
 import {
   DEFAULT_SETTINGS,
   fontFamily,

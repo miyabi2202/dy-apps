@@ -5,21 +5,12 @@ import { useEffect, useRef, useState } from 'react';
 import {
   connectDyhub,
   DYHUB_PORT_HINT,
+  DYHUB_STATUS_TEXT,
   GiftCounter,
+  liveRoomFrom,
   type DyhubGiftData,
-  isRoomId,
-  parsePort,
   type DyhubStatus,
-} from '@dy-apps/dyhub-client';
-
-const STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
-  idle: '未连接',
-  opening: '连接中…',
-  roomConnecting: '房间连接中…',
-  ready: '已就绪',
-  error: '连接失败',
-  closed: '已断开',
-};
+} from '@dy-apps/services';
 
 /** Debug binding: connects to a local DyHub and forwards every event to the console. */
 export function DyhubPanel() {
@@ -31,9 +22,7 @@ export function DyhubPanel() {
   useEffect(() => () => disconnectRef.current?.(), []);
 
   const connected = status === 'opening' || status === 'roomConnecting' || status === 'ready';
-  const port = parsePort(connection.port.trim());
-  const roomId = connection.roomId.trim();
-  const canConnect = port !== null && isRoomId(roomId);
+  const room = liveRoomFrom(connection);
 
   const toggle = () => {
     disconnectRef.current?.();
@@ -43,14 +32,14 @@ export function DyhubPanel() {
       setDetail(null);
       return;
     }
-    if (port === null || !canConnect) return;
+    if (!room) return;
     const gifts = new GiftCounter();
-    disconnectRef.current = connectDyhub(port, roomId, {
+    disconnectRef.current = connectDyhub(room.port, room.roomId, {
       onStatus: (next, info) => {
         setStatus(next);
         setDetail(info ?? null);
         if (next === 'error') console.error('[dyhub]', info);
-        else console.info('[dyhub]', STATUS_TEXT[next]);
+        else console.info('[dyhub]', DYHUB_STATUS_TEXT[next]);
       },
       onEvent: (ev) => {
         if (ev.type === 'gift') {
@@ -71,13 +60,15 @@ export function DyhubPanel() {
         value={connection}
         onChange={setConnection}
         connected={connected}
-        canConnect={canConnect}
+        canConnect={room !== null}
         onToggle={toggle}
         portPlaceholder={DYHUB_PORT_HINT}
       />
       <p data-testid="dyhub-status" {...stylex.props(text.muted, styles.status)}>
         状态：
-        <span {...stylex.props(status === 'error' && styles.error)}>{STATUS_TEXT[status]}</span>
+        <span {...stylex.props(status === 'error' && styles.error)}>
+          {DYHUB_STATUS_TEXT[status]}
+        </span>
         {detail && `（${detail}）`} · 事件只输出到浏览器控制台，不影响游戏。
       </p>
     </Panel>

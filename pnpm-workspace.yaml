@@ -1,8 +1,7 @@
 packages:
   - apps/*
   - config
-  - dyhub-client
-  - local-storage
+  - services
   - site
   - ui
 

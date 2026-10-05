@@ -16,7 +16,7 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
-    "@dy-apps/dyhub-client": "workspace:*",
+    "@dy-apps/services": "workspace:*",
     "@dy-apps/ui": "workspace:*",
     "@stylexjs/stylex": "^0.19.1"
   },

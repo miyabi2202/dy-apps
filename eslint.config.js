@@ -50,8 +50,7 @@ export default tseslint.config(
     files: [
       'apps/*/tests/**/*.{ts,tsx}',
       'apps/*/src/setup-tests.ts',
-      'dyhub-client/tests/**/*.ts',
-      'local-storage/tests/**/*.ts',
+      'services/tests/**/*.ts',
       'ui/tests/**/*.{ts,tsx}',
     ],
     languageOptions: { globals: globals.jest },

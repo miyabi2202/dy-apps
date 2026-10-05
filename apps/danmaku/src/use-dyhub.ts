@@ -5,9 +5,10 @@ import {
   likeCount,
   type DyhubEvent,
   type DyhubStatus,
-} from '@dy-apps/dyhub-client';
+  type LiveRoom,
+} from '@dy-apps/services';
 import { useEffect, useState } from 'react';
-import { DANMAKU_EVENT_TYPES, likeMessage, messageFromEvent, type LiveRoom } from './dyhub';
+import { DANMAKU_EVENT_TYPES, likeMessage, messageFromEvent } from './dyhub';
 import type { DanmakuMessage } from './types';
 
 export type ConnectDyhub = typeof connectDyhub;
