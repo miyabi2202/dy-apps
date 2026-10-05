@@ -58,8 +58,3 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @dy-apps/ui build-storybook
-      - uses: actions/upload-artifact@v4
-        with:
-          name: storybook
-          path: ui/storybook-static
-          retention-days: 7
