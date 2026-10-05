@@ -1,6 +1,6 @@
 /* Site-wide resets. Component styles live in StyleX; this file also gives the Vite
    build a CSS asset that the StyleX plugin appends its output to.
-   Kept in a layer declared first so StyleX's layered rules always win. */
+   Kept in the `reset` layer, declared first in index.html, so StyleX's layers always win. */
 @layer reset {
   *,
   *::before,

@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>dy-apps</title>
+    <!-- Declare the reset layer before any stylesheet loads. Layer order is set by first
+         appearance, and in dev StyleX injects its layers ahead of global.css. -->
+    <style>
+      @layer reset;
+    </style>
   </head>
   <body>
     <div id="root"></div>
