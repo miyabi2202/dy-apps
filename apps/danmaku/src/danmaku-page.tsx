@@ -6,6 +6,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { COMMIT_HASH, SHORT_COMMIT_HASH } from './build';
 import { createFakeMessage } from './demo';
 import {
+  connectionStore,
+  liveRoomFrom,
+  readLiveRoom,
+  setLiveRoomParams,
+  type LiveRoom,
+} from './dyhub';
+import {
   DEFAULT_SETTINGS,
   fontFamily,
   loadSettings,
@@ -13,9 +20,11 @@ import {
   settingsToParams,
   type Settings,
 } from './settings';
-import type { DanmakuMessage } from './types';
-import { Controls, DEMO_INTERVAL_RANGE } from './ui/controls';
+import { addMessage, type DanmakuMessage } from './types';
+import { Controls } from './ui/controls';
+import { DEMO_INTERVAL_RANGE, DEMO_SOURCES, DemoPanel, type DemoSource } from './ui/demo-panel';
 import { MessageList } from './ui/message-list';
+import { useDyhub, type ConnectDyhub } from './use-dyhub';
 
 /** Older messages are dropped past this, so a long stream doesn't grow memory forever. */
 const MAX_MESSAGES = 1000;
@@ -24,6 +33,11 @@ const DEFAULT_DEMO_INTERVAL_MS = 900;
 const demoIntervalStore = createStore('danmaku.demoIntervalMs', {
   fallback: DEFAULT_DEMO_INTERVAL_MS,
   parse: (raw) => (typeof raw === 'number' ? clampDemoInterval(raw) : undefined),
+});
+
+const demoSourceStore = createStore<DemoSource>('danmaku.demoSource', {
+  fallback: 'fake',
+  parse: (raw) => DEMO_SOURCES.find((s) => s === raw),
 });
 
 function clampDemoInterval(ms: number): number | undefined {
@@ -35,45 +49,64 @@ interface PageOptions {
   /** `?obs=1`: overlay only, no editor chrome, transparent background. */
   obs: boolean;
   settings: Settings;
-  /** `?demo=<ms>`: start the demo straight away (useful in an OBS source). */
+  /** `?demo=<ms>` or `?port=…&room=…`: start the demo straight away (useful in an OBS source). */
   autoDemo: boolean;
+  demoSource: DemoSource;
   demoIntervalMs: number;
+  /** `?port=…&room=…`: demo with real chat from this live room. */
+  liveRoom: LiveRoom | null;
 }
 
 function optionsFromUrl(): PageOptions {
   const q = new URLSearchParams(window.location.search);
   const demo = q.get('demo');
+  const liveRoom = readLiveRoom(window.location.search);
   return {
     obs: q.get('obs') === '1',
     settings: loadSettings(window.location.search),
-    autoDemo: demo !== null,
+    autoDemo: demo !== null || liveRoom !== null,
+    demoSource: liveRoom ? 'live' : demo !== null ? 'fake' : demoSourceStore.read(),
     demoIntervalMs: (demo && clampDemoInterval(Number(demo))) || demoIntervalStore.read(),
+    liveRoom,
   };
 }
 
+interface Props {
+  /** Swapped for a fake in tests. */
+  connect?: ConnectDyhub;
+}
+
 /** The 弹幕墙 route: an editor with live preview, or (`?obs=1`) the bare overlay for OBS. */
-export function DanmakuPage() {
+export function DanmakuPage({ connect }: Props) {
   const [initial] = useState(optionsFromUrl);
   const [settings, setSettings] = useState(initial.settings);
   const [messages, setMessages] = useState<readonly DanmakuMessage[]>([]);
   const [demoRunning, setDemoRunning] = useState(initial.autoDemo);
+  const [demoSource, setDemoSource] = useState(initial.demoSource);
   const [demoIntervalMs, setDemoIntervalMs] = useState(initial.demoIntervalMs);
+  const [connection, setConnection] = useState(() =>
+    initial.liveRoom
+      ? { port: String(initial.liveRoom.port), roomId: initial.liveRoom.roomId }
+      : connectionStore.read(),
+  );
+  const liveRoom = liveRoomFrom(connection);
 
   const push = useCallback((message: DanmakuMessage) => {
-    setMessages((prev) => {
-      const next = [...prev, message];
-      return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
-    });
+    setMessages((prev) => addMessage(prev, message, MAX_MESSAGES));
   }, []);
 
-  useDemo(demoRunning, demoIntervalMs, push);
+  useDemo(demoRunning && demoSource === 'fake', demoIntervalMs, push);
+  const dyhub = useDyhub(demoRunning && demoSource === 'live' ? liveRoom : null, push, connect);
+  const canStartDemo = demoSource === 'fake' || liveRoom !== null;
 
   // Only the editor saves: an OBS source opened from a link mustn't overwrite the editor's config.
   useEffect(() => {
     if (initial.obs) return;
     saveSettings(settings);
+    demoSourceStore.write(demoSource);
     demoIntervalStore.write(demoIntervalMs);
-  }, [initial.obs, settings, demoIntervalMs]);
+    connectionStore.write(connection);
+  }, [initial.obs, settings, demoSource, demoIntervalMs, connection]);
 
   useEffect(() => {
     document.title = '弹幕墙';
@@ -88,7 +121,8 @@ export function DanmakuPage() {
 
   const obsParams = settingsToParams(settings);
   obsParams.set('obs', '1');
-  if (demoRunning) obsParams.set('demo', String(demoIntervalMs));
+  if (demoRunning && demoSource === 'fake') obsParams.set('demo', String(demoIntervalMs));
+  if (demoRunning && demoSource === 'live' && liveRoom) setLiveRoomParams(obsParams, liveRoom);
   const obsUrl = `${window.location.origin}${window.location.pathname}?${obsParams.toString()}`;
 
   return (
@@ -106,13 +140,23 @@ export function DanmakuPage() {
         <Controls
           settings={settings}
           onChange={(patch) => setSettings((s) => ({ ...s, ...patch }))}
-          demoRunning={demoRunning}
-          onToggleDemo={() => setDemoRunning((r) => !r)}
-          demoIntervalMs={demoIntervalMs}
-          onDemoIntervalChange={setDemoIntervalMs}
-          onClear={() => setMessages([])}
-          count={messages.length}
           obsUrl={obsUrl}
+          demo={
+            <DemoPanel
+              running={demoRunning}
+              onToggle={() => setDemoRunning((r) => !r)}
+              canStart={canStartDemo}
+              source={demoSource}
+              onSourceChange={setDemoSource}
+              intervalMs={demoIntervalMs}
+              onIntervalChange={setDemoIntervalMs}
+              connection={connection}
+              onConnectionChange={setConnection}
+              liveState={dyhub}
+              onClear={() => setMessages([])}
+              count={messages.length}
+            />
+          }
         />
         <p {...stylex.props(text.muted, styles.stageHint)}>
           预览 · 棋盘格为透明区域 · 拖动右下角调整大小

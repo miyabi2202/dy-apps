@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex';
-import type { AnimationEvent } from 'react';
+import { useState, type AnimationEvent } from 'react';
 import type { Settings } from '../settings';
-import { hueFor, type DanmakuMessage } from '../types';
+import { hueFor, type DanmakuGift, type DanmakuMessage } from '../types';
 import { Avatar } from './avatar';
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
   onLanded: () => void;
 }
 
-/** One message: avatar and name on the first line, the text below, inside a styled border. */
+/** One message: a tall avatar on the left, the name above the text beside it, inside a styled border. */
 export function MessageCard({ message, settings, animate, onLanded }: Props) {
   const { border, borderWidth: w, radius, opacity } = settings;
   const hue = settings.perUser ? hueFor(message.user.id) : settings.hue;
@@ -62,36 +62,63 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
           )}
         />
       )}
-      {/* Grid: avatar | name on the first row, fan-club badge | message below them. */}
+      {/* Grid: the avatar spans both rows; name and fan-club badge, then the message, beside it. */}
       <div {...stylex.props(styles.avatar)}>
         <Avatar user={message.user} hue={hue} ring={main} />
       </div>
-      <span
-        {...stylex.props(
-          styles.name,
-          styles.nameColor(nameColor),
-          border === 'neon' && styles.nameGlow(glow),
-        )}
-      >
-        {message.user.nickname}
-      </span>
-      {fansClub && <FansClubBadge level={fansClub.level} name={fansClub.name} />}
-      <p {...stylex.props(styles.text)}>{message.text}</p>
+      <div {...stylex.props(styles.header)}>
+        <span
+          {...stylex.props(
+            styles.name,
+            styles.nameColor(nameColor),
+            border === 'neon' && styles.nameGlow(glow),
+          )}
+        >
+          {message.user.nickname}
+        </span>
+        {fansClub && <FansClubBadge level={fansClub.level} name={fansClub.name} />}
+      </div>
+      {message.gift ? (
+        <GiftLine gift={message.gift} />
+      ) : (
+        <p {...stylex.props(styles.text)}>{message.text}</p>
+      )}
     </article>
+  );
+}
+
+/** 送出 <icon> <name> ×<count>; the count grows as a combo goes on. */
+function GiftLine({ gift }: { gift: DanmakuGift }) {
+  const [iconBroken, setIconBroken] = useState(false);
+  return (
+    <p data-testid="gift" {...stylex.props(styles.text, styles.gift)}>
+      <span {...stylex.props(styles.giftVerb)}>送出</span>
+      {gift.iconUrl && !iconBroken ? (
+        <img
+          alt=""
+          src={gift.iconUrl}
+          referrerPolicy="no-referrer"
+          onError={() => setIconBroken(true)}
+          {...stylex.props(styles.giftIcon)}
+        />
+      ) : (
+        <span aria-hidden>🎁</span>
+      )}
+      <span {...stylex.props(styles.giftName)}>{gift.name}</span>
+      <span {...stylex.props(styles.giftCount)}>×{gift.count}</span>
+    </p>
   );
 }
 
 /** Fan-club level as a small heart pill, coloured by tier like Douyin's badges. */
 function FansClubBadge({ level, name }: { level: number; name: string }) {
   return (
-    <span {...stylex.props(styles.badgeSlot)}>
-      <span
-        title={`${name} 粉丝团 ${level} 级`}
-        data-testid="fans-club-level"
-        {...stylex.props(styles.badge, styles.badgeTier(fansClubTier(level)))}
-      >
-        ♥{level}
-      </span>
+    <span
+      title={`${name} 粉丝团 ${level} 级`}
+      data-testid="fans-club-level"
+      {...stylex.props(styles.badge, styles.badgeTier(fansClubTier(level)))}
+    >
+      ♥{level}
     </span>
   );
 }
@@ -136,14 +163,14 @@ const styles = stylex.create({
   card: {
     borderColor: 'transparent',
     borderStyle: 'solid',
-    gridTemplateAreas: '"avatar name" "badge text"',
+    gridTemplateAreas: '"avatar name" "avatar text"',
     paddingBlock: '0.5em',
     paddingInline: '0.75em',
     color: '#f8fafc',
-    columnGap: '0.5em',
+    columnGap: '0.6em',
     display: 'grid',
-    // Fixed to the avatar's width (1.9em at 0.82em), so a wide badge never shifts the text.
-    gridTemplateColumns: '1.56em minmax(0, 1fr)',
+    // Fixed to the avatar's width (1.9em at 1.3em).
+    gridTemplateColumns: '2.47em minmax(0, 1fr)',
     position: 'relative',
   },
   shape: (width: number, radius: number, fill: number) => ({
@@ -197,39 +224,36 @@ const styles = stylex.create({
     backgroundImage: `linear-gradient(90deg, ${a}, ${b}, ${c}, ${a}, ${b}, ${c}, ${a})`,
     backgroundSize: '200% 100%',
   }),
+  // Tall enough to span the name and the message's first line.
   avatar: {
     gridArea: 'avatar',
+    alignSelf: 'center',
     display: 'flex',
-    fontSize: '0.82em',
+    fontSize: '1.3em',
     justifyContent: 'center',
   },
-  // Same top margin and line height as the message's first line, so the badge centres on it.
-  badgeSlot: {
-    gridArea: 'badge',
+  header: {
+    gridArea: 'name',
+    gap: '0.4em',
     alignItems: 'center',
-    alignSelf: 'start',
     display: 'flex',
-    justifyContent: 'center',
-    height: '1.45em',
-    marginTop: '0.3em',
+    minWidth: 0,
   },
   badge: {
     borderRadius: 999,
     paddingInline: '0.45em',
     color: '#fff',
+    flexShrink: 0,
     fontSize: '0.62em',
     fontVariantNumeric: 'tabular-nums',
     fontWeight: 800,
-    justifySelf: 'center',
     lineHeight: 1.5,
     textShadow: '0 1px 1px rgba(0, 0, 0, 0.35)',
     whiteSpace: 'nowrap',
   },
   badgeTier: (gradient: string) => ({ backgroundImage: gradient }),
   name: {
-    gridArea: 'name',
     overflow: 'hidden',
-    alignSelf: 'center',
     fontSize: '0.82em',
     fontWeight: 700,
     textOverflow: 'ellipsis',
@@ -237,6 +261,31 @@ const styles = stylex.create({
   },
   nameColor: (color: string) => ({ color }),
   nameGlow: (glow: string) => ({ textShadow: `0 0 8px ${glow}` }),
+  gift: {
+    alignItems: 'center',
+    columnGap: '0.3em',
+    display: 'flex',
+    flexWrap: 'wrap',
+  },
+  giftVerb: {
+    opacity: 0.8,
+  },
+  giftIcon: {
+    flexShrink: 0,
+    objectFit: 'contain',
+    height: '1.6em',
+    width: '1.6em',
+  },
+  giftName: {
+    fontWeight: 700,
+  },
+  // Gold and a touch larger, in fixed-width digits so a climbing combo doesn't jitter.
+  giftCount: {
+    color: '#fcd34d',
+    fontSize: '1.15em',
+    fontVariantNumeric: 'tabular-nums',
+    fontWeight: 800,
+  },
   text: {
     gridArea: 'text',
     lineHeight: 1.45,

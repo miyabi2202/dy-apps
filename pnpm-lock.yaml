@@ -80,6 +80,9 @@ importers:
 
   apps/danmaku:
     dependencies:
+      '@dy-apps/dyhub-client':
+        specifier: workspace:*
+        version: link:../../dyhub-client
       '@dy-apps/local-storage':
         specifier: workspace:*
         version: link:../../local-storage

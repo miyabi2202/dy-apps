@@ -1,5 +1,4 @@
 import {
-  Button,
   Checkbox,
   CopyButton,
   Field,
@@ -13,6 +12,7 @@ import {
 } from '@dy-apps/ui';
 import { radius } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
+import type { ReactNode } from 'react';
 import {
   BORDER_LABELS,
   BORDER_STYLES,
@@ -22,18 +22,12 @@ import {
   type Settings,
 } from '../settings';
 
-export const DEMO_INTERVAL_RANGE = [150, 3000] as const;
-
 interface Props {
   settings: Settings;
   onChange: (patch: Partial<Settings>) => void;
-  demoRunning: boolean;
-  onToggleDemo: () => void;
-  demoIntervalMs: number;
-  onDemoIntervalChange: (ms: number) => void;
-  onClear: () => void;
-  count: number;
   obsUrl: string;
+  /** The demo panel, shown first. */
+  demo: ReactNode;
 }
 
 const FONT_OPTIONS = [
@@ -46,24 +40,7 @@ export function Controls(props: Props) {
   return (
     <section aria-label="弹幕设置">
       <Grid min={240} gap="lg">
-        <Panel title="演示" gap="md">
-          <Row gap="md" wrap>
-            <Button variant={props.demoRunning ? 'danger' : 'primary'} onClick={props.onToggleDemo}>
-              {props.demoRunning ? '停止演示' : '开始演示'}
-            </Button>
-            <Button onClick={props.onClear}>清空</Button>
-            <span {...stylex.props(text.muted)}>{props.count} 条</span>
-          </Row>
-          <Slider
-            label="平均间隔"
-            value={props.demoIntervalMs}
-            min={DEMO_INTERVAL_RANGE[0]}
-            max={DEMO_INTERVAL_RANGE[1]}
-            step={50}
-            unit="ms"
-            onChange={props.onDemoIntervalChange}
-          />
-        </Panel>
+        {props.demo}
 
         <Panel title="边框" gap="md">
           <Field label="样式">
@@ -176,7 +153,7 @@ function ObsLink({ url }: { url: string }) {
       </Row>
       <p {...stylex.props(text.muted, styles.hint)}>
         在 OBS
-        中添加「浏览器」来源并粘贴此链接，背景透明，宽高即弹幕区域大小。演示进行中复制的链接会自动播放演示弹幕。
+        中添加「浏览器」来源并粘贴此链接，背景透明，宽高即弹幕区域大小。演示进行中复制的链接会自动开始同样的演示：模拟数据，或连接同一直播间。
       </p>
     </>
   );

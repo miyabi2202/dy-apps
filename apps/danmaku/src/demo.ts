@@ -1,4 +1,4 @@
-import type { DanmakuMessage, DanmakuUser } from './types';
+import type { DanmakuGift, DanmakuMessage, DanmakuUser } from './types';
 
 const NICKNAMES = [
   '奶茶不加糖',
@@ -19,6 +19,11 @@ const NICKNAMES = [
   '番茄炒蛋',
   '星河滚烫',
   '早八人',
+  // Long names, to check that they're cut short without pushing the badge out.
+  '今天也是努力搬砖争取早日实现财务自由的打工人',
+  '一个名字特别特别特别长的路过观众',
+  'SuperLongNicknameThatNeverEndsAndKeepsGoing',
+  '春眠不觉晓处处闻啼鸟夜来风雨声花落知多少',
 ];
 
 const TEXTS = [
@@ -49,6 +54,12 @@ const TEXTS = [
   '好耶！',
 ];
 
+/** Real Douyin gift names; the demo has no icons, so cards show 🎁. */
+const GIFTS = ['小心心', '玫瑰', '人气票', '棒棒糖', '你最好看', '加油鸭', '鲜花', '嘉年华'];
+
+/** Mostly single gifts, sometimes a big combo, to preview both ends. */
+const GIFT_COUNTS = [1, 1, 1, 1, 3, 5, 10, 66, 188, 1314];
+
 /** About two thirds of the fake viewers are in the fan club, at levels spread over 1–25. */
 const USERS: DanmakuUser[] = NICKNAMES.map((nickname, i) => ({
   id: `demo-user-${i}`,
@@ -60,8 +71,13 @@ const pick = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * ite
 
 let seq = 0;
 
-/** A random message from a random fake viewer. */
+/** A random message from a random fake viewer; about one in six is a gift. */
 export function createFakeMessage(): DanmakuMessage {
   const ts = Date.now();
-  return { id: `demo-${ts}-${seq++}`, user: pick(USERS), text: pick(TEXTS), ts };
+  const id = `demo-${ts}-${seq++}`;
+  if (Math.random() < 1 / 6) {
+    const gift: DanmakuGift = { name: pick(GIFTS), count: pick(GIFT_COUNTS) };
+    return { id, user: pick(USERS), text: '', gift, ts };
+  }
+  return { id, user: pick(USERS), text: pick(TEXTS), ts };
 }

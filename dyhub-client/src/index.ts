@@ -111,6 +111,8 @@ export function connectDyhub(port: number, roomId: string, handlers: DyhubHandle
 export interface DyhubGiftData {
   giftId: string;
   giftName?: string;
+  /** Picture of the gift on Douyin's CDN. */
+  giftIcon?: string;
   diamondCount?: number;
   repeatCount?: number;
   repeatEnd?: boolean;

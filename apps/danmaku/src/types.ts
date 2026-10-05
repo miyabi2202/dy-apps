@@ -7,11 +7,41 @@ export interface DanmakuUser {
   fansClub?: { name: string; level: number };
 }
 
+export interface DanmakuGift {
+  name: string;
+  count: number;
+  iconUrl?: string;
+}
+
+/** A chat message, or a gift (whose `text` is empty). */
 export interface DanmakuMessage {
   id: string;
   user: DanmakuUser;
   text: string;
+  gift?: DanmakuGift;
   ts: number;
+}
+
+/**
+ * Appends a message, keeping at most `max`. A gift with the id of one already on the wall
+ * is more of the same combo: its count adds to that card, which moves to the bottom, so a
+ * combo of hundreds stays one card.
+ */
+export function addMessage(
+  messages: readonly DanmakuMessage[],
+  message: DanmakuMessage,
+  max: number,
+): readonly DanmakuMessage[] {
+  let next: DanmakuMessage[];
+  const i = message.gift ? messages.findIndex((m) => m.id === message.id) : -1;
+  const old = messages[i]?.gift;
+  if (old && message.gift) {
+    const merged = { ...message, gift: { ...message.gift, count: old.count + message.gift.count } };
+    next = [...messages.slice(0, i), ...messages.slice(i + 1), merged];
+  } else {
+    next = [...messages, message];
+  }
+  return next.length > max ? next.slice(-max) : next;
 }
 
 /** Stable 0–359 hue for a user, so each viewer keeps one colour. */
