@@ -1,4 +1,4 @@
-import { Button, Field, Input, Panel, Row, text } from '@dy-apps/ui';
+import { ConnectionForm, Panel, text, type Connection } from '@dy-apps/ui';
 import { colors } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState } from 'react';
@@ -23,8 +23,7 @@ const STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
 
 /** Debug binding: connects to a local DyHub and forwards every event to the console. */
 export function DyhubPanel() {
-  const [portText, setPortText] = useState('');
-  const [roomId, setRoomId] = useState('');
+  const [connection, setConnection] = useState<Connection>({ port: '', roomId: '' });
   const [status, setStatus] = useState<DyhubStatus | 'idle'>('idle');
   const [detail, setDetail] = useState<string | null>(null);
   const disconnectRef = useRef<(() => void) | null>(null);
@@ -32,8 +31,9 @@ export function DyhubPanel() {
   useEffect(() => () => disconnectRef.current?.(), []);
 
   const connected = status === 'opening' || status === 'roomConnecting' || status === 'ready';
-  const port = parsePort(portText.trim());
-  const canConnect = port !== null && isRoomId(roomId.trim());
+  const port = parsePort(connection.port.trim());
+  const roomId = connection.roomId.trim();
+  const canConnect = port !== null && isRoomId(roomId);
 
   const toggle = () => {
     disconnectRef.current?.();
@@ -45,7 +45,7 @@ export function DyhubPanel() {
     }
     if (port === null || !canConnect) return;
     const gifts = new GiftCounter();
-    disconnectRef.current = connectDyhub(port, roomId.trim(), {
+    disconnectRef.current = connectDyhub(port, roomId, {
       onStatus: (next, info) => {
         setStatus(next);
         setDetail(info ?? null);
@@ -67,41 +67,14 @@ export function DyhubPanel() {
 
   return (
     <Panel aria-label="DyHub 连接" title="DyHub 连接（调试）" gap="md">
-      <form
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault();
-          toggle();
-        }}
-      >
-        <Row gap="md" align="end" wrap>
-          <Field label="端口" xstyle={styles.portField}>
-            <Input
-              value={portText}
-              disabled={connected}
-              inputMode="numeric"
-              placeholder={DYHUB_PORT_HINT}
-              onChange={(e) => setPortText(e.target.value)}
-            />
-          </Field>
-          <Field label="直播间号" xstyle={styles.roomField}>
-            <Input
-              value={roomId}
-              disabled={connected}
-              inputMode="numeric"
-              placeholder="如 484088206186"
-              onChange={(e) => setRoomId(e.target.value)}
-            />
-          </Field>
-          <Button
-            type="submit"
-            variant={connected ? 'default' : 'primary'}
-            disabled={!connected && !canConnect}
-          >
-            {connected ? '断开' : '连接'}
-          </Button>
-        </Row>
-      </form>
+      <ConnectionForm
+        value={connection}
+        onChange={setConnection}
+        connected={connected}
+        canConnect={canConnect}
+        onToggle={toggle}
+        portPlaceholder={DYHUB_PORT_HINT}
+      />
       <p data-testid="dyhub-status" {...stylex.props(text.muted, styles.status)}>
         状态：
         <span {...stylex.props(status === 'error' && styles.error)}>{STATUS_TEXT[status]}</span>
@@ -112,13 +85,6 @@ export function DyhubPanel() {
 }
 
 const styles = stylex.create({
-  roomField: {
-    flexGrow: 1,
-    minWidth: 160,
-  },
-  portField: {
-    width: 96,
-  },
   status: {
     margin: 0,
   },
