@@ -4,6 +4,7 @@ import {
   createStore,
   liveRoomFrom,
   readDemoInterval,
+  readDemoRandom,
   readLiveRoom,
   setDemoParams,
   setLiveRoomParams,
@@ -49,7 +50,8 @@ const demoStores = createDemoStores(
 
 /**
  * From the URL where it says, otherwise what was saved last time. `?port=…&room=…` means
- * live gifts from that room, `?demo=<ms>` fake ones.
+ * live gifts from that room, `?demo=<ms>` fake ones, and `?random=0` fake gifts in a fixed
+ * order at a fixed interval.
  */
 export function readConfig(search: string): TetrisConfig {
   const room = readLiveRoom(search);
@@ -62,6 +64,7 @@ export function readConfig(search: string): TetrisConfig {
     demo: {
       source: room ? 'live' : demo !== null ? 'fake' : demoStores.source.read(),
       intervalMs: demo ?? demoStores.intervalMs.read(),
+      random: readDemoRandom(search),
     },
   };
 }
@@ -80,6 +83,8 @@ export function configToParams(config: TetrisConfig): URLSearchParams {
   });
   const room = liveRoomFrom(config);
   if (config.demo.source === 'live' && room) setLiveRoomParams(params, room);
-  if (config.demo.source === 'fake') setDemoParams(params, config.demo.intervalMs);
+  if (config.demo.source === 'fake') {
+    setDemoParams(params, config.demo.intervalMs, config.demo.random !== false);
+  }
   return params;
 }

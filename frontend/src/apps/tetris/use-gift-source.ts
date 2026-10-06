@@ -1,5 +1,6 @@
 import {
   createFakeGift,
+  fakeGiftAt,
   type DanmakuMessage,
   type DemoConfig,
   type DyhubState,
@@ -23,8 +24,9 @@ export interface GiftSourceOptions {
 }
 
 /**
- * While running, sends gifts into the game through `feed`: made-up viewers sending gifts
- * of random sizes at random intervals, or every gift from the live room.
+ * While running, sends gifts into the game through `feed`: made-up viewers' gifts at
+ * uneven intervals (or, with `demo.random` false, in list order at a fixed one), or every
+ * gift from the live room.
  */
 export function useGiftSource({
   demo,
@@ -34,7 +36,17 @@ export function useGiftSource({
   fakeGift = createFakeGift,
   createClient,
 }: GiftSourceOptions): DyhubState {
-  const sendFake = useCallback(() => feed.send(fakeGift()), [feed, fakeGift]);
-  useDemo(running && demo.source === 'fake', demo.intervalMs, sendFake);
+  // `?random=0`: the fake gifts in list order at a fixed interval, the same every run.
+  const random = demo.random !== false;
+  const sendFake = useCallback(
+    (n: number) => feed.send(random ? fakeGift() : fakeGiftAt(n)),
+    [feed, fakeGift, random],
+  );
+  useDemo(
+    running && demo.source === 'fake',
+    demo.intervalMs,
+    sendFake,
+    random ? Math.random : null,
+  );
   return useLiveGifts(running && demo.source === 'live' ? room : null, feed, createClient);
 }

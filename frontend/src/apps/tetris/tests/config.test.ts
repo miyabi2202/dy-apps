@@ -6,7 +6,7 @@ const live: TetrisConfig = {
   port: '8757',
   roomId: '123',
   probability: 0.07,
-  demo: { source: 'live', intervalMs: 10_000 },
+  demo: { source: 'live', intervalMs: 10_000, random: true },
 };
 
 describe('readConfig', () => {
@@ -15,7 +15,7 @@ describe('readConfig', () => {
       port: '',
       roomId: '',
       probability: 0.15,
-      demo: { source: 'fake', intervalMs: 10_000 },
+      demo: { source: 'fake', intervalMs: 10_000, random: true },
     });
   });
 
@@ -24,8 +24,21 @@ describe('readConfig', () => {
   });
 
   it('reads fake gifts and their interval from ?demo, clamped to 2–30 s', () => {
-    expect(readConfig('?demo=500').demo).toEqual({ source: 'fake', intervalMs: 2000 });
+    expect(readConfig('?demo=500').demo).toEqual({
+      source: 'fake',
+      intervalMs: 2000,
+      random: true,
+    });
     expect(readConfig('?demo=99999').demo.intervalMs).toBe(30_000);
+  });
+
+  it('round-trips ?random=0, which fake gifts keep in the OBS link', () => {
+    const fixed = readConfig('?demo=4000&random=0');
+    expect(fixed.demo).toEqual({ source: 'fake', intervalMs: 4000, random: false });
+    expect(readConfig(`?${configToParams(fixed).toString()}`).demo).toEqual(fixed.demo);
+    expect(configToParams({ ...fixed, demo: { ...fixed.demo, random: true } }).has('random')).toBe(
+      false,
+    );
   });
 
   it('clamps the chance to whole percents from 1% to 100%, ignoring non-numbers', () => {

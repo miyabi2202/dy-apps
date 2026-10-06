@@ -3,8 +3,10 @@ import {
   addMessage,
   createDemoStores,
   createFakeMessage,
+  fakeMessageAt,
   liveRoomFrom,
   readDemoInterval,
+  readDemoRandom,
   readLiveRoom,
   setDemoParams,
   setLiveRoomParams,
@@ -60,6 +62,7 @@ function optionsFromUrl(): PageOptions {
       demo: {
         source: liveRoom ? 'live' : demo !== null ? 'fake' : demoStores.source.read(),
         intervalMs: demo ?? demoStores.intervalMs.read(),
+        random: readDemoRandom(window.location.search),
       },
     },
   };
@@ -89,8 +92,18 @@ export function DanmakuPage({ createClient }: Props) {
     setMessages((prev) => addMessage(prev, message, MAX_MESSAGES));
   }, []);
 
-  const pushFake = useCallback(() => push(createFakeMessage()), [push]);
-  useDemo(demoRunning && demoSource === 'fake', demoIntervalMs, pushFake);
+  // `?random=0`: the fake list in order at a fixed interval, so every run looks the same.
+  const demoRandom = config.demo.random !== false;
+  const pushFake = useCallback(
+    (n: number) => push(demoRandom ? createFakeMessage() : fakeMessageAt(n)),
+    [push, demoRandom],
+  );
+  useDemo(
+    demoRunning && demoSource === 'fake',
+    demoIntervalMs,
+    pushFake,
+    demoRandom ? Math.random : null,
+  );
   const dyhub = useDyhub(
     demoRunning && demoSource === 'live' ? liveRoom : null,
     push,
@@ -116,7 +129,7 @@ export function DanmakuPage({ createClient }: Props) {
 
   const obsParams = cardStyleToParams(settings);
   obsParams.set('obs', '1');
-  if (demoRunning && demoSource === 'fake') setDemoParams(obsParams, demoIntervalMs);
+  if (demoRunning && demoSource === 'fake') setDemoParams(obsParams, demoIntervalMs, demoRandom);
   if (demoRunning && demoSource === 'live' && liveRoom) setLiveRoomParams(obsParams, liveRoom);
   const obsUrl = `${window.location.origin}${window.location.pathname}?${obsParams.toString()}`;
 

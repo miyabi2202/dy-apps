@@ -48,7 +48,11 @@ export function App({ engine, feed, keyboard, config: initial, createClient, fak
   const [sending, setSending] = useState(false);
   const room = liveRoomFrom(connection);
   const { probability } = engine;
-  const config: TetrisConfig = { ...connection, probability, demo: { source, intervalMs } };
+  const config: TetrisConfig = {
+    ...connection,
+    probability,
+    demo: { source, intervalMs, random: initial.demo.random },
+  };
   const liveState = useGiftSource({
     demo: config.demo,
     room,

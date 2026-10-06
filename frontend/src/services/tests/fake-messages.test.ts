@@ -1,4 +1,4 @@
-import { createFakeGift, createFakeMessage } from '../fake-messages';
+import { createFakeGift, createFakeMessage, fakeGiftAt, fakeMessageAt } from '../fake-messages';
 import { hueFor } from '../live-message';
 
 describe('hueFor', () => {
@@ -58,20 +58,42 @@ describe('createFakeMessage', () => {
 });
 
 describe('createFakeGift', () => {
-  it('makes a priced gift from a fake viewer, picked by the given random source', () => {
+  it('picks a whole gift from the list with the given random source', () => {
     const gift = createFakeGift({ random: () => 0, now: () => 42 });
-    expect(gift).toMatchObject({
-      text: '',
-      ts: 42,
-      gift: { name: '小心心', count: 1, diamonds: 1 },
-    });
-    expect(gift.user.nickname).toBe('奶茶不加糖');
+    expect(gift).toMatchObject({ text: '', ts: 42, gift: fakeGiftAt(0).gift });
+    expect(gift.user).toEqual(fakeGiftAt(0).user);
     expect(createFakeGift().id).not.toBe(createFakeGift().id);
   });
+});
 
-  it('never sends more than 13 嘉年华 at once', () => {
-    // The last gift kind and the biggest combo.
-    const gift = createFakeGift({ random: () => 0.999 });
-    expect(gift.gift).toMatchObject({ name: '嘉年华', count: 13 });
+describe('fakeMessageAt', () => {
+  const summary = (m: ReturnType<typeof fakeMessageAt>) => [
+    m.user.id,
+    m.text,
+    m.gift?.name,
+    m.gift?.count,
+    m.likes,
+  ];
+
+  it('gives the same message for the same n every time, with a fresh id', () => {
+    const first = Array.from({ length: 10 }, (_, i) => summary(fakeMessageAt(i)));
+    expect(Array.from({ length: 10 }, (_, i) => summary(fakeMessageAt(i)))).toEqual(first);
+    expect(new Set(first.map((m) => JSON.stringify(m))).size).toBe(10);
+    expect(fakeMessageAt(0).id).not.toBe(fakeMessageAt(0).id);
+  });
+
+  it('starts over after the last message', () => {
+    const all = Array.from({ length: 200 }, (_, i) => JSON.stringify(summary(fakeMessageAt(i))));
+    const length = all.indexOf(all[0]!, 1);
+    expect(length).toBeGreaterThan(10);
+    expect(all.slice(length, length * 2)).toEqual(all.slice(0, length));
+  });
+
+  it('gives fakeGiftAt only the gifts, in the order they come in the list', () => {
+    const gifts = Array.from({ length: 200 }, (_, i) => fakeMessageAt(i)).filter((m) => m.gift);
+    expect(Array.from({ length: 5 }, (_, i) => summary(fakeGiftAt(i)))).toEqual(
+      gifts.slice(0, 5).map(summary),
+    );
+    expect(gifts.every((m) => m.gift!.diamonds! > 0)).toBe(true);
   });
 });

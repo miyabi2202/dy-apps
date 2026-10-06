@@ -14,6 +14,11 @@ export interface DemoConfig {
   source: DemoSource;
   /** Average time between fake messages. */
   intervalMs: number;
+  /**
+   * False with `?random=0`: fake messages play in list order at exactly `intervalMs`, the
+   * same every time. Otherwise they're picked at random and arrive unevenly.
+   */
+  random?: boolean;
 }
 
 /** The interval clamped to `range`, or undefined if it isn't a number. */
@@ -37,8 +42,17 @@ export function readDemoInterval(
   return raw === null ? null : (clampDemoInterval(Number(raw), range) ?? null);
 }
 
-export function setDemoParams(params: URLSearchParams, intervalMs: number): void {
+/** `?random=0` in a link: fake messages in order, at a fixed interval. */
+const RANDOM_PARAM = 'random';
+
+/** False when the query string turns randomness off. */
+export function readDemoRandom(search: string): boolean {
+  return new URLSearchParams(search).get(RANDOM_PARAM) !== '0';
+}
+
+export function setDemoParams(params: URLSearchParams, intervalMs: number, random = true): void {
   params.set(DEMO_PARAM, String(intervalMs));
+  if (!random) params.set(RANDOM_PARAM, '0');
 }
 
 /** An app's last demo source and interval, stored as `<app>.demoSource` and `<app>.demoIntervalMs`. */

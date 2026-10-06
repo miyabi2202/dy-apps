@@ -27,58 +27,83 @@ const NICKNAMES = [
   '春眠不觉晓处处闻啼鸟夜来风雨声花落知多少',
 ];
 
-const TEXTS = [
-  '来了来了！',
-  '主播晚上好～',
-  '666666',
-  '哈哈哈哈哈哈哈哈',
-  '这波操作可以的 👍',
-  '前方高能预警',
-  '第一次来，关注了',
-  '主播今天状态好好',
-  '刚下班，赶上了吗？',
-  '这个背景音乐叫什么名字呀',
-  '冲冲冲！',
-  '泪目了 😭',
-  '求主播唱一首晴天',
-  '我宣布这是今天最好看的一局',
-  '弹幕护体！',
-  '笑死，根本停不下来',
-  '有没有一起熬夜的朋友',
-  '主播能不能讲讲刚才那段是怎么做到的，我真的看了三遍都没看懂，太强了',
-  '打卡 ✅',
-  '晚安，明天见',
-  '这个画质好清楚',
-  '+1',
-  '刚才那个转折我是真没想到，编剧都不敢这么写',
-  '礼物走一波 🎁',
-  '好耶！',
-];
-
-/**
- * Douyin gifts with rough diamond prices; the demo has no icons, so cards show 🎁. An
- * expensive gift has a `maxCount`, since nobody sends 1314 嘉年华 (that's about 4M yuan).
- */
-const GIFTS = [
-  { name: '小心心', diamonds: 1 },
-  { name: '玫瑰', diamonds: 1 },
-  { name: '人气票', diamonds: 1 },
-  { name: '棒棒糖', diamonds: 9 },
-  { name: '你最好看', diamonds: 2 },
-  { name: '加油鸭', diamonds: 15 },
-  { name: '鲜花', diamonds: 10 },
-  { name: '嘉年华', diamonds: 30000, maxCount: 13 },
-];
-
-/** Mostly single gifts, sometimes a big combo, to preview both ends. */
-const GIFT_COUNTS = [1, 1, 1, 1, 3, 5, 10, 66, 188, 1314];
+/** Rough diamond prices; the demo has no icons, so cards show 🎁. */
+const GIFT_DIAMONDS: Record<string, number> = {
+  小心心: 1,
+  玫瑰: 1,
+  人气票: 1,
+  你最好看: 2,
+  棒棒糖: 9,
+  鲜花: 10,
+  加油鸭: 15,
+  嘉年华: 30000,
+};
 
 /** About two thirds of the fake viewers are in the fan club, at levels spread over 1–25. */
-const USERS: DanmakuUser[] = NICKNAMES.map((nickname, i) => ({
-  id: `demo-user-${i}`,
-  nickname,
-  fansClub: i % 3 === 2 ? undefined : { name: '弹幕墙', level: ((i * 7) % 25) + 1 },
-}));
+const USERS: ReadonlyMap<string, DanmakuUser> = new Map(
+  NICKNAMES.map((nickname, i) => [
+    nickname,
+    {
+      id: `demo-user-${i}`,
+      nickname,
+      fansClub: i % 3 === 2 ? undefined : { name: '弹幕墙', level: ((i * 7) % 25) + 1 },
+    },
+  ]),
+);
+
+/** What one fake viewer does: says something, sends a gift, or taps likes. */
+type FakeEvent = { user: string } & (
+  { text: string } | { gift: string; count: number } | { likes: number }
+);
+
+/**
+ * Every fake message, written out whole. Mostly chat, about one in six a gift (single
+ * ones and big combos) and one in eight likes, with the long names mixed in.
+ */
+const EVENTS: readonly FakeEvent[] = [
+  { user: '奶茶不加糖', text: '来了来了！' },
+  { user: '夜猫子小王', text: '主播晚上好～' },
+  { user: '快乐小狗', likes: 15 },
+  { user: '摸鱼大师', text: '666666' },
+  { user: '橘子汽水', gift: '小心心', count: 1 },
+  { user: '今天也要早睡', text: '哈哈哈哈哈哈哈哈' },
+  { user: '路过的程序员', text: '这波操作可以的 👍' },
+  { user: '芝士就是力量', text: '前方高能预警' },
+  { user: '今天也是努力搬砖争取早日实现财务自由的打工人', text: '第一次来，关注了' },
+  { user: '一只咸鱼', text: '主播今天状态好好' },
+  { user: '阿杰', gift: '玫瑰', count: 3 },
+  { user: '月亮不睡我不睡', text: '刚下班，赶上了吗？' },
+  { user: 'Luna', text: '这个背景音乐叫什么名字呀' },
+  { user: '吃瓜群众', likes: 3 },
+  { user: '风吹麦浪', text: '冲冲冲！' },
+  {
+    user: '小透明',
+    text: '主播能不能讲讲刚才那段是怎么做到的，我真的看了三遍都没看懂，太强了',
+  },
+  { user: '番茄炒蛋', gift: '棒棒糖', count: 10 },
+  { user: '星河滚烫', text: '泪目了 😭' },
+  { user: 'SuperLongNicknameThatNeverEndsAndKeepsGoing', text: '求主播唱一首晴天' },
+  { user: '早八人', text: '我宣布这是今天最好看的一局' },
+  { user: '一个名字特别特别特别长的路过观众', likes: 520 },
+  { user: '奶茶不加糖', text: '弹幕护体！' },
+  { user: '夜猫子小王', gift: '你最好看', count: 66 },
+  { user: '橘子汽水', text: '笑死，根本停不下来' },
+  { user: '今天也要早睡', text: '有没有一起熬夜的朋友' },
+  { user: '摸鱼大师', text: '打卡 ✅' },
+  { user: '春眠不觉晓处处闻啼鸟夜来风雨声花落知多少', gift: '嘉年华', count: 1 },
+  { user: '路过的程序员', text: '刚才那个转折我是真没想到，编剧都不敢这么写' },
+  { user: '快乐小狗', text: '+1' },
+  { user: '芝士就是力量', likes: 99 },
+  { user: '一只咸鱼', text: '这个画质好清楚' },
+  { user: '阿杰', gift: '加油鸭', count: 188 },
+  { user: '月亮不睡我不睡', text: '礼物走一波 🎁' },
+  { user: 'Luna', text: '好耶！' },
+  { user: '吃瓜群众', gift: '小心心', count: 1314 },
+  { user: '风吹麦浪', text: '晚安，明天见' },
+];
+
+/** Just the gifts, in the same order, for an app that only reacts to gifts. */
+const GIFT_EVENTS = EVENTS.filter((event) => 'gift' in event);
 
 export interface FakeOptions {
   /** Math.random by default; tests pass a fixed sequence. */
@@ -87,36 +112,47 @@ export interface FakeOptions {
   now?: () => number;
 }
 
+let seq = 0;
+
+function toMessage(event: FakeEvent, ts: number): DanmakuMessage {
+  const user = USERS.get(event.user)!;
+  const base = { id: `demo-${ts}-${seq++}`, user, text: '', ts };
+  if ('text' in event) return { ...base, text: event.text };
+  if ('likes' in event) return { ...base, likes: event.likes };
+  const gift: DanmakuGift = {
+    name: event.gift,
+    count: event.count,
+    diamonds: GIFT_DIAMONDS[event.gift],
+  };
+  return { ...base, gift };
+}
+
+const at = <T>(items: readonly T[], n: number): T => items[n % items.length]!;
 const pick = <T>(items: readonly T[], random: () => number): T =>
   items[Math.floor(random() * items.length)]!;
 
-let seq = 0;
-
-/** How many likes a fake viewer sends before pausing: a few taps, or a long run. */
-const LIKE_COUNTS = [1, 3, 8, 15, 30, 99, 520];
-
-/** A random message from a random fake viewer; about one in six is a gift, one in eight likes. */
+/** A fake message picked at random from the list. */
 export function createFakeMessage({
   random = Math.random,
   now = Date.now,
 }: FakeOptions = {}): DanmakuMessage {
-  const ts = now();
-  const id = `demo-${ts}-${seq++}`;
-  const roll = random();
-  if (roll < 1 / 8) {
-    return { id, user: pick(USERS, random), text: '', likes: pick(LIKE_COUNTS, random), ts };
-  }
-  if (roll < 1 / 8 + 1 / 6) return createFakeGift({ random, now });
-  return { id, user: pick(USERS, random), text: pick(TEXTS, random), ts };
+  return toMessage(pick(EVENTS, random), now());
 }
 
-/** A random gift, of a random size, from a random fake viewer. */
+/** A fake gift picked at random from the list. */
 export function createFakeGift({
   random = Math.random,
   now = Date.now,
 }: FakeOptions = {}): DanmakuMessage {
-  const ts = now();
-  const { maxCount = Infinity, ...kind } = pick(GIFTS, random);
-  const gift: DanmakuGift = { ...kind, count: Math.min(pick(GIFT_COUNTS, random), maxCount) };
-  return { id: `demo-${ts}-${seq++}`, user: pick(USERS, random), text: '', gift, ts };
+  return toMessage(pick(GIFT_EVENTS, random), now());
+}
+
+/** The `n`th fake message in list order, starting over after the last: the same every time. */
+export function fakeMessageAt(n: number, now: () => number = Date.now): DanmakuMessage {
+  return toMessage(at(EVENTS, n), now());
+}
+
+/** The `n`th fake gift in list order. */
+export function fakeGiftAt(n: number, now: () => number = Date.now): DanmakuMessage {
+  return toMessage(at(GIFT_EVENTS, n), now());
 }
