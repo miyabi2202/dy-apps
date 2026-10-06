@@ -20,7 +20,9 @@ const TOUCH = 0.5;
  */
 const SNAP = 2;
 /** Deeper into another icon than this is an overlap to push out of, not a touch. */
-const OVERLAP = 0.01;
+const OVERLAP = 0.05;
+/** A move is along a contact's surface when it goes into or away from it less than this. */
+const ALONG = 0.05;
 /** The most contacts one icon keeps track of in a step. */
 const MAX_CONTACTS = 16;
 /** A direction this far into a contact (per unit of movement) still counts as along it. */
@@ -29,12 +31,17 @@ const FEASIBLE = 1e-3;
 const DOWNHILL = 1e-3;
 /** A single support this close to straight below is a balancing point, not a resting place. */
 const APEX = 0.02;
+/** An icon that stays within this of one spot is still, however it jitters inside that. */
+const STILL = 0.5;
+/** Still for this many steps: a moving icon counts as holding up the ones resting on it. */
+const HOLD_STEPS = 3;
 /**
- * An icon on the pile that moves less than this for `STALL_STEPS` steps is wedged, whatever
- * the geometry says: the straight-step sliding can chatter in a tight notch forever.
+ * Still for this many steps on the pile, and not waiting behind a moving icon: wedged,
+ * whatever the geometry says (straight-step sliding can chatter in a tight notch forever).
  */
-const STALL = 0.05;
 const STALL_STEPS = 20;
+/** Still for this many steps whatever it is waiting behind: rest, to break a stand-off. */
+const DEADLOCK_STEPS = 60;
 
 /** What an icon is touching: other icons by index, or one of the walls or the floor. */
 const FLOOR = -1;
@@ -49,10 +56,11 @@ const WALL = -2;
  * come to rest and join the pile.
  *
  * Every icon is in every other's way, but a sliding icon never holds another up: one sitting
- * on it just waits, blocked, until it has stopped. Icons are stepped lowest first, so what an
- * icon could be held by is settled before the icon itself, and two icons leaning on each
- * other come to rest together. A step costs by how many icons are moving, not by the size
- * of the pile.
+ * on it just waits, blocked, until it has been still for a few steps. Icons are stepped
+ * lowest first, so what an icon could be held by is settled before the icon itself, and two
+ * icons leaning on each other come to rest together. An icon that chatters in one spot for
+ * long enough is taken to be wedged and rests too. A step costs by how many icons are
+ * moving, not by the size of the pile.
  *
  * All state lives in typed arrays indexed by icon, sized for `maxItems` up front. Resting
  * icons sit in a grid of linked lists, `2 × radius` square cells, and moving icons in a
@@ -88,9 +96,12 @@ export class PileWorld {
   // Moving icons, sorted lowest first at each step.
   private readonly awake: Int32Array;
   private awakeLen = 0;
-  private readonly stall: Uint8Array;
-  /** 1 for a moving icon that moved the last time it was stepped, 0 for one that is held or blocked. */
-  private readonly moved: Uint8Array;
+  /** Steps a moving icon has stayed within `STILL` of its anchor, capped at 255. */
+  private readonly still: Uint8Array;
+  private readonly anchorX: Float32Array;
+  private readonly anchorY: Float32Array;
+  /** 1 for a moving icon whose last sweep was cut short by another moving icon. */
+  private readonly waiting: Uint8Array;
   private spawnCredit = 0;
   private readonly recent = new Int32Array(RECENT).fill(-1);
   private recentAt = 0;
@@ -141,8 +152,10 @@ export class PileWorld {
     this.speed = new Float32Array(n);
     this.resting = new Uint8Array(n);
     this.awake = new Int32Array(n);
-    this.stall = new Uint8Array(n);
-    this.moved = new Uint8Array(n);
+    this.still = new Uint8Array(n);
+    this.anchorX = new Float32Array(n);
+    this.anchorY = new Float32Array(n);
+    this.waiting = new Uint8Array(n);
     this.settledBuf = new Int32Array(n);
 
     this.cellSize = this.radius * 2;
@@ -245,8 +258,10 @@ export class PileWorld {
       this.y[i] = py;
       this.speed[i] = s.spawnSpeed;
       this.resting[i] = 0;
-      this.stall[i] = 0;
-      this.moved[i] = 1;
+      this.still[i] = 0;
+      this.anchorX[i] = px;
+      this.anchorY[i] = py;
+      this.waiting[i] = 0;
       this.awake[this.awakeLen++] = i;
       this.recent[this.recentAt] = i;
       this.recentAt = (this.recentAt + 1) % RECENT;
@@ -298,7 +313,7 @@ export class PileWorld {
    * one then stopped, and fall through it next step.
    */
   private move(dt: number): void {
-    const { x, y, speed, stall, moved, awake } = this;
+    const { x, y, speed, still, anchorX, anchorY, waiting, awake } = this;
     const { gravity, maxSpeed, nudge } = this.settings;
 
     let kept = 0;
@@ -312,7 +327,8 @@ export class PileWorld {
       let dirY = 1;
       if (this.contacts > 0 && !this.overlapping) {
         const way = this.wayDown();
-        if (way === 0 || stall[i]! >= STALL_STEPS) {
+        const wedged = still[i]! >= (waiting[i] ? DEADLOCK_STEPS : STALL_STEPS);
+        if (way === 0 || wedged) {
           // Nothing it touches lets it move down (or it has stopped making progress): at rest.
           this.stop(i, px, py);
           continue;
@@ -335,14 +351,19 @@ export class PileWorld {
       const t = this.sweep(i, px, py, mx, my);
       // Met something new: touching kills the motion.
       speed[i] = t < 1 ? 0 : v;
-      this.settleOnto(i, px + mx * t, py + my * t);
+      this.settleOnto(i, px + mx * t, py + my * t, dirX, dirY);
 
-      const dx = x[i]! - px;
-      const dy = y[i]! - py;
-      const still = dx * dx + dy * dy < STALL * STALL;
-      moved[i] = still ? 0 : 1;
-      // On the pile but going nowhere, and not just waiting behind a moving icon: wedged.
-      stall[i] = still && this.contacts > 0 && !this.blockedByMover ? stall[i]! + 1 : 0;
+      // Still counts from the last spot it clearly left, so jitter around one spot adds up.
+      const dx = x[i]! - anchorX[i]!;
+      const dy = y[i]! - anchorY[i]!;
+      if (dx * dx + dy * dy < STILL * STILL) {
+        if (still[i]! < 255) still[i]!++;
+      } else {
+        still[i] = 0;
+        anchorX[i] = x[i]!;
+        anchorY[i] = y[i]!;
+      }
+      waiting[i] = this.blockedByMover ? 1 : 0;
       awake[kept++] = i;
     }
     this.awakeLen = kept;
@@ -350,11 +371,11 @@ export class PileWorld {
 
   /**
    * What holds icon `i` at (px, py): the resting icons, floor and walls it touches, and any
-   * moving icon under it that is itself held or blocked (it didn't move when last stepped).
-   * A sliding icon never counts, so nothing rests on something about to leave.
+   * moving icon under it that is itself held or blocked (still for a few steps). A sliding
+   * icon never counts, so nothing rests on something about to leave.
    */
   private findContacts(i: number, px: number, py: number): void {
-    const { x, y, head, next, movingHead, movingNext, moved, cols } = this;
+    const { x, y, head, next, movingHead, movingNext, still, cols } = this;
     const r = this.radius;
     const d = 2 * r;
     const near2 = (d + TOUCH) * (d + TOUCH);
@@ -403,19 +424,34 @@ export class PileWorld {
           }
           n++;
         }
+      }
+    }
+
+    // Moving icons may have left their cell this step, so look one cell further out.
+    for (let dr = -2 * cols; dr <= 2 * cols && n < MAX_CONTACTS; dr += cols) {
+      for (let dc = -2; dc <= 2 && n < MAX_CONTACTS; dc++) {
+        const c = cell + dr + dc;
+        if (c < 0 || c >= lastCell) continue;
         for (let j = movingHead[c]!; j !== -1 && n < MAX_CONTACTS; j = movingNext[j]!) {
-          if (j === i || moved[j]) continue;
+          if (j === i) continue;
           const dx = px - x[j]!;
           const dy = py - y[j]!;
-          // Only one below it holds it up.
-          if (dy >= 0) continue;
           const dist2 = dx * dx + dy * dy;
           if (dist2 > near2) continue;
           const dist = Math.sqrt(dist2);
+          // One below it that is itself held holds it up; one it overlaps has to be got
+          // out of, whatever it is doing.
+          const holds = still[j]! >= HOLD_STEPS && dy < 0;
           if (dist < overlap) this.overlapping = true;
+          else if (!holds) continue;
           this.contactOf[n] = j;
-          this.contactNx[n] = dx / dist;
-          this.contactNy[n] = dy / dist;
+          if (dist > 1e-6) {
+            this.contactNx[n] = dx / dist;
+            this.contactNy[n] = dy / dist;
+          } else {
+            this.contactNx[n] = 0;
+            this.contactNy[n] = -1;
+          }
           n++;
         }
       }
@@ -486,14 +522,15 @@ export class PileWorld {
 
     const a = mx * mx + my * my;
     if (a === 0) return t;
-    const c0 = this.colOf(Math.min(px, px + mx) - d);
-    const c1 = this.colOf(Math.max(px, px + mx) + d);
-    const r0 = this.rowOf(Math.min(py, py + my) - d);
-    const r1 = this.rowOf(Math.max(py, py + my) + d);
+    // The cells the move crosses, with a margin for moving icons that left their cell.
+    const c0 = this.colOf(Math.min(px, px + mx) - 2 * d);
+    const c1 = this.colOf(Math.max(px, px + mx) + 2 * d);
+    const r0 = this.rowOf(Math.min(py, py + my) - 2 * d);
+    const r1 = this.rowOf(Math.max(py, py + my) + 2 * d);
     for (let row = r0; row <= r1; row++) {
       for (let col = c0; col <= c1; col++) {
         const c = row * this.cols + col;
-        const resting = this.sweepCell(this.head[c]!, this.next, i, px, py, mx, my, a, t, false);
+        const resting = this.sweepCell(this.head[c]!, this.next, i, px, py, mx, my, a, t);
         if (resting < t) {
           t = resting;
           this.blockedByMover = false;
@@ -508,7 +545,6 @@ export class PileWorld {
           my,
           a,
           t,
-          true,
         );
         if (moving < t) {
           t = moving;
@@ -530,7 +566,6 @@ export class PileWorld {
     my: number,
     a: number,
     t: number,
-    moving: boolean,
   ): number {
     const { x, y, contactOf, contacts } = this;
     const d2 = 4 * this.radius * this.radius;
@@ -543,9 +578,9 @@ export class PileWorld {
       if (b >= 0) continue; // moving away from it
       const cc = ox * ox + oy * oy - d2;
       if (cc < 0) {
-        // Overlapping already. A resting icon stops it here, and `settleOnto` pushes it
-        // clear next step; two moving icons are let through to come apart.
-        if (!moving) t = 0;
+        // Overlapping already and heading further in: stay put, and let `settleOnto` push
+        // it clear next step.
+        t = 0;
         continue;
       }
       const disc = b * b - a * cc;
@@ -558,10 +593,13 @@ export class PileWorld {
 
   /**
    * Put icon `i` at (px, py), exactly touching what it was touching: out of anything it has
-   * come to overlap, and back onto a support it has drifted off by rounding a corner.
+   * come to overlap, and back onto the support it slid along (its move was along that
+   * surface, in direction (dirX, dirY)) and drifted off by rounding the corner. If pushing
+   * out sideways leaves it inside resting icons still (there is no room between them), it
+   * is lifted up onto them instead.
    */
-  private settleOnto(i: number, px: number, py: number): void {
-    const { x, y, contactOf, contacts } = this;
+  private settleOnto(i: number, px: number, py: number, dirX: number, dirY: number): void {
+    const { x, y, resting, contactOf, contactNx, contactNy, contacts } = this;
     const r = this.radius;
     const d = 2 * r;
     for (let c = 0; c < contacts; c++) {
@@ -574,8 +612,8 @@ export class PileWorld {
         py = y[j]! - d;
         continue;
       }
-      const support = dy < 0;
-      if (dist < d || (support && dist <= d + SNAP)) {
+      const along = Math.abs(dirX * contactNx[c]! + dirY * contactNy[c]!) < ALONG;
+      if (dist < d || (along && dist <= d + SNAP)) {
         px = x[j]! + (dx / dist) * d;
         py = y[j]! + (dy / dist) * d;
       }
@@ -583,6 +621,15 @@ export class PileWorld {
     if (px < r) px = r;
     else if (px > this.width - r) px = this.width - r;
     if (py > this.height - r) py = this.height - r;
+    for (let c = 0; c < contacts; c++) {
+      const j = contactOf[c]!;
+      if (j < 0 || !resting[j]) continue;
+      const dx = px - x[j]!;
+      const dy = py - y[j]!;
+      if (dx * dx + dy * dy >= d * d - OVERLAP) continue;
+      const above = y[j]! - Math.sqrt(Math.max(0, d * d - dx * dx));
+      if (above < py) py = above;
+    }
     x[i] = px;
     y[i] = py;
   }
