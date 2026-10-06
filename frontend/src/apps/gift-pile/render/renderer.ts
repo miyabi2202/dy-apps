@@ -50,6 +50,8 @@ export class PileRenderer {
   private stamped = 0;
   // Patches of the layer to repaint: an icon left from there.
   private holes: { x: number; y: number }[] = [];
+  // Slots below the stamped mark whose icon hasn't been stamped: it was moved there to fill a gap.
+  private unstamped: number[] = [];
 
   // The latest two frames, for interpolation; `prevAt` maps an icon to its place in `prev`.
   private prev: Frame | null = null;
@@ -92,6 +94,7 @@ export class PileRenderer {
       this.restingCount = 0;
       this.slotOf.clear();
       this.holes = [];
+      this.unstamped = [];
       this.stamped = 0;
       this.pixelRatio = 0;
       this.prev = null;
@@ -103,8 +106,8 @@ export class PileRenderer {
     this.cur = frame;
     this.curArrived = now;
 
-    frame.wokenIds.forEach((id) => this.removeResting(id));
-
+    // Settled before woken: an icon can do both within one tick (a cascade wakes one that
+    // has just come to rest), and must end up off the layer.
     const need = this.restingCount + frame.settledIds.length;
     if (need > this.restingIds.length) {
       const size = Math.max(need, this.restingIds.length * 2);
@@ -119,6 +122,7 @@ export class PileRenderer {
     this.restingIds.set(frame.settledIds, this.restingCount);
     this.restingXy.set(frame.settledXy, this.restingCount * 2);
     this.restingCount += frame.settledIds.length;
+    frame.wokenIds.forEach((id) => this.removeResting(id));
   }
 
   /**
@@ -179,9 +183,16 @@ export class PileRenderer {
       layerCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
       this.stamped = 0;
       this.holes = [];
+      this.unstamped = [];
     }
     for (const hole of this.holes) this.repaint(layerCtx, hole.x, hole.y);
     this.holes = [];
+    for (const slot of this.unstamped) {
+      if (slot < this.restingCount) {
+        this.stamp(layerCtx, this.restingXy[2 * slot]!, this.restingXy[2 * slot + 1]!);
+      }
+    }
+    this.unstamped = [];
     for (; this.stamped < this.restingCount; this.stamped++) {
       this.stamp(
         layerCtx,
@@ -232,6 +243,8 @@ export class PileRenderer {
       this.restingXy[2 * slot] = this.restingXy[2 * last]!;
       this.restingXy[2 * slot + 1] = this.restingXy[2 * last + 1]!;
       this.slotOf.set(lastId, slot);
+      // Moved below the stamped mark before its turn: it still has to be drawn.
+      if (slot < this.stamped && last >= this.stamped) this.unstamped.push(slot);
     }
     this.slotOf.delete(id);
     this.restingCount = last;
