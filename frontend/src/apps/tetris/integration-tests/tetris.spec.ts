@@ -16,6 +16,8 @@ interface LabWindow {
       lockedPieceCount: number;
       settlementCount: number;
       team: { giftCount: number };
+      blockedBy(cmd: string): unknown;
+      tick(dtMs: number): void;
     };
     feed: { send(message: unknown): { ok: boolean } };
   };
@@ -113,6 +115,14 @@ test('start, pause with P, resume; restart after game over empties the wall', as
 
   for (let i = 0; i < 40 && (await engineState(page)).phase !== 'gameOver'; i += 1) {
     await page.keyboard.press('Space');
+    // A curse may be blocking hard drop (自转); let gravity land and lock the piece instead.
+    await page.evaluate(() => {
+      const e = (window as unknown as LabWindow).__blockLab.engine;
+      if (e.phase === 'playing' && e.blockedBy('hardDrop') !== null) {
+        e.tick(30_000);
+        e.tick(1_000);
+      }
+    });
   }
   await page
     .getByTestId(testIds.overlay('gameOver'))

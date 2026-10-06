@@ -31,6 +31,10 @@ export interface BoardView {
   readonly board: Board;
   readonly active: ActivePiece | null;
   readonly ghostY: number | null;
+  /** Curses in effect, in settlement order; the painter marks the piece for some of them. */
+  readonly activeCurses?: readonly EffectType[];
+  /** Play time so far, for animations drawn on the canvas. */
+  readonly timeMs?: number;
 }
 
 export interface TeamState {
@@ -41,6 +45,8 @@ export interface TeamState {
   missCount: number;
   /** Curses that have fired at a settlement. */
   firedCount: number;
+  /** Per settlement queue, the type that fired last, so a shared queue takes turns. */
+  lastFired: Partial<Record<string, EffectType>>;
 }
 
 export interface GiftBatchResult {

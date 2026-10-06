@@ -28,6 +28,7 @@ function recorder(): Canvas2D & { calls: Call[] } {
     strokeStyle: '',
     globalAlpha: 1,
     lineWidth: 1,
+    lineDashOffset: 0,
   } as Canvas2D & { calls: Call[] };
   const ops = [
     'fillRect',
@@ -37,15 +38,16 @@ function recorder(): Canvas2D & { calls: Call[] } {
     'moveTo',
     'lineTo',
     'stroke',
+    'setLineDash',
     'save',
     'restore',
     'translate',
   ] as const;
   for (const op of ops) {
-    ctx[op] = (...args: number[]) => {
+    (ctx as unknown as Record<string, unknown>)[op] = (...args: (number | number[])[]) => {
       calls.push({
         op,
-        args,
+        args: args.flat(),
         fillStyle: ctx.fillStyle,
         strokeStyle: ctx.strokeStyle,
         globalAlpha: ctx.globalAlpha,

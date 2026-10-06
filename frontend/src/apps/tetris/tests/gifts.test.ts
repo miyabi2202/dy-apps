@@ -37,12 +37,12 @@ describe('example A: probability boundaries', () => {
   });
 
   it('a hit draws a rarity by weight, then one of its curses evenly', () => {
-    // Registry: fog and seal common, haste uncommon, garbage rare.
+    // Registry: fog, seal and noRotate common; haste and spin uncommon; garbage rare.
     const bands = rarityBands(Object.values(CURSES));
     expect(bands.map((b) => [b.rarity, b.types])).toEqual([
       ['common', ['fog', 'seal']],
       ['uncommon', ['haste']],
-      ['rare', ['garbage']],
+      ['rare', ['garbage', 'noRotate', 'spin']],
     ]);
     expect(bands.map((b) => b.to)).toEqual([expect.any(Number), expect.any(Number), 1]);
     expect(bands[0]!.to).toBeCloseTo(0.6);
@@ -51,12 +51,12 @@ describe('example A: probability boundaries', () => {
     expect(bands[2]!.from).toBeCloseTo(0.9);
     const draws: [number, number, string][] = [
       [0, 0, 'fog'],
-      [0.59, 0.49, 'fog'],
       [0.59, 0.5, 'seal'],
       [0.61, 0.99, 'haste'],
       [0.89, 0, 'haste'],
       [0.91, 0, 'garbage'],
-      [0.99, 0.99, 'garbage'],
+      [0.95, 0.34, 'noRotate'],
+      [0.99, 0.99, 'spin'],
     ];
     for (const [rarity, index, expected] of draws) {
       const r = processGiftBatch(createTeam(), 'foo', 1, 1, sequenceRng([0, rarity, index]));

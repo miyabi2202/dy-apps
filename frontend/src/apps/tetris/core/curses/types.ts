@@ -4,7 +4,7 @@ import type { ActivePiece, Board, PieceShape } from '../types';
 import type { EffectType } from './index';
 
 /** Player commands a curse can block while it is active. */
-export type Command = 'rotate' | 'hold';
+export type Command = 'rotate' | 'hold' | 'softDrop' | 'hardDrop';
 
 /** How often a curse should come up, from most to least. */
 export type Rarity = 'common' | 'uncommon' | 'rare';
@@ -38,6 +38,8 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
    * apply and is done.
    */
   durationRounds?: number;
+  /** Or how many locked pieces one firing lasts, for curses shorter than a round. */
+  durationLocks?: number;
   /** While active: the drop interval is multiplied by this once per active instance. */
   gravityMultiplier?: number;
   /** Fresh state when the curse becomes active. */

@@ -35,6 +35,21 @@ describe('settlement', () => {
     expect(isConserved(team)).toBe(true);
   });
 
+  it('a shared queue takes turns, so neither type starves the other', () => {
+    const team = createTeam();
+    hit(team, 'noRotate', 5);
+    hit(team, 'spin', 2);
+    const pool = ['noRotate', 'spin'] as const;
+    const shared = () => 'e';
+    expect(settleTeam(team, pool, shared)).toEqual(['noRotate']);
+    expect(settleTeam(team, pool, shared)).toEqual(['spin']);
+    expect(settleTeam(team, pool, shared)).toEqual(['noRotate']);
+    expect(settleTeam(team, pool, shared)).toEqual(['spin']);
+    expect(settleTeam(team, pool, shared)).toEqual(['noRotate']);
+    expect(team.pending).toMatchObject({ noRotate: 2, spin: 0 });
+    expect(isConserved(team)).toBe(true);
+  });
+
   it('an empty queue fires nothing', () => {
     const team = createTeam();
     expect(settleTeam(team)).toEqual([]);

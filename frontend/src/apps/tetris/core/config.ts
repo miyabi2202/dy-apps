@@ -43,6 +43,11 @@ export const CONFIG = {
     hasteRounds: 5,
     fogRounds: 1,
     sealRounds: 1,
+    /** Locked pieces one firing lasts, for the two short rotation curses. */
+    noRotateLocks: 1,
+    spinLocks: 1,
+    /** How often 自转 turns the piece. */
+    spinIntervalMs: 500,
   },
   settlement: { everyLocks: 3 },
   log: { maxEntries: 10 },

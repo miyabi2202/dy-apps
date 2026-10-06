@@ -315,12 +315,13 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
 function TouchControls({ engine }: { engine: GameEngine }) {
   const disabled = engine.phase !== 'playing';
   const rotateBlocked = engine.blockedBy('rotate') !== null;
+  const hardDropBlocked = engine.blockedBy('hardDrop') !== null;
   const buttons: [string, () => void, boolean][] = [
     ['左移', () => engine.move(-1), false],
     ['右移', () => engine.move(1), false],
     ['旋转', () => engine.rotate(1), rotateBlocked],
     ['暂存', () => engine.holdPiece(), false],
-    ['硬降', () => engine.hardDrop(), false],
+    ['硬降', () => engine.hardDrop(), hardDropBlocked],
   ];
   return (
     <Grid columns={5} gap="sm" role="group" aria-label={labels.touchControls}>

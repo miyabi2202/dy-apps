@@ -25,6 +25,15 @@ export function roundsToLocks(rounds: number): number {
   return rounds * CONFIG.settlement.everyLocks;
 }
 
+/** Locks one firing lasts, or undefined for a curse that fires once in apply and is done. */
+export function durationOf(
+  def: Pick<CurseDef<unknown>, 'durationRounds' | 'durationLocks'>,
+): number | undefined {
+  if (def.durationLocks !== undefined) return def.durationLocks;
+  if (def.durationRounds !== undefined) return roundsToLocks(def.durationRounds);
+  return undefined;
+}
+
 /** Locks until the last instance ends. */
 export function locksLeft(active: ActiveCurse): number {
   return Math.max(0, ...active.instances);
@@ -37,9 +46,9 @@ export function locksLeft(active: ActiveCurse): number {
 export function activate(
   effects: EffectsState,
   type: EffectType,
-  def: Pick<CurseDef<unknown>, 'durationRounds' | 'initState'>,
+  def: Pick<CurseDef<unknown>, 'durationRounds' | 'durationLocks' | 'initState'>,
 ): ActiveCurse {
-  const locks = roundsToLocks(def.durationRounds ?? 0);
+  const locks = durationOf(def) ?? 0;
   const current = effects.active[type];
   if (current) {
     current.instances.push(locks);

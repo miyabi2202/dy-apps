@@ -4,6 +4,7 @@ export interface Canvas2D {
   strokeStyle: string | CanvasGradient | CanvasPattern;
   globalAlpha: number;
   lineWidth: number;
+  lineDashOffset: number;
   fillRect(x: number, y: number, w: number, h: number): void;
   strokeRect(x: number, y: number, w: number, h: number): void;
   clearRect(x: number, y: number, w: number, h: number): void;
@@ -11,6 +12,7 @@ export interface Canvas2D {
   moveTo(x: number, y: number): void;
   lineTo(x: number, y: number): void;
   stroke(): void;
+  setLineDash(segments: number[]): void;
   save(): void;
   restore(): void;
   translate(x: number, y: number): void;

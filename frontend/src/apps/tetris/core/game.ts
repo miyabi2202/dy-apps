@@ -11,6 +11,7 @@ import {
 import {
   activate,
   createEffects,
+  durationOf,
   gravityIntervalMs,
   locksLeft,
   tickTimedEffects,
@@ -54,7 +55,7 @@ export interface CursesSetup {
    * `{ ...CURSES.fog, onTick: spy }` in it. Throws on a duplicate type.
    */
   pool?: readonly CurseDef<unknown>[];
-  /** Curses in effect from the start (生效中), one instance each, with a fresh initState(). Throws for a type not in the pool or a def without durationRounds. */
+  /** Curses in effect from the start (生效中), one instance each, with a fresh initState(). Throws for a type not in the pool or a def that does not last. */
   active?: readonly EffectType[];
   /** Triggered curses waiting for the next settlement (待执行), as counts per type. Throws for a type not in the pool. */
   upcoming?: Partial<Record<EffectType, number>>;
@@ -157,6 +158,8 @@ export class GameEngine {
   private readonly initialGravity: number;
   private bag: BagGenerator;
   private gravityMs = 0;
+  /** Foreground play time, for canvas animations. */
+  private playMs = 0;
   private lockMs = 0;
   private lockResets = 0;
   private logId = 0;
@@ -187,7 +190,7 @@ export class GameEngine {
     for (const type of this.initialActive) {
       const def = this.curseByType[type];
       if (!def) throw new RangeError(`Active curse not in play: ${type}`);
-      if (def.durationRounds === undefined) throw new RangeError(`Curse does not last: ${type}`);
+      if (durationOf(def) === undefined) throw new RangeError(`Curse does not last: ${type}`);
     }
     this.initialGravity = options.gravityMultiplier ?? 1;
     if (!Number.isFinite(this.initialGravity) || this.initialGravity <= 0) {
@@ -296,7 +299,13 @@ export class GameEngine {
 
   /** What the board renderer draws. */
   get boardView(): BoardView {
-    return { board: this.board, active: this.active, ghostY: this.ghostY };
+    return {
+      board: this.board,
+      active: this.active,
+      ghostY: this.ghostY,
+      activeCurses: this.activeCurses.map((a) => a.type),
+      timeMs: this.playMs,
+    };
   }
 
   // ---------------------------------------------------------------- phases
@@ -347,6 +356,7 @@ export class GameEngine {
     this.lastSettlement = null;
     this.log = [];
     this.gameOverReason = null;
+    this.playMs = 0;
     this.resetPieceTimers();
     this.pushLog('system', '已重新开始，触发概率保持不变。');
     this.emit();
@@ -461,7 +471,7 @@ export class GameEngine {
   }
 
   softDrop(): boolean {
-    if (!this.canControl || this.isGrounded()) return false;
+    if (!this.canControl || this.isGrounded() || this.blockedBy('softDrop')) return false;
     this.active!.y += 1;
     this.score += CONFIG.score.softDropPerCell;
     this.gravityMs = 0;
@@ -470,7 +480,7 @@ export class GameEngine {
   }
 
   hardDrop(): boolean {
-    if (!this.canControl) return false;
+    if (!this.canControl || this.blockedBy('hardDrop')) return false;
     const d = this.dropDistance();
     this.active!.y += d;
     this.score += d * CONFIG.score.hardDropPerCell;
@@ -497,6 +507,7 @@ export class GameEngine {
   /** Advance gravity and lock delay by `dtMs` of foreground play time. */
   tick(dtMs: number): void {
     if (!this.canControl) return;
+    this.playMs += dtMs;
     for (const { type, def } of this.activeCurses) {
       def.onTick?.(this.curseContext(), dtMs, this.effects.active[type]!.state);
     }
@@ -621,9 +632,7 @@ export class GameEngine {
       const def = this.curseByType[type]!;
       // A lasting curse is (re)activated first, so apply sees the state it keeps.
       const state =
-        def.durationRounds === undefined
-          ? def.initState?.()
-          : activate(this.effects, type, def).state;
+        durationOf(def) === undefined ? def.initState?.() : activate(this.effects, type, def).state;
       const outcome = def.apply?.(this.curseContext(), state) ?? {};
       report.executed.push({ type, outcome });
       gameOver = outcome.gameOver;

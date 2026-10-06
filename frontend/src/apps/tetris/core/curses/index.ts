@@ -2,7 +2,9 @@ import { CONFIG } from '../config';
 import { fog } from './fog';
 import { garbage } from './garbage';
 import { haste } from './haste';
+import { noRotate } from './no-rotate';
 import { seal } from './seal';
+import { spin } from './spin';
 import type { CurseDef } from './types';
 
 /**
@@ -15,6 +17,8 @@ const registry = {
   haste,
   fog,
   seal,
+  noRotate,
+  spin,
 } satisfies Record<string, CurseDef<unknown, string>>;
 
 export type EffectType = keyof typeof registry;

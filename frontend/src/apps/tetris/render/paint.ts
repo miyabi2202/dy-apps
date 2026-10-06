@@ -1,6 +1,8 @@
 import { CONFIG } from '../core/config';
+import type { EffectType } from '../core/curses';
 import { pieceCells } from '../core/pieces';
-import type { BoardView, Cell, Matrix, PieceShape, PieceType } from '../core/types';
+import type { ActivePiece, BoardView, Cell, Matrix, PieceShape, PieceType } from '../core/types';
+import { PIECE_TINTS, type PieceTint } from './curse-styles';
 import type { Canvas2D } from './canvas';
 
 const { cols, rows } = CONFIG.board;
@@ -56,7 +58,9 @@ export function paintBoard(ctx: Canvas2D, view: BoardView, w: number, h: number)
 
   const { active: piece, ghostY } = view;
   if (piece && ghostY !== null) {
-    ctx.strokeStyle = PIECE_COLORS[piece.type];
+    const tint = tintFor(view.activeCurses ?? []);
+    const color = tint?.color ?? PIECE_COLORS[piece.type];
+    ctx.strokeStyle = color;
     ctx.globalAlpha = 0.55;
     ctx.lineWidth = 2;
     for (const [x, y] of pieceCells(piece.matrix, piece.x, ghostY)) {
@@ -64,9 +68,72 @@ export function paintBoard(ctx: Canvas2D, view: BoardView, w: number, h: number)
     }
     ctx.globalAlpha = 1;
     for (const [x, y] of pieceCells(piece.matrix, piece.x, piece.y)) {
-      if (y >= 0) paintCell(ctx, x, y, size, PIECE_COLORS[piece.type]);
+      if (y >= 0) paintCell(ctx, x, y, size, color);
     }
+    if (tint) paintTintMark(ctx, piece, size, tint, view.timeMs ?? 0);
   }
+}
+
+/** The first active curse that changes how the piece is drawn, if any. */
+function tintFor(active: readonly EffectType[]): PieceTint | undefined {
+  for (const type of active) {
+    const tint = PIECE_TINTS[type];
+    if (tint) return tint;
+  }
+  return undefined;
+}
+
+/**
+ * Marks a cursed piece so the player knows it is the curse: a pulsing veil over its cells,
+ * then either a dashed outline marching around it or static hatching across it.
+ */
+function paintTintMark(
+  ctx: Canvas2D,
+  piece: ActivePiece,
+  size: number,
+  tint: PieceTint,
+  timeMs: number,
+): void {
+  const cells = pieceCells(piece.matrix, piece.x, piece.y).filter(([, y]) => y >= 0);
+  if (cells.length === 0) return;
+  ctx.save();
+
+  // A slow pulse between the tint and the dark board, so the piece visibly throbs.
+  ctx.fillStyle = BG;
+  ctx.globalAlpha = 0.15 + 0.2 * (0.5 + 0.5 * Math.sin(timeMs / 160));
+  for (const [x, y] of cells) ctx.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = tint.color;
+  if (tint.mark === 'marching') {
+    const xs = cells.map(([x]) => x);
+    const ys = cells.map(([, y]) => y);
+    const left = Math.min(...xs) * size - 3;
+    const top = Math.min(...ys) * size - 3;
+    const right = (Math.max(...xs) + 1) * size + 3;
+    const bottom = (Math.max(...ys) + 1) * size + 3;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([size * 0.4, size * 0.25]);
+    ctx.lineDashOffset = -(timeMs / 25) % (size * 0.65);
+    ctx.strokeRect(left, top, right - left, bottom - top);
+  } else {
+    ctx.lineWidth = Math.max(1, size * 0.08);
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    for (const [x, y] of cells) {
+      const x0 = x * size + 1;
+      const y0 = y * size + 1;
+      const s = size - 2;
+      ctx.moveTo(x0, y0 + s);
+      ctx.lineTo(x0 + s, y0);
+      ctx.moveTo(x0, y0 + s / 2);
+      ctx.lineTo(x0 + s / 2, y0);
+      ctx.moveTo(x0 + s / 2, y0 + s);
+      ctx.lineTo(x0 + s, y0 + s / 2);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /** Trim empty rows/columns so small previews are centred. */
