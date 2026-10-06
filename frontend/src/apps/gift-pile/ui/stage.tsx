@@ -7,7 +7,7 @@ import { labels, testIds } from '../messages';
 import type { PileClient } from '../pile-client';
 import type { PileRenderer } from '../render/renderer';
 import type { WorldSize } from '../settings';
-import { Bin, BIN_SIZE, type BinPlace } from './bin';
+import { Bin, BIN_DROP_SIZE, type BinPlace } from './bin';
 
 interface Props {
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -53,7 +53,7 @@ export function Stage({ canvasRef, renderer, client, size }: Props) {
     const rect = event.currentTarget.getBoundingClientRect();
     const cx = event.clientX - rect.left;
     const cy = event.clientY - rect.top;
-    const half = BIN_SIZE / 2;
+    const half = BIN_DROP_SIZE / 2;
     const overBin =
       Math.abs(cx - bin.fx * rect.width) <= half && Math.abs(cy - bin.fy * rect.height) <= half;
     return {

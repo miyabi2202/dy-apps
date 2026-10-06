@@ -28,6 +28,10 @@ a resting icon out of the pile wakes the resting icons touching it from above, a
 that moves half a radius wakes the ones that rested on it in turn, so the pile settles into
 the gap. The renderer repaints only the removed icon's patch of the resting layer.
 
+The bin image (`public/bin/recycle-bin.png`) is the Windows-style
+[Recycle Bin icon by Icons8](https://icons8.com/icon/set/recycle-bin/color), used under their
+free licence, which asks for this link.
+
 ## TODO
 
 - A vacuum at the mouse for about a second, pulling nearby icons in. Icons need a velocity in any direction for this, not just a speed along their way down.
