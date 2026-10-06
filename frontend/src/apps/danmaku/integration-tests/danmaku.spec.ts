@@ -1,4 +1,4 @@
-import { fakeMessageAt } from '@dy-apps/services';
+import { fakeMessageAt, splitEmoji } from '@dy-apps/services';
 import { obsLinkText, sourcePanelText, testIds } from '@dy-apps/ui/messages';
 import { expect, test } from '@playwright/test';
 import { meta } from '../meta';
@@ -34,7 +34,19 @@ test('the OBS link plays the fake messages in order at the preview interval', as
     } else if (expected.likes) {
       await expect(card.getByText(`×${expected.likes}`, { exact: true })).toBeVisible();
     } else {
-      await expect(card.getByText(expected.text, { exact: true })).toBeVisible();
+      // `[名]` codes are drawn as images: the text runs read as one line, and the line's
+      // images are the codes in order.
+      const parts = splitEmoji(expected.text);
+      const text = parts.map((part) => ('text' in part ? part.text : '')).join('');
+      const line = card.getByText(text, { exact: true });
+      await expect(line).toBeVisible();
+      const emoji = parts.filter((part) => 'emoji' in part);
+      const images = line.getByRole('img');
+      await expect(images).toHaveCount(emoji.length);
+      for (const [j, part] of emoji.entries()) {
+        await expect(images.nth(j)).toHaveAttribute('alt', part.emoji);
+        await expect(images.nth(j)).toHaveAttribute('src', part.url);
+      }
     }
   }
 });

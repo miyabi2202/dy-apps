@@ -7,6 +7,8 @@ const config: StorybookConfig = {
     options: { builder: { viteConfigPath: 'config/storybook/vite.config.ts' } },
   },
   stories: ['../../src/ui/stories/*.stories.tsx'],
+  // The site's public/ (emoji images), served at the same paths as on the site.
+  staticDirs: ['../../public'],
 };
 
 export default config;

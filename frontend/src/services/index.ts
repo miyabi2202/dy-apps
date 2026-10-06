@@ -1,6 +1,7 @@
 export * from './demo-source';
 export * from './dyhub';
 export * from './dyhub-client';
+export * from './emoji';
 export * from './fake-messages';
 export * from './like-batcher';
 export * from './live-message';

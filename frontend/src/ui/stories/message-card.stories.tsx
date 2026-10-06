@@ -27,6 +27,13 @@ type Story = StoryObj<typeof meta>;
 
 export const Chat: Story = {};
 
+/** Douyin `[名]` codes drawn as images; an unknown code stays text. */
+export const Emoji: Story = {
+  args: {
+    message: { id: 'm5', user, text: '主播晚上好～[微笑][比心] 冲冲冲[666] [没有这个]', ts: 0 },
+  },
+};
+
 export const Gift: Story = {
   args: {
     message: { id: 'm2', user, text: '', gift: { name: '玫瑰', count: 66, diamonds: 1 }, ts: 0 },

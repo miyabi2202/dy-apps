@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useState, type AnimationEvent } from 'react';
 import { Avatar } from './avatar';
 import type { CardStyle } from './card-style';
+import { ChatText } from './chat-text';
 import { testIds } from './messages';
 
 interface Props {
@@ -91,7 +92,9 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
           <span {...stylex.props(styles.giftCount, styles.likeCount)}>×{message.likes}</span>
         </p>
       ) : (
-        <p {...stylex.props(styles.text)}>{message.text}</p>
+        <p {...stylex.props(styles.text)}>
+          <ChatText text={message.text} />
+        </p>
       )}
       {message.detail && (
         <p data-testid={testIds.detail} {...stylex.props(styles.detail)}>

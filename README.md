@@ -16,6 +16,7 @@ Small live-stream apps, served as one site: an index page at `/` and each app on
 ```text
 frontend/                 # @dy-apps/frontend: the one package
   index.html              #   the site's page
+  public/emoji/           #   Douyin's chat emoji images, served at /emoji/ (table in services/douyin-emoji.ts)
   wrangler.jsonc          #   Cloudflare Workers static-assets deploy (SPA fallback for deep links)
   src/
     main.tsx  apps.ts  …  #   the site: entry, index page, router; apps.ts registers each app's route

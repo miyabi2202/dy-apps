@@ -57,17 +57,18 @@ type FakeEvent = { user: string } & (
 );
 
 /**
- * Every fake message, written out whole. Mostly chat, about one in six a gift (single
+ * Every fake message, written out whole. The first few chats carry Douyin `[名]` emoji
+ * codes, so previews show the images. Mostly chat, about one in six a gift (single
  * ones and big combos) and one in eight likes, with the long names mixed in.
  */
 const EVENTS: readonly FakeEvent[] = [
-  { user: '奶茶不加糖', text: '来了来了！' },
-  { user: '夜猫子小王', text: '主播晚上好～' },
+  { user: '奶茶不加糖', text: '来了来了！[比心]' },
+  { user: '夜猫子小王', text: '主播晚上好～[微笑]' },
   { user: '快乐小狗', likes: 15 },
-  { user: '摸鱼大师', text: '666666' },
+  { user: '摸鱼大师', text: '666666[666][666]' },
   { user: '橘子汽水', gift: '小心心', count: 1 },
-  { user: '今天也要早睡', text: '哈哈哈哈哈哈哈哈' },
-  { user: '路过的程序员', text: '这波操作可以的 👍' },
+  { user: '今天也要早睡', text: '哈哈哈哈哈哈哈哈[捂脸]' },
+  { user: '路过的程序员', text: '这波操作可以的[鼓掌][鼓掌] 👍' },
   { user: '芝士就是力量', text: '前方高能预警' },
   { user: '今天也是努力搬砖争取早日实现财务自由的打工人', text: '第一次来，关注了' },
   { user: '一只咸鱼', text: '主播今天状态好好' },

@@ -85,7 +85,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     rolldownOptions: {
-      output: { codeSplitting: { groups: [...VENDOR_CHUNKS, LIB_CHUNKS, APP_CHUNKS] } },
+      output: {
+        codeSplitting: { groups: [...VENDOR_CHUNKS, LIB_CHUNKS, APP_CHUNKS] },
+      },
     },
   },
   server: { port: 5173 },

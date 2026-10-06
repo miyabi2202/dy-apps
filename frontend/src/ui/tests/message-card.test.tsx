@@ -33,6 +33,24 @@ describe('MessageCard', () => {
     expect(screen.getByText('666666').tagName).toBe('P');
   });
 
+  it("draws Douyin's [名] codes as images in the message, and leaves unknown ones as text", () => {
+    render(
+      <MessageCard
+        message={{ ...message, text: '晚上好[微笑][比心] [没有这个]' }}
+        settings={DEFAULT_CARD_STYLE}
+        animate={false}
+        onLanded={jest.fn()}
+      />,
+    );
+    const line = screen.getByText('晚上好 [没有这个]', { exact: true });
+    expect(line.tagName).toBe('P');
+    const images = [...line.querySelectorAll('img')];
+    expect(images.map((img) => [img.alt, img.getAttribute('src')])).toEqual([
+      ['[微笑]', '/emoji/smile.webp'],
+      ['[比心]', '/emoji/finger-heart.webp'],
+    ]);
+  });
+
   it('shows the fan-club level between the name and the message', () => {
     const { card } = renderCard({}, jest.fn(), { name: '甄选', level: 12 });
     const badge = screen.getByTestId('fans-club-level');
