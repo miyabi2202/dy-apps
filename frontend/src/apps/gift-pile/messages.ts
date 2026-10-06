@@ -12,7 +12,7 @@ export const testIds = {
 export const labels = {
   title: '嘉年华堆堆乐',
   subtitle: '输入数量，嘉年华从画面顶部落下，堆成一座山',
-  panel: '控制',
+  panel: '添加嘉年华',
   count: '数量',
   add: '添加',
   clear: '清空',

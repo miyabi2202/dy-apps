@@ -1,4 +1,4 @@
-import { Column, Page, Panel, text } from '@dy-apps/ui';
+import { Column, Grid, Page, Panel, text } from '@dy-apps/ui';
 import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState } from 'react';
@@ -10,6 +10,7 @@ import { PileRenderer } from './render/renderer';
 import { loadGiftIcon } from './render/sprite';
 import { sizeStore, type WorldSize } from './settings';
 import { ControlPanel, type PileStats } from './ui/control-panel';
+import { SizePanel } from './ui/size-panel';
 
 /** How often the counts on the panel refresh; the canvas itself redraws every frame. */
 const STATS_INTERVAL_MS = 200;
@@ -47,7 +48,8 @@ function useStats(client: PileClient): PileStats {
 }
 
 /**
- * The 嘉年华堆堆乐 route: a control panel above a canvas. Each 添加 drops that many icons in
+ * The 嘉年华堆堆乐 route: the canvas-size panel, then the adding panel (always last), above
+ * the canvas. Each 添加 drops that many icons in
  * from the top; they pile up on the floor and on each other. The physics runs in a worker
  * that starts when the page mounts and stops when it unmounts (so StrictMode's extra mount
  * in development just restarts it).
@@ -98,14 +100,15 @@ export function GiftPilePage() {
   return (
     <Page title={labels.title} subtitle={labels.subtitle} xstyle={styles.page}>
       <Column gap="lg">
-        <ControlPanel
-          stats={stats}
-          maxItems={PILE.maxItems}
-          onAdd={(count) => client.add(count)}
-          onClear={() => client.clear()}
-          size={size}
-          onResize={resize}
-        />
+        <Grid min={360} gap="lg">
+          <SizePanel size={size} onResize={resize} />
+          <ControlPanel
+            stats={stats}
+            maxItems={PILE.maxItems}
+            onAdd={(count) => client.add(count)}
+            onClear={() => client.clear()}
+          />
+        </Grid>
         <Panel xstyle={styles.stage}>
           <canvas
             ref={canvasRef}
