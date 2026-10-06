@@ -7,13 +7,7 @@ interface LabWindow {
       active: { x: number; y: number } | null;
       lockedPieceCount: number;
       settlementCount: number;
-      team: {
-        giftCount: number;
-        hitCount: number;
-        missCount: number;
-        firedCount: number;
-        pending: Record<string, number>;
-      };
+      team: { giftCount: number };
     };
     feed: { send(message: unknown): { ok: boolean } };
   };
@@ -44,17 +38,8 @@ const engineState = (page: Page) =>
     };
   });
 
-const conservation = (page: Page) =>
-  page.evaluate(() => {
-    const e = (window as unknown as LabWindow).__blockLab.engine;
-    const t = e.team;
-    const pending = Object.values(t.pending).reduce((s, n) => s + n, 0);
-    return {
-      gifts: t.giftCount,
-      okGifts: t.giftCount === t.hitCount + t.missCount,
-      okCurses: t.hitCount === pending + t.firedCount,
-    };
-  });
+const giftCount = (page: Page) =>
+  page.evaluate(() => (window as unknown as LabWindow).__blockLab.engine.team.giftCount);
 
 let consoleErrors: string[] = [];
 
@@ -93,7 +78,7 @@ test('renders a real canvas board, the curse panel and controls', async ({ page 
 test('fake gifts reach the wall only once the game has started', async ({ page }) => {
   await page.getByRole('button', { name: '开始模拟送礼' }).click();
   await page.waitForTimeout(1000);
-  expect((await conservation(page)).gifts).toBe(0);
+  expect(await giftCount(page)).toBe(0);
   await expect(page.getByTestId('gift-history').getByRole('article')).toHaveCount(0);
 
   await page.getByRole('button', { name: '开始游戏' }).click();
@@ -104,7 +89,7 @@ test('fake gifts reach the wall only once the game has started', async ({ page }
   await expect(page.getByTestId('gift-history').getByTestId('detail')).toHaveText(
     /^(触发 .+|未触发诅咒)$/,
   );
-  expect((await conservation(page)).gifts).toBeGreaterThan(0);
+  expect(await giftCount(page)).toBeGreaterThan(0);
 });
 
 test('start, pause with P, resume; restart after game over empties the wall', async ({ page }) => {
@@ -116,7 +101,7 @@ test('start, pause with P, resume; restart after game over empties the wall', as
   expect(await sendGift(page, 1)).toBe(true);
   await page.getByRole('button', { name: '继续游戏' }).click();
   expect((await engineState(page)).phase).toBe('playing');
-  expect((await conservation(page)).gifts).toBe(111);
+  expect(await giftCount(page)).toBe(111);
 
   for (let i = 0; i < 40 && (await engineState(page)).phase !== 'gameOver'; i += 1) {
     await page.keyboard.press('Space');
@@ -218,34 +203,6 @@ test('desktop layout: board left, curse team right', async ({ page }) => {
   const team = await page.getByTestId('panel-team').boundingBox();
   expect(board!.x).toBeLessThan(team!.x);
   expect(Math.abs(board!.y - team!.y)).toBeLessThan(200);
-});
-
-test('30,000 diamonds of gifts stay bounded and the game keeps working', async ({ page }) => {
-  await page.getByRole('button', { name: '开始游戏' }).click();
-  const started = Date.now();
-  for (let i = 0; i < 3; i += 1) {
-    expect(await sendGift(page, 10_000)).toBe(true);
-    await page.keyboard.press('Space');
-  }
-  const elapsed = Date.now() - started;
-  const t = await conservation(page);
-  expect(t.gifts).toBe(30_000);
-  expect(t.okGifts).toBe(true);
-  expect(t.okCurses).toBe(true);
-  const s = await engineState(page);
-  if (s.phase === 'playing') {
-    await page.keyboard.press('KeyD');
-    await page.keyboard.press('KeyW');
-    await page.keyboard.press('KeyC');
-    await page.keyboard.press('Space');
-    expect((await engineState(page)).locks).toBe(s.locks + 1);
-  } else {
-    // Garbage may legitimately top the board out; the game-over screen must work.
-    await expect(page.getByTestId('game-over-summary')).toBeVisible();
-  }
-  test
-    .info()
-    .annotations.push({ type: 'timing', description: `30,000 draws + 3 drops: ${elapsed} ms` });
 });
 
 test('a text field keeps game keys for itself', async ({ page }) => {

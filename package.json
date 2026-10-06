@@ -13,7 +13,7 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint --max-warnings 0 .",
     "test": "pnpm -r test",
-    "test:e2e": "pnpm -r test:e2e",
+    "test:integration": "pnpm -r test:integration",
     "storybook": "pnpm --filter @dy-apps/ui storybook",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

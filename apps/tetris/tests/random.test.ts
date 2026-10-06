@@ -1,5 +1,5 @@
-import { PIECE_TYPES, BagGenerator } from '../../src/core/pieces';
-import { mulberry32, randomInt, sequenceRng } from '../../src/core/random';
+import { PIECE_TYPES, BagGenerator } from '../src/core/pieces';
+import { mulberry32, randomInt, sequenceRng } from '../src/core/random';
 
 describe('random sources', () => {
   it('mulberry32 is reproducible for the same seed', () => {

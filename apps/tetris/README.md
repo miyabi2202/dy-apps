@@ -18,10 +18,10 @@ This app is the `@dy-apps/tetris` package in the repo's pnpm workspace. It has n
 pnpm install        # at the repo root
 pnpm typecheck      # tsc
 pnpm lint           # ESLint (root eslint.config.js)
-pnpm test           # Jest: unit, integration and stress tests
+pnpm test           # Jest unit tests
 ```
 
-To play or run browser tests, use the site from the repo root: `pnpm dev` (then open http://localhost:5173/tetris) and `pnpm test:e2e`. The game's Playwright tests live in `site/tests/e2e/tetris.spec.ts`.
+To play or run browser tests, use the site from the repo root: `pnpm dev` (then open http://localhost:5173/tetris) and `pnpm test:integration`. The game's Playwright tests live in `site/tests/integration/tetris.spec.ts`.
 
 Formatting is repo-wide: `pnpm format` / `pnpm format:check` at the root.
 
@@ -83,10 +83,8 @@ src/
   render/board.ts         # Canvas 2D board and previews, devicePixelRatio aware
   loop.ts                 # rAF loop, frame clamp, auto-pause when hidden
   ui/                     # React + StyleX: app.tsx (config page), obs-view.tsx, panels
-tests/
-  unit/            # engine rules, acceptance examples A–G
-  integration/     # React UI (Testing Library), 30k-gift stress
-                   # (Playwright e2e: site/tests/e2e/tetris.spec.ts)
+tests/             # Jest: engine rules, acceptance examples A–G, gift feed, config
+                   # (Playwright integration tests: site/tests/integration/tetris.spec.ts)
 ```
 
 The engine updates the board every frame. The React panels re-render only when the engine bumps its `version` (gifts, locks, phase changes, holds). Movement and gravity don't trigger re-renders.
@@ -95,21 +93,18 @@ The engine updates the board every frame. The React panels re-render only when t
 
 - **Unit (Jest):** covers the 7-bag, collision, movement, rotation and kicks, the ghost piece, scoring, gravity remainder, 500 ms lock delay, the 12-reset limit, and free air moves. It also covers hold, seal, fog, settling every 3 locks with each pending curse firing once, empty queues, top-out, line clears leaving pending garbage alone, three-piece fog/seal, permanent stacking haste, the bounded gift history, pause, and gift rules by phase. Spec §14 examples A, F and G have tests; B, C, D and E described the energy queue, the bless team and line-clear cancellation, which no longer exist. Probability tests use fixed RNG sequences, so none of them can fail at random.
 - **Gift feed and config (Jest):** one draw per diamond, combos adding up on one card, gifts bigger than a batch, no gifts before start or after game over; `TetrisConfig` from the URL and localStorage, clamping, and the OBS link round trip.
-- **Integration (Jest + Testing Library):** fake gifts ignored before start, then cards with their curses and pending counts in the real UI, gifts that trigger nothing, start/pause/resume, restarting after game over, the live source's port and room validation, the OBS link, and keyboard focus after button clicks.
-- **Stress:** 30,000+ gifts in mixed batch sizes, with 0–5 locks between batches. Conservation and bounded history/log are checked after every batch, and the game is checked to still be playable afterwards.
-- **E2E (Playwright, Chromium):** real Canvas pixels and DPR sizing, fake gifts reaching the wall only after start, phase controls and restart, WASD/Space after clicking a button with no scroll, DAS/ARR hold, rapid hard drops, auto-pause on hidden with no catch-up, 320 px and desktop layouts, 30,000 draws, focus handling for text fields, and the OBS page. Every test also asserts there were no console errors.
+- **Integration (Playwright, Chromium, against the production build):** real Canvas pixels and DPR sizing, fake gifts reaching the wall only after start, phase controls and restart, WASD/Space after clicking a button with no scroll, DAS/ARR hold, rapid hard drops, auto-pause on hidden with no catch-up, 320 px and desktop layouts, focus handling for text fields, and the OBS page. Every test also asserts there were no console errors.
 
 ### Recorded results
 
 Measured on 2026-10-06 on an Apple M1 Max (macOS 26.6), Node 25.9, Chromium (Playwright 1.63 headless shell):
 
-| Suite                            | Result                                       |
-| -------------------------------- | -------------------------------------------- |
-| `pnpm test` (Jest, this package) | 71 / 71 passed                               |
-| `pnpm test:e2e` (Chromium)       | 12 / 12 passed (tetris and the site)         |
-| E2E stress                       | 30,000 draws (3 × 10,000 diamonds) + drops   |
-| One 嘉年华 ×1314 (39.4M draws)   | ≈ 0.9 s on the main thread (see limitations) |
-| `pnpm build` (Vite)              | succeeds                                     |
+| Suite                            | Result                                         |
+| -------------------------------- | ---------------------------------------------- |
+| `pnpm test` (Jest, this package) | 71 / 71 passed                                 |
+| `pnpm test:integration`          | 11 / 11 passed (Chromium, tetris and the site) |
+| One 嘉年华 ×1314 (39.4M draws)   | ≈ 0.9 s on the main thread (see limitations)   |
+| `pnpm build` (Vite)              | succeeds                                       |
 
 These timings depend on the hardware. **Windows, Edge and Firefox were not tested.** Only Chromium on macOS was run.
 

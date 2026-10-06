@@ -1,9 +1,9 @@
-import { CONFIG, EFFECT_POOL } from '../../src/core/config';
-import { GameEngine } from '../../src/core/game';
-import { processGiftBatch } from '../../src/core/gifts';
-import { createTeam, isConserved, pendingTotal } from '../../src/core/interventions';
-import { constantRng, mulberry32, sequenceRng } from '../../src/core/random';
-import type { GiftBatchResult } from '../../src/core/types';
+import { CONFIG, EFFECT_POOL } from '../src/core/config';
+import { GameEngine } from '../src/core/game';
+import { processGiftBatch } from '../src/core/gifts';
+import { createTeam, isConserved, pendingTotal } from '../src/core/interventions';
+import { constantRng, mulberry32, sequenceRng } from '../src/core/random';
+import type { GiftBatchResult } from '../src/core/types';
 
 function checkBatchAccounting(r: GiftBatchResult) {
   expect(r.count).toBe(r.hits + r.misses);

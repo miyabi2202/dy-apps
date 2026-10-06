@@ -1,9 +1,9 @@
-import { createBoard } from '../../src/core/board';
-import { CONFIG } from '../../src/core/config';
-import { GameEngine } from '../../src/core/game';
-import { createPiece } from '../../src/core/pieces';
-import { constantRng, sequenceRng } from '../../src/core/random';
-import { boardWithRows, dropOnEmpty, setActive, startedEngine } from '../helpers';
+import { createBoard } from '../src/core/board';
+import { CONFIG } from '../src/core/config';
+import { GameEngine } from '../src/core/game';
+import { createPiece } from '../src/core/pieces';
+import { constantRng, sequenceRng } from '../src/core/random';
+import { boardWithRows, dropOnEmpty, setActive, startedEngine } from './helpers';
 
 const { rows, cols } = CONFIG.board;
 

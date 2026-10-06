@@ -2,12 +2,12 @@ import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Chromium e2e against a production build: runs `vite build` + `vite preview`
- * in `appRoot`, with tests in `<appRoot>/tests/e2e`.
+ * Chromium integration tests against a production build: runs `vite build` + `vite preview`
+ * in `appRoot`, with tests in `<appRoot>/tests/integration`.
  */
 export function createPlaywrightConfig({ appRoot, port = 4173 }) {
   return defineConfig({
-    testDir: path.join(appRoot, 'tests/e2e'),
+    testDir: path.join(appRoot, 'tests/integration'),
     outputDir: path.join(appRoot, 'test-results'),
     fullyParallel: true,
     forbidOnly: !!process.env.CI,

@@ -1,5 +1,5 @@
 import { DEFAULT_CARD_STYLE, type CardStyle } from '@dy-apps/ui';
-import { loadSettings, saveSettings } from '../../src/settings';
+import { loadSettings, saveSettings } from '../src/settings';
 
 const STORAGE_KEY = 'dy-apps:danmaku.settings';
 

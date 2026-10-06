@@ -1,6 +1,6 @@
 import type { DanmakuMessage, DyhubSocket, LiveRoom } from '@dy-apps/services';
 import { act, renderHook } from '@testing-library/react';
-import { createDyhubClient, useDyhub } from '../../src/use-dyhub';
+import { createDyhubClient, useDyhub } from '../src/use-dyhub';
 
 /** The page's real DyhubClients on fake sockets, so the test can send DyHub frames. */
 function fakeClients() {

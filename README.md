@@ -17,7 +17,7 @@ pnpm monorepo of small live-stream apps, served as one site: an index page at `/
 ```text
 site/                 # the one deployed app: index page + a lazily loaded route per app
   src/apps.ts         #   registry of apps (path, title, description, lazy page import)
-  tests/e2e/          #   Playwright against the production build
+  tests/integration/  #   Playwright against the production build
   wrangler.jsonc      #   Cloudflare Workers static-assets deploy (SPA fallback for deep links)
 apps/<name>/          # one package per app: exports its page component and a tiny `meta`
 config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
@@ -90,7 +90,7 @@ pnpm build          # build the site (type-check + Vite) → site/dist/
 pnpm typecheck      # tsc in every package
 pnpm lint           # ESLint, whole repo
 pnpm test           # Jest in every package
-pnpm test:e2e       # Playwright against the built site (run `pnpm --filter @dy-apps/site exec playwright install chromium` once)
+pnpm test:integration # Playwright against the built site (run `pnpm --filter @dy-apps/site exec playwright install chromium` once)
 pnpm storybook      # @dy-apps/ui components and tokens in Storybook → http://localhost:6006
 pnpm format         # Prettier, whole repo (format:check to verify)
 pnpm check          # format:check + typecheck + lint + test

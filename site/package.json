@@ -9,7 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:integration": "playwright test"
   },
   "dependencies": {
     "@dy-apps/danmaku": "workspace:*",

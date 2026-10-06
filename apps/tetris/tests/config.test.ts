@@ -1,4 +1,4 @@
-import { configToParams, readConfig, saveConfig, type TetrisConfig } from '../../src/config';
+import { configToParams, readConfig, saveConfig, type TetrisConfig } from '../src/config';
 
 beforeEach(() => localStorage.clear());
 

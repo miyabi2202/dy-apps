@@ -1,9 +1,9 @@
 import type { DanmakuMessage } from '@dy-apps/services';
-import { CONFIG } from '../../src/core/config';
-import { GameEngine } from '../../src/core/game';
-import { constantRng } from '../../src/core/random';
-import { GiftFeed } from '../../src/gift-feed';
-import { forceEffectRng } from '../helpers';
+import { CONFIG } from '../src/core/config';
+import { GameEngine } from '../src/core/game';
+import { constantRng } from '../src/core/random';
+import { GiftFeed } from '../src/gift-feed';
+import { forceEffectRng } from './helpers';
 
 const gift = (id: string, count: number, diamonds?: number): DanmakuMessage => ({
   id,

@@ -4,8 +4,8 @@ import {
   isConserved,
   pendingTotal,
   settleTeam,
-} from '../../src/core/interventions';
-import type { EffectType, TeamState } from '../../src/core/types';
+} from '../src/core/interventions';
+import type { EffectType, TeamState } from '../src/core/types';
 
 function hit(team: TeamState, type: EffectType, times = 1) {
   for (let i = 0; i < times; i += 1) {
