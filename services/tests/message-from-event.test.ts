@@ -1,5 +1,5 @@
-import { GiftCounter, type DyhubEvent } from '@dy-apps/services';
-import { likeMessage, messageFromEvent } from '../../src/dyhub';
+import { GiftCounter, type DyhubEvent } from '../src/dyhub';
+import { likeMessage, messageFromEvent } from '../src/live-message';
 
 const dyhubUser = {
   id: 'u1',

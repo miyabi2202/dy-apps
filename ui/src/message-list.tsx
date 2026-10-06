@@ -1,18 +1,18 @@
+import type { DanmakuMessage } from '@dy-apps/services';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@dy-apps/ui';
-import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { Settings } from '../settings';
-import type { DanmakuMessage } from '../types';
+import { Button } from './button';
+import type { CardStyle } from './card-style';
 import { MessageCard } from './message-card';
+import { colors, fontSize, radius, space } from './tokens.stylex';
 
 /** How close to the bottom (px) still counts as following new messages. */
 const STICK_THRESHOLD = 40;
 
 interface Props {
   messages: readonly DanmakuMessage[];
-  settings: Settings;
+  settings: CardStyle;
   /** Hide the scrollbar (for OBS). */
   bare?: boolean;
 }

@@ -1,30 +1,26 @@
 import {
+  BORDER_LABELS,
+  BORDER_STYLES,
   Checkbox,
-  CopyButton,
   Field,
+  FONT_PRESETS,
   Grid,
   Input,
+  ObsLink,
   Panel,
-  Row,
+  RANGES,
   Select,
   Slider,
-  text,
+  type CardStyle,
+  type FontKey,
 } from '@dy-apps/ui';
 import { radius } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import type { ReactNode } from 'react';
-import {
-  BORDER_LABELS,
-  BORDER_STYLES,
-  FONT_PRESETS,
-  RANGES,
-  type FontKey,
-  type Settings,
-} from '../settings';
 
 interface Props {
-  settings: Settings;
-  onChange: (patch: Partial<Settings>) => void;
+  settings: CardStyle;
+  onChange: (patch: Partial<CardStyle>) => void;
   obsUrl: string;
   /** The demo panel, shown first. */
   demo: ReactNode;
@@ -46,7 +42,7 @@ export function Controls(props: Props) {
           <Field label="样式">
             <Select
               value={settings.border}
-              onChange={(e) => onChange({ border: e.target.value as Settings['border'] })}
+              onChange={(e) => onChange({ border: e.target.value as CardStyle['border'] })}
             >
               {BORDER_STYLES.map((b) => (
                 <option key={b} value={b}>
@@ -137,32 +133,17 @@ export function Controls(props: Props) {
         </Panel>
 
         <Panel title="OBS" gap="md">
-          <ObsLink url={props.obsUrl} />
+          <ObsLink url={props.obsUrl}>
+            在 OBS
+            中添加「浏览器」来源并粘贴此链接，背景透明，宽高即弹幕区域大小。预览进行中复制的链接会自动开始同样的预览：模拟数据，或连接同一直播间。
+          </ObsLink>
         </Panel>
       </Grid>
     </section>
   );
 }
 
-function ObsLink({ url }: { url: string }) {
-  return (
-    <>
-      <Row gap="md">
-        <Input readOnly aria-label="OBS 链接" value={url} onFocus={(e) => e.target.select()} />
-        <CopyButton value={url} xstyle={styles.noShrink} />
-      </Row>
-      <p {...stylex.props(text.muted, styles.hint)}>
-        在 OBS
-        中添加「浏览器」来源并粘贴此链接，背景透明，宽高即弹幕区域大小。预览进行中复制的链接会自动开始同样的预览：模拟数据，或连接同一直播间。
-      </p>
-    </>
-  );
-}
-
 const styles = stylex.create({
-  noShrink: {
-    flexShrink: 0,
-  },
   swatch: {
     borderRadius: radius.pill,
     flexShrink: 0,
@@ -170,8 +151,4 @@ const styles = stylex.create({
     width: 14,
   },
   swatchColor: (color: string) => ({ backgroundColor: color }),
-  hint: {
-    margin: 0,
-    lineHeight: 1.5,
-  },
 });

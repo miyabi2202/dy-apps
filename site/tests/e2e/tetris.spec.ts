@@ -15,8 +15,23 @@ interface LabWindow {
         pending: Record<string, number>;
       };
     };
+    feed: { send(message: unknown): { ok: boolean } };
   };
 }
+
+/** One viewer's gift worth `diamonds`, straight into the gift feed: one draw per diamond. */
+const sendGift = (page: Page, diamonds: number, id = String(Math.random())) =>
+  page.evaluate(
+    ({ diamonds, id }) =>
+      (window as unknown as LabWindow).__blockLab.feed.send({
+        id,
+        user: { id: 'u1', nickname: '阿杰' },
+        text: '',
+        gift: { name: '玫瑰', count: 1, diamonds },
+        ts: 0,
+      }).ok,
+    { diamonds, id },
+  );
 
 const engineState = (page: Page) =>
   page.evaluate(() => {
@@ -75,21 +90,33 @@ test('renders a real canvas board, the curse panel and controls', async ({ page 
   expect(colours.width).toBe(Math.round(colours.cssWidth * colours.dpr));
 });
 
-test('gift buttons, start, pause, resume and restart with confirmation', async ({ page }) => {
-  await page.getByRole('button', { name: '送 10 份星光' }).click();
-  await page.getByRole('button', { name: '送 100 份星光' }).click();
-  const history = page.getByTestId('gift-history');
-  await expect(history).toContainText('foo 送出 100 份星光');
-  await expect(history).toContainText('foo 送出 10 份星光');
-  expect((await conservation(page)).gifts).toBe(110);
+test('fake gifts reach the wall only once the game has started', async ({ page }) => {
+  await page.getByRole('button', { name: '开始送礼' }).click();
+  await page.waitForTimeout(1000);
+  expect((await conservation(page)).gifts).toBe(0);
+  await expect(page.getByTestId('gift-history').getByRole('article')).toHaveCount(0);
 
   await page.getByRole('button', { name: '开始游戏' }).click();
-  expect((await engineState(page)).phase).toBe('playing');
+  // The first fake gift comes 300 ms after starting the source, the rest every 10 s or so.
+  await page.getByRole('button', { name: '停止送礼' }).click();
+  await page.getByRole('button', { name: '开始送礼' }).click();
+  await expect(page.getByTestId('gift-history').getByRole('article')).toHaveCount(1);
+  await expect(page.getByTestId('gift-history').getByTestId('detail')).toHaveText(
+    /^(触发 .+|未触发诅咒)$/,
+  );
+  expect((await conservation(page)).gifts).toBeGreaterThan(0);
+});
+
+test('start, pause, resume; restart asks only while a game is in progress', async ({ page }) => {
+  await page.getByRole('button', { name: '开始游戏' }).click();
+  expect(await sendGift(page, 110)).toBe(true);
+  await expect(page.getByTestId('gift-history')).toContainText('阿杰');
   await page.getByRole('button', { name: '暂停' }).click();
   await expect(page.getByTestId('overlay-paused')).toBeVisible();
-  await page.getByRole('button', { name: '送 1 份星光' }).click();
+  expect(await sendGift(page, 1)).toBe(true);
   await page.getByRole('button', { name: '继续游戏' }).click();
   expect((await engineState(page)).phase).toBe('playing');
+  expect((await conservation(page)).gifts).toBe(111);
 
   await page.getByRole('button', { name: '重新开始' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -98,15 +125,23 @@ test('gift buttons, start, pause, resume and restart with confirmation', async (
   await page.getByRole('button', { name: '重新开始' }).click();
   await page.getByRole('button', { name: '确认重开' }).click();
   expect((await engineState(page)).phase).toBe('ready');
-  await expect(page.getByTestId('gift-history')).toContainText('尚未送礼');
+  await expect(page.getByTestId('gift-history').getByRole('article')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '开始游戏' }).click();
+  for (let i = 0; i < 40 && (await engineState(page)).phase !== 'gameOver'; i += 1) {
+    await page.keyboard.press('Space');
+  }
+  await page.getByTestId('overlay-gameOver').getByRole('button', { name: '重新开始' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect((await engineState(page)).phase).toBe('ready');
 });
 
-test('WASD and space control the board after clicking a gift button, without scrolling', async ({
+test('WASD and space control the board after clicking a button, without scrolling', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
   await page.getByRole('button', { name: '开始游戏' }).click();
-  await page.getByRole('button', { name: '送 1 份星光' }).click();
+  await page.getByRole('button', { name: '开始送礼' }).click();
   const scrollBefore = await page.evaluate(() => window.scrollY);
   const before = await engineState(page);
 
@@ -120,8 +155,8 @@ test('WASD and space control the board after clicking a gift button, without scr
   const after = await engineState(page);
   expect(after.locks).toBe(1);
   expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
-  // Space was consumed by the game, not by the focused gift button.
-  expect((await conservation(page)).gifts).toBe(1);
+  // Space was consumed by the game, not by the focused button.
+  await expect(page.getByRole('button', { name: '停止送礼' })).toBeVisible();
 });
 
 test('holding a move key auto-repeats with DAS/ARR', async ({ page }) => {
@@ -195,12 +230,11 @@ test('desktop layout: board left, curse team right', async ({ page }) => {
   expect(Math.abs(board!.y - team!.y)).toBeLessThan(200);
 });
 
-test('30,000 gifts through the UI stay bounded and the game keeps working', async ({ page }) => {
+test('30,000 diamonds of gifts stay bounded and the game keeps working', async ({ page }) => {
   await page.getByRole('button', { name: '开始游戏' }).click();
-  await page.getByRole('spinbutton', { name: '自定义份数' }).fill('10000');
   const started = Date.now();
   for (let i = 0; i < 3; i += 1) {
-    await page.getByRole('button', { name: '送出自定义份数' }).click();
+    expect(await sendGift(page, 10_000)).toBe(true);
     await page.keyboard.press('Space');
   }
   const elapsed = Date.now() - started;
@@ -221,14 +255,34 @@ test('30,000 gifts through the UI stay bounded and the game keeps working', asyn
   }
   test
     .info()
-    .annotations.push({ type: 'timing', description: `30,000 gifts + 3 drops: ${elapsed} ms` });
+    .annotations.push({ type: 'timing', description: `30,000 draws + 3 drops: ${elapsed} ms` });
 });
 
-test('custom count input keeps game keys for itself', async ({ page }) => {
+test('a text field keeps game keys for itself', async ({ page }) => {
   await page.getByRole('button', { name: '开始游戏' }).click();
+  await page.getByRole('combobox', { name: '数据来源' }).selectOption('live');
   const before = await engineState(page);
-  await page.getByRole('spinbutton', { name: '自定义份数' }).click();
+  await page.getByRole('textbox', { name: '直播间号' }).click();
   await page.keyboard.press('KeyA');
   await page.keyboard.press('KeyA');
   expect((await engineState(page)).active!.x).toBe(before.active!.x);
+});
+
+test('the OBS page shows the game and gift wall on a transparent page', async ({ page }) => {
+  const link = await page.getByRole('textbox', { name: 'OBS 链接' }).inputValue();
+  expect(link).toContain('obs=1');
+  await page.goto(`${link}&seed=1`);
+  await expect(page.getByTestId('board')).toBeVisible();
+  await expect(page.getByTestId('panel-team')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '方块干预实验室' })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: '数据来源' })).toHaveCount(0);
+  await expect(page.getByRole('group', { name: '鼠标/触屏操作' })).toHaveCount(0);
+  const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(background).toBe('rgba(0, 0, 0, 0)');
+
+  // Played through OBS's 交互 window: Enter starts, and the link's fake gifts arrive.
+  await page.keyboard.press('Enter');
+  expect((await engineState(page)).phase).toBe('playing');
+  expect(await sendGift(page, 5)).toBe(true);
+  await expect(page.getByTestId('gift-history').getByRole('article')).toHaveCount(1);
 });

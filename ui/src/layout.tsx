@@ -60,7 +60,7 @@ interface GridProps extends Omit<ComponentProps<'div'>, 'className' | 'style'> {
   gap?: Space;
   /** Fixed number of equal columns. */
   columns?: number;
-  /** Otherwise: as many columns as fit, each at least this wide (px). */
+  /** Otherwise: as many columns as fit, each at least this wide (px) or the full width if less. */
   min?: number;
   xstyle?: stylex.StyleXStyles;
 }
@@ -86,7 +86,10 @@ const styles = stylex.create({
   wrap: { flexWrap: 'wrap' },
   grid: { display: 'grid' },
   columns: (n: number) => ({ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }),
-  fit: (min: number) => ({ gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))` }),
+  // Capped at 100% so a column wider than a narrow screen shrinks instead of overflowing.
+  fit: (min: number) => ({
+    gridTemplateColumns: `repeat(auto-fit, minmax(min(${min}px, 100%), 1fr))`,
+  }),
 });
 
 /** `gap` for each spacing step; Panel reuses it. */

@@ -1,18 +1,21 @@
+import { hueFor, type DanmakuGift, type DanmakuMessage } from '@dy-apps/services';
 import * as stylex from '@stylexjs/stylex';
 import { useState, type AnimationEvent } from 'react';
-import type { Settings } from '../settings';
-import { hueFor, type DanmakuGift, type DanmakuMessage } from '../types';
 import { Avatar } from './avatar';
+import type { CardStyle } from './card-style';
 
 interface Props {
   message: DanmakuMessage;
-  settings: Settings;
+  settings: CardStyle;
   /** Play the fly-in. False once it has played, so scrolling back doesn't replay it. */
   animate: boolean;
   onLanded: () => void;
 }
 
-/** One message: a tall avatar on the left, the name above the text beside it, inside a styled border. */
+/**
+ * One message: a tall avatar on the left, the name above the text beside it, inside a styled
+ * border. A `detail` goes on a smaller line underneath.
+ */
 export function MessageCard({ message, settings, animate, onLanded }: Props) {
   const { border, borderWidth: w, radius, opacity } = settings;
   const hue = settings.perUser ? hueFor(message.user.id) : settings.hue;
@@ -88,6 +91,11 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
         </p>
       ) : (
         <p {...stylex.props(styles.text)}>{message.text}</p>
+      )}
+      {message.detail && (
+        <p data-testid="detail" {...stylex.props(styles.detail)}>
+          {message.detail}
+        </p>
       )}
     </article>
   );
@@ -177,7 +185,7 @@ const styles = stylex.create({
   card: {
     borderColor: 'transparent',
     borderStyle: 'solid',
-    gridTemplateAreas: '"avatar name" "avatar text"',
+    gridTemplateAreas: '"avatar name" "avatar text" ". detail"',
     paddingBlock: '0.5em',
     paddingInline: '0.75em',
     color: '#f8fafc',
@@ -310,5 +318,15 @@ const styles = stylex.create({
     textShadow: '0 1px 2px rgba(0, 0, 0, 0.6)',
     marginBottom: 0,
     marginTop: '0.3em',
+  },
+  detail: {
+    gridArea: 'detail',
+    fontSize: '0.8em',
+    lineHeight: 1.4,
+    opacity: 0.85,
+    overflowWrap: 'anywhere',
+    textShadow: '0 1px 2px rgba(0, 0, 0, 0.6)',
+    marginBottom: 0,
+    marginTop: '0.25em',
   },
 });

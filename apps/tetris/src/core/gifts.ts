@@ -17,7 +17,7 @@ export function isValidProbability(p: unknown): p is number {
 }
 
 /**
- * Resolve a batch of 星光 gifts one at a time, in order, using the probability
+ * Resolve a batch of draws (one per diamond of gifts) one at a time, in order, using the probability
  * snapshot `probability`. Each gift: `u < p` hits, then a second draw picks one
  * of the four curse effects uniformly.
  */

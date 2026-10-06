@@ -2,15 +2,15 @@
 
 pnpm monorepo of small live-stream apps, served as one site: an index page at `/` and each app on its own route.
 
-| Package                                    | Path                | What it is                                                                        |
-| ------------------------------------------ | ------------------- | --------------------------------------------------------------------------------- |
-| [`@dy-apps/site`](site)                    | `site/`             | The deployed SPA: index page, React Router, Vite build, Workers                   |
-| [`@dy-apps/tetris`](apps/tetris)           | `apps/tetris/`      | 方块干预实验室 at `/tetris`: block game with audience curses                      |
-| [`@dy-apps/danmaku`](apps/danmaku)         | `apps/danmaku/`     | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                            |
-| [`@dy-apps/dyhub-guide`](apps/dyhub-guide) | `apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers                         |
-| [`@dy-apps/config`](config)                | `config/`           | Shared Vite, Jest, Playwright and Browserslist presets                            |
-| [`@dy-apps/services`](services)            | `services/`         | Shared non-UI code: the DyHub client, room settings and localStorage values       |
-| [`@dy-apps/ui`](ui)                        | `ui/`               | Shared design tokens and components (Button, Panel, Field, Row/Column/Grid, Page) |
+| Package                                    | Path                | What it is                                                                       |
+| ------------------------------------------ | ------------------- | -------------------------------------------------------------------------------- |
+| [`@dy-apps/site`](site)                    | `site/`             | The deployed SPA: index page, React Router, Vite build, Workers                  |
+| [`@dy-apps/tetris`](apps/tetris)           | `apps/tetris/`      | 方块干预实验室 at `/tetris`: block game with audience curses                     |
+| [`@dy-apps/danmaku`](apps/danmaku)         | `apps/danmaku/`     | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                           |
+| [`@dy-apps/dyhub-guide`](apps/dyhub-guide) | `apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers                        |
+| [`@dy-apps/config`](config)                | `config/`           | Shared Vite, Jest, Playwright and Browserslist presets                           |
+| [`@dy-apps/services`](services)            | `services/`         | Shared non-UI code: the DyHub client, messages, fake data and saved settings     |
+| [`@dy-apps/ui`](ui)                        | `ui/`               | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
 
 ## Layout
 
@@ -22,9 +22,12 @@ site/                 # the one deployed app: index page + a lazily loaded route
 apps/<name>/          # one package per app: exports its page component and a tiny `meta`
 config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
 services/             # @dy-apps/services: shared non-UI code (TS source, no build step)
+  src/demo-source.ts  #   fake or live source, the fake interval and `?demo=` in OBS links
   src/dyhub-client.ts #   DyhubClient: onComment / onGift / onLike / onStatus, with retry
   src/dyhub.ts        #   the raw stream (connectDyhub), port/room validation, GiftCounter, status text
+  src/fake-messages.ts #  made-up viewers, chat and gifts for previews
   src/like-batcher.ts #   LikeBatcher: one total per viewer once they stop liking
+  src/live-message.ts #   DanmakuMessage, and DyHub events turned into messages
   src/live-room.ts    #   liveRoomFrom, the room in OBS links, createConnectionStore
   src/local-storage.ts #  createStore for `dy-apps:<app>.<key>` values
 ui/                   # @dy-apps/ui: design tokens + the components every app reuses (TS source, no build step)
@@ -69,7 +72,7 @@ It needs Node.js 20+ and Chrome installed. Log in once from the console (网页�
 
 Apps connect through [`@dy-apps/services`](services) to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (DyHub's default is `8757`) and the room ID (the number in `live.douyin.com/<id>`), and DyHub starts collecting that room. The address is always `localhost`, so DyHub must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
 
-Status: the tetris page's DyHub panel connects and logs chat and gift events. The danmaku overlay doesn't connect yet and only shows demo messages.
+Status: both apps pick fake data or a live room in their 数据来源 panel. The danmaku wall shows the room's chat, gifts and likes; tetris turns its gifts into curses, one draw per diamond.
 
 ## Requirements
 
@@ -136,6 +139,7 @@ The presets are plain JavaScript with `.d.ts` types, because Jest can't load a T
 `@dy-apps/ui` keeps every app on one design language. It holds only what more than one app actually uses:
 
 - **Tokens** in `@dy-apps/ui/tokens.stylex`: `colors`, `space`, `radius`, `fontSize`, `fonts`. Import them from that path directly, not through the package index; StyleX resolves variables by the file that defines them.
-- **Components**: `Button` (`default` / `primary` / `danger`), `Panel`, `Field` with `Input` / `Select` (and `useFieldId` for custom controls), `Row` / `Column` / `Grid` for spacing, `Page` for an app's root, and `text.muted` / `text.caption` styles.
+- **Components**: `Button` (`default` / `primary` / `danger`), `Panel`, `Field` with `Input` / `Select` and an optional `hint` (and `useFieldId` for custom controls), `Slider`, `Row` / `Column` / `Grid` for spacing, `Page` for an app's root, and `text.muted` / `text.caption` styles.
+- **Live-stream pieces**: `MessageCard` and `MessageList` (the 弹幕墙 cards, styled by a `CardStyle`), `SourcePanel` with `useDemo` (fake or live data), `ConnectionForm` and `ObsLink`.
 
 Browse them with `pnpm storybook`; stories live in `ui/src/stories/`, unit tests in `ui/tests/`. Every component takes an `xstyle` prop for one-off tweaks. Styles that stay inside an app (a game board, an overlay card) still use the tokens for colour, padding and radius rather than literal values.

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { DEFAULT_SETTINGS, type Settings } from '../../src/settings';
-import type { DanmakuMessage, DanmakuUser } from '../../src/types';
-import { MessageCard } from '../../src/ui/message-card';
+import type { DanmakuMessage, DanmakuUser } from '@dy-apps/services';
+import { DEFAULT_CARD_STYLE, type CardStyle } from '../src/card-style';
+import { MessageCard } from '../src/message-card';
 
 const message: DanmakuMessage = {
   id: 'm1',
@@ -11,14 +11,14 @@ const message: DanmakuMessage = {
 };
 
 function renderCard(
-  settings: Partial<Settings> = {},
+  settings: Partial<CardStyle> = {},
   onLanded = jest.fn(),
   fansClub?: DanmakuUser['fansClub'],
 ) {
   const view = render(
     <MessageCard
       message={{ ...message, user: { ...message.user, fansClub } }}
-      settings={{ ...DEFAULT_SETTINGS, ...settings }}
+      settings={{ ...DEFAULT_CARD_STYLE, ...settings }}
       animate
       onLanded={onLanded}
     />,
@@ -45,7 +45,7 @@ describe('MessageCard', () => {
     const { container } = render(
       <MessageCard
         message={{ ...message, user: { ...message.user, avatarUrl: 'https://example.com/a.png' } }}
-        settings={DEFAULT_SETTINGS}
+        settings={DEFAULT_CARD_STYLE}
         animate={false}
         onLanded={() => {}}
       />,
@@ -83,7 +83,7 @@ describe('MessageCard with a gift', () => {
     render(
       <MessageCard
         message={{ ...message, text: '', gift }}
-        settings={DEFAULT_SETTINGS}
+        settings={DEFAULT_CARD_STYLE}
         animate={false}
         onLanded={jest.fn()}
       />,
@@ -101,7 +101,7 @@ describe('MessageCard with a gift', () => {
     rerender(
       <MessageCard
         message={{ ...message, text: '', gift: { name: '玫瑰', count: 2, diamonds: 0 } }}
-        settings={DEFAULT_SETTINGS}
+        settings={DEFAULT_CARD_STYLE}
         animate={false}
         onLanded={jest.fn()}
       />,
@@ -124,7 +124,7 @@ describe('MessageCard with likes', () => {
     render(
       <MessageCard
         message={{ ...message, text: '', likes: 37 }}
-        settings={DEFAULT_SETTINGS}
+        settings={DEFAULT_CARD_STYLE}
         animate={false}
         onLanded={jest.fn()}
       />,

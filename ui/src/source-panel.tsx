@@ -1,29 +1,39 @@
 import {
+  DEMO_INTERVAL_RANGE,
+  DEMO_SOURCES,
   DYHUB_GUIDE_PATH,
   DYHUB_PORT_HINT,
   DYHUB_STATUS_TEXT,
   type Connection,
+  type DemoIntervalRange,
+  type DemoSource,
+  type DyhubState,
   type DyhubStatus,
 } from '@dy-apps/services';
-import { Button, ConnectionForm, Panel, Row, Select, Slider, text } from '@dy-apps/ui';
-import { colors } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import { DEMO_INTERVAL_RANGE, DEMO_SOURCES, type DemoSource } from '../config';
-import type { DyhubState } from '../use-dyhub';
+import type { ReactNode } from 'react';
+import { Button } from './button';
+import { ConnectionForm } from './connection-form';
+import { Select } from './form';
+import { Row } from './layout';
+import { Panel } from './panel';
+import { Slider } from './slider';
+import { text } from './text';
+import { colors } from './tokens.stylex';
 
 const SOURCE_LABELS: Record<DemoSource, string> = {
   fake: '模拟数据',
   live: '直播间（DyHub）',
 };
 
-/** useDyhub retries after an error or a drop, so say so. */
+/** The live source retries after an error or a drop, so say so. */
 const STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
   ...DYHUB_STATUS_TEXT,
   error: '连接失败，稍后重试',
   closed: '已断开，稍后重试',
 };
 
-interface Props {
+interface SourcePanelProps {
   running: boolean;
   onToggle: () => void;
   /** False when the live source has no valid port and room number. */
@@ -32,16 +42,27 @@ interface Props {
   onSourceChange: (source: DemoSource) => void;
   intervalMs: number;
   onIntervalChange: (ms: number) => void;
+  /** The slider's bounds and step, in ms; danmaku's by default. Shown in seconds from 1 s up. */
+  interval?: { range: DemoIntervalRange; step: number };
   connection: Connection;
   onConnectionChange: (next: Connection) => void;
   liveState: DyhubState;
-  onClear: () => void;
-  count: number;
+  /** The toggle's text while stopped and while running. */
+  labels?: { start: string; stop: string };
+  /** More controls after the toggle, such as a clear button. */
+  children?: ReactNode;
 }
 
-/** Plays fake messages, or real chat from a live room through DyHub. */
-export function DemoPanel(props: Props) {
-  const { running, source, liveState } = props;
+/** Picks fake messages or a live room through DyHub, and starts or stops them. */
+export function SourcePanel(props: SourcePanelProps) {
+  const {
+    running,
+    source,
+    liveState,
+    labels = { start: '开始预览', stop: '停止预览' },
+    interval = { range: DEMO_INTERVAL_RANGE, step: 50 },
+  } = props;
+  const inSeconds = interval.range[0] >= 1000;
   return (
     <Panel title="数据来源" gap="md">
       {/* The panel title says what this picks, so no visible label of its own. */}
@@ -61,10 +82,11 @@ export function DemoPanel(props: Props) {
         <Slider
           label="平均间隔"
           value={props.intervalMs}
-          min={DEMO_INTERVAL_RANGE[0]}
-          max={DEMO_INTERVAL_RANGE[1]}
-          step={50}
-          unit="ms"
+          min={interval.range[0]}
+          max={interval.range[1]}
+          step={interval.step}
+          unit={inSeconds ? 's' : 'ms'}
+          format={inSeconds ? (ms) => String(ms / 1000) : String}
           onChange={props.onIntervalChange}
         />
       ) : (
@@ -81,21 +103,20 @@ export function DemoPanel(props: Props) {
           disabled={!running && !props.canStart}
           onClick={props.onToggle}
         >
-          {running ? '停止预览' : '开始预览'}
+          {running ? labels.stop : labels.start}
         </Button>
-        <Button onClick={props.onClear}>清空</Button>
-        <span {...stylex.props(text.muted)}>{props.count} 条</span>
+        {props.children}
       </Row>
       {source === 'live' && (
         <>
-          <p data-testid="dyhub-status" {...stylex.props(text.muted, styles.status)}>
+          <p data-testid="dyhub-status" {...stylex.props(text.muted, styles.line)}>
             {running || props.canStart ? '状态：' : '请填写端口和直播间号 · 状态：'}
             <span {...stylex.props(liveState.status === 'error' && styles.error)}>
               {STATUS_TEXT[liveState.status]}
             </span>
             {liveState.detail && `（${liveState.detail}）`}
           </p>
-          <p {...stylex.props(text.muted, styles.status)}>
+          <p {...stylex.props(text.muted, styles.line)}>
             还没装 DyHub？看{' '}
             <a
               href={DYHUB_GUIDE_PATH}
@@ -113,7 +134,7 @@ export function DemoPanel(props: Props) {
 }
 
 const styles = stylex.create({
-  status: {
+  line: {
     margin: 0,
   },
   error: {

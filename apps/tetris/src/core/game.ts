@@ -1,5 +1,5 @@
 import { clearFullLines, collides, createBoard } from './board';
-import { CONFIG, EFFECT_INFO, GIFT_NAME } from './config';
+import { CONFIG, EFFECT_INFO } from './config';
 import {
   applyCurse,
   createEffects,
@@ -223,6 +223,8 @@ export class GameEngine {
   // ---------------------------------------------------------------- gifts
 
   sendGifts(sender: string, count: number): GiftResponse {
+    // Gifts count only during a game: not while getting ready, nor after it ends.
+    if (this.phase === 'ready') return { ok: false, error: '游戏未开始，送礼不计入。' };
     if (this.phase === 'gameOver') return { ok: false, error: '游戏已结束，不能送礼。' };
     if (!isValidBatchCount(count)) {
       return {
@@ -243,7 +245,7 @@ export class GameEngine {
   }
 
   private logBatch(r: GiftBatchResult): void {
-    const head = `${r.sender} 送出 ${r.count} 份${GIFT_NAME}`;
+    const head = `${r.sender} 送出 ${r.count} 钻礼物`;
     if (r.hits === 0) {
       this.pushLog('miss', `${head}：未触发诅咒。`);
       return;

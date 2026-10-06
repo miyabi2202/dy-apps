@@ -29,7 +29,8 @@ export const CONFIG = {
   },
   gifts: {
     defaultProbability: 0.15,
-    probabilityOptions: [0.1, 0.15, 0.2],
+    /** The trigger chance's slider: whole percents from 1% to 100%. */
+    probabilityRange: [0.01, 1],
     minBatch: 1,
     maxBatch: 10_000,
     quickBatches: [1, 10, 100],
@@ -47,8 +48,6 @@ export const CONFIG = {
 } as const;
 
 export const EFFECT_POOL: readonly EffectType[] = ['garbage', 'haste', 'fog', 'seal'];
-
-export const GIFT_NAME = '星光';
 
 /** What one curse does when it fires. */
 export const EFFECT_INFO: Record<EffectType, { name: string; description: string }> = {

@@ -3,19 +3,26 @@ import { createContext, use, useId, type ComponentProps, type ReactNode } from '
 import { text } from './text';
 import { colors, fontSize, radius, space } from './tokens.stylex';
 
-const FieldIdContext = createContext<string | undefined>(undefined);
+const FieldIdContext = createContext<{ id: string; hintId?: string } | undefined>(undefined);
 
 /**
  * The id a Field gives its control. Input and Select use it automatically; a custom
  * control inside a Field puts it on its own element so the label points at it.
  */
 export function useFieldId(): string | undefined {
-  return use(FieldIdContext);
+  return use(FieldIdContext)?.id;
+}
+
+/** The id of the Field's hint, for the control's `aria-describedby`; undefined without one. */
+export function useFieldHintId(): string | undefined {
+  return use(FieldIdContext)?.hintId;
 }
 
 interface FieldProps {
   label: ReactNode;
   children: ReactNode;
+  /** A short explanation under the control, read out with it. */
+  hint?: ReactNode;
   xstyle?: stylex.StyleXStyles;
 }
 
@@ -23,14 +30,22 @@ interface FieldProps {
  * A label above its control, linked by id (not by nesting, so the label's accessible
  * text stays just the label, without a select's options or a slider's value).
  */
-export function Field({ label, children, xstyle }: FieldProps) {
+export function Field({ label, children, hint, xstyle }: FieldProps) {
   const id = useId();
+  const hintId = `${id}-hint`;
   return (
     <div {...stylex.props(styles.field, xstyle)}>
       <label htmlFor={id} {...stylex.props(text.muted)}>
         {label}
       </label>
-      <FieldIdContext value={id}>{children}</FieldIdContext>
+      <FieldIdContext value={{ id, hintId: hint == null ? undefined : hintId }}>
+        {children}
+      </FieldIdContext>
+      {hint != null && (
+        <p id={hintId} {...stylex.props(text.muted, styles.hint)}>
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -41,7 +56,15 @@ interface InputProps extends Omit<ComponentProps<'input'>, 'className' | 'style'
 
 export function Input({ id, xstyle, ...rest }: InputProps) {
   const fieldId = useFieldId();
-  return <input id={id ?? fieldId} {...rest} {...stylex.props(styles.control, xstyle)} />;
+  const hintId = useFieldHintId();
+  return (
+    <input
+      id={id ?? fieldId}
+      aria-describedby={hintId}
+      {...rest}
+      {...stylex.props(styles.control, xstyle)}
+    />
+  );
 }
 
 interface SelectProps extends Omit<ComponentProps<'select'>, 'className' | 'style'> {
@@ -50,8 +73,14 @@ interface SelectProps extends Omit<ComponentProps<'select'>, 'className' | 'styl
 
 export function Select({ id, xstyle, ...rest }: SelectProps) {
   const fieldId = useFieldId();
+  const hintId = useFieldHintId();
   return (
-    <select id={id ?? fieldId} {...rest} {...stylex.props(styles.control, styles.select, xstyle)} />
+    <select
+      id={id ?? fieldId}
+      aria-describedby={hintId}
+      {...rest}
+      {...stylex.props(styles.control, styles.select, xstyle)}
+    />
   );
 }
 
@@ -61,6 +90,10 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     minWidth: 0,
+  },
+  hint: {
+    margin: 0,
+    lineHeight: 1.5,
   },
   control: {
     borderColor: colors.border,

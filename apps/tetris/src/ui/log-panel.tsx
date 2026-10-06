@@ -19,7 +19,8 @@ export function LogPanel({ engine }: { engine: GameEngine }) {
         <summary {...stylex.props(styles.summary)}>规则说明</summary>
         <ul {...stylex.props(styles.ruleList)}>
           <li>
-            观众送「星光」。每份独立判定是否触发，命中后从四种诅咒中等概率抽取一个，加入待执行数量。
+            观众送出的礼物每 1
+            钻独立判定是否触发，命中后从四种诅咒中等概率抽取一个，加入待执行数量。
           </li>
           <li>
             每落定 {CONFIG.settlement.everyLocks} 块结算一次：每种有待执行数量的诅咒各执行 1

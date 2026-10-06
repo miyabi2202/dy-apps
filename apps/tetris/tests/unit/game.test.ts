@@ -360,9 +360,10 @@ describe('example F: haste and speed', () => {
 });
 
 describe('phases', () => {
-  it('allows gifts before start and while paused, rejects after game over', () => {
+  it('rejects gifts before start and after game over, allows them while paused', () => {
     const engine = new GameEngine({ seed: 1, giftRng: constantRng(0) });
-    expect(engine.sendGifts('foo', 5).ok).toBe(true);
+    expect(engine.sendGifts('foo', 5).ok).toBe(false);
+    expect(engine.team.giftCount).toBe(0);
     engine.start();
     engine.pause();
     expect(engine.sendGifts('foo', 5).ok).toBe(true);

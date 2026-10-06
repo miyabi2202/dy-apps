@@ -1,4 +1,5 @@
-import type { DanmakuGift, DanmakuMessage, DanmakuUser } from './types';
+/** Made-up viewers, chat and gifts, for previewing without a live room. */
+import type { DanmakuGift, DanmakuMessage, DanmakuUser } from './live-message';
 
 const NICKNAMES = [
   '奶茶不加糖',
@@ -76,7 +77,15 @@ const USERS: DanmakuUser[] = NICKNAMES.map((nickname, i) => ({
   fansClub: i % 3 === 2 ? undefined : { name: '弹幕墙', level: ((i * 7) % 25) + 1 },
 }));
 
-const pick = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)]!;
+export interface FakeOptions {
+  /** Math.random by default; tests pass a fixed sequence. */
+  random?: () => number;
+  /** Date.now by default. */
+  now?: () => number;
+}
+
+const pick = <T>(items: readonly T[], random: () => number): T =>
+  items[Math.floor(random() * items.length)]!;
 
 let seq = 0;
 
@@ -84,16 +93,26 @@ let seq = 0;
 const LIKE_COUNTS = [1, 3, 8, 15, 30, 99, 520];
 
 /** A random message from a random fake viewer; about one in six is a gift, one in eight likes. */
-export function createFakeMessage(): DanmakuMessage {
-  const ts = Date.now();
+export function createFakeMessage({
+  random = Math.random,
+  now = Date.now,
+}: FakeOptions = {}): DanmakuMessage {
+  const ts = now();
   const id = `demo-${ts}-${seq++}`;
-  const roll = Math.random();
+  const roll = random();
   if (roll < 1 / 8) {
-    return { id, user: pick(USERS), text: '', likes: pick(LIKE_COUNTS), ts };
+    return { id, user: pick(USERS, random), text: '', likes: pick(LIKE_COUNTS, random), ts };
   }
-  if (roll < 1 / 8 + 1 / 6) {
-    const gift: DanmakuGift = { ...pick(GIFTS), count: pick(GIFT_COUNTS) };
-    return { id, user: pick(USERS), text: '', gift, ts };
-  }
-  return { id, user: pick(USERS), text: pick(TEXTS), ts };
+  if (roll < 1 / 8 + 1 / 6) return createFakeGift({ random, now });
+  return { id, user: pick(USERS, random), text: pick(TEXTS, random), ts };
+}
+
+/** A random gift, of a random size, from a random fake viewer. */
+export function createFakeGift({
+  random = Math.random,
+  now = Date.now,
+}: FakeOptions = {}): DanmakuMessage {
+  const ts = now();
+  const gift: DanmakuGift = { ...pick(GIFTS, random), count: pick(GIFT_COUNTS, random) };
+  return { id: `demo-${ts}-${seq++}`, user: pick(USERS, random), text: '', gift, ts };
 }

@@ -56,6 +56,7 @@ describe('stress', () => {
 
   it('10,000 gifts in one batch is processed in one call with O(1) retained state', () => {
     const engine = new GameEngine({ seed: 3 });
+    engine.start();
     const res = engine.sendGifts('foo', 10_000);
     expect(res.ok).toBe(true);
     const { team } = engine;

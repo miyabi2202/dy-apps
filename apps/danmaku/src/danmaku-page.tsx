@@ -1,48 +1,39 @@
 import * as stylex from '@stylexjs/stylex';
 import {
-  createStore,
+  addMessage,
+  createDemoStores,
+  createFakeMessage,
   liveRoomFrom,
+  readDemoInterval,
   readLiveRoom,
+  setDemoParams,
   setLiveRoomParams,
   type Connection,
+  type DanmakuMessage,
 } from '@dy-apps/services';
-import { Button, Column, Page, text } from '@dy-apps/ui';
+import {
+  Button,
+  cardStyleToParams,
+  Column,
+  DEFAULT_CARD_STYLE,
+  fontFamily,
+  MessageList,
+  Page,
+  SourcePanel,
+  text,
+  useDemo,
+} from '@dy-apps/ui';
 import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
 import { useCallback, useEffect, useState } from 'react';
-import { createFakeMessage } from './demo';
-import { DEMO_INTERVAL_RANGE, DEMO_SOURCES, type DanmakuConfig, type DemoSource } from './config';
+import type { DanmakuConfig } from './config';
 import { connectionStore } from './dyhub';
-import {
-  DEFAULT_SETTINGS,
-  fontFamily,
-  loadSettings,
-  saveSettings,
-  settingsToParams,
-} from './settings';
-import { addMessage, type DanmakuMessage } from './types';
+import { loadSettings, saveSettings } from './settings';
 import { Controls } from './ui/controls';
-import { DemoPanel } from './ui/demo-panel';
-import { MessageList } from './ui/message-list';
 import { useDyhub, type CreateDyhubClient } from './use-dyhub';
 
 /** Older messages are dropped past this, so a long stream doesn't grow memory forever. */
 const MAX_MESSAGES = 1000;
-const DEFAULT_DEMO_INTERVAL_MS = 900;
-
-const demoIntervalStore = createStore('danmaku.demoIntervalMs', {
-  fallback: DEFAULT_DEMO_INTERVAL_MS,
-  parse: (raw) => (typeof raw === 'number' ? clampDemoInterval(raw) : undefined),
-});
-
-const demoSourceStore = createStore<DemoSource>('danmaku.demoSource', {
-  fallback: 'fake',
-  parse: (raw) => DEMO_SOURCES.find((s) => s === raw),
-});
-
-function clampDemoInterval(ms: number): number | undefined {
-  const [min, max] = DEMO_INTERVAL_RANGE;
-  return Number.isFinite(ms) ? Math.min(max, Math.max(min, ms)) : undefined;
-}
+const demoStores = createDemoStores('danmaku', { source: 'fake', intervalMs: 900 });
 
 interface PageOptions {
   /** `?obs=1`: overlay only, no editor chrome, transparent background. */
@@ -55,7 +46,7 @@ interface PageOptions {
 
 function optionsFromUrl(): PageOptions {
   const q = new URLSearchParams(window.location.search);
-  const demo = q.get('demo');
+  const demo = readDemoInterval(window.location.search);
   // `?port=…&room=…`: demo with real chat from this live room.
   const liveRoom = readLiveRoom(window.location.search);
   return {
@@ -67,8 +58,8 @@ function optionsFromUrl(): PageOptions {
         : connectionStore.read()),
       style: loadSettings(window.location.search),
       demo: {
-        source: liveRoom ? 'live' : demo !== null ? 'fake' : demoSourceStore.read(),
-        intervalMs: (demo && clampDemoInterval(Number(demo))) || demoIntervalStore.read(),
+        source: liveRoom ? 'live' : demo !== null ? 'fake' : demoStores.source.read(),
+        intervalMs: demo ?? demoStores.intervalMs.read(),
       },
     },
   };
@@ -98,7 +89,8 @@ export function DanmakuPage({ createClient }: Props) {
     setMessages((prev) => addMessage(prev, message, MAX_MESSAGES));
   }, []);
 
-  useDemo(demoRunning && demoSource === 'fake', demoIntervalMs, push);
+  const pushFake = useCallback(() => push(createFakeMessage()), [push]);
+  useDemo(demoRunning && demoSource === 'fake', demoIntervalMs, pushFake);
   const dyhub = useDyhub(
     demoRunning && demoSource === 'live' ? liveRoom : null,
     push,
@@ -110,8 +102,8 @@ export function DanmakuPage({ createClient }: Props) {
   useEffect(() => {
     if (initial.obs) return;
     saveSettings(settings);
-    demoSourceStore.write(demoSource);
-    demoIntervalStore.write(demoIntervalMs);
+    demoStores.source.write(demoSource);
+    demoStores.intervalMs.write(demoIntervalMs);
     connectionStore.write(connection);
   }, [initial.obs, settings, demoSource, demoIntervalMs, connection]);
 
@@ -122,9 +114,9 @@ export function DanmakuPage({ createClient }: Props) {
     return <div {...stylex.props(styles.obs, font)}>{list}</div>;
   }
 
-  const obsParams = settingsToParams(settings);
+  const obsParams = cardStyleToParams(settings);
   obsParams.set('obs', '1');
-  if (demoRunning && demoSource === 'fake') obsParams.set('demo', String(demoIntervalMs));
+  if (demoRunning && demoSource === 'fake') setDemoParams(obsParams, demoIntervalMs);
   if (demoRunning && demoSource === 'live' && liveRoom) setLiveRoomParams(obsParams, liveRoom);
   const obsUrl = `${window.location.origin}${window.location.pathname}?${obsParams.toString()}`;
 
@@ -132,7 +124,7 @@ export function DanmakuPage({ createClient }: Props) {
     <Page
       xstyle={styles.editor}
       title="弹幕墙"
-      actions={<Button onClick={() => setSettings(DEFAULT_SETTINGS)}>恢复默认样式</Button>}
+      actions={<Button onClick={() => setSettings(DEFAULT_CARD_STYLE)}>恢复默认样式</Button>}
     >
       <Column gap="lg">
         <Controls
@@ -140,7 +132,7 @@ export function DanmakuPage({ createClient }: Props) {
           onChange={(patch) => setSettings((s) => ({ ...s, ...patch }))}
           obsUrl={obsUrl}
           demo={
-            <DemoPanel
+            <SourcePanel
               running={demoRunning}
               onToggle={() => setDemoRunning((r) => !r)}
               canStart={canStartDemo}
@@ -151,9 +143,10 @@ export function DanmakuPage({ createClient }: Props) {
               connection={connection}
               onConnectionChange={setConnection}
               liveState={dyhub}
-              onClear={() => setMessages([])}
-              count={messages.length}
-            />
+            >
+              <Button onClick={() => setMessages([])}>清空</Button>
+              <span {...stylex.props(text.muted)}>{messages.length} 条</span>
+            </SourcePanel>
           }
         />
         <p {...stylex.props(text.muted, styles.stageHint)}>
@@ -165,22 +158,6 @@ export function DanmakuPage({ createClient }: Props) {
       </Column>
     </Page>
   );
-}
-
-/** Spawns fake messages at a jittered interval while running. */
-function useDemo(running: boolean, intervalMs: number, push: (m: DanmakuMessage) => void) {
-  useEffect(() => {
-    if (!running) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const schedule = (delay: number) => {
-      timer = setTimeout(() => {
-        push(createFakeMessage());
-        schedule(intervalMs * (0.3 + Math.random() * 1.4));
-      }, delay);
-    };
-    schedule(Math.min(intervalMs, 300));
-    return () => clearTimeout(timer);
-  }, [running, intervalMs, push]);
 }
 
 const styles = stylex.create({

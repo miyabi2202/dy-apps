@@ -1,4 +1,4 @@
-import { addMessage, type DanmakuMessage } from '../../src/types';
+import { addMessage, type DanmakuMessage } from '../src/live-message';
 
 const user = { id: 'u1', nickname: '奶茶不加糖' };
 

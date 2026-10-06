@@ -1,5 +1,5 @@
-import { createFakeMessage } from '../../src/demo';
-import { hueFor } from '../../src/types';
+import { createFakeGift, createFakeMessage } from '../src/fake-messages';
+import { hueFor } from '../src/live-message';
 
 describe('hueFor', () => {
   it('is stable for a user and within 0–359', () => {
@@ -22,7 +22,7 @@ describe('hueFor', () => {
 
 describe('createFakeMessage', () => {
   it('makes messages with unique ids from a fixed set of users', () => {
-    const messages = Array.from({ length: 200 }, createFakeMessage);
+    const messages = Array.from({ length: 200 }, () => createFakeMessage());
     expect(new Set(messages.map((m) => m.id)).size).toBe(200);
     for (const m of messages) {
       // A chat has text; a gift or a run of likes has none, and a count instead.
@@ -54,5 +54,18 @@ describe('createFakeMessage', () => {
       expect(level).toBeGreaterThanOrEqual(1);
       expect(level).toBeLessThanOrEqual(25);
     }
+  });
+});
+
+describe('createFakeGift', () => {
+  it('makes a priced gift from a fake viewer, picked by the given random source', () => {
+    const gift = createFakeGift({ random: () => 0, now: () => 42 });
+    expect(gift).toMatchObject({
+      text: '',
+      ts: 42,
+      gift: { name: '小心心', count: 1, diamonds: 1 },
+    });
+    expect(gift.user.nickname).toBe('奶茶不加糖');
+    expect(createFakeGift().id).not.toBe(createFakeGift().id);
   });
 });

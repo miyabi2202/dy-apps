@@ -12,6 +12,8 @@ interface Props {
   engine: GameEngine;
   boardRef: RefObject<HTMLCanvasElement | null>;
   onRestart: () => void;
+  /** For viewers on the OBS page: no touch buttons or key hints. */
+  viewer?: boolean;
 }
 
 const fadeIn = stylex.keyframes({
@@ -19,7 +21,7 @@ const fadeIn = stylex.keyframes({
   to: { backgroundColor: 'transparent' },
 });
 
-export function CenterPanel({ engine, boardRef, onRestart }: Props) {
+export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Props) {
   const every = CONFIG.settlement.everyLocks;
   const done = engine.lockedPieceCount % every;
   const { effects } = engine;
@@ -110,10 +112,14 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
         </div>
       </Grid>
 
-      <TouchControls engine={engine} />
-      <p {...stylex.props(text.muted, styles.keys)}>
-        A/D 移动 · W 顺时针 · Q 逆时针 · S 软降 · 空格 硬降 · C 暂存 · P 暂停
-      </p>
+      {!viewer && (
+        <>
+          <TouchControls engine={engine} />
+          <p {...stylex.props(text.muted, styles.keys)}>
+            A/D 移动 · W 顺时针 · Q 逆时针 · S 软降 · 空格 硬降 · C 暂存 · P 暂停
+          </p>
+        </>
+      )}
     </Panel>
   );
 }
@@ -158,7 +164,7 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
       {engine.phase === 'ready' && (
         <>
           <strong {...stylex.props(styles.overlayTitle)}>准备就绪</strong>
-          <span {...stylex.props(text.muted)}>开始前也可以先模拟送礼</span>
+          <span {...stylex.props(text.muted)}>开始后送的礼物才会触发诅咒</span>
           <Button variant="primary" onClick={() => engine.start()}>
             开始游戏
           </Button>

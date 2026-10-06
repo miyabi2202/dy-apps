@@ -23,3 +23,27 @@ export const Percent: Story = {
 };
 
 export const Disabled: Story = { args: { disabled: true } };
+
+export const WithHint: Story = {
+  args: {
+    label: '礼物触发概率',
+    value: 15,
+    min: 1,
+    max: 100,
+    unit: '%',
+    hint: '每 1 钻有多少概率触发一个随机诅咒',
+  },
+};
+
+/** Stored in ms, shown in seconds. */
+export const Formatted: Story = {
+  args: {
+    label: '平均间隔',
+    value: 10_000,
+    min: 2000,
+    max: 30_000,
+    step: 500,
+    unit: 's',
+    format: (ms: number) => String(ms / 1000),
+  },
+};

@@ -76,6 +76,7 @@ describe('batches', () => {
 
   it('records the sender on the result and in the history', () => {
     const engine = new GameEngine({ seed: 1 });
+    engine.start();
     const res = engine.sendGifts('foo', 5);
     expect(res.ok && res.result.sender).toBe('foo');
     engine.sendGifts('bar', 3);
@@ -87,12 +88,14 @@ describe('batches', () => {
 
   it('keeps a bounded gift history', () => {
     const engine = new GameEngine({ seed: 1 });
+    engine.start();
     for (let i = 0; i < CONFIG.gifts.historySize + 5; i += 1) engine.sendGifts('foo', 1);
     expect(engine.giftHistory).toHaveLength(CONFIG.gifts.historySize);
   });
 
   it('rejects invalid counts without touching state', () => {
     const engine = new GameEngine({ seed: 1 });
+    engine.start();
     for (const bad of [0, -1, 1.5, 10_001, Number.NaN]) {
       const res = engine.sendGifts('foo', bad);
       expect(res.ok).toBe(false);
@@ -103,6 +106,7 @@ describe('batches', () => {
 
   it('uses the probability at the start of the batch; later changes only affect later batches', () => {
     const engine = new GameEngine({ seed: 1, giftRng: constantRng(0.3) });
+    engine.start();
     engine.setProbability(0.25);
     const first = engine.sendGifts('foo', 10);
     engine.setProbability(0.5);
@@ -113,7 +117,9 @@ describe('batches', () => {
 
   it('gifts do not change the native piece sequence', () => {
     const a = new GameEngine({ seed: 5 });
+    a.start();
     const b = new GameEngine({ seed: 5 });
+    b.start();
     b.sendGifts('foo', 1000);
     expect(b.upcoming).toEqual(a.upcoming);
   });

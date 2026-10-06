@@ -1,6 +1,6 @@
+import type { DanmakuUser } from '@dy-apps/services';
 import * as stylex from '@stylexjs/stylex';
 import { useState } from 'react';
-import type { DanmakuUser } from '../types';
 
 /** The user's picture, or their first character on a hue gradient if there is none. */
 export function Avatar({ user, hue, ring }: { user: DanmakuUser; hue: number; ring: string }) {

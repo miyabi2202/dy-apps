@@ -25,6 +25,12 @@ export type DyhubLikeEvent = Omit<DyhubEvent, 'type' | 'data'> & {
   data: { count?: number; total?: number };
 };
 
+/** A connection's last status, for showing it; `idle` before connecting. */
+export interface DyhubState {
+  status: DyhubStatus | 'idle';
+  detail?: string;
+}
+
 /** Cancels what `schedule` set up. */
 type Cancel = () => void;
 

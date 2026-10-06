@@ -1,37 +1,83 @@
-import { Button, Column, Field, Page, Panel, Row, Select, text } from '@dy-apps/ui';
-import { colors, fontSize, space } from '@dy-apps/ui/tokens.stylex';
+import {
+  liveRoomFrom,
+  type Connection,
+  type DanmakuMessage,
+  type DemoSource,
+} from '@dy-apps/services';
+import {
+  Button,
+  Column,
+  Grid,
+  ObsLink,
+  Page,
+  Panel,
+  Row,
+  Slider,
+  SourcePanel,
+  text,
+} from '@dy-apps/ui';
+import { space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import { useEffect, useRef, useState } from 'react';
-import type { LocalGiftAdapter } from '../adapters/local-gift';
+import { useEffect, useState } from 'react';
+import { configToParams, DEMO_INTERVAL, saveConfig, type TetrisConfig } from '../config';
 import { CONFIG } from '../core/config';
 import type { GameEngine } from '../core/game';
+import type { GiftFeed } from '../gift-feed';
 import type { KeyboardController } from '../input/keyboard';
-import { startGameLoop } from '../loop';
+import { useGiftSource } from '../use-gift-source';
+import type { CreateDyhubClient } from '../use-live-gifts';
 import { CenterPanel } from './center-panel';
-import { DyhubPanel } from './dyhub-panel';
-import { percent } from './format';
+import { GameLayout } from './game-layout';
 import { LogPanel } from './log-panel';
+import { useRestart } from './restart-dialog';
 import { TeamPanel } from './team-panel';
-import { useEngineVersion } from './use-engine';
+import { usePlay } from './use-engine';
 
 interface Props {
   engine: GameEngine;
-  gifts: LocalGiftAdapter;
+  feed: GiftFeed;
   keyboard: KeyboardController;
+  /** Where gifts come from at first; the trigger chance comes from the engine. */
+  config: TetrisConfig;
+  /** Swapped for fakes in tests. */
+  createClient?: CreateDyhubClient;
+  fakeGift?: () => DanmakuMessage;
 }
 
-export function App({ engine, gifts, keyboard }: Props) {
-  useEngineVersion(engine);
-  const boardRef = useRef<HTMLCanvasElement>(null);
-  const [confirming, setConfirming] = useState(false);
+/**
+ * The config page: the game settings, where gifts come from and the OBS link, above the
+ * full game as a preview. Gifts are fake ones by default, or a live room's.
+ */
+export function App({ engine, feed, keyboard, config: initial, createClient, fakeGift }: Props) {
+  const boardRef = usePlay(engine, keyboard);
+  const { requestRestart, dialog } = useRestart(engine, feed);
+  const [connection, setConnection] = useState<Connection>({
+    port: initial.port,
+    roomId: initial.roomId,
+  });
+  const [source, setSource] = useState<DemoSource>(initial.demo.source);
+  const [intervalMs, setIntervalMs] = useState(initial.demo.intervalMs);
+  const [sending, setSending] = useState(false);
+  const room = liveRoomFrom(connection);
+  const { probability } = engine;
+  const config: TetrisConfig = { ...connection, probability, demo: { source, intervalMs } };
+  const liveState = useGiftSource({
+    demo: config.demo,
+    room,
+    running: sending,
+    feed,
+    fakeGift,
+    createClient,
+  });
 
-  useEffect(() => keyboard.attach(window), [keyboard]);
-  useEffect(() => startGameLoop(engine, keyboard, () => boardRef.current), [engine, keyboard]);
+  useEffect(
+    () => saveConfig({ ...connection, probability, demo: { source, intervalMs } }),
+    [connection, probability, source, intervalMs],
+  );
 
-  const requestRestart = () => {
-    if (engine.hasProgress) setConfirming(true);
-    else engine.restart();
-  };
+  const obsParams = configToParams(config);
+  obsParams.set('obs', '1');
+  const obsUrl = `${window.location.origin}${window.location.pathname}?${obsParams.toString()}`;
 
   const phaseButton =
     engine.phase === 'ready'
@@ -40,86 +86,75 @@ export function App({ engine, gifts, keyboard }: Props) {
         ? { label: '继续', act: () => engine.resume() }
         : { label: '暂停', act: () => engine.pause() };
 
-  const controls = (
-    <Row gap="md" align="end" wrap>
-      <Field label="礼物触发概率" xstyle={styles.probField}>
-        <Select
-          value={engine.probability}
-          onChange={(e) => engine.setProbability(Number(e.target.value))}
-        >
-          {CONFIG.gifts.probabilityOptions.map((p) => (
-            <option key={p} value={p}>
-              {percent(p)}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      <Button variant="primary" disabled={engine.phase === 'gameOver'} onClick={phaseButton.act}>
-        {phaseButton.label}
-      </Button>
-      <Button onClick={requestRestart}>重新开始</Button>
-    </Row>
-  );
-
   return (
-    <Page
-      title="方块干预实验室"
-      subtitle="单机测试 · 本地模拟送礼，未连接直播"
-      actions={controls}
-      xstyle={styles.page}
-    >
+    <Page title="方块干预实验室" xstyle={styles.page}>
       <Column gap="lg">
-        <main {...stylex.props(styles.columns)}>
-          <div {...stylex.props(styles.centerCol)}>
-            <CenterPanel engine={engine} boardRef={boardRef} onRestart={requestRestart} />
-          </div>
-          <div {...stylex.props(styles.teamCol)}>
-            <TeamPanel engine={engine} gifts={gifts} />
-          </div>
-        </main>
+        <Grid min={320} gap="lg">
+          <Panel title="游戏" gap="md">
+            <Slider
+              label="礼物触发概率"
+              hint="每 1 钻有多少概率触发一个随机诅咒"
+              value={Math.round(engine.probability * 100)}
+              min={CONFIG.gifts.probabilityRange[0] * 100}
+              max={CONFIG.gifts.probabilityRange[1] * 100}
+              unit="%"
+              onChange={(pct) => engine.setProbability(pct / 100)}
+            />
+            <Row gap="md" wrap>
+              <Button
+                variant="primary"
+                disabled={engine.phase === 'gameOver'}
+                onClick={phaseButton.act}
+              >
+                {phaseButton.label}
+              </Button>
+              <Button onClick={requestRestart}>重新开始</Button>
+            </Row>
+            <p {...stylex.props(text.muted, styles.hint)}>
+              触发概率会写进 OBS 链接。开始和重新开始只控制下方的预览，OBS 里的游戏在「交互」窗口按
+              Enter 开始。
+            </p>
+          </Panel>
+          <SourcePanel
+            running={sending}
+            onToggle={() => setSending((on) => !on)}
+            canStart={source === 'fake' || room !== null}
+            source={source}
+            onSourceChange={setSource}
+            intervalMs={intervalMs}
+            onIntervalChange={setIntervalMs}
+            interval={DEMO_INTERVAL}
+            connection={connection}
+            onConnectionChange={setConnection}
+            liveState={liveState}
+            labels={{ start: '开始送礼', stop: '停止送礼' }}
+          />
+          <Panel title="OBS" gap="md">
+            <ObsLink url={obsUrl}>
+              在 OBS
+              中添加「浏览器」来源并粘贴此链接，背景透明，观众看到棋盘、待执行诅咒和送礼记录。
+              {source === 'fake'
+                ? '来源会播放同样的模拟送礼。'
+                : room
+                  ? '来源会连接上面的直播间。'
+                  : '填好直播间后链接会带上它。'}
+              在 OBS 里右键来源选「交互」即可用键盘游玩。
+            </ObsLink>
+          </Panel>
+        </Grid>
+
+        <GameLayout
+          board={<CenterPanel engine={engine} boardRef={boardRef} onRestart={requestRestart} />}
+          side={<TeamPanel engine={engine} feed={feed} />}
+        />
 
         <LogPanel engine={engine} />
 
-        <DyhubPanel />
-
-        {confirming && (
-          <div {...stylex.props(styles.backdrop)}>
-            <Panel
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="restart-title"
-              xstyle={styles.dialog}
-            >
-              <h2 id="restart-title" {...stylex.props(styles.dialogTitle)}>
-                确认重新开始？
-              </h2>
-              <p {...stylex.props(text.muted, styles.dialogText)}>
-                将清空棋盘、分数、待执行诅咒、效果和送礼记录。触发概率保持{' '}
-                {percent(engine.probability)}。
-              </p>
-              <Row gap="md" justify="end">
-                <Button autoFocus onClick={() => setConfirming(false)}>
-                  取消
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    setConfirming(false);
-                    engine.restart();
-                  }}
-                >
-                  确认重开
-                </Button>
-              </Row>
-            </Panel>
-          </div>
-        )}
+        {dialog}
       </Column>
     </Page>
   );
 }
-
-const WIDE = '@media (min-width: 900px)';
 
 const styles = stylex.create({
   page: {
@@ -127,46 +162,8 @@ const styles = stylex.create({
     marginInline: 'auto',
     maxWidth: 1440,
   },
-  probField: {
-    width: 96,
-  },
-  columns: {
-    gap: space.lg,
-    gridTemplateAreas: {
-      [WIDE]: '"center team"',
-      default: '"center" "team"',
-    },
-    alignItems: 'start',
-    display: 'grid',
-    gridTemplateColumns: {
-      [WIDE]: 'minmax(0, 520px) minmax(320px, 560px)',
-      default: 'minmax(0, 1fr)',
-    },
-    justifyContent: 'center',
-  },
-  centerCol: { gridArea: 'center', minWidth: 0 },
-  teamCol: { gridArea: 'team', minWidth: 0 },
-  backdrop: {
-    inset: 0,
-    padding: space.xl,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    display: 'flex',
-    justifyContent: 'center',
-    position: 'fixed',
-    zIndex: 10,
-  },
-  dialog: {
-    maxWidth: 380,
-  },
-  dialogTitle: {
+  hint: {
     margin: 0,
-    color: colors.text,
-    fontSize: 18,
-  },
-  dialogText: {
-    margin: 0,
-    fontSize: fontSize.md,
-    lineHeight: 1.6,
+    lineHeight: 1.5,
   },
 });

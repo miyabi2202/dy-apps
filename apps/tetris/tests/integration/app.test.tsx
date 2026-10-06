@@ -1,63 +1,104 @@
-import { render, screen, within } from '@testing-library/react';
+import type { DanmakuMessage } from '@dy-apps/services';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { LocalGiftAdapter } from '../../src/adapters/local-gift';
+import type { TetrisConfig } from '../../src/config';
 import { GameEngine } from '../../src/core/game';
 import { constantRng } from '../../src/core/random';
+import { GiftFeed } from '../../src/gift-feed';
 import { KeyboardController } from '../../src/input/keyboard';
 import { App } from '../../src/ui/app';
 
-function setup(giftRng = constantRng(0)) {
+// jsdom lays nothing out; give elements a height so the gift wall renders its cards.
+const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')!;
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 600 });
+});
+afterAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', offsetHeight);
+});
+
+beforeEach(() => {
+  jest.useFakeTimers();
+  localStorage.clear();
+});
+afterEach(() => {
+  jest.useRealTimers();
+});
+
+const CONFIG: TetrisConfig = {
+  port: '',
+  roomId: '',
+  probability: 0.15,
+  demo: { source: 'fake', intervalMs: 10_000 },
+};
+
+/** Two 5-diamond roses from one viewer: 10 draws. */
+const roses = (): DanmakuMessage => ({
+  id: `rose-${Math.random()}`,
+  user: { id: 'u1', nickname: '阿杰' },
+  text: '',
+  gift: { name: '玫瑰', count: 2, diamonds: 5 },
+  ts: 0,
+});
+
+function setup({ giftRng = constantRng(0), config = CONFIG } = {}) {
   const engine = new GameEngine({ seed: 1, giftRng });
-  const gifts = new LocalGiftAdapter(engine);
+  const feed = new GiftFeed(engine);
   const keyboard = new KeyboardController(engine);
-  const user = userEvent.setup();
-  render(<App engine={engine} gifts={gifts} keyboard={keyboard} />);
-  return { engine, user };
+  const user = userEvent.setup({ advanceTimers: (ms) => jest.advanceTimersByTime(ms) });
+  render(<App engine={engine} feed={feed} keyboard={keyboard} config={config} fakeGift={roses} />);
+  return { engine, feed, user };
 }
 
+const wall = () => screen.getByTestId('gift-history');
+
 describe('App', () => {
-  it('shows the board, the countdown and the curse panel, with no team names', () => {
+  it('shows the board, the countdown and the curse panel, with no gift buttons', () => {
     setup();
-    expect(screen.queryByText(/诅咒队|祝福/)).not.toBeInTheDocument();
     expect(screen.getByTestId('board')).toBeInTheDocument();
     expect(screen.getByTestId('countdown')).toHaveTextContent('再落下 3 块，诅咒结算');
-    expect(screen.getByTestId('speed')).toHaveTextContent('×1.0');
     expect(screen.getByTestId('pending')).toHaveTextContent('暂无');
-    expect(screen.getByTestId('gift-history')).toHaveTextContent('尚未送礼');
+    expect(within(wall()).queryAllByRole('article')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /送 \d+ 份/ })).not.toBeInTheDocument();
   });
 
-  it('shows pending counts and logs each batch under the sender', async () => {
-    const { user } = setup();
-    for (let i = 0; i < 4; i += 1) {
-      await user.click(screen.getByRole('button', { name: '送 1 份星光' }));
-    }
-    // constantRng(0) always hits and always draws the first curse, 垃圾行.
-    const pending = screen.getByTestId('pending');
-    expect(pending).toHaveTextContent('垃圾行×4');
-    expect(pending).not.toHaveTextContent('加速');
-    const history = screen.getByTestId('gift-history');
-    expect(history).toHaveTextContent('foo 送出 1 份星光');
-    expect(history).toHaveTextContent('垃圾行 ×1');
-  });
-
-  it('logs a batch that triggered nothing', async () => {
-    const { user } = setup(constantRng(0.99));
-    await user.click(screen.getByRole('button', { name: '送 10 份星光' }));
-    expect(screen.getByTestId('gift-history')).toHaveTextContent('foo 送出 10 份星光未触发诅咒');
-    expect(screen.getByTestId('pending')).toHaveTextContent('暂无');
-  });
-
-  it('rejects invalid custom counts without changing state', async () => {
+  it('ignores fake gifts before the game starts', async () => {
     const { engine, user } = setup();
-    const input = screen.getByRole('spinbutton', { name: '自定义份数' });
-    await user.clear(input);
-    await user.type(input, '0');
-    await user.click(screen.getByRole('button', { name: '送出自定义份数' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('份数必须是');
+    await user.click(screen.getByRole('button', { name: '开始送礼' }));
+    act(() => jest.advanceTimersByTime(30_000));
     expect(engine.team.giftCount).toBe(0);
+    expect(within(wall()).queryAllByRole('article')).toHaveLength(0);
   });
 
-  it('starts, pauses, resumes and confirms restart in-page', async () => {
+  it('turns each fake gift into a card with its curses, one draw per diamond', async () => {
+    const { engine, user } = setup();
+    await user.click(screen.getByRole('button', { name: '开始游戏' }));
+    await user.click(screen.getByRole('button', { name: '开始送礼' }));
+    act(() => jest.advanceTimersByTime(300));
+    expect(engine.team.giftCount).toBe(10);
+    // constantRng(0) always hits and always draws the first curse, 垃圾行.
+    expect(screen.getByTestId('pending')).toHaveTextContent('垃圾行×10');
+    const card = within(wall()).getByRole('article');
+    expect(card).toHaveTextContent('阿杰');
+    expect(card).toHaveTextContent('玫瑰×2');
+    expect(within(card).getByTestId('detail')).toHaveTextContent('触发 垃圾行×10');
+
+    await user.click(screen.getByRole('button', { name: '停止送礼' }));
+    act(() => jest.advanceTimersByTime(60_000));
+    expect(engine.team.giftCount).toBe(10);
+  });
+
+  it('says when a gift triggered nothing', async () => {
+    const { feed, user } = setup({ giftRng: constantRng(0.99) });
+    await user.click(screen.getByRole('button', { name: '开始游戏' }));
+    act(() => {
+      feed.send(roses());
+    });
+    expect(within(wall()).getByTestId('detail')).toHaveTextContent('未触发诅咒');
+    expect(screen.getByTestId('pending')).toHaveTextContent('暂无');
+  });
+
+  it('starts, pauses, resumes and confirms a restart in progress', async () => {
     const { engine, user } = setup();
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
     expect(engine.phase).toBe('playing');
@@ -76,43 +117,60 @@ describe('App', () => {
     expect(engine.phase).toBe('ready');
   });
 
-  it('keyboard drives the piece after clicking a gift button', async () => {
+  it('restarts after game over without asking, and empties the gift wall', async () => {
+    const { engine, feed, user } = setup();
+    await user.click(screen.getByRole('button', { name: '开始游戏' }));
+    act(() => {
+      feed.send(roses());
+      for (let i = 0; i < 40 && engine.phase !== 'gameOver'; i += 1) engine.hardDrop();
+    });
+    expect(engine.phase).toBe('gameOver');
+    await user.click(
+      within(screen.getByTestId('overlay-gameOver')).getByRole('button', { name: '重新开始' }),
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(engine.phase).toBe('ready');
+    expect(within(wall()).queryAllByRole('article')).toHaveLength(0);
+  });
+
+  it('keyboard drives the piece after clicking a button', async () => {
     const { engine, user } = setup();
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
-    await user.click(screen.getByRole('button', { name: '送 1 份星光' }));
+    await user.click(screen.getByRole('button', { name: '开始送礼' }));
     const x = engine.active!.x;
     await user.keyboard('a');
     expect(engine.active!.x).toBe(x - 1);
     await user.keyboard(' ');
     expect(engine.lockedPieceCount).toBe(1);
-    // Space did not also activate the focused gift button.
-    expect(engine.team.giftCount).toBe(1);
+    // Space did not also activate the focused button.
+    expect(screen.getByRole('button', { name: '停止送礼' })).toBeInTheDocument();
   });
 
-  it('typing in the custom count field does not move the piece', async () => {
-    const { engine, user } = setup();
-    await user.click(screen.getByRole('button', { name: '开始游戏' }));
-    const x = engine.active!.x;
-    const input = screen.getByRole('spinbutton', { name: '自定义份数' });
-    await user.click(input);
-    await user.keyboard('aa');
-    expect(engine.active!.x).toBe(x);
-  });
-
-  it('dyhub panel only connects with a valid port and room number', async () => {
+  it('the live source starts only with a valid port and room number', async () => {
     const { user } = setup();
-    const connect = screen.getByRole('button', { name: '连接' });
+    await user.selectOptions(screen.getByRole('combobox', { name: '数据来源' }), 'live');
+    const start = screen.getByRole('button', { name: '开始送礼' });
     const port = screen.getByRole('textbox', { name: '端口' });
     const room = screen.getByRole('textbox', { name: '直播间号' });
-    expect(port).toHaveValue('');
-    expect(room).toHaveValue('');
-    expect(connect).toBeDisabled();
+    expect(start).toBeDisabled();
     await user.type(port, '8757');
-    expect(connect).toBeDisabled();
     await user.type(room, '12a');
-    expect(connect).toBeDisabled();
+    expect(start).toBeDisabled();
     await user.clear(room);
     await user.type(room, '167920210669');
-    expect(connect).toBeEnabled();
+    expect(start).toBeEnabled();
+  });
+
+  it('puts the chance and the source in the OBS link', async () => {
+    const { user } = setup();
+    const link = () => screen.getByRole<HTMLInputElement>('textbox', { name: 'OBS 链接' }).value;
+    expect(link()).toContain('chance=15');
+    expect(link()).toContain('demo=10000');
+    await user.selectOptions(screen.getByRole('combobox', { name: '数据来源' }), 'live');
+    await user.type(screen.getByRole('textbox', { name: '端口' }), '8757');
+    await user.type(screen.getByRole('textbox', { name: '直播间号' }), '123');
+    expect(link()).toContain('port=8757');
+    expect(link()).toContain('room=123');
+    expect(link()).not.toContain('demo=');
   });
 });

@@ -1,15 +1,12 @@
 import {
   DyhubClient,
-  type DyhubSocket,
-  LikeBatcher,
-  type DyhubLikeEvent,
-  type DyhubState,
-  likeMessage,
   messageFromEvent,
-  type DanmakuMessage,
+  type DyhubSocket,
+  type DyhubState,
   type LiveRoom,
 } from '@dy-apps/services';
 import { useEffect, useState } from 'react';
+import type { GiftFeed } from './gift-feed';
 
 /** DyHub may start after the page (OBS often opens first), so keep trying. */
 const RETRY_MS = 5000;
@@ -23,15 +20,13 @@ export const createDyhubClient = (
 ): DyhubClient => new DyhubClient({ ...room, retryMs: RETRY_MS, openSocket });
 
 /**
- * Stays connected to `room` while it's set, pushing each chat message and gift, and each
- * user's likes once they pause. When the connection fails or drops, it tries again after
- * a few seconds.
+ * Stays connected to `room` while it's set and sends every gift its viewers send into the
+ * game through `feed`, one curse draw per gift. Retries a few seconds after a failure or drop.
  */
-export function useDyhub(
+export function useLiveGifts(
   room: LiveRoom | null,
-  push: (m: DanmakuMessage) => void,
+  feed: GiftFeed,
   create: CreateDyhubClient = createDyhubClient,
-  likeQuietMs?: number,
 ): DyhubState {
   const [state, setState] = useState<DyhubState>({ status: 'idle' });
   const port = room?.port;
@@ -40,29 +35,17 @@ export function useDyhub(
   useEffect(() => {
     if (port === undefined || roomId === undefined) return;
     const client = create({ port, roomId });
-    const likes = new LikeBatcher<DyhubLikeEvent>({
-      quietMs: likeQuietMs,
-      onFlush: (last, total) => {
-        const message = likeMessage(last, total);
-        if (message) push(message);
-      },
-    });
-    const pushEvent = (message: DanmakuMessage | null) => {
-      if (message) push(message);
-    };
     client.onStatus((status, detail) => setState({ status, detail }));
-    client.onComment((ev) => pushEvent(messageFromEvent(ev, 0)));
-    client.onGift((ev, newGifts) => pushEvent(messageFromEvent(ev, newGifts)));
-    client.onLike((ev, count) => {
-      if (ev.user) likes.add(ev.user.id, ev, count);
+    client.onGift((ev, newGifts) => {
+      const message = messageFromEvent(ev, newGifts);
+      if (message) feed.send(message);
     });
     client.connect();
     return () => {
       client.close();
-      likes.clear();
       setState({ status: 'idle' });
     };
-  }, [port, roomId, push, create, likeQuietMs]);
+  }, [port, roomId, feed, create]);
 
   return room ? state : { status: 'idle' };
 }

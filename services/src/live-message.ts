@@ -1,3 +1,6 @@
+/** Chat, gift and like messages from a live room, as the message cards show them. */
+import type { DyhubEvent, DyhubGiftData, DyhubUser } from './dyhub';
+
 export interface DanmakuUser {
   id: string;
   nickname: string;
@@ -23,6 +26,8 @@ export interface DanmakuMessage {
   gift?: DanmakuGift;
   /** How many likes the user sent, added up until they stopped for a while. */
   likes?: number;
+  /** A smaller line under the text or gift, e.g. what a gift did in a game. */
+  detail?: string;
   ts: number;
 }
 
@@ -56,4 +61,48 @@ export function hueFor(userId: string): number {
   }
   // Golden-angle steps keep near-identical ids (user-1, user-2) far apart on the wheel.
   return Math.round(Math.abs(h) * 137.508) % 360;
+}
+
+/** One card for a user's run of likes, from their last like event and the run's total. */
+export function likeMessage(last: DyhubEvent, total: number): DanmakuMessage | null {
+  if (!last.user) return null;
+  return { id: `like-${last.id}`, user: userFrom(last.user), text: '', likes: total, ts: last.ts };
+}
+
+/**
+ * A DyHub chat or gift event as a wall message; null for other events and empty chats.
+ * `newGifts` is how many gifts the event adds (from GiftCounter); 0 drops it as a repeat.
+ */
+export function messageFromEvent(ev: DyhubEvent, newGifts: number): DanmakuMessage | null {
+  if (!ev.user) return null;
+  const user = userFrom(ev.user);
+  if (ev.type === 'gift') {
+    if (newGifts <= 0) return null;
+    const gift = ev.data as unknown as DyhubGiftData;
+    return {
+      // One id per combo, so later messages of the combo add to the same card.
+      id: gift.groupId ? `gift-${user.id}-${gift.giftId}-${gift.groupId}` : ev.id,
+      user,
+      text: '',
+      gift: {
+        name: gift.giftName || '礼物',
+        count: newGifts,
+        diamonds: gift.diamondCount,
+        iconUrl: gift.giftIcon,
+      },
+      ts: ev.ts,
+    };
+  }
+  const text = ev.data?.content;
+  if (ev.type !== 'chat' || typeof text !== 'string' || !text.trim()) return null;
+  return { id: ev.id, user, text, ts: ev.ts };
+}
+
+function userFrom({ id, nickname, avatar, fansClub }: DyhubUser): DanmakuUser {
+  return {
+    id,
+    nickname,
+    avatarUrl: avatar,
+    fansClub: fansClub && { name: fansClub.name, level: fansClub.level },
+  };
 }
