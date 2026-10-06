@@ -17,9 +17,9 @@ pnpm monorepo of small live-stream apps, served as one site: an index page at `/
 ```text
 site/                 # the one deployed app: index page + a lazily loaded route per app
   src/apps.ts         #   registry of apps (path, title, description, lazy page import)
-  tests/integration/  #   Playwright against the production build
   wrangler.jsonc      #   Cloudflare Workers static-assets deploy (SPA fallback for deep links)
 apps/<name>/          # one package per app: exports its page component and a tiny `meta`
+  integration-tests/  #   Playwright specs, run by the site's config against its production build
 config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
 services/             # @dy-apps/services: shared non-UI code (TS source, no build step)
   src/demo-source.ts  #   fake or live source, the fake interval and `?demo=` in OBS links

@@ -7,6 +7,6 @@
     "checkJs": false,
     "types": ["node"]
   },
-  "include": ["src", "tests", "*.ts", "*.js"],
+  "include": ["src", "integration-tests", "*.ts", "*.js"],
   "exclude": ["node_modules", "dist"]
 }

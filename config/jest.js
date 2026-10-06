@@ -16,7 +16,7 @@ const swc = (tsx) => [
 ];
 
 /**
- * jsdom + SWC preset. Tests live in `<rootDir>/tests` (Playwright's `tests/integration` excluded); StyleX is
+ * jsdom + SWC preset. Tests live in `<rootDir>/tests` (Playwright's are in `integration-tests`); StyleX is
  * stubbed because only the bundler compiles it. `<rootDir>` is the directory of
  * the app's jest.config.js. `overrides` are merged shallowly.
  */
@@ -24,7 +24,6 @@ export function createJestConfig(overrides = {}) {
   return {
     testEnvironment: require.resolve('jest-environment-jsdom'),
     roots: ['<rootDir>/tests'],
-    testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/integration/'],
     transform: {
       '^.+\\.ts$': swc(false),
       '^.+\\.tsx$': swc(true),

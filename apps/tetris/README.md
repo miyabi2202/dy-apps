@@ -21,7 +21,7 @@ pnpm lint           # ESLint (root eslint.config.js)
 pnpm test           # Jest unit tests
 ```
 
-To play or run browser tests, use the site from the repo root: `pnpm dev` (then open http://localhost:5173/tetris) and `pnpm test:integration`. The game's Playwright tests live in `site/tests/integration/tetris.spec.ts`.
+To play or run browser tests, use the site from the repo root: `pnpm dev` (then open http://localhost:5173/tetris) and `pnpm test:integration`. The game's Playwright tests live in `integration-tests/tetris.spec.ts`; the site's Playwright config runs them.
 
 Formatting is repo-wide: `pnpm format` / `pnpm format:check` at the root.
 
@@ -84,7 +84,7 @@ src/
   loop.ts                 # rAF loop, frame clamp, auto-pause when hidden
   ui/                     # React + StyleX: app.tsx (config page), obs-view.tsx, panels
 tests/             # Jest: engine rules, acceptance examples A–G, gift feed, config
-                   # (Playwright integration tests: site/tests/integration/tetris.spec.ts)
+integration-tests/ # Playwright: tetris.spec.ts, run by the site's config
 ```
 
 The engine updates the board every frame. The React panels re-render only when the engine bumps its `version` (gifts, locks, phase changes, holds). Movement and gravity don't trigger re-renders.

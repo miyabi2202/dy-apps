@@ -7,6 +7,6 @@
     "checkJs": false,
     "types": ["node", "jest"]
   },
-  "include": ["src", "tests", "*.ts", "*.js"],
+  "include": ["src", "tests", "integration-tests", "*.ts", "*.js"],
   "exclude": ["node_modules", "dist"]
 }

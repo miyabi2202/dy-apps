@@ -3,11 +3,16 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Chromium integration tests against a production build: runs `vite build` + `vite preview`
- * in `appRoot`, with tests in `<appRoot>/tests/integration`.
+ * in `appRoot`. Specs live next to the code they cover, in `<appRoot>/integration-tests` and
+ * each app's `apps/<name>/integration-tests`.
  */
 export function createPlaywrightConfig({ appRoot, port = 4173 }) {
   return defineConfig({
-    testDir: path.join(appRoot, 'tests/integration'),
+    testDir: path.join(appRoot, '..'),
+    testMatch: [
+      `${path.basename(appRoot)}/integration-tests/**/*.spec.ts`,
+      'apps/*/integration-tests/**/*.spec.ts',
+    ],
     outputDir: path.join(appRoot, 'test-results'),
     fullyParallel: true,
     forbidOnly: !!process.env.CI,

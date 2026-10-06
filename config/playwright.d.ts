@@ -1,7 +1,7 @@
 import type { PlaywrightTestConfig } from '@playwright/test';
 
 export interface PlaywrightPresetOptions {
-  /** App directory: holds the Vite config and tests/integration. */
+  /** Site directory: holds the Vite config and integration-tests. Each app's integration-tests run too. */
   appRoot: string;
   /** Port for `vite preview`. Default 4173. */
   port?: number;
