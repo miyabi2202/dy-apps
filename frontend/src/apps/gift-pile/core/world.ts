@@ -12,19 +12,53 @@ interface Options {
 const RECENT = 256;
 /** Tries to find a clear spot for a new icon before leaving it queued for the next step. */
 const SPAWN_TRIES = 10;
+/** An icon this close to a surface counts as touching it. */
+const TOUCH = 0.5;
+/**
+ * A support an icon was touching pulls it back from this far: sliding along a circle in
+ * straight steps drifts outward by `step² / (2 × diameter)`, up to 2 px at 1000 px/s.
+ */
+const SNAP = 2;
+/** Deeper into another icon than this is an overlap to push out of, not a touch. */
+const OVERLAP = 0.01;
+/** The most contacts one icon keeps track of in a step. */
+const MAX_CONTACTS = 16;
+/** A direction this far into a contact (per unit of movement) still counts as along it. */
+const FEASIBLE = 1e-3;
+/** A direction has to go down at least this much (per unit of movement) to count as downhill. */
+const DOWNHILL = 1e-3;
+/** A single support this close to straight below is a balancing point, not a resting place. */
+const APEX = 0.02;
+/**
+ * An icon on the pile that moves less than this for `STALL_STEPS` steps is wedged, whatever
+ * the geometry says: the straight-step sliding can chatter in a tight notch forever.
+ */
+const STALL = 0.05;
+const STALL_STEPS = 20;
+
+/** What an icon is touching: other icons by index, or one of the walls or the floor. */
+const FLOOR = -1;
+const WALL = -2;
 
 /**
- * The pile: every icon is a circle in a world with a floor. New icons fall straight down
- * from above; the moment one touches the floor or a resting icon it stops dead, right where
- * it touched, and is part of the pile from then on. Falling icons never meet each other:
- * every one is released on the same line (just above the pile, which only ever rises) at
- * the same speed, clear of the ones released just before, so anything below it is always
- * faster. A step therefore costs by how many are in the air, not by the size of the pile.
+ * The pile: every icon is a circle in a world with a floor and two walls. New icons fall
+ * straight down from above. Touching anything kills an icon's motion, but gravity keeps
+ * pulling: while there is a way downhill along what it touches, it slides that way, picking
+ * up speed, and loses that speed again the moment it meets something new. Only when nothing
+ * it touches lets it move down any further, on the floor or held between supports, does it
+ * come to rest and join the pile.
+ *
+ * Every icon is in every other's way, but a sliding icon never holds another up: one sitting
+ * on it just waits, blocked, until it has stopped. Icons are stepped lowest first, so what an
+ * icon could be held by is settled before the icon itself, and two icons leaning on each
+ * other come to rest together. A step costs by how many icons are moving, not by the size
+ * of the pile.
  *
  * All state lives in typed arrays indexed by icon, sized for `maxItems` up front. Resting
- * icons sit in a grid of linked lists, `2 × radius` square cells, so a falling icon only has
- * to look at the cells its step crosses. The step is swept, not sampled: the first touch
- * along the way down is where the icon stops, so a fast one never passes through the pile.
+ * icons sit in a grid of linked lists, `2 × radius` square cells, and moving icons in a
+ * second one rebuilt each step, so an icon only has to look at the cells around it and along
+ * its step. The step is swept, not sampled: the first touch along the way is where the icon
+ * stops, so a fast one never passes through anything.
  */
 export class PileWorld {
   readonly width: number;
@@ -34,8 +68,8 @@ export class PileWorld {
 
   readonly x: Float32Array;
   readonly y: Float32Array;
-  /** Downward speed; 0 once at rest. */
-  readonly vy: Float32Array;
+  /** Speed along the icon's current way down; 0 once at rest. */
+  readonly speed: Float32Array;
   /** 1 once an icon has come to rest. */
   readonly resting: Uint8Array;
 
@@ -51,21 +85,42 @@ export class PileWorld {
   private readonly settings: PileSettings;
   private readonly rng: Rng;
 
-  // Falling icons, in no particular order.
+  // Moving icons, sorted lowest first at each step.
   private readonly awake: Int32Array;
   private awakeLen = 0;
+  private readonly stall: Uint8Array;
+  /** 1 for a moving icon that moved the last time it was stepped, 0 for one that is held or blocked. */
+  private readonly moved: Uint8Array;
   private spawnCredit = 0;
   private readonly recent = new Int32Array(RECENT).fill(-1);
   private recentAt = 0;
 
-  // The grid of resting icons. `cellOf` turns a position into a cell; rows above the world
-  // hold the pile once it grows past the top, and everything higher still lands in row 0.
+  // The grids. `cellOf` turns a position into a cell; rows above the world hold the pile
+  // once it grows past the top, and everything higher still lands in row 0. The resting
+  // grid only ever gains icons; the moving grid is rebuilt from the moving list each step.
   private readonly cellSize: number;
   private readonly cols: number;
   private readonly rows: number;
   private readonly gridTop: number;
   private readonly head: Int32Array;
   private readonly next: Int32Array;
+  private readonly movingHead: Int32Array;
+  private readonly movingNext: Int32Array;
+  private readonly movingCells: Int32Array;
+  private movingCellCount = 0;
+
+  // The contacts of the icon being moved: the resting things it touches and the unit normal
+  // from each to the icon, which is the direction that thing can push it.
+  private readonly contactOf = new Int32Array(MAX_CONTACTS);
+  private readonly contactNx = new Float64Array(MAX_CONTACTS);
+  private readonly contactNy = new Float64Array(MAX_CONTACTS);
+  private contacts = 0;
+  private overlapping = false;
+  // The way down found by `wayDown`, as a unit vector.
+  private wayX = 0;
+  private wayY = 0;
+  // Whether the last `sweep` was cut short by a moving icon rather than a resting one.
+  private blockedByMover = false;
 
   // Icons that came to rest since the last drain, for the renderer's static layer.
   private readonly settledBuf: Int32Array;
@@ -83,24 +138,30 @@ export class PileWorld {
     const n = this.maxItems;
     this.x = new Float32Array(n);
     this.y = new Float32Array(n);
-    this.vy = new Float32Array(n);
+    this.speed = new Float32Array(n);
     this.resting = new Uint8Array(n);
     this.awake = new Int32Array(n);
+    this.stall = new Uint8Array(n);
+    this.moved = new Uint8Array(n);
     this.settledBuf = new Int32Array(n);
 
     this.cellSize = this.radius * 2;
     this.cols = Math.max(1, Math.ceil(this.width / this.cellSize));
     const visibleRows = Math.ceil(this.height / this.cellSize);
-    // Room for the whole pile above the top. Icons that stop on first touch stack loosely,
-    // at roughly a third of close packing, so allow three times that height.
-    const pileRows = Math.ceil((3 * n) / this.cols);
+    // Room for the whole pile above the top: a settled pile is close to packed, so half
+    // again the height of a hex-packed one is plenty.
+    const pileRows = Math.ceil((1.5 * n) / this.cols);
     this.rows = visibleRows + pileRows;
     this.gridTop = -pileRows * this.cellSize;
-    this.head = new Int32Array(this.cols * this.rows).fill(-1);
+    const cells = this.cols * this.rows;
+    this.head = new Int32Array(cells).fill(-1);
     this.next = new Int32Array(n);
+    this.movingHead = new Int32Array(cells).fill(-1);
+    this.movingNext = new Int32Array(n);
+    this.movingCells = new Int32Array(n);
   }
 
-  /** Icons still in the air. */
+  /** Icons still moving. */
   get fallingCount(): number {
     return this.awakeLen;
   }
@@ -122,6 +183,7 @@ export class PileWorld {
     this.spawnCredit = 0;
     this.topY = this.height;
     this.head.fill(-1);
+    this.clearMovingGrid();
     this.recent.fill(-1);
     this.resting.fill(0);
     this.generation++;
@@ -133,7 +195,7 @@ export class PileWorld {
     this.settledLen = 0;
   }
 
-  /** Calls `fn` for each falling icon. */
+  /** Calls `fn` for each moving icon. */
   forEachFalling(fn: (index: number) => void): void {
     for (let k = 0; k < this.awakeLen; k++) fn(this.awake[k]!);
   }
@@ -141,7 +203,11 @@ export class PileWorld {
   /** Advance by `dt` seconds. Meant for a small fixed step (see `FRAME`). */
   step(dt: number): void {
     this.spawn(dt);
-    this.fall(dt);
+    // Lowest first: whatever an icon could be held by is dealt with before the icon itself.
+    const { y } = this;
+    this.awake.subarray(0, this.awakeLen).sort((a, b) => y[b]! - y[a]!);
+    this.buildMovingGrid();
+    this.move(dt);
   }
 
   /** Release what the rate allows, each on the line, clear of the ones released just before. */
@@ -172,13 +238,15 @@ export class PileWorld {
           }
         }
       }
-      // The band is crowded: leave the rest queued for the next step.
+      // The line is crowded: leave the rest queued for the next step.
       if (!clear) break;
       const i = this.count++;
       this.x[i] = px;
       this.y[i] = py;
-      this.vy[i] = s.spawnSpeed;
+      this.speed[i] = s.spawnSpeed;
       this.resting[i] = 0;
+      this.stall[i] = 0;
+      this.moved[i] = 1;
       this.awake[this.awakeLen++] = i;
       this.recent[this.recentAt] = i;
       this.recentAt = (this.recentAt + 1) % RECENT;
@@ -202,67 +270,330 @@ export class PileWorld {
     return row < 0 ? 0 : row >= this.rows ? this.rows - 1 : row;
   }
 
+  /** Where every moving icon is at the start of the step. */
+  private buildMovingGrid(): void {
+    this.clearMovingGrid();
+    const { awake, movingHead, movingNext, movingCells } = this;
+    for (let k = 0; k < this.awakeLen; k++) {
+      const i = awake[k]!;
+      const c = this.cellOf(this.x[i]!, this.y[i]!);
+      if (movingHead[c] === -1) movingCells[this.movingCellCount++] = c;
+      movingNext[i] = movingHead[c]!;
+      movingHead[c] = i;
+    }
+  }
+
+  private clearMovingGrid(): void {
+    for (let k = 0; k < this.movingCellCount; k++) this.movingHead[this.movingCells[k]!] = -1;
+    this.movingCellCount = 0;
+  }
+
   /**
-   * Move each falling icon down by one step. The way down is checked against the floor and
-   * the resting icons in the cells it crosses; the icon stops at the first one it would
-   * touch, exactly touching, and rests there.
+   * Move each moving icon by one step: find what holds it, pick its way down (or rest if
+   * there is none), speed up under gravity, sweep that far and stop at the first new thing
+   * it meets, then settle exactly onto what it was already touching.
    *
-   * Icons go in release order, which is lowest first, so one that stops this step is in the
-   * grid before anything above it moves. The other way round, the upper one could move past
-   * the point where the lower one then stopped, and fall through it next step.
+   * Icons go lowest first, so one that rests this step is in the grid before anything above
+   * it moves. The other way round, the upper one could move past the point where the lower
+   * one then stopped, and fall through it next step.
    */
-  private fall(dt: number): void {
-    const { x, y, vy, awake, head, next, cols } = this;
-    const r = this.radius;
-    const d = 2 * r;
-    const d2 = d * d;
-    const floor = this.height - r;
-    const g = this.settings.gravity * dt;
+  private move(dt: number): void {
+    const { x, y, speed, stall, moved, awake } = this;
+    const { gravity, maxSpeed, nudge } = this.settings;
 
     let kept = 0;
     for (let k = 0; k < this.awakeLen; k++) {
       const i = awake[k]!;
       const px = x[i]!;
-      const y0 = y[i]!;
-      vy[i]! += g;
-      const y1 = y0 + vy[i]! * dt;
+      const py = y[i]!;
 
-      // Where it would stop: the floor, or the first resting icon it would touch.
-      let stopY = floor;
-      const c0 = this.colOf(px - d);
-      const c1 = this.colOf(px + d);
-      const r0 = this.rowOf(y0 - d);
-      const r1 = this.rowOf(y1 + d);
-      for (let row = r0; row <= r1; row++) {
-        for (let col = c0; col <= c1; col++) {
-          for (let j = head[row * cols + col]!; j !== -1; j = next[j]!) {
-            const dx = px - x[j]!;
-            const dx2 = dx * dx;
-            if (dx2 >= d2) continue;
-            const touchY = y[j]! - Math.sqrt(d2 - dx2);
-            // Already past its shoulder (beside or below it): not in the way.
-            if (touchY < y0) continue;
-            if (touchY < stopY) stopY = touchY;
-          }
+      this.findContacts(i, px, py);
+      let dirX = 0;
+      let dirY = 1;
+      if (this.contacts > 0 && !this.overlapping) {
+        const way = this.wayDown();
+        if (way === 0 || stall[i]! >= STALL_STEPS) {
+          // Nothing it touches lets it move down (or it has stopped making progress): at rest.
+          this.stop(i, px, py);
+          continue;
+        }
+        if (way === 2) {
+          // Balanced on the very top of one icon: start it sliding off.
+          dirX = this.contactNx[0]! > 0 || (this.contactNx[0] === 0 && this.rng() < 0.5) ? 1 : -1;
+          dirY = 0;
+          if (speed[i]! < nudge) speed[i] = nudge;
+        } else {
+          dirX = this.wayX;
+          dirY = this.wayY;
         }
       }
 
-      if (y1 < stopY) {
-        y[i] = y1;
-        awake[kept++] = i;
-        continue;
-      }
-      this.stop(i, stopY);
+      // Gravity along the way down, then the step's move.
+      const v = Math.min(maxSpeed, speed[i]! + gravity * dirY * dt);
+      const mx = dirX * v * dt;
+      const my = dirY * v * dt;
+      const t = this.sweep(i, px, py, mx, my);
+      // Met something new: touching kills the motion.
+      speed[i] = t < 1 ? 0 : v;
+      this.settleOnto(i, px + mx * t, py + my * t);
+
+      const dx = x[i]! - px;
+      const dy = y[i]! - py;
+      const still = dx * dx + dy * dy < STALL * STALL;
+      moved[i] = still ? 0 : 1;
+      // On the pile but going nowhere, and not just waiting behind a moving icon: wedged.
+      stall[i] = still && this.contacts > 0 && !this.blockedByMover ? stall[i]! + 1 : 0;
+      awake[kept++] = i;
     }
     this.awakeLen = kept;
   }
 
-  /** Put icon `i` to rest at height `py`: into the grid, out of the air. */
-  private stop(i: number, py: number): void {
+  /**
+   * What holds icon `i` at (px, py): the resting icons, floor and walls it touches, and any
+   * moving icon under it that is itself held or blocked (it didn't move when last stepped).
+   * A sliding icon never counts, so nothing rests on something about to leave.
+   */
+  private findContacts(i: number, px: number, py: number): void {
+    const { x, y, head, next, movingHead, movingNext, moved, cols } = this;
+    const r = this.radius;
+    const d = 2 * r;
+    const near2 = (d + TOUCH) * (d + TOUCH);
+    const overlap = d - OVERLAP;
+    let n = 0;
+    this.overlapping = false;
+
+    if (py >= this.height - r - TOUCH) {
+      this.contactOf[n] = FLOOR;
+      this.contactNx[n] = 0;
+      this.contactNy[n] = -1;
+      n++;
+    }
+    if (px <= r + TOUCH) {
+      this.contactOf[n] = WALL;
+      this.contactNx[n] = 1;
+      this.contactNy[n] = 0;
+      n++;
+    } else if (px >= this.width - r - TOUCH) {
+      this.contactOf[n] = WALL;
+      this.contactNx[n] = -1;
+      this.contactNy[n] = 0;
+      n++;
+    }
+
+    const cell = this.cellOf(px, py);
+    const lastCell = cols * this.rows;
+    for (let dr = -cols; dr <= cols && n < MAX_CONTACTS; dr += cols) {
+      for (let dc = -1; dc <= 1 && n < MAX_CONTACTS; dc++) {
+        const c = cell + dr + dc;
+        if (c < 0 || c >= lastCell) continue;
+        for (let j = head[c]!; j !== -1 && n < MAX_CONTACTS; j = next[j]!) {
+          const dx = px - x[j]!;
+          const dy = py - y[j]!;
+          const dist2 = dx * dx + dy * dy;
+          if (dist2 > near2) continue;
+          const dist = Math.sqrt(dist2);
+          if (dist < overlap) this.overlapping = true;
+          this.contactOf[n] = j;
+          if (dist > 1e-6) {
+            this.contactNx[n] = dx / dist;
+            this.contactNy[n] = dy / dist;
+          } else {
+            this.contactNx[n] = 0;
+            this.contactNy[n] = -1;
+          }
+          n++;
+        }
+        for (let j = movingHead[c]!; j !== -1 && n < MAX_CONTACTS; j = movingNext[j]!) {
+          if (j === i || moved[j]) continue;
+          const dx = px - x[j]!;
+          const dy = py - y[j]!;
+          // Only one below it holds it up.
+          if (dy >= 0) continue;
+          const dist2 = dx * dx + dy * dy;
+          if (dist2 > near2) continue;
+          const dist = Math.sqrt(dist2);
+          if (dist < overlap) this.overlapping = true;
+          this.contactOf[n] = j;
+          this.contactNx[n] = dx / dist;
+          this.contactNy[n] = dy / dist;
+          n++;
+        }
+      }
+    }
+    this.contacts = n;
+  }
+
+  /**
+   * The steepest way down that none of the contacts blocks: straight down if nothing is
+   * underneath, otherwise along the surface of a contact. Returns 1 with the direction in
+   * `wayX`/`wayY`, 0 when there is none (the icon is held), or 2 when the icon is balanced
+   * on the top of a single icon, where no direction is downhill yet it cannot stay.
+   */
+  private wayDown(): 0 | 1 | 2 {
+    const { contactOf, contactNx, contactNy, contacts } = this;
+    if (this.allows(0, 1)) {
+      this.wayX = 0;
+      this.wayY = 1;
+      return 1;
+    }
+    let best = DOWNHILL;
+    let found = false;
+    for (let c = 0; c < contacts; c++) {
+      const nx = contactNx[c]!;
+      const ny = contactNy[c]!;
+      // Both ways along this contact's surface; downhill means a positive y component.
+      for (let s = -1; s <= 1; s += 2) {
+        const tx = -ny * s;
+        const ty = nx * s;
+        if (ty > best && this.allows(tx, ty)) {
+          best = ty;
+          found = true;
+          this.wayX = tx;
+          this.wayY = ty;
+        }
+      }
+    }
+    if (found) return 1;
+    const onlyApex =
+      contacts === 1 && contactOf[0]! >= 0 && contactNy[0]! < 0 && Math.abs(contactNx[0]!) < APEX;
+    return onlyApex ? 2 : 0;
+  }
+
+  /** Whether moving in direction (tx, ty) pushes into none of the contacts. */
+  private allows(tx: number, ty: number): boolean {
+    for (let c = 0; c < this.contacts; c++) {
+      if (tx * this.contactNx[c]! + ty * this.contactNy[c]! < -FEASIBLE) return false;
+    }
+    return true;
+  }
+
+  /**
+   * How far along the move (mx, my) from (px, py) icon `i` gets before it touches something
+   * it wasn't touching already, as a share of the move: 1 if it gets all the way. Sets
+   * `blockedByMover` when what cut it short was a moving icon.
+   */
+  private sweep(i: number, px: number, py: number, mx: number, my: number): number {
+    const r = this.radius;
+    const d = 2 * r;
+    let t = 1;
+    this.blockedByMover = false;
+
+    const floor = this.height - r;
+    if (my > 0 && py + my > floor) t = Math.min(t, Math.max(0, (floor - py) / my));
+    if (mx < 0 && px + mx < r) t = Math.min(t, Math.max(0, (r - px) / mx));
+    const right = this.width - r;
+    if (mx > 0 && px + mx > right) t = Math.min(t, Math.max(0, (right - px) / mx));
+
+    const a = mx * mx + my * my;
+    if (a === 0) return t;
+    const c0 = this.colOf(Math.min(px, px + mx) - d);
+    const c1 = this.colOf(Math.max(px, px + mx) + d);
+    const r0 = this.rowOf(Math.min(py, py + my) - d);
+    const r1 = this.rowOf(Math.max(py, py + my) + d);
+    for (let row = r0; row <= r1; row++) {
+      for (let col = c0; col <= c1; col++) {
+        const c = row * this.cols + col;
+        const resting = this.sweepCell(this.head[c]!, this.next, i, px, py, mx, my, a, t, false);
+        if (resting < t) {
+          t = resting;
+          this.blockedByMover = false;
+        }
+        const moving = this.sweepCell(
+          this.movingHead[c]!,
+          this.movingNext,
+          i,
+          px,
+          py,
+          mx,
+          my,
+          a,
+          t,
+          true,
+        );
+        if (moving < t) {
+          t = moving;
+          this.blockedByMover = true;
+        }
+      }
+    }
+    return t;
+  }
+
+  /** The earliest touch along the move with the icons in one cell's list, below `t`, or `t`. */
+  private sweepCell(
+    first: number,
+    link: Int32Array,
+    i: number,
+    px: number,
+    py: number,
+    mx: number,
+    my: number,
+    a: number,
+    t: number,
+    moving: boolean,
+  ): number {
+    const { x, y, contactOf, contacts } = this;
+    const d2 = 4 * this.radius * this.radius;
+    candidates: for (let j = first; j !== -1; j = link[j]!) {
+      if (j === i) continue;
+      for (let c = 0; c < contacts; c++) if (contactOf[c] === j) continue candidates;
+      const ox = px - x[j]!;
+      const oy = py - y[j]!;
+      const b = mx * ox + my * oy;
+      if (b >= 0) continue; // moving away from it
+      const cc = ox * ox + oy * oy - d2;
+      if (cc < 0) {
+        // Overlapping already. A resting icon stops it here, and `settleOnto` pushes it
+        // clear next step; two moving icons are let through to come apart.
+        if (!moving) t = 0;
+        continue;
+      }
+      const disc = b * b - a * cc;
+      if (disc < 0) continue;
+      const hit = (-b - Math.sqrt(disc)) / a;
+      if (hit < t) t = hit;
+    }
+    return t;
+  }
+
+  /**
+   * Put icon `i` at (px, py), exactly touching what it was touching: out of anything it has
+   * come to overlap, and back onto a support it has drifted off by rounding a corner.
+   */
+  private settleOnto(i: number, px: number, py: number): void {
+    const { x, y, contactOf, contacts } = this;
+    const r = this.radius;
+    const d = 2 * r;
+    for (let c = 0; c < contacts; c++) {
+      const j = contactOf[c]!;
+      if (j < 0) continue;
+      const dx = px - x[j]!;
+      const dy = py - y[j]!;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 1e-6) {
+        py = y[j]! - d;
+        continue;
+      }
+      const support = dy < 0;
+      if (dist < d || (support && dist <= d + SNAP)) {
+        px = x[j]! + (dx / dist) * d;
+        py = y[j]! + (dy / dist) * d;
+      }
+    }
+    if (px < r) px = r;
+    else if (px > this.width - r) px = this.width - r;
+    if (py > this.height - r) py = this.height - r;
+    x[i] = px;
+    y[i] = py;
+  }
+
+  /** Put icon `i` to rest at (px, py): into the resting grid, out of the moving list. */
+  private stop(i: number, px: number, py: number): void {
+    this.x[i] = px;
     this.y[i] = py;
-    this.vy[i] = 0;
+    this.speed[i] = 0;
     this.resting[i] = 1;
-    const c = this.cellOf(this.x[i]!, py);
+    const c = this.cellOf(px, py);
     this.next[i] = this.head[c]!;
     this.head[c] = i;
     if (py < this.topY) this.topY = py;

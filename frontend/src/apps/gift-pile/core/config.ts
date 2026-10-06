@@ -15,6 +15,10 @@ export interface PileSettings {
   spawnPerSecond: number;
   /** New icons start already falling this fast, so a stream clears the way for the next. */
   spawnSpeed: number;
+  /** Fastest an icon moves, falling or sliding. */
+  maxSpeed: number;
+  /** How an icon balanced on the very top of another starts to slide off, in px/s. */
+  nudge: number;
 }
 
 export const PILE: PileSettings = {
@@ -24,6 +28,8 @@ export const PILE: PileSettings = {
   gravity: 2400,
   spawnPerSecond: 1200,
   spawnSpeed: 600,
+  maxSpeed: 3000,
+  nudge: 30,
 };
 
 /** The frame loop: a fixed simulation step, several per frame, and a cap so a stalled tab never catches up. */
