@@ -64,7 +64,7 @@ describe('App', () => {
 
   it('ignores fake gifts before the game starts', async () => {
     const { engine, user } = setup();
-    await user.click(screen.getByRole('button', { name: '开始送礼' }));
+    await user.click(screen.getByRole('button', { name: '开始模拟送礼' }));
     act(() => jest.advanceTimersByTime(30_000));
     expect(engine.team.giftCount).toBe(0);
     expect(within(wall()).queryAllByRole('article')).toHaveLength(0);
@@ -73,7 +73,7 @@ describe('App', () => {
   it('turns each fake gift into a card with its curses, one draw per diamond', async () => {
     const { engine, user } = setup();
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
-    await user.click(screen.getByRole('button', { name: '开始送礼' }));
+    await user.click(screen.getByRole('button', { name: '开始模拟送礼' }));
     act(() => jest.advanceTimersByTime(300));
     expect(engine.team.giftCount).toBe(10);
     // constantRng(0) always hits and always draws the first curse, 垃圾行.
@@ -83,7 +83,7 @@ describe('App', () => {
     expect(card).toHaveTextContent('玫瑰×2');
     expect(within(card).getByTestId('detail')).toHaveTextContent('触发 垃圾行×10');
 
-    await user.click(screen.getByRole('button', { name: '停止送礼' }));
+    await user.click(screen.getByRole('button', { name: '停止模拟送礼' }));
     act(() => jest.advanceTimersByTime(60_000));
     expect(engine.team.giftCount).toBe(10);
   });
@@ -98,26 +98,19 @@ describe('App', () => {
     expect(screen.getByTestId('pending')).toHaveTextContent('暂无');
   });
 
-  it('starts, pauses, resumes and confirms a restart in progress', async () => {
+  it('starts from the board, pauses with P and resumes from the board', async () => {
     const { engine, user } = setup();
+    expect(screen.queryByRole('button', { name: '暂停' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
     expect(engine.phase).toBe('playing');
-    await user.click(screen.getByRole('button', { name: '暂停' }));
+    await user.keyboard('p');
     expect(engine.phase).toBe('paused');
     expect(screen.getByTestId('overlay-paused')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '继续游戏' }));
     expect(engine.phase).toBe('playing');
-
-    await user.click(screen.getByRole('button', { name: '重新开始' }));
-    const dialog = screen.getByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: '取消' }));
-    expect(engine.phase).toBe('playing');
-    await user.click(screen.getByRole('button', { name: '重新开始' }));
-    await user.click(screen.getByRole('button', { name: '确认重开' }));
-    expect(engine.phase).toBe('ready');
   });
 
-  it('restarts after game over without asking, and empties the gift wall', async () => {
+  it('restarts after game over, emptying the gift wall', async () => {
     const { engine, feed, user } = setup();
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
     act(() => {
@@ -136,20 +129,20 @@ describe('App', () => {
   it('keyboard drives the piece after clicking a button', async () => {
     const { engine, user } = setup();
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
-    await user.click(screen.getByRole('button', { name: '开始送礼' }));
+    await user.click(screen.getByRole('button', { name: '开始模拟送礼' }));
     const x = engine.active!.x;
     await user.keyboard('a');
     expect(engine.active!.x).toBe(x - 1);
     await user.keyboard(' ');
     expect(engine.lockedPieceCount).toBe(1);
     // Space did not also activate the focused button.
-    expect(screen.getByRole('button', { name: '停止送礼' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '停止模拟送礼' })).toBeInTheDocument();
   });
 
-  it('the live source starts only with a valid port and room number', async () => {
+  it('the live source connects only with a valid port and room number', async () => {
     const { user } = setup();
     await user.selectOptions(screen.getByRole('combobox', { name: '数据来源' }), 'live');
-    const start = screen.getByRole('button', { name: '开始送礼' });
+    const start = screen.getByRole('button', { name: '连接' });
     const port = screen.getByRole('textbox', { name: '端口' });
     const room = screen.getByRole('textbox', { name: '直播间号' });
     expect(start).toBeDisabled();

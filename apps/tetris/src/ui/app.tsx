@@ -4,32 +4,20 @@ import {
   type DanmakuMessage,
   type DemoSource,
 } from '@dy-apps/services';
-import {
-  Button,
-  Column,
-  Grid,
-  ObsLink,
-  Page,
-  Panel,
-  Row,
-  Slider,
-  SourcePanel,
-  text,
-} from '@dy-apps/ui';
+import { Column, Grid, ObsLink, Page, Panel, Slider, SourcePanel } from '@dy-apps/ui';
 import { space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useState } from 'react';
 import { configToParams, DEMO_INTERVAL, saveConfig, type TetrisConfig } from '../config';
 import { CONFIG } from '../core/config';
 import type { GameEngine } from '../core/game';
-import type { GiftFeed } from '../gift-feed';
+import { newGame, type GiftFeed } from '../gift-feed';
 import type { KeyboardController } from '../input/keyboard';
 import { useGiftSource } from '../use-gift-source';
 import type { CreateDyhubClient } from '../use-live-gifts';
 import { CenterPanel } from './center-panel';
 import { GameLayout } from './game-layout';
 import { LogPanel } from './log-panel';
-import { useRestart } from './restart-dialog';
 import { TeamPanel } from './team-panel';
 import { usePlay } from './use-engine';
 
@@ -50,7 +38,6 @@ interface Props {
  */
 export function App({ engine, feed, keyboard, config: initial, createClient, fakeGift }: Props) {
   const boardRef = usePlay(engine, keyboard);
-  const { requestRestart, dialog } = useRestart(engine, feed);
   const [connection, setConnection] = useState<Connection>({
     port: initial.port,
     roomId: initial.roomId,
@@ -79,13 +66,6 @@ export function App({ engine, feed, keyboard, config: initial, createClient, fak
   obsParams.set('obs', '1');
   const obsUrl = `${window.location.origin}${window.location.pathname}?${obsParams.toString()}`;
 
-  const phaseButton =
-    engine.phase === 'ready'
-      ? { label: '开始', act: () => engine.start() }
-      : engine.phase === 'paused'
-        ? { label: '继续', act: () => engine.resume() }
-        : { label: '暂停', act: () => engine.pause() };
-
   return (
     <Page title="方块干预实验室" xstyle={styles.page}>
       <Column gap="lg">
@@ -100,20 +80,6 @@ export function App({ engine, feed, keyboard, config: initial, createClient, fak
               unit="%"
               onChange={(pct) => engine.setProbability(pct / 100)}
             />
-            <Row gap="md" wrap>
-              <Button
-                variant="primary"
-                disabled={engine.phase === 'gameOver'}
-                onClick={phaseButton.act}
-              >
-                {phaseButton.label}
-              </Button>
-              <Button onClick={requestRestart}>重新开始</Button>
-            </Row>
-            <p {...stylex.props(text.muted, styles.hint)}>
-              触发概率会写进 OBS 链接。开始和重新开始只控制下方的预览，OBS 里的游戏在「交互」窗口按
-              Enter 开始。
-            </p>
           </Panel>
           <SourcePanel
             running={sending}
@@ -127,7 +93,7 @@ export function App({ engine, feed, keyboard, config: initial, createClient, fak
             connection={connection}
             onConnectionChange={setConnection}
             liveState={liveState}
-            labels={{ start: '开始送礼', stop: '停止送礼' }}
+            fakeLabels={{ start: '开始模拟送礼', stop: '停止模拟送礼' }}
           />
           <Panel title="OBS" gap="md">
             <ObsLink url={obsUrl}>
@@ -144,13 +110,17 @@ export function App({ engine, feed, keyboard, config: initial, createClient, fak
         </Grid>
 
         <GameLayout
-          board={<CenterPanel engine={engine} boardRef={boardRef} onRestart={requestRestart} />}
+          board={
+            <CenterPanel
+              engine={engine}
+              boardRef={boardRef}
+              onRestart={() => newGame(engine, feed)}
+            />
+          }
           side={<TeamPanel engine={engine} feed={feed} />}
         />
 
         <LogPanel engine={engine} />
-
-        {dialog}
       </Column>
     </Page>
   );
@@ -161,9 +131,5 @@ const styles = stylex.create({
     padding: space.xl,
     marginInline: 'auto',
     maxWidth: 1440,
-  },
-  hint: {
-    margin: 0,
-    lineHeight: 1.5,
   },
 });

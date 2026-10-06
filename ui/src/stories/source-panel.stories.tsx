@@ -34,7 +34,7 @@ export const SlowInterval: Story = {
   args: {
     intervalMs: 10_000,
     interval: { range: [2000, 30_000], step: 500 },
-    labels: { start: '开始送礼', stop: '停止送礼' },
+    fakeLabels: { start: '开始模拟送礼', stop: '停止模拟送礼' },
   },
 };
 

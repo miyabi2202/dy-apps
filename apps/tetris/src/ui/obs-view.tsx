@@ -3,14 +3,13 @@ import { colors, fonts, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect } from 'react';
 import type { GameEngine } from '../core/game';
-import type { GiftFeed } from '../gift-feed';
+import { newGame, type GiftFeed } from '../gift-feed';
 import type { KeyboardController } from '../input/keyboard';
 import type { TetrisConfig } from '../config';
 import { useGiftSource } from '../use-gift-source';
 import type { CreateDyhubClient } from '../use-live-gifts';
 import { CenterPanel } from './center-panel';
 import { GameLayout } from './game-layout';
-import { useRestart } from './restart-dialog';
 import { TeamPanel } from './team-panel';
 import { usePlay } from './use-engine';
 
@@ -30,7 +29,6 @@ interface Props {
  */
 export function ObsView({ engine, feed, keyboard, config, createClient }: Props) {
   const boardRef = usePlay(engine, keyboard);
-  const { requestRestart, dialog } = useRestart(engine, feed);
   useGiftSource({
     demo: config.demo,
     room: liveRoomFrom(config),
@@ -47,11 +45,15 @@ export function ObsView({ engine, feed, keyboard, config, createClient }: Props)
     <div {...stylex.props(styles.root)}>
       <GameLayout
         board={
-          <CenterPanel engine={engine} boardRef={boardRef} onRestart={requestRestart} viewer />
+          <CenterPanel
+            engine={engine}
+            boardRef={boardRef}
+            onRestart={() => newGame(engine, feed)}
+            viewer
+          />
         }
         side={<TeamPanel engine={engine} feed={feed} />}
       />
-      {dialog}
     </div>
   );
 }

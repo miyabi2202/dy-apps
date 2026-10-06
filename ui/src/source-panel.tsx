@@ -26,6 +26,8 @@ const SOURCE_LABELS: Record<DemoSource, string> = {
   live: '直播间（DyHub）',
 };
 
+const LIVE_LABELS = { start: '连接', stop: '断开' };
+
 /** The live source retries after an error or a drop, so say so. */
 const STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
   ...DYHUB_STATUS_TEXT,
@@ -47,8 +49,8 @@ interface SourcePanelProps {
   connection: Connection;
   onConnectionChange: (next: Connection) => void;
   liveState: DyhubState;
-  /** The toggle's text while stopped and while running. */
-  labels?: { start: string; stop: string };
+  /** The toggle's text for fake messages, stopped and running; the live source says 连接 / 断开. */
+  fakeLabels?: { start: string; stop: string };
   /** More controls after the toggle, such as a clear button. */
   children?: ReactNode;
 }
@@ -59,10 +61,12 @@ export function SourcePanel(props: SourcePanelProps) {
     running,
     source,
     liveState,
-    labels = { start: '开始预览', stop: '停止预览' },
+    fakeLabels = { start: '开始预览', stop: '停止预览' },
     interval = { range: DEMO_INTERVAL_RANGE, step: 50 },
   } = props;
   const inSeconds = interval.range[0] >= 1000;
+  // The live source connects to a room, so its button says so.
+  const labels = source === 'live' ? LIVE_LABELS : fakeLabels;
   return (
     <Panel title="数据来源" gap="md">
       {/* The panel title says what this picks, so no visible label of its own. */}

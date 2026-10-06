@@ -91,15 +91,15 @@ test('renders a real canvas board, the curse panel and controls', async ({ page 
 });
 
 test('fake gifts reach the wall only once the game has started', async ({ page }) => {
-  await page.getByRole('button', { name: '开始送礼' }).click();
+  await page.getByRole('button', { name: '开始模拟送礼' }).click();
   await page.waitForTimeout(1000);
   expect((await conservation(page)).gifts).toBe(0);
   await expect(page.getByTestId('gift-history').getByRole('article')).toHaveCount(0);
 
   await page.getByRole('button', { name: '开始游戏' }).click();
   // The first fake gift comes 300 ms after starting the source, the rest every 10 s or so.
-  await page.getByRole('button', { name: '停止送礼' }).click();
-  await page.getByRole('button', { name: '开始送礼' }).click();
+  await page.getByRole('button', { name: '停止模拟送礼' }).click();
+  await page.getByRole('button', { name: '开始模拟送礼' }).click();
   await expect(page.getByTestId('gift-history').getByRole('article')).toHaveCount(1);
   await expect(page.getByTestId('gift-history').getByTestId('detail')).toHaveText(
     /^(触发 .+|未触发诅咒)$/,
@@ -107,33 +107,23 @@ test('fake gifts reach the wall only once the game has started', async ({ page }
   expect((await conservation(page)).gifts).toBeGreaterThan(0);
 });
 
-test('start, pause, resume; restart asks only while a game is in progress', async ({ page }) => {
+test('start, pause with P, resume; restart after game over empties the wall', async ({ page }) => {
   await page.getByRole('button', { name: '开始游戏' }).click();
   expect(await sendGift(page, 110)).toBe(true);
   await expect(page.getByTestId('gift-history')).toContainText('阿杰');
-  await page.getByRole('button', { name: '暂停' }).click();
+  await page.keyboard.press('KeyP');
   await expect(page.getByTestId('overlay-paused')).toBeVisible();
   expect(await sendGift(page, 1)).toBe(true);
   await page.getByRole('button', { name: '继续游戏' }).click();
   expect((await engineState(page)).phase).toBe('playing');
   expect((await conservation(page)).gifts).toBe(111);
 
-  await page.getByRole('button', { name: '重新开始' }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.getByRole('button', { name: '取消' }).click();
-  expect((await engineState(page)).phase).toBe('playing');
-  await page.getByRole('button', { name: '重新开始' }).click();
-  await page.getByRole('button', { name: '确认重开' }).click();
-  expect((await engineState(page)).phase).toBe('ready');
-  await expect(page.getByTestId('gift-history').getByRole('article')).toHaveCount(0);
-
-  await page.getByRole('button', { name: '开始游戏' }).click();
   for (let i = 0; i < 40 && (await engineState(page)).phase !== 'gameOver'; i += 1) {
     await page.keyboard.press('Space');
   }
   await page.getByTestId('overlay-gameOver').getByRole('button', { name: '重新开始' }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await engineState(page)).phase).toBe('ready');
+  await expect(page.getByTestId('gift-history').getByRole('article')).toHaveCount(0);
 });
 
 test('WASD and space control the board after clicking a button, without scrolling', async ({
@@ -141,7 +131,7 @@ test('WASD and space control the board after clicking a button, without scrollin
 }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
   await page.getByRole('button', { name: '开始游戏' }).click();
-  await page.getByRole('button', { name: '开始送礼' }).click();
+  await page.getByRole('button', { name: '开始模拟送礼' }).click();
   const scrollBefore = await page.evaluate(() => window.scrollY);
   const before = await engineState(page);
 
@@ -156,7 +146,7 @@ test('WASD and space control the board after clicking a button, without scrollin
   expect(after.locks).toBe(1);
   expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
   // Space was consumed by the game, not by the focused button.
-  await expect(page.getByRole('button', { name: '停止送礼' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '停止模拟送礼' })).toBeVisible();
 });
 
 test('holding a move key auto-repeats with DAS/ARR', async ({ page }) => {

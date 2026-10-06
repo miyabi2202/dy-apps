@@ -32,8 +32,8 @@ Add `?seed=123` to the URL to make piece, garbage and gift randomness reproducib
 Like the 弹幕墙, the route has two pages, set up by a `TetrisConfig` (`src/config.ts`): the trigger chance, and where gifts come from (`demo.source` with its interval, or the room in `port` / `roomId`).
 
 - **`/tetris`, the config page.** Three panels, then the full game as a preview:
-  - **游戏**: the trigger chance (1–100%, per diamond), and start / pause / restart for the preview.
-  - **数据来源** (the shared `SourcePanel`): 模拟数据, made-up viewers sending random gifts at random times (10 s apart on average, 2–30 s), or 直播间（DyHub）. 开始送礼 starts it.
+  - **游戏**: the trigger chance (1–100%, per diamond). The preview game starts from its own 开始游戏 button or Enter.
+  - **数据来源** (the shared `SourcePanel`): 模拟数据, made-up viewers sending random gifts at random times (10 s apart on average, 2–30 s), or 直播间（DyHub）. 开始模拟送礼 or 连接 starts it.
   - **OBS**: the link for an OBS browser source, with the chance and the source.
 
   The config is saved in localStorage (`dy-apps:tetris.*`) and comes back on reload.
@@ -118,7 +118,7 @@ These timings depend on the hardware. **Windows, Edge and Firefox were not teste
 Where the spec left room, these are the choices made:
 
 - **Fog / seal duration:** one curse lasts three pieces; firing again while active restarts the count. Fog hides the whole preview while active.
-- **Restart confirmation:** the dialog appears while a game with progress is under way. After game over, 重新开始 restarts straight away.
+- **Restart:** only from the game-over screen, without asking. There is no mid-game restart or pause button; P pauses.
 - **Lock resets:** a move or rotation resets the lock timer only if the piece was grounded before it (up to 12 times). A piece that slides off a ledge and lands again restarts its 500 ms timer, as standard.
 - **Curse queue:** no energy, levels, slots or reserve. Each triggered draw adds 1 to its curse's pending count, with no cap. At each settlement every curse type with a pending count fires once (in the order 垃圾行, 加速, 迷雾, 封存) and the rest keeps waiting, so a large gift becomes a steady stream rather than an instant loss. Line clears only score; they don't affect pending curses.
 - **Haste:** permanent and stacking. Each haste multiplies the drop interval by 0.8 for the rest of the game, down to the 140 ms floor, and restart resets it. The 速度 box beside the preview shows the current fall speed relative to the starting speed, including line-clear speed-ups.

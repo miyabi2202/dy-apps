@@ -79,6 +79,12 @@ function diamondsOf({ gift }: DanmakuMessage): number {
   return (gift?.count ?? 0) * (gift?.diamonds || 1);
 }
 
+/** Starts a new game: the board and curses are reset, and the gift wall emptied. */
+export function newGame(engine: GameEngine, feed: GiftFeed): void {
+  engine.restart();
+  feed.clear();
+}
+
 /** A big gift is worth more draws than one batch allows, so split it. Never empty. */
 function batches(count: number): number[] {
   const { maxBatch } = CONFIG.gifts;

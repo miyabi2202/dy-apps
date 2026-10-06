@@ -149,11 +149,6 @@ export class GameEngine {
     return this.active.y + this.dropDistance();
   }
 
-  /** True when restarting would discard something. */
-  get hasProgress(): boolean {
-    return this.phase !== 'ready' || this.lockedPieceCount > 0 || this.team.giftCount > 0;
-  }
-
   // ---------------------------------------------------------------- phases
 
   start(): void {
