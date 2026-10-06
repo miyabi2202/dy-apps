@@ -2,7 +2,7 @@ import { Button, Grid, Panel, text } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import type React from 'react';
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { CONFIG } from '../core/config';
 import type { GameEngine } from '../core/game';
 import { shapeOf } from '../core/pieces';
@@ -24,9 +24,67 @@ const fadeIn = stylex.keyframes({
   to: { backgroundColor: 'transparent' },
 });
 
+/** Something got worse: a jolt and a red flash. */
+const alarm = stylex.keyframes({
+  '0%': { transform: 'scale(1)' },
+  '25%': {
+    backgroundColor: colors.danger,
+    boxShadow: `0 0 18px ${colors.danger}`,
+    color: colors.onAccent,
+    transform: 'scale(1.35)',
+  },
+  '100%': { boxShadow: '0 0 0 transparent', transform: 'scale(1)' },
+});
+
+/** Something lifted: a smaller jolt and a green flash. */
+const relief = stylex.keyframes({
+  '0%': { transform: 'scale(1)' },
+  '25%': {
+    backgroundColor: colors.success,
+    boxShadow: `0 0 18px ${colors.success}`,
+    color: colors.onAccent,
+    transform: 'scale(1.2)',
+  },
+  '100%': { boxShadow: '0 0 0 transparent', transform: 'scale(1)' },
+});
+
+/** Mist drifting across the hidden preview while fog lasts. */
+const mist = stylex.keyframes({
+  '0%': { backgroundPosition: '0% 50%', opacity: 0.75 },
+  '50%': { opacity: 1 },
+  '100%': { backgroundPosition: '200% 50%', opacity: 0.75 },
+});
+
+/** A red ring breathing around the hold box while seal lasts. */
+const sealPulse = stylex.keyframes({
+  '0%': { boxShadow: `0 0 0 0 ${colors.danger}` },
+  '70%': { boxShadow: `0 0 0 8px transparent` },
+  '100%': { boxShadow: `0 0 0 0 transparent` },
+});
+
+/** Which way a value last moved: worse ('up'), better ('down'), or not yet. */
+type Change = 'up' | 'down' | null;
+
+/**
+ * The direction of `value`'s last change, so the change can be animated. Derived state: it
+ * updates during render and React re-renders at once.
+ */
+function useChange<T>(value: T, direction: (prev: T, next: T) => Change): Change {
+  const [last, setLast] = useState<{ value: T; change: Change }>({ value, change: null });
+  if (!Object.is(last.value, value)) setLast({ value, change: direction(last.value, value) });
+  return Object.is(last.value, value) ? last.change : null;
+}
+
+const faster = (prev: string, next: string): Change =>
+  Number(next) > Number(prev) ? 'up' : 'down';
+const onOff = (_prev: boolean, next: boolean): Change => (next ? 'up' : 'down');
+
 export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Props) {
   const every = CONFIG.settlement.everyLocks;
   const done = engine.lockedPieceCount % every;
+  const speed = engine.speedMultiplier.toFixed(1);
+  const speedChange = useChange(speed, faster);
+  const hasted = engine.activeCurses.some(({ def }) => def.gravityMultiplier !== undefined);
   const timed = engine.activeCurses.map(({ def, remainingLocks, count }) => (
     <span key={def.type}>
       <CurseName def={def} />
@@ -34,7 +92,9 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
     </span>
   ));
   const holdBlockedBy = engine.blockedBy('hold');
+  const holdChange = useChange(holdBlockedBy !== null, onOff);
   const previewHiddenBy = engine.previewHiddenBy;
+  const previewChange = useChange(previewHiddenBy !== null, onOff);
 
   const firingNext = engine.curses.filter((def) => engine.team.pending[def.type] > 0);
 
@@ -56,7 +116,15 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
       </div>
 
       <div {...stylex.props(styles.playArea)}>
-        <div {...stylex.props(styles.side, styles.holdSide)}>
+        <div
+          key={String(holdBlockedBy !== null)}
+          {...stylex.props(
+            styles.side,
+            styles.holdSide,
+            holdBlockedBy && styles.alarm,
+            holdChange === 'down' && styles.relief,
+          )}
+        >
           <div {...stylex.props(text.caption)}>
             暂存
             {holdBlockedBy && (
@@ -66,7 +134,9 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
               </>
             )}
           </div>
-          <MiniPiece shape={engine.hold} dim={!!holdBlockedBy || !engine.canHold} label="暂存" />
+          <div {...stylex.props(holdBlockedBy && styles.sealRing)}>
+            <MiniPiece shape={engine.hold} dim={!!holdBlockedBy || !engine.canHold} label="暂存" />
+          </div>
         </div>
 
         <div {...stylex.props(styles.boardWrap)}>
@@ -83,13 +153,18 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
         <div {...stylex.props(styles.side, styles.nextSide)}>
           <div {...stylex.props(text.caption)}>后续</div>
           {previewHiddenBy ? (
-            <div {...stylex.props(styles.fog)} data-testid={testIds.previewFog}>
-              <CurseName def={previewHiddenBy} />
-              <br />
-              预览隐藏
+            <div {...stylex.props(styles.alarm)} data-testid={testIds.previewFog}>
+              <div {...stylex.props(styles.fog, styles.fogged)}>
+                <CurseName def={previewHiddenBy} />
+                <br />
+                预览隐藏
+              </div>
             </div>
           ) : (
-            <div {...stylex.props(styles.previewList)} data-testid={testIds.preview}>
+            <div
+              {...stylex.props(styles.previewList, previewChange === 'down' && styles.relief)}
+              data-testid={testIds.preview}
+            >
               {engine.preview.map((type, i) => (
                 // Preview slots are positional; the index is the identity.
                 // eslint-disable-next-line @eslint-react/no-array-index-key
@@ -98,8 +173,20 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
             </div>
           )}
           <div {...stylex.props(text.caption, styles.speedTitle)}>速度</div>
-          <div data-testid={testIds.speed} {...stylex.props(styles.speed)}>
-            ×{engine.speedMultiplier.toFixed(1)}
+          <div
+            key={speed}
+            data-testid={testIds.speed}
+            data-speed-change={
+              speedChange === 'up' ? 'faster' : speedChange === 'down' ? 'slower' : undefined
+            }
+            {...stylex.props(
+              styles.speed,
+              hasted && styles.speedHasted,
+              speedChange === 'up' && styles.alarm,
+              speedChange === 'down' && styles.relief,
+            )}
+          >
+            ×{speed}
           </div>
         </div>
       </div>
@@ -359,6 +446,40 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     fontWeight: 700,
     textAlign: 'center',
+    transitionDuration: '400ms',
+    transitionProperty: 'background-color, color',
+  },
+  /** While a haste is running the box stays red, so the boost reads at a glance. */
+  speedHasted: {
+    backgroundColor: colors.dangerSoft,
+    color: colors.danger,
+  },
+  alarm: {
+    animationDuration: '800ms',
+    animationName: alarm,
+    animationTimingFunction: 'ease-out',
+  },
+  relief: {
+    animationDuration: '800ms',
+    animationName: relief,
+    animationTimingFunction: 'ease-out',
+  },
+  /** The red ring breathing around the hold box while seal lasts. */
+  sealRing: {
+    borderRadius: radius.sm,
+    animationDuration: '1.6s',
+    animationIterationCount: 'infinite',
+    animationName: sealPulse,
+    animationTimingFunction: 'ease-out',
+  },
+  /** Mist drifting across the hidden preview while fog lasts. */
+  fogged: {
+    animationDuration: '4s',
+    animationIterationCount: 'infinite',
+    animationName: mist,
+    animationTimingFunction: 'linear',
+    backgroundImage: `linear-gradient(100deg, transparent 0%, color-mix(in srgb, ${colors.muted} 35%, transparent) 50%, transparent 100%)`,
+    backgroundSize: '200% 100%',
   },
   fog: {
     borderRadius: radius.sm,
