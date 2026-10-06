@@ -1,47 +1,54 @@
 # dy-apps
 
-pnpm monorepo of small live-stream apps, served as one site: an index page at `/` and each app on its own route.
+Small live-stream apps, served as one site: an index page at `/` and each app on its own route. Everything lives in one package, [`frontend/`](frontend) (`@dy-apps/frontend`), inside a pnpm workspace.
 
-| Package                                    | Path                | What it is                                                                       |
-| ------------------------------------------ | ------------------- | -------------------------------------------------------------------------------- |
-| [`@dy-apps/site`](site)                    | `site/`             | The deployed SPA: index page, React Router, Vite build, Workers                  |
-| [`@dy-apps/tetris`](apps/tetris)           | `apps/tetris/`      | 方块干预实验室 at `/tetris`: block game with audience curses                     |
-| [`@dy-apps/danmaku`](apps/danmaku)         | `apps/danmaku/`     | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                           |
-| [`@dy-apps/dyhub-guide`](apps/dyhub-guide) | `apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers                        |
-| [`@dy-apps/config`](config)                | `config/`           | Shared Vite, Jest, Playwright and Browserslist presets                           |
-| [`@dy-apps/services`](services)            | `services/`         | Shared non-UI code: the DyHub client, messages, fake data and saved settings     |
-| [`@dy-apps/ui`](ui)                        | `ui/`               | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
+| Path                             | What it is                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------------- |
+| `frontend/src/`                  | The site itself: index page, React Router, entry (`main.tsx`)                    |
+| `frontend/src/apps/tetris/`      | 方块干预实验室 at `/tetris`: block game with audience curses                     |
+| `frontend/src/apps/danmaku/`     | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                           |
+| `frontend/src/apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers                        |
+| `frontend/src/services/`         | Shared non-UI code: the DyHub client, messages, fake data and saved settings     |
+| `frontend/src/ui/`               | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
 
 ## Layout
 
 ```text
-site/                 # the one deployed app: index page + a lazily loaded route per app
-  src/apps.ts         #   registry of apps (path, title, description, lazy page import)
-  wrangler.jsonc      #   Cloudflare Workers static-assets deploy (SPA fallback for deep links)
-apps/<name>/          # one package per app: exports its page component and a tiny `meta`
-  integration-tests/  #   Playwright specs, run by the site's config against its production build
-config/               # @dy-apps/config: createViteConfig / createJestConfig / createPlaywrightConfig
-services/             # @dy-apps/services: shared non-UI code (TS source, no build step)
-  src/demo-source.ts  #   fake or live source, the fake interval and `?demo=` in OBS links
-  src/dyhub-client.ts #   DyhubClient: onComment / onGift / onLike / onStatus, with retry
-  src/dyhub.ts        #   the raw stream (connectDyhub), port/room validation, GiftCounter, status text
-  src/fake-messages.ts #  made-up viewers, chat and gifts for previews
-  src/like-batcher.ts #   LikeBatcher: one total per viewer once they stop liking
-  src/live-message.ts #   DanmakuMessage, and DyHub events turned into messages
-  src/live-room.ts    #   liveRoomFrom, the room in OBS links, createConnectionStore
-  src/local-storage.ts #  createStore for `dy-apps:<app>.<key>` values
-ui/                   # @dy-apps/ui: design tokens + the components every app reuses (TS source, no build step)
-eslint.config.js      # one flat config for every package
-.prettierrc.json      # repo-wide formatting (+ .prettierignore)
-tsconfig.base.json    # packages extend this
-package.json          # private root: shared tooling + scripts that fan out to packages
-pnpm-workspace.yaml   # workspace packages and the version catalog for shared tools
+frontend/                 # @dy-apps/frontend: the one package
+  index.html              #   the site's page
+  wrangler.jsonc          #   Cloudflare Workers static-assets deploy (SPA fallback for deep links)
+  src/
+    main.tsx  apps.ts  …  #   the site: entry, index page, router; apps.ts registers each app's route
+    apps/<name>/          #   one folder per app: index.ts exports the page component, meta.ts a tiny `meta`
+      tests/              #     Jest unit tests
+      integration-tests/  #     Playwright specs, against the site's production build
+    services/             #   imported as `@dy-apps/services`: shared non-UI code
+      demo-source.ts      #     fake or live source, the fake interval and `?demo=` in OBS links
+      dyhub-client.ts     #     DyhubClient: onComment / onGift / onLike / onStatus, with retry
+      dyhub.ts            #     the raw stream (connectDyhub), port/room validation, GiftCounter, status text
+      fake-messages.ts    #     made-up viewers, chat and gifts for previews
+      like-batcher.ts     #     LikeBatcher: one total per viewer once they stop liking
+      live-message.ts     #     DanmakuMessage, and DyHub events turned into messages
+      live-room.ts        #     liveRoomFrom, the room in OBS links, createConnectionStore
+      local-storage.ts    #     createStore for `dy-apps:<app>.<key>` values
+    ui/                   #   imported as `@dy-apps/ui`: design tokens + the components every app reuses
+  config/
+    aliases.js            #   the `@dy-apps/ui` and `@dy-apps/services` import names (mirrored in tsconfig.json)
+    vite.config.ts        #   site build: StyleX, chunk groups, commit hash
+    jest.config.js        #   every unit test (jest/ holds its setup and the StyleX stub)
+    playwright.config.ts  #   every app's integration tests, against `vite build` + `vite preview`
+    storybook/            #   ui stories
+  tsconfig.json           #   stays here so editors and ESLint find it
+eslint.config.js          # lint for the whole repo, including which folders may import which
+.prettierrc.json          # repo-wide formatting (+ .prettierignore)
+package.json              # private root: lint/format tools + scripts that run in frontend
+pnpm-workspace.yaml
 pnpm-lock.yaml
 ```
 
 ## Code splitting
 
-The site's Vite build (`config/vite.js`) splits output so each page downloads only what it needs:
+The site's Vite build (`frontend/config/vite.config.ts`) splits output so each page downloads only what it needs:
 
 - **One chunk per app** (`app-<name>-*.js`), loaded by React Router's route `lazy` only when its path is visited. The index imports just each app's `meta`, not its code.
 - **One `lib` chunk** for the first-party shared libraries (`ui` and `services`), so an app never has to download another app's chunk to get shared code.
@@ -85,54 +92,35 @@ Run from the repo root.
 
 ```sh
 pnpm install
-pnpm dev            # site dev server → http://localhost:5173 (index) and /tetris
-pnpm build          # build the site (type-check + Vite) → site/dist/
-pnpm typecheck      # tsc in every package
-pnpm lint           # ESLint, whole repo
-pnpm test           # Jest in every package
-pnpm test:integration # Playwright against the built site (run `pnpm --filter @dy-apps/site exec playwright install chromium` once)
-pnpm storybook      # @dy-apps/ui components and tokens in Storybook → http://localhost:6006
-pnpm format         # Prettier, whole repo (format:check to verify)
-pnpm check          # format:check + typecheck + lint + test
+pnpm dev              # site dev server → http://localhost:5173 (index) and /tetris
+pnpm build            # build the site (type-check + Vite) → frontend/dist/
+pnpm preview          # serve that build → http://localhost:4173
+pnpm typecheck        # tsc
+pnpm lint             # ESLint, whole repo
+pnpm test             # Jest
+pnpm test:integration # Playwright against the built site (run `pnpm --filter @dy-apps/frontend exec playwright install chromium` once)
+pnpm storybook        # ui components and tokens in Storybook → http://localhost:6006
+pnpm build-storybook  # → frontend/storybook-static/
+pnpm format           # Prettier, whole repo (format:check to verify)
+pnpm check            # format:check + typecheck + lint + test
 ```
 
-To target one package: `pnpm --filter @dy-apps/<name> <script>`.
+## One package, kept apart by lint
 
-## Shared config presets
+The site, apps and shared libraries share one `package.json`, `tsconfig.json` and set of tool configs (in `frontend/config/`, passed to each tool by the scripts). Folders still keep their boundaries; `pnpm lint` fails when an import crosses one (`import-x/no-restricted-paths` in `eslint.config.js`):
 
-Packages keep one short file per tool, using the default filenames so no `--config` flags are needed. The site uses the Vite and Playwright presets; apps use the Jest preset:
+- an app imports another app, or the site
+- `ui` or `services` imports an app or the site
+- `services` imports `ui`
 
-```ts
-// vite.config.ts
-import { createViteConfig } from '@dy-apps/config/vite';
-export default createViteConfig(import.meta.dirname);
-
-// playwright.config.ts
-import { createPlaywrightConfig } from '@dy-apps/config/playwright';
-export default createPlaywrightConfig({ appRoot: import.meta.dirname });
-```
-
-```js
-// jest.config.js
-import { createJestConfig } from '@dy-apps/config/jest';
-export default createJestConfig({ setupFilesAfterEnv: ['<rootDir>/src/setup-tests.ts'] });
-```
-
-```
-# .browserslistrc
-extends @dy-apps/config/browserslist-config
-```
-
-The presets are plain JavaScript with `.d.ts` types, because Jest can't load a TypeScript config without extra tooling. `@dy-apps/config` owns the plugins and transforms (StyleX, React, SWC, jsdom). Apps only depend on the CLIs they run (`vite`, `jest`, `@playwright/test`), and those versions come from the catalog.
+Apps import the shared libraries by name, `@dy-apps/ui` and `@dy-apps/services`. Those names come from `frontend/config/aliases.js`, which Vite, StyleX, Jest and Storybook read; `paths` in `frontend/tsconfig.json` repeats them for TypeScript.
 
 ## Adding an app
 
-1. Create `apps/<name>/` with a `package.json` named `@dy-apps/<name>` and `"exports": { ".": "./src/index.ts", "./meta": "./src/meta.ts" }`. Put React in `peerDependencies` (and `devDependencies` for tests).
-2. Export the page component from `src/index.ts`, and `meta = { path, title, description }` from `src/meta.ts`. Keep `meta.ts` free of imports so the index stays small.
-3. Add `"@dy-apps/<name>": "workspace:*"` to `site/package.json` and one entry to `site/src/apps.ts`.
-4. Add a `tsconfig.json` that extends `../../tsconfig.base.json`, plus `jest.config.js` if it has tests. `apps/*` is already in `pnpm-workspace.yaml` and the ESLint config.
-5. Use `"catalog:"` for shared tools so versions stay in sync, then run `pnpm install`.
-6. Build the UI from `@dy-apps/ui` (see below) instead of styling your own buttons, panels or inputs.
+1. Create `frontend/src/apps/<name>/` with the page component exported from `index.ts`, and `meta = { path, title, description }` from `meta.ts`. Keep `meta.ts` free of imports so the index stays small.
+2. Add one entry to `frontend/src/apps.ts`, importing `meta` and the page by relative path.
+3. Put unit tests in `tests/` and Playwright specs in `integration-tests/`, both inside the app's folder. Jest, Playwright, TypeScript, ESLint and the chunk groups pick them up without any config.
+4. Build the UI from `@dy-apps/ui` (see below) instead of styling your own buttons, panels or inputs.
 
 ## Design system
 
@@ -142,4 +130,4 @@ The presets are plain JavaScript with `.d.ts` types, because Jest can't load a T
 - **Components**: `Button` (`default` / `primary` / `danger`), `Panel`, `Field` with `Input` / `Select` and an optional `hint` (and `useFieldId` for custom controls), `Slider`, `Row` / `Column` / `Grid` for spacing, `Page` for an app's root, and `text.muted` / `text.caption` styles.
 - **Live-stream pieces**: `MessageCard` and `MessageList` (the 弹幕墙 cards, styled by a `CardStyle`), `SourcePanel` with `useDemo` (fake or live data), `ConnectionForm` and `ObsLink`.
 
-Browse them with `pnpm storybook`; stories live in `ui/src/stories/`, unit tests in `ui/tests/`. Every component takes an `xstyle` prop for one-off tweaks. Styles that stay inside an app (a game board, an overlay card) still use the tokens for colour, padding and radius rather than literal values.
+Browse them with `pnpm storybook`; stories live in `frontend/src/ui/stories/`, unit tests in `frontend/src/ui/tests/`. Every component takes an `xstyle` prop for one-off tweaks. Styles that stay inside an app (a game board, an overlay card) still use the tokens for colour, padding and radius rather than literal values.

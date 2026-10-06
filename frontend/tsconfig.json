@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "allowImportingTsExtensions": true,
+    "checkJs": false,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node", "jest", "@testing-library/jest-dom"],
+    // The same names as config/aliases.js, which Vite, StyleX, Jest and Storybook use.
+    "paths": {
+      "@dy-apps/services": ["./src/services/index.ts"],
+      "@dy-apps/ui": ["./src/ui/index.ts"],
+      "@dy-apps/ui/tokens.stylex": ["./src/ui/tokens.stylex.ts"]
+    }
+  },
+  "include": ["src", "config"],
+  "exclude": ["node_modules", "dist", "storybook-static"]
+}

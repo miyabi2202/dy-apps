@@ -28,12 +28,12 @@ jobs:
       - name: Build site
         run: pnpm build
       - name: Build Storybook
-        run: pnpm --filter @dy-apps/ui build-storybook
-      - run: pnpm --filter @dy-apps/site exec playwright install --with-deps chromium
+        run: pnpm build-storybook
+      - run: pnpm --filter @dy-apps/frontend exec playwright install --with-deps chromium
       - run: pnpm test:integration
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-results
-          path: site/test-results
+          path: frontend/test-results
           retention-days: 7

@@ -1,0 +1,52 @@
+{
+  "name": "@dy-apps/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The deployed site: the index page, every app, and the ui and services libraries they share.",
+  "scripts": {
+    "dev": "vite -c config/vite.config.ts",
+    "build": "tsc --noEmit && vite build -c config/vite.config.ts",
+    "preview": "vite preview -c config/vite.config.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "jest -c config/jest.config.js",
+    "test:watch": "jest -c config/jest.config.js --watch",
+    "test:integration": "playwright test -c config/playwright.config.ts",
+    "storybook": "storybook dev -c config/storybook --port 6006",
+    "build-storybook": "storybook build -c config/storybook --output-dir storybook-static"
+  },
+  "browserslist": [
+    "last 2 Chrome versions",
+    "last 2 Edge versions",
+    "last 2 Firefox versions",
+    "last 2 Safari versions"
+  ],
+  "dependencies": {
+    "@stylexjs/stylex": "^0.19.1",
+    "@tanstack/react-virtual": "^3.14.13",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router": "^8.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@storybook/react-vite": "^10.6.1",
+    "@stylexjs/unplugin": "^0.19.1",
+    "@swc/core": "^1.16.13",
+    "@swc/jest": "^0.2.39",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
+    "storybook": "^10.6.1",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.2"
+  }
+}

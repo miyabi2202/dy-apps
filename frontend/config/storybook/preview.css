@@ -1,0 +1,22 @@
+/* The site's resets (src/global.css), so components look as they do in an app.
+   Also gives the build a CSS asset that the StyleX plugin appends its output to.
+   The `reset` layer is declared first in preview-head.html, so StyleX's layers win. */
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+}

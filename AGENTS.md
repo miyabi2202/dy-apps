@@ -8,10 +8,10 @@ Each page should download only the code it needs.
 
 - The index page loads no app code.
 - Each app is its own chunk.
-- Apps never import from each other. Put shared code in a shared library.
-- All our shared libraries go into one `lib` chunk. When you add a library, list it in `SHARED_LIBS` in `config/vite.js`.
+- Apps never import from each other. Put shared code in a shared library. `pnpm lint` enforces this (see the README).
+- All our shared libraries go into one `lib` chunk. When you add a library, list it in `SHARED_LIBS` in `frontend/config/vite.config.ts`, and give it an import name in `frontend/config/aliases.js` and `frontend/tsconfig.json`.
 
-To check, run `pnpm build` and read the chunk list: each app is an `app-<name>` chunk, and `/` should request only `index`, `react`, `stylex`, `lib` and the CSS (the Network tab in `pnpm --filter @dy-apps/site preview`).
+To check, run `pnpm build` and read the chunk list: each app is an `app-<name>` chunk, and `/` should request only `index`, `react`, `stylex`, `lib` and the CSS (the Network tab in `pnpm preview`).
 
 ## File names
 

@@ -8,27 +8,30 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @dy-apps/site dev",
+    "dev": "pnpm --filter @dy-apps/frontend dev",
     "build": "pnpm -r build",
+    "preview": "pnpm --filter @dy-apps/frontend preview",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint --max-warnings 0 .",
     "test": "pnpm -r test",
     "test:integration": "pnpm -r test:integration",
-    "storybook": "pnpm --filter @dy-apps/ui storybook",
+    "storybook": "pnpm --filter @dy-apps/frontend storybook",
+    "build-storybook": "pnpm --filter @dy-apps/frontend build-storybook",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test"
   },
   "devDependencies": {
     "@eslint-react/eslint-plugin": "^5.23.3",
-    "@eslint/js": "catalog:",
+    "@eslint/js": "^10.0.1",
     "@stylexjs/eslint-plugin": "^0.19.1",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import-x": "^4.17.1",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "catalog:",
-    "prettier": "catalog:",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0"
   }
 }
