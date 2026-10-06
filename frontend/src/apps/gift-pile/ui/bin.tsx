@@ -1,4 +1,4 @@
-import { colors, radius } from '@dy-apps/ui/tokens.stylex';
+import { colors } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useRef, type PointerEvent } from 'react';
 import { labels, testIds } from '../messages';
@@ -9,8 +9,10 @@ export interface BinPlace {
   fy: number;
 }
 
-/** The bin's size on screen, in CSS px. */
-export const BIN_SIZE = 56;
+/** The drop area's size on screen, in CSS px: a little larger than the bin itself. */
+export const BIN_SIZE = 72;
+/** The bin's own size, in CSS px. */
+const ICON_SIZE = 52;
 
 interface Props {
   place: BinPlace;
@@ -23,8 +25,8 @@ interface Props {
 }
 
 /**
- * The rubbish bin: floats over the canvas, outside the physics and on top of everything.
- * Drag it to move it; it lights up while an icon is held over it.
+ * The rubbish bin, a wire basket like the Mac's: floats over the canvas, outside the physics
+ * and on top of everything. Drag it to move it; it fills up while an icon is held over it.
  */
 export function Bin({ place, stageWidth, stageHeight, onMove, hot }: Props) {
   const dragRef = useRef<{ dx: number; dy: number } | null>(null);
@@ -67,75 +69,99 @@ export function Bin({ place, stageWidth, stageHeight, onMove, hot }: Props) {
       onPointerCancel={onPointerUp}
       {...stylex.props(styles.bin, hot && styles.hot, styles.at(place.fx * 100, place.fy * 100))}
     >
-      <BinIcon open={hot} />
+      <BinIcon full={hot} />
     </div>
   );
 }
 
-/** A bin with a lid that lifts when something is about to go in. */
-function BinIcon({ open }: { open: boolean }) {
+/** A wire-mesh basket; `full` shows crumpled paper in it, as something is about to go in. */
+function BinIcon({ full }: { full: boolean }) {
   return (
-    <svg
-      aria-hidden
-      viewBox="0 0 24 24"
-      width="28"
-      height="28"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <g {...stylex.props(styles.lid, open && styles.lidOpen)}>
-        <path d="M4 7h16" />
-        <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    <svg aria-hidden viewBox="0 0 64 64" width={ICON_SIZE} height={ICON_SIZE}>
+      <defs>
+        <linearGradient id="gift-pile-bin-body" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" stopColor="#9aa3b2" />
+          <stop offset="0.35" stopColor="#dfe4ec" />
+          <stop offset="0.7" stopColor="#aab3c2" />
+          <stop offset="1" stopColor="#6f7889" />
+        </linearGradient>
+        <linearGradient id="gift-pile-bin-rim" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" stopColor="#c7cdd8" />
+          <stop offset="0.5" stopColor="#f3f5f8" />
+          <stop offset="1" stopColor="#9aa3b2" />
+        </linearGradient>
+      </defs>
+      {/* Body: a tapered cylinder. */}
+      <path
+        d="M13 20 L18.5 55.5 Q32 61 45.5 55.5 L51 20 Z"
+        fill="url(#gift-pile-bin-body)"
+        stroke="#5b6475"
+        strokeWidth={1}
+      />
+      {/* Mesh: the vertical wires and three hoops. */}
+      <g stroke="rgba(30, 36, 48, 0.55)" strokeWidth={1} fill="none">
+        <path d="M19 23 L23 56 M25 24 L27.5 58 M32 24.5 L32 58.5 M39 24 L36.5 58 M45 23 L41 56" />
+        <path d="M14.8 32 Q32 37.5 49.2 32 M16.6 43 Q32 48 47.4 43 M18 52 Q32 57 46 52" />
       </g>
-      <path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
-      <path d="M10 11v6M14 11v6" />
+      {/* The paper inside, once something is about to go in. */}
+      <g {...stylex.props(styles.paper, full && styles.paperShown)}>
+        <path
+          d="M23 21 L27 13 L33 16 L37 11 L42 17 L46 15 L44 22 Z"
+          fill="#f8fafc"
+          stroke="#cbd5e1"
+          strokeWidth={1}
+          strokeLinejoin="round"
+        />
+        <path d="M28 16 L34 19 M36 14 L39 19" stroke="#cbd5e1" strokeWidth={1} />
+      </g>
+      {/* Rim. */}
+      <ellipse
+        cx="32"
+        cy="20"
+        rx="19.5"
+        ry="5.5"
+        fill="rgba(17, 24, 39, 0.35)"
+        stroke="url(#gift-pile-bin-rim)"
+        strokeWidth={2.5}
+      />
     </svg>
   );
 }
 
 const styles = stylex.create({
   bin: {
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    borderStyle: 'solid',
-    borderWidth: 1,
     alignItems: 'center',
-    backgroundColor: colors.panel,
-    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.55)',
-    color: colors.text,
     cursor: 'grab',
     display: 'flex',
+    filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5))',
     justifyContent: 'center',
     position: 'absolute',
     touchAction: 'none',
     transform: 'translate(-50%, -50%)',
     transitionDuration: '120ms',
-    transitionProperty: 'transform, background-color, border-color, color, box-shadow',
+    transitionProperty: 'transform, filter',
     userSelect: 'none',
     zIndex: 1,
     height: BIN_SIZE,
     width: BIN_SIZE,
   },
   hot: {
-    borderColor: colors.danger,
-    backgroundColor: `color-mix(in srgb, ${colors.danger} 30%, ${colors.panel})`,
-    boxShadow: `0 0 0 4px ${colors.dangerSoft}, 0 0 24px ${colors.danger}`,
-    color: colors.danger,
-    transform: 'translate(-50%, -50%) scale(1.15)',
+    filter: `drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 14px ${colors.danger})`,
+    transform: 'translate(-50%, -50%) scale(1.12)',
   },
   at: (leftPct: number, topPct: number) => ({
     left: `${leftPct}%`,
     top: `${topPct}%`,
   }),
-  lid: {
-    transformOrigin: '18px 7px',
+  paper: {
+    opacity: 0,
+    transform: 'translateY(6px)',
+    transformOrigin: '34px 18px',
     transitionDuration: '120ms',
-    transitionProperty: 'transform',
+    transitionProperty: 'opacity, transform',
   },
-  lidOpen: {
-    transform: 'rotate(-25deg) translateY(-2px)',
+  paperShown: {
+    opacity: 1,
+    transform: 'translateY(0)',
   },
 });
