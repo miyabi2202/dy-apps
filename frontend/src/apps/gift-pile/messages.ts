@@ -15,4 +15,5 @@ export const labels = {
   add: '添加',
   clear: '清空',
   stats: { total: '已添加', falling: '下落中', queued: '待添加' },
+  engineFailed: '物理引擎启动失败：',
 } as const;

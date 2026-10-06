@@ -1,11 +1,11 @@
-import { Column, Page, Panel } from '@dy-apps/ui';
+import { Column, Page, Panel, text } from '@dy-apps/ui';
 import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState } from 'react';
 import { PILE } from './core/config';
-import { PileWorld } from './core/world';
 import { startPileLoop } from './loop';
 import { labels, testIds } from './messages';
+import { PileClient } from './pile-client';
 import { PileRenderer } from './render/renderer';
 import { loadGiftIcon } from './render/sprite';
 import { ControlPanel, type PileStats } from './ui/control-panel';
@@ -13,23 +13,27 @@ import { ControlPanel, type PileStats } from './ui/control-panel';
 /** How often the counts on the panel refresh; the canvas itself redraws every frame. */
 const STATS_INTERVAL_MS = 200;
 
+/** The renderer, and the worker feeding it frames. */
 function createPile() {
-  const world = new PileWorld();
-  return { world, renderer: new PileRenderer(world) };
+  const renderer = new PileRenderer(PILE);
+  const client = new PileClient({
+    onFrame: (frame) => renderer.pushFrame(frame, performance.now()),
+  });
+  return { client, renderer };
 }
 
-const readStats = (world: PileWorld): PileStats => ({
-  total: world.count,
-  falling: world.fallingCount,
-  queued: world.queued,
+const readStats = (client: PileClient): PileStats => ({
+  total: client.stats.total,
+  falling: client.stats.moving,
+  queued: client.stats.queued,
 });
 
 /** The counts, polled a few times a second rather than re-rendering React every frame. */
-function useStats(world: PileWorld): PileStats {
-  const [stats, setStats] = useState(() => readStats(world));
+function useStats(client: PileClient): PileStats {
+  const [stats, setStats] = useState(() => readStats(client));
   useEffect(() => {
     const id = setInterval(() => {
-      const next = readStats(world);
+      const next = readStats(client);
       setStats((prev) =>
         prev.total === next.total && prev.falling === next.falling && prev.queued === next.queued
           ? prev
@@ -37,21 +41,26 @@ function useStats(world: PileWorld): PileStats {
       );
     }, STATS_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [world]);
+  }, [client]);
   return stats;
 }
 
 /**
  * The 嘉年华堆堆乐 route: a control panel above a canvas. Each 添加 drops that many icons in
- * from the top; they pile up on the floor and on each other. The world is created when the
- * page mounts and lives for as long as it stays open.
+ * from the top; they pile up on the floor and on each other. The physics runs in a worker
+ * that starts when the page mounts and stops when it unmounts (so StrictMode's extra mount
+ * in development just restarts it).
  */
 export function GiftPilePage() {
-  const [{ world, renderer }] = useState(createPile);
+  const [{ client, renderer }] = useState(createPile);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const stats = useStats(world);
+  const stats = useStats(client);
 
-  useEffect(() => startPileLoop(world, renderer, () => canvasRef.current), [world, renderer]);
+  useEffect(() => {
+    client.start();
+    return () => client.stop();
+  }, [client]);
+  useEffect(() => startPileLoop(renderer, () => canvasRef.current), [renderer]);
 
   // The gift image, once it has loaded; the drawn stand-in shows until then.
   useEffect(() => {
@@ -67,24 +76,20 @@ export function GiftPilePage() {
   // Test/debug hook for browser tests and manual inspection.
   useEffect(() => {
     const w = window as unknown as { __giftPile?: unknown };
-    w.__giftPile = { world };
+    w.__giftPile = { client };
     return () => {
       delete w.__giftPile;
     };
-  }, [world]);
+  }, [client]);
 
   return (
-    <Page
-      title={labels.title}
-      subtitle={labels.subtitle}
-      xstyle={[styles.page, styles.width(PILE.world.width + 2 * PAGE_INSET)]}
-    >
+    <Page title={labels.title} subtitle={labels.subtitle} xstyle={styles.page}>
       <Column gap="lg">
         <ControlPanel
           stats={stats}
-          maxItems={world.maxItems}
-          onAdd={(count) => world.add(count)}
-          onClear={() => world.clear()}
+          maxItems={PILE.maxItems}
+          onAdd={(count) => client.add(count)}
+          onClear={() => client.clear()}
         />
         <Panel xstyle={styles.stage}>
           <canvas
@@ -92,33 +97,38 @@ export function GiftPilePage() {
             data-testid={testIds.canvas}
             width={PILE.world.width}
             height={PILE.world.height}
-            {...stylex.props(styles.canvas)}
+            {...stylex.props(styles.canvas, styles.canvasWidth(PILE.world.width))}
           />
+          {client.error && (
+            <p {...stylex.props(text.muted)}>
+              {labels.engineFailed} {client.error}
+            </p>
+          )}
         </Panel>
       </Column>
     </Page>
   );
 }
 
-/** Page padding plus the stage panel's padding and border, each side, in px. */
-const PAGE_INSET = 16 + 12 + 1;
-
 const styles = stylex.create({
   page: {
     padding: space.xl,
     marginInline: 'auto',
+    maxWidth: 1000,
   },
-  // The canvas at its world size and no wider; StyleX can't read the number from PILE.
-  width: (maxWidth: number) => ({ maxWidth }),
   stage: {
     padding: space.lg,
   },
-  // Fills the panel's width; the height follows from the canvas's own size.
+  // Centred at its world size, or the panel's width if that is less; the height follows
+  // from the canvas's own size.
   canvas: {
     borderRadius: radius.md,
+    marginInline: 'auto',
     backgroundColor: colors.bg,
     display: 'block',
     height: 'auto',
-    width: '100%',
+    maxWidth: '100%',
   },
+  // StyleX can't read the number from PILE.
+  canvasWidth: (width: number) => ({ width }),
 });

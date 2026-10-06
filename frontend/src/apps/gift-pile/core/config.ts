@@ -2,38 +2,63 @@
 export interface PileSettings {
   /** The world's size; the canvas shows exactly this, scaled down with the page. */
   world: { width: number; height: number };
-  /** Icons are 16×16, so each one collides as a circle of this radius. */
+  /** Icons are drawn 2 × this across (16×16). */
   radius: number;
+  /** Icons collide as circles of this radius, smaller than drawn, so they visibly overlap in the pile. */
+  collisionRadius: number;
   /** The most icons the pile holds in total. */
   maxItems: number;
   gravity: number;
   /**
    * Icons released per second while some are queued. The top edge only lets so many through:
-   * about `width / (2 × radius)` side by side, each needing `2 × radius` of fall before the
-   * next, so this stays under `columns × spawnSpeed / (2 × radius)` with room to spare.
+   * about `width / (2 × collisionRadius)` side by side, each needing that much fall before
+   * the next, so this stays well under `columns × spawnSpeed / (2 × collisionRadius)`. A
+   * denser stream also lands as a heavy dynamic mass that presses icons into each other.
    */
   spawnPerSecond: number;
   /** New icons start already falling this fast, so a stream clears the way for the next. */
   spawnSpeed: number;
-  /** Fastest an icon moves, falling or sliding. */
-  maxSpeed: number;
-  /** How an icon balanced on the very top of another starts to slide off, in px/s. */
-  nudge: number;
+  /** Surface friction between icons, and with the floor and walls; what lets a heap form. */
+  friction: number;
+  /**
+   * Pixels per metre handed to the physics engine. Its tolerances and its speed cap are in
+   * metres, so an icon's collision circle is made about half a metre across: pixels straight
+   * in made every fall crawl.
+   */
+  pxPerMetre: number;
+  /**
+   * Stiffness of contacts, in Hz. The engine's default of 30 lets a fast, heavy stream sink
+   * icons into each other by most of a radius; at 120 they stay within a pixel.
+   */
+  contactHz: number;
+  /** Physics steps per second. */
+  stepHz: number;
+  /**
+   * An icon slower than `speed` for `steps` steps comes to rest, unless something presses
+   * it more than `overlap` into a neighbour; then it waits for the engine to push it clear,
+   * up to `maxSteps` steps.
+   */
+  settle: { speed: number; steps: number; overlap: number; maxSteps: number };
+  /**
+   * Released this many steps ago or more, a moving icon counts as part of the heap rather
+   * than the falling stream, so new icons are released above it. A heavy stream makes the
+   * heap top rise too fast for anything in it to count as slow.
+   */
+  heapAge: number;
 }
 
 export const PILE: PileSettings = {
-  world: { width: 1200, height: 700 },
+  world: { width: 400, height: 700 },
   radius: 8,
+  collisionRadius: 6,
   maxItems: 100_000,
   gravity: 2400,
-  spawnPerSecond: 1200,
+  spawnPerSecond: 600,
   spawnSpeed: 600,
-  maxSpeed: 3000,
-  nudge: 30,
+  friction: 0.6,
+  pxPerMetre: 16,
+  contactHz: 120,
+  stepHz: 60,
+  settle: { speed: 30, steps: 6, overlap: 1, maxSteps: 120 },
+  heapAge: 20,
 };
-
-/** The frame loop: a fixed simulation step, several per frame, and a cap so a stalled tab never catches up. */
-export const FRAME = {
-  stepMs: 1000 / 120,
-  maxStepsPerFrame: 4,
-} as const;

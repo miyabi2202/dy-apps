@@ -22,6 +22,7 @@
     "last 2 Safari versions"
   ],
   "dependencies": {
+    "@dimforge/rapier2d-compat": "0.21.0",
     "@stylexjs/stylex": "^0.19.1",
     "@tanstack/react-virtual": "^3.14.13",
     "react": "^19.3.0",
