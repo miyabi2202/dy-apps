@@ -18,8 +18,17 @@ pixel units made every fall crawl; and `contactHz` raises contact stiffness from
 default of 30 to 120, without which a fast stream sank icons into each other by most of a
 radius.
 
+## The bin
+
+The bin (`ui/bin.tsx`) is an HTML element floating over the canvas, so it is outside the
+physics and always on top; drag it to move it. Pressing on an icon (`ui/stage.tsx`) sends the
+worker a `grab`: the icon leaves the engine entirely while held and the page draws it at the
+pointer. Letting go sends `release` (it falls from there) or, over the bin, `destroy`. Taking
+a resting icon out of the pile wakes the resting icons touching it from above, and each one
+that moves half a radius wakes the ones that rested on it in turn, so the pile settles into
+the gap. The renderer repaints only the removed icon's patch of the resting layer.
+
 ## TODO
 
-- Drag an icon into a rubbish bin to destroy it. Only what it was holding up needs to move again: wake the resting icons touching it from above, and let each one that starts moving wake the ones resting on it in turn. Repaint only that part of the resting layer.
 - A vacuum at the mouse for about a second, pulling nearby icons in. Icons need a velocity in any direction for this, not just a speed along their way down.
 - A blast that destroys every icon in range: the same as the rubbish bin for many icons at once, found through the grid, with the icons around the hole woken.

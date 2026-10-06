@@ -11,10 +11,21 @@ export type CreateSprite = (
 
 type Stage = Pick<PileSettings, 'world' | 'radius'>;
 
+/** An icon the user is holding, and where (pixels). */
+export interface Held {
+  id: number;
+  x: number;
+  y: number;
+}
+
+/** A held icon is drawn this much bigger, as if lifted towards the viewer. */
+const HELD_SCALE = 1.2;
+
 /**
  * Draws the pile from the frames the physics worker posts, in two layers. Icons at rest are
  * stamped once onto an offscreen canvas as they settle, so a frame copies that one image and
  * then stamps only the moving icons. Each draw costs by what's moving, however big the pile.
+ * When an icon leaves the pile, only its patch of the layer is repainted.
  *
  * Frames arrive at the physics rate and draws happen at the display rate, so a moving icon
  * is drawn between where the last two frames put it, by how long ago the latest arrived.
@@ -30,16 +41,29 @@ export class PileRenderer {
   private pixelRatio = 0;
   private generation = -1;
 
-  // Every resting icon's position, in order of settling, and how many are on the layer.
-  private restingXy = new Float32Array(4096);
+  // Every resting icon, in order of settling: index and position, with each icon's slot,
+  // and how many slots are on the layer so far.
+  private restingIds = new Int32Array(4096);
+  private restingXy = new Float32Array(8192);
   private restingCount = 0;
+  private readonly slotOf = new Map<number, number>();
   private stamped = 0;
+  // Patches of the layer to repaint: an icon left from there.
+  private holes: { x: number; y: number }[] = [];
 
   // The latest two frames, for interpolation; `prevAt` maps an icon to its place in `prev`.
   private prev: Frame | null = null;
   private cur: Frame | null = null;
   private curArrived = 0;
   private readonly prevAt = new Map<number, number>();
+
+  /** The icon the user is holding, drawn on top of the rest. */
+  private held: Held | null = null;
+
+  /** The user is holding this icon here, or (null) nothing. */
+  hold(held: Held | null): void {
+    this.held = held;
+  }
 
   // The world's size: the stage's until the first frame says otherwise.
   private world: Stage['world'];
@@ -66,6 +90,8 @@ export class PileRenderer {
     if (frame.generation !== this.generation) {
       this.generation = frame.generation;
       this.restingCount = 0;
+      this.slotOf.clear();
+      this.holes = [];
       this.stamped = 0;
       this.pixelRatio = 0;
       this.prev = null;
@@ -77,14 +103,56 @@ export class PileRenderer {
     this.cur = frame;
     this.curArrived = now;
 
-    const need = (this.restingCount + frame.settledIds.length) * 2;
-    if (need > this.restingXy.length) {
-      const grown = new Float32Array(Math.max(need, this.restingXy.length * 2));
-      grown.set(this.restingXy);
-      this.restingXy = grown;
+    frame.wokenIds.forEach((id) => this.removeResting(id));
+
+    const need = this.restingCount + frame.settledIds.length;
+    if (need > this.restingIds.length) {
+      const size = Math.max(need, this.restingIds.length * 2);
+      const ids = new Int32Array(size);
+      ids.set(this.restingIds);
+      this.restingIds = ids;
+      const xy = new Float32Array(size * 2);
+      xy.set(this.restingXy);
+      this.restingXy = xy;
     }
+    frame.settledIds.forEach((id, k) => this.slotOf.set(id, this.restingCount + k));
+    this.restingIds.set(frame.settledIds, this.restingCount);
     this.restingXy.set(frame.settledXy, this.restingCount * 2);
     this.restingCount += frame.settledIds.length;
+  }
+
+  /**
+   * The icon drawn at world position (x, y), if any: a moving one first (they are drawn on
+   * top), else a resting one.
+   */
+  iconAt(x: number, y: number): number | null {
+    const r = this.stage.radius;
+    const r2 = r * r;
+    let best: number | null = null;
+    let bestD2 = r2;
+    const { cur } = this;
+    if (cur) {
+      for (let k = 0; k < cur.movingIds.length; k++) {
+        const dx = cur.movingXy[2 * k]! - x;
+        const dy = cur.movingXy[2 * k + 1]! - y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 <= bestD2) {
+          bestD2 = d2;
+          best = cur.movingIds[k]!;
+        }
+      }
+      if (best !== null) return best;
+    }
+    for (let k = 0; k < this.restingCount; k++) {
+      const dx = this.restingXy[2 * k]! - x;
+      const dy = this.restingXy[2 * k + 1]! - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 <= bestD2) {
+        bestD2 = d2;
+        best = this.restingIds[k]!;
+      }
+    }
+    return best;
   }
 
   /** Draw the pile as of wall time `now` (ms) into `canvas`. */
@@ -110,7 +178,10 @@ export class PileRenderer {
       this.layer.height = ph;
       layerCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
       this.stamped = 0;
+      this.holes = [];
     }
+    for (const hole of this.holes) this.repaint(layerCtx, hole.x, hole.y);
+    this.holes = [];
     for (; this.stamped < this.restingCount; this.stamped++) {
       this.stamp(
         layerCtx,
@@ -124,27 +195,69 @@ export class PileRenderer {
     ctx.drawImage(this.layer, 0, 0);
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
-    const { cur, prev } = this;
-    if (!cur) return;
-    const span = prev ? Math.max(1, cur.time - prev.time) : 1;
-    const alpha = prev ? Math.min(1, Math.max(0, (now - this.curArrived) / span)) : 1;
-    const { movingIds, movingXy } = cur;
-    for (let k = 0; k < movingIds.length; k++) {
-      let x = movingXy[2 * k]!;
-      let y = movingXy[2 * k + 1]!;
-      const before = prev ? this.prevAt.get(movingIds[k]!) : undefined;
-      if (prev && before !== undefined && alpha < 1) {
-        const px = prev.movingXy[2 * before]!;
-        const py = prev.movingXy[2 * before + 1]!;
-        x = px + (x - px) * alpha;
-        y = py + (y - py) * alpha;
+    const { cur, prev, held } = this;
+    if (cur) {
+      const span = prev ? Math.max(1, cur.time - prev.time) : 1;
+      const alpha = prev ? Math.min(1, Math.max(0, (now - this.curArrived) / span)) : 1;
+      const { movingIds, movingXy } = cur;
+      for (let k = 0; k < movingIds.length; k++) {
+        const id = movingIds[k]!;
+        if (held && id === held.id) continue;
+        let x = movingXy[2 * k]!;
+        let y = movingXy[2 * k + 1]!;
+        const before = prev ? this.prevAt.get(id) : undefined;
+        if (prev && before !== undefined && alpha < 1) {
+          const px = prev.movingXy[2 * before]!;
+          const py = prev.movingXy[2 * before + 1]!;
+          x = px + (x - px) * alpha;
+          y = py + (y - py) * alpha;
+        }
+        this.stamp(ctx, x, y);
       }
-      this.stamp(ctx, x, y);
     }
+    if (held) this.stamp(ctx, held.x, held.y, HELD_SCALE);
   }
 
-  private stamp(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  /** Icon `id` is no longer at rest: out of the list, and its patch of the layer repainted. */
+  private removeResting(id: number): void {
+    const slot = this.slotOf.get(id);
+    if (slot === undefined) return;
+    const x = this.restingXy[2 * slot]!;
+    const y = this.restingXy[2 * slot + 1]!;
+    // Fill the slot with the last icon.
+    const last = this.restingCount - 1;
+    if (slot !== last) {
+      const lastId = this.restingIds[last]!;
+      this.restingIds[slot] = lastId;
+      this.restingXy[2 * slot] = this.restingXy[2 * last]!;
+      this.restingXy[2 * slot + 1] = this.restingXy[2 * last + 1]!;
+      this.slotOf.set(lastId, slot);
+    }
+    this.slotOf.delete(id);
+    this.restingCount = last;
+    if (this.stamped > last) this.stamped = last;
+    if (slot < this.stamped) this.holes.push({ x, y });
+  }
+
+  /** Repaint the layer where an icon was: clear its patch and restamp what overlaps it. */
+  private repaint(layerCtx: CanvasRenderingContext2D, x: number, y: number): void {
     const r = this.stage.radius;
+    const d = 2 * r;
+    layerCtx.save();
+    layerCtx.beginPath();
+    layerCtx.rect(x - r, y - r, d, d);
+    layerCtx.clip();
+    layerCtx.clearRect(x - r, y - r, d, d);
+    for (let k = 0; k < this.stamped; k++) {
+      const ox = this.restingXy[2 * k]!;
+      const oy = this.restingXy[2 * k + 1]!;
+      if (Math.abs(ox - x) < d && Math.abs(oy - y) < d) this.stamp(layerCtx, ox, oy);
+    }
+    layerCtx.restore();
+  }
+
+  private stamp(ctx: CanvasRenderingContext2D, x: number, y: number, scale = 1): void {
+    const r = this.stage.radius * scale;
     // Above the top edge: part of the pile, but not on screen.
     if (!this.sprite || y + r < 0) return;
     ctx.drawImage(this.sprite, x - r, y - r, 2 * r, 2 * r);

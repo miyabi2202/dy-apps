@@ -75,6 +75,21 @@ export class PileClient {
     this.send({ type: 'resize', width, height });
   }
 
+  /** Pick icon `id` up: it leaves the pile and the engine until let go. */
+  grab(id: number): void {
+    this.send({ type: 'grab', id });
+  }
+
+  /** Let held icon `id` go at (x, y) in pixels: it falls from there. */
+  release(id: number, x: number, y: number): void {
+    this.send({ type: 'release', id, x, y });
+  }
+
+  /** Drop held icon `id` in the bin. */
+  destroy(id: number): void {
+    this.send({ type: 'destroy', id });
+  }
+
   private send(message: ToWorker): void {
     if (this.ready && this.worker) this.worker.postMessage(message);
     else this.pending.push(message);

@@ -35,6 +35,15 @@ async function main() {
       case 'resize':
         engine.resize(data.width, data.height);
         break;
+      case 'grab':
+        engine.grab(data.id);
+        break;
+      case 'release':
+        engine.release(data.id, data.x, data.y);
+        break;
+      case 'destroy':
+        engine.destroy(data.id);
+        break;
     }
   };
 
@@ -62,7 +71,7 @@ async function main() {
   tick();
 }
 
-/** The moving icons' positions and the newly settled ones, in transferred buffers. */
+/** The moving icons' positions and the newly settled and woken ones, in transferred buffers. */
 function post(engine: PileEngine, time: number) {
   const movingIds = new Int32Array(engine.movingCount);
   const movingXy = new Float32Array(engine.movingCount * 2);
@@ -81,23 +90,28 @@ function post(engine: PileEngine, time: number) {
     settledXy[2 * k] = engine.x[i]!;
     settledXy[2 * k + 1] = engine.y[i]!;
   });
+  const woken: number[] = [];
+  engine.drainWoken((i) => woken.push(i));
+  const wokenIds = Int32Array.from(woken);
   const frame: Frame = {
     time,
     width: engine.width,
     height: engine.height,
-    total: engine.count,
+    total: engine.alive,
     queued: engine.queued,
     generation: engine.generation,
     movingIds,
     movingXy,
     settledIds,
     settledXy,
+    wokenIds,
   };
   scope.postMessage({ type: 'frame', frame }, [
     movingIds.buffer,
     movingXy.buffer,
     settledIds.buffer,
     settledXy.buffer,
+    wokenIds.buffer,
   ]);
 }
 

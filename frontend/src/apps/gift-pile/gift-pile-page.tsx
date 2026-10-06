@@ -1,16 +1,17 @@
 import { Column, Grid, Page, Panel, text } from '@dy-apps/ui';
-import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
+import { space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState } from 'react';
 import { PILE } from './core/config';
 import { startPileLoop } from './loop';
-import { labels, testIds } from './messages';
+import { labels } from './messages';
 import { PileClient } from './pile-client';
 import { PileRenderer } from './render/renderer';
 import { loadGiftIcon } from './render/sprite';
 import { sizeStore, type WorldSize } from './settings';
 import { ControlPanel, type PileStats } from './ui/control-panel';
 import { SizePanel } from './ui/size-panel';
+import { Stage } from './ui/stage';
 
 /** How often the counts on the panel refresh; the canvas itself redraws every frame. */
 const STATS_INTERVAL_MS = 200;
@@ -49,10 +50,10 @@ function useStats(client: PileClient): PileStats {
 
 /**
  * The 嘉年华堆堆乐 route: the canvas-size panel, then the adding panel (always last), above
- * the canvas. Each 添加 drops that many icons in
- * from the top; they pile up on the floor and on each other. The physics runs in a worker
- * that starts when the page mounts and stops when it unmounts (so StrictMode's extra mount
- * in development just restarts it).
+ * the stage: the canvas with the bin over it. Each 添加 drops that many icons in from the
+ * top; they pile up on the floor and on each other, and can be dragged about or into the
+ * bin. The physics runs in a worker that starts when the page mounts and stops when it
+ * unmounts (so StrictMode's extra mount in development just restarts it).
  */
 export function GiftPilePage() {
   const [{ client, renderer }] = useState(createPile);
@@ -91,11 +92,11 @@ export function GiftPilePage() {
   // Test/debug hook for browser tests and manual inspection.
   useEffect(() => {
     const w = window as unknown as { __giftPile?: unknown };
-    w.__giftPile = { client };
+    w.__giftPile = { client, renderer };
     return () => {
       delete w.__giftPile;
     };
-  }, [client]);
+  }, [client, renderer]);
 
   return (
     <Page title={labels.title} subtitle={labels.subtitle} xstyle={styles.page}>
@@ -110,13 +111,7 @@ export function GiftPilePage() {
           />
         </Grid>
         <Panel xstyle={styles.stage}>
-          <canvas
-            ref={canvasRef}
-            data-testid={testIds.canvas}
-            width={size.width}
-            height={size.height}
-            {...stylex.props(styles.canvas, styles.canvasWidth(size.width))}
-          />
+          <Stage canvasRef={canvasRef} renderer={renderer} client={client} size={size} />
           {client.error && (
             <p {...stylex.props(text.muted)}>
               {labels.engineFailed} {client.error}
@@ -137,16 +132,4 @@ const styles = stylex.create({
   stage: {
     padding: space.lg,
   },
-  // Centred at its world size, or the panel's width if that is less; the height follows
-  // from the canvas's own size.
-  canvas: {
-    borderRadius: radius.md,
-    marginInline: 'auto',
-    backgroundColor: colors.bg,
-    display: 'block',
-    height: 'auto',
-    maxWidth: '100%',
-  },
-  // The chosen width, as a dynamic style.
-  canvasWidth: (width: number) => ({ width }),
 });

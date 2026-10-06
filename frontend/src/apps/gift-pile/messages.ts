@@ -7,6 +7,7 @@ export const testIds = {
   stats: 'stats',
   width: 'width',
   height: 'height',
+  bin: 'bin',
 } as const;
 
 export const labels = {
@@ -24,5 +25,7 @@ export const labels = {
     apply: '应用尺寸',
     hint: '单位 px，宽 100–900，高 100–2000。应用新尺寸会清空当前的堆。',
   },
+  bin: '垃圾桶',
+  stageHint: '拖动图标可以移动它，拖到垃圾桶里就销毁。垃圾桶本身也可以拖动。',
   engineFailed: '物理引擎启动失败：',
 } as const;
