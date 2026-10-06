@@ -16,6 +16,7 @@ export const labels = {
   panel: '添加嘉年华',
   count: '数量',
   add: '添加',
+  remove: '减少',
   clear: '清空',
   stats: { total: '已添加', falling: '下落中', queued: '待添加' },
   size: {

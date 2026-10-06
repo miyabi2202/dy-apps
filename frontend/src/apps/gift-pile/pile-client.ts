@@ -65,6 +65,11 @@ export class PileClient {
     this.send({ type: 'add', count });
   }
 
+  /** Destroy `count` icons picked at random. */
+  remove(count: number): void {
+    this.send({ type: 'remove', count });
+  }
+
   /** Empty the pile. */
   clear(): void {
     this.send({ type: 'clear' });

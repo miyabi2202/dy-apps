@@ -2,6 +2,8 @@
 
 export type ToWorker =
   | { type: 'add'; count: number }
+  /** Destroy this many icons, picked at random. */
+  | { type: 'remove'; count: number }
   | { type: 'clear' }
   /** A new world of this size, in pixels; the pile is emptied with it. */
   | { type: 'resize'; width: number; height: number }

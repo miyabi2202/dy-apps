@@ -17,6 +17,8 @@ interface Props {
   /** The most icons the pile holds; the input is capped at what's left. */
   maxItems: number;
   onAdd: (count: number) => void;
+  /** Destroy this many icons, picked at random. */
+  onRemove: (count: number) => void;
   onClear: () => void;
 }
 
@@ -25,12 +27,13 @@ function parseCount(value: string): number | null {
   return /^\d+$/.test(value) && Number(value) > 0 ? Number(value) : null;
 }
 
-/** The number to add, the 添加 and 清空 buttons, and how many icons there are. */
-export function ControlPanel({ stats, maxItems, onAdd, onClear }: Props) {
+/** The number to add or remove, the 添加, 减少 and 清空 buttons, and how many icons there are. */
+export function ControlPanel({ stats, maxItems, onAdd, onRemove, onClear }: Props) {
   const [value, setValue] = useState('100');
   const room = maxItems - stats.total - stats.queued;
   const count = parseCount(value);
   const canAdd = count !== null && room > 0;
+  const canRemove = count !== null && stats.total > 0;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -56,6 +59,12 @@ export function ControlPanel({ stats, maxItems, onAdd, onClear }: Props) {
           <Row gap="sm">
             <Button type="submit" variant="primary" disabled={!canAdd}>
               {labels.add}
+            </Button>
+            <Button
+              onClick={() => count !== null && onRemove(Math.min(count, stats.total))}
+              disabled={!canRemove}
+            >
+              {labels.remove}
             </Button>
             <Button onClick={onClear} disabled={stats.total === 0 && stats.queued === 0}>
               {labels.clear}

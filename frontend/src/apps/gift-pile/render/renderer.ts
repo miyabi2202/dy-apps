@@ -50,7 +50,8 @@ export class PileRenderer {
   private stamped = 0;
   // Patches of the layer to repaint: an icon left from there.
   private holes: { x: number; y: number }[] = [];
-  // Slots below the stamped mark whose icon hasn't been stamped: it was moved there to fill a gap.
+  // Icons moved below the stamped mark to fill a gap before their turn, so not yet drawn.
+  // By icon, since more removals can move them again before the next draw.
   private unstamped: number[] = [];
 
   // The latest two frames, for interpolation; `prevAt` maps an icon to its place in `prev`.
@@ -187,8 +188,9 @@ export class PileRenderer {
     }
     for (const hole of this.holes) this.repaint(layerCtx, hole.x, hole.y);
     this.holes = [];
-    for (const slot of this.unstamped) {
-      if (slot < this.restingCount) {
+    for (const id of this.unstamped) {
+      const slot = this.slotOf.get(id);
+      if (slot !== undefined) {
         this.stamp(layerCtx, this.restingXy[2 * slot]!, this.restingXy[2 * slot + 1]!);
       }
     }
@@ -235,6 +237,7 @@ export class PileRenderer {
     if (slot === undefined) return;
     const x = this.restingXy[2 * slot]!;
     const y = this.restingXy[2 * slot + 1]!;
+    const wasStamped = slot < this.stamped;
     // Fill the slot with the last icon.
     const last = this.restingCount - 1;
     if (slot !== last) {
@@ -244,27 +247,35 @@ export class PileRenderer {
       this.restingXy[2 * slot + 1] = this.restingXy[2 * last + 1]!;
       this.slotOf.set(lastId, slot);
       // Moved below the stamped mark before its turn: it still has to be drawn.
-      if (slot < this.stamped && last >= this.stamped) this.unstamped.push(slot);
+      if (slot < this.stamped && last >= this.stamped) this.unstamped.push(lastId);
     }
     this.slotOf.delete(id);
     this.restingCount = last;
     if (this.stamped > last) this.stamped = last;
-    if (slot < this.stamped) this.holes.push({ x, y });
+    if (wasStamped) this.holes.push({ x, y });
   }
 
-  /** Repaint the layer where an icon was: clear its patch and restamp what overlaps it. */
+  /**
+   * Repaint the layer where an icon was: clear its patch and restamp what overlaps it. The
+   * patch is widened to whole device pixels, since clearing and clipping a fractional rect
+   * is anti-aliased and would leave faint slivers of the old icon along its edges.
+   */
   private repaint(layerCtx: CanvasRenderingContext2D, x: number, y: number): void {
     const r = this.stage.radius;
-    const d = 2 * r;
+    const pr = this.pixelRatio;
+    const x0 = Math.floor((x - r) * pr) / pr;
+    const y0 = Math.floor((y - r) * pr) / pr;
+    const x1 = Math.ceil((x + r) * pr) / pr;
+    const y1 = Math.ceil((y + r) * pr) / pr;
     layerCtx.save();
     layerCtx.beginPath();
-    layerCtx.rect(x - r, y - r, d, d);
+    layerCtx.rect(x0, y0, x1 - x0, y1 - y0);
     layerCtx.clip();
-    layerCtx.clearRect(x - r, y - r, d, d);
+    layerCtx.clearRect(x0, y0, x1 - x0, y1 - y0);
     for (let k = 0; k < this.stamped; k++) {
       const ox = this.restingXy[2 * k]!;
       const oy = this.restingXy[2 * k + 1]!;
-      if (Math.abs(ox - x) < d && Math.abs(oy - y) < d) this.stamp(layerCtx, ox, oy);
+      if (ox + r > x0 && ox - r < x1 && oy + r > y0 && oy - r < y1) this.stamp(layerCtx, ox, oy);
     }
     layerCtx.restore();
   }

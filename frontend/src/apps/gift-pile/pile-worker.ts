@@ -29,6 +29,9 @@ async function main() {
       case 'add':
         engine.add(data.count);
         break;
+      case 'remove':
+        engine.remove(data.count);
+        break;
       case 'clear':
         engine.clear();
         break;

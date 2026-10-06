@@ -107,6 +107,7 @@ export function GiftPilePage() {
             stats={stats}
             maxItems={PILE.maxItems}
             onAdd={(count) => client.add(count)}
+            onRemove={(count) => client.remove(count)}
             onClear={() => client.clear()}
           />
         </Grid>

@@ -207,6 +207,24 @@ export class PileEngine {
     this.destroyed++;
   }
 
+  /**
+   * Destroy `n` icons picked at random from the pile and the air (not one being held), each
+   * waking what rested on it. Returns how many went.
+   */
+  remove(n: number): number {
+    let gone = 0;
+    const want = Math.min(Math.floor(n), this.alive);
+    // Random picks until enough are found; with few dead icons that is about one try each.
+    for (let tries = 0; gone < want && tries < want * 20 + 100; tries++) {
+      const i = Math.floor(this.rng() * this.count);
+      if (this.dead[i] || this.held[i]) continue;
+      this.grab(i);
+      this.destroy(i);
+      gone++;
+    }
+    return gone;
+  }
+
   /** Hands over every icon that came to rest since the last call. */
   drainSettled(fn: (index: number) => void): void {
     for (let k = 0; k < this.settledLen; k++) fn(this.settledBuf[k]!);
