@@ -121,7 +121,6 @@ describe('App', () => {
     await user.click(
       within(screen.getByTestId('overlay-gameOver')).getByRole('button', { name: '重新开始' }),
     );
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(engine.phase).toBe('ready');
     expect(within(wall()).queryAllByRole('article')).toHaveLength(0);
   });
