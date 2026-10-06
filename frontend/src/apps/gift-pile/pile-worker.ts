@@ -25,8 +25,17 @@ async function main() {
   const engine = new PileEngine({ rapier: RAPIER });
 
   scope.onmessage = ({ data }) => {
-    if (data.type === 'add') engine.add(data.count);
-    else engine.clear();
+    switch (data.type) {
+      case 'add':
+        engine.add(data.count);
+        break;
+      case 'clear':
+        engine.clear();
+        break;
+      case 'resize':
+        engine.resize(data.width, data.height);
+        break;
+    }
   };
 
   let last = performance.now();
@@ -74,6 +83,8 @@ function post(engine: PileEngine, time: number) {
   });
   const frame: Frame = {
     time,
+    width: engine.width,
+    height: engine.height,
     total: engine.count,
     queued: engine.queued,
     generation: engine.generation,

@@ -28,8 +28,9 @@ const SPAWN_TRIES = 10;
  * front; the engine itself works in metres (see `pxPerMetre`).
  */
 export class PileEngine {
-  readonly width: number;
-  readonly height: number;
+  /** The world's size in pixels; `resize()` changes it. */
+  width: number;
+  height: number;
   /** The collision radius; the icon is drawn bigger than this. */
   readonly radius: number;
   readonly maxItems: number;
@@ -106,6 +107,13 @@ export class PileEngine {
     const added = Math.max(0, Math.min(Math.floor(n), room));
     this.queued += added;
     return added;
+  }
+
+  /** A new, empty world of this size (in pixels). */
+  resize(width: number, height: number): void {
+    this.width = width;
+    this.height = height;
+    this.clear();
   }
 
   /** Back to an empty world. */

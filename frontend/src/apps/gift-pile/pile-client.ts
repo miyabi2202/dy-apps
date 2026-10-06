@@ -70,6 +70,11 @@ export class PileClient {
     this.send({ type: 'clear' });
   }
 
+  /** A new world of this size, in pixels; the pile is emptied with it. */
+  resize(width: number, height: number): void {
+    this.send({ type: 'resize', width, height });
+  }
+
   private send(message: ToWorker): void {
     if (this.ready && this.worker) this.worker.postMessage(message);
     else this.pending.push(message);

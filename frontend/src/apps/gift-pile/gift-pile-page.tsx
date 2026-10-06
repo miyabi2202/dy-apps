@@ -8,6 +8,7 @@ import { labels, testIds } from './messages';
 import { PileClient } from './pile-client';
 import { PileRenderer } from './render/renderer';
 import { loadGiftIcon } from './render/sprite';
+import { sizeStore, type WorldSize } from './settings';
 import { ControlPanel, type PileStats } from './ui/control-panel';
 
 /** How often the counts on the panel refresh; the canvas itself redraws every frame. */
@@ -53,13 +54,25 @@ function useStats(client: PileClient): PileStats {
  */
 export function GiftPilePage() {
   const [{ client, renderer }] = useState(createPile);
+  const [size, setSize] = useState<WorldSize>(() => sizeStore.read());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stats = useStats(client);
 
+  // The worker starts with the default size; tell it the saved one (queued until ready).
   useEffect(() => {
     client.start();
+    const saved = sizeStore.read();
+    if (saved.width !== PILE.world.width || saved.height !== PILE.world.height) {
+      client.resize(saved.width, saved.height);
+    }
     return () => client.stop();
   }, [client]);
+
+  const resize = (next: WorldSize) => {
+    setSize(next);
+    sizeStore.write(next);
+    client.resize(next.width, next.height);
+  };
   useEffect(() => startPileLoop(renderer, () => canvasRef.current), [renderer]);
 
   // The gift image, once it has loaded; the drawn stand-in shows until then.
@@ -90,14 +103,16 @@ export function GiftPilePage() {
           maxItems={PILE.maxItems}
           onAdd={(count) => client.add(count)}
           onClear={() => client.clear()}
+          size={size}
+          onResize={resize}
         />
         <Panel xstyle={styles.stage}>
           <canvas
             ref={canvasRef}
             data-testid={testIds.canvas}
-            width={PILE.world.width}
-            height={PILE.world.height}
-            {...stylex.props(styles.canvas, styles.canvasWidth(PILE.world.width))}
+            width={size.width}
+            height={size.height}
+            {...stylex.props(styles.canvas, styles.canvasWidth(size.width))}
           />
           {client.error && (
             <p {...stylex.props(text.muted)}>
@@ -129,6 +144,6 @@ const styles = stylex.create({
     height: 'auto',
     maxWidth: '100%',
   },
-  // StyleX can't read the number from PILE.
+  // The chosen width, as a dynamic style.
   canvasWidth: (width: number) => ({ width }),
 });

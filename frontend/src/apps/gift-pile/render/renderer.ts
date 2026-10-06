@@ -41,10 +41,15 @@ export class PileRenderer {
   private curArrived = 0;
   private readonly prevAt = new Map<number, number>();
 
+  // The world's size: the stage's until the first frame says otherwise.
+  private world: Stage['world'];
+
   constructor(
     private readonly stage: Stage,
     private readonly createSprite: CreateSprite = createGiftSprite,
-  ) {}
+  ) {
+    this.world = stage.world;
+  }
 
   /** The gift image to stamp from now on; the next draw rebuilds the sprite and the pile. */
   setImage(image: HTMLImageElement | null): void {
@@ -55,6 +60,9 @@ export class PileRenderer {
 
   /** Take in a frame from the worker, received at wall time `now` (ms). */
   pushFrame(frame: Frame, now: number): void {
+    if (frame.width !== this.world.width || frame.height !== this.world.height) {
+      this.world = { width: frame.width, height: frame.height };
+    }
     if (frame.generation !== this.generation) {
       this.generation = frame.generation;
       this.restingCount = 0;
@@ -81,7 +89,8 @@ export class PileRenderer {
 
   /** Draw the pile as of wall time `now` (ms) into `canvas`. */
   draw(canvas: HTMLCanvasElement, now: number): void {
-    const { world, radius } = this.stage;
+    const { world } = this;
+    const { radius } = this.stage;
     const cssWidth = canvas.clientWidth || world.width;
     const pixelRatio = (cssWidth / world.width) * (window.devicePixelRatio || 1);
     const pw = Math.max(1, Math.round(world.width * pixelRatio));

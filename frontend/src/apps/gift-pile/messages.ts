@@ -5,6 +5,8 @@ export const testIds = {
   canvas: 'pile-canvas',
   count: 'count',
   stats: 'stats',
+  width: 'width',
+  height: 'height',
 } as const;
 
 export const labels = {
@@ -15,5 +17,12 @@ export const labels = {
   add: '添加',
   clear: '清空',
   stats: { total: '已添加', falling: '下落中', queued: '待添加' },
+  size: {
+    title: '画布尺寸',
+    width: '宽度',
+    height: '高度',
+    apply: '应用尺寸',
+    hint: '单位 px，100–2000。应用新尺寸会清空当前的堆。',
+  },
   engineFailed: '物理引擎启动失败：',
 } as const;
