@@ -112,7 +112,7 @@ export function CenterPanel({ engine, boardRef, onRestart }: Props) {
 
       <TouchControls engine={engine} />
       <p {...stylex.props(text.muted, styles.keys)}>
-        ←/→ 移动 · ↑/X 顺时针 · Z 逆时针 · ↓ 软降 · 空格 硬降 · C 暂存 · P 暂停
+        A/D 移动 · W 顺时针 · Q 逆时针 · S 软降 · 空格 硬降 · C 暂存 · P 暂停
       </p>
     </Panel>
   );
