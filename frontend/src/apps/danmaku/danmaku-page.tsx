@@ -42,6 +42,8 @@ interface PageOptions {
   obs: boolean;
   /** `?demo=<ms>` or `?port=…&room=…`: start the demo straight away (useful in an OBS source). */
   autoDemo: boolean;
+  /** `?logmsg=1`: log every message that reaches the wall to the console, for debugging. */
+  logMessages: boolean;
   /** From the URL where it says, otherwise what was saved last time. */
   config: DanmakuConfig;
 }
@@ -53,6 +55,7 @@ function optionsFromUrl(): PageOptions {
   const liveRoom = readLiveRoom(window.location.search);
   return {
     obs: q.get('obs') === '1',
+    logMessages: q.get('logmsg') === '1',
     autoDemo: demo !== null || liveRoom !== null,
     config: {
       ...(liveRoom
@@ -71,10 +74,12 @@ function optionsFromUrl(): PageOptions {
 interface Props {
   /** Swapped for a fake in tests. */
   createClient?: CreateDyhubClient;
+  /** Where `?logmsg=1` writes each message; the console by default. */
+  log?: (...data: unknown[]) => void;
 }
 
 /** The 弹幕墙 route: an editor with live preview, or (`?obs=1`) the bare overlay for OBS. */
-export function DanmakuPage({ createClient }: Props) {
+export function DanmakuPage({ createClient, log = console.log }: Props) {
   const [initial] = useState(optionsFromUrl);
   const { config } = initial;
   const [settings, setSettings] = useState(config.style);
@@ -88,9 +93,14 @@ export function DanmakuPage({ createClient }: Props) {
   });
   const liveRoom = liveRoomFrom(connection);
 
-  const push = useCallback((message: DanmakuMessage) => {
-    setMessages((prev) => addMessage(prev, message, MAX_MESSAGES));
-  }, []);
+  // Every message, live or fake, comes through here: chat, gifts, and likes once batched.
+  const push = useCallback(
+    (message: DanmakuMessage) => {
+      if (initial.logMessages) log('[弹幕墙]', message);
+      setMessages((prev) => addMessage(prev, message, MAX_MESSAGES));
+    },
+    [initial.logMessages, log],
+  );
 
   // `?random=0`: the fake list in order at a fixed interval, so every run looks the same.
   const demoRandom = config.demo.random !== false;
