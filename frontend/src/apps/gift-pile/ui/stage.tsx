@@ -29,6 +29,10 @@ export function Stage({ canvasRef, renderer, client, size }: Props) {
   const [holding, setHolding] = useState(false);
   const [box, setBox] = useState({ width: size.width, height: size.height });
   const draggingRef = useRef<number | null>(null);
+  // Where the held icon last was, and whether the bin was lit for it, for finishing a drag
+  // from an event that carries no useful position (a lost capture) or one that has already
+  // left the bin in the flick of letting go.
+  const lastRef = useRef({ x: 0, y: 0, overBin: false });
 
   // The stage's size on screen, for the bin's position; observing reports it at once.
   useEffect(() => {
@@ -64,6 +68,7 @@ export function Stage({ canvasRef, renderer, client, size }: Props) {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     draggingRef.current = id;
+    lastRef.current = { x, y, overBin: false };
     setHolding(true);
     client.grab(id);
     renderer.hold({ id, x, y });
@@ -71,21 +76,26 @@ export function Stage({ canvasRef, renderer, client, size }: Props) {
   const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
     const id = draggingRef.current;
     if (id === null) return;
-    const { x, y, overBin } = locate(event);
-    renderer.hold({ id, x, y });
-    setHot(overBin);
+    const at = locate(event);
+    lastRef.current = at;
+    renderer.hold({ id, x: at.x, y: at.y });
+    setHot(at.overBin);
   };
-  const onPointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
+  /** The drag ends: into the bin if it is over it now or was lit a moment ago, else dropped. */
+  const finish = (at: { x: number; y: number; overBin: boolean }) => {
     const id = draggingRef.current;
     if (id === null) return;
     draggingRef.current = null;
-    const { x, y, overBin } = locate(event);
-    if (overBin) client.destroy(id);
-    else client.release(id, x, y);
+    if (at.overBin || lastRef.current.overBin) client.destroy(id);
+    else client.release(id, at.x, at.y);
     renderer.hold(null);
     setHolding(false);
     setHot(false);
   };
+  const onPointerUp = (event: PointerEvent<HTMLCanvasElement>) => finish(locate(event));
+  // Capture went away without a pointerup reaching us (it can, when the pointer leaves the
+  // window mid-flick): finish where the icon last was, so nothing stays stuck to the pointer.
+  const onLostPointerCapture = () => finish(lastRef.current);
 
   return (
     <>
@@ -99,6 +109,7 @@ export function Stage({ canvasRef, renderer, client, size }: Props) {
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
+          onLostPointerCapture={onLostPointerCapture}
           {...stylex.props(styles.canvas, holding && styles.dragging)}
         />
         <Bin
