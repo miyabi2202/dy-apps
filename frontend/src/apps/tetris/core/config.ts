@@ -14,9 +14,10 @@ export const CONFIG = {
     minBaseMs: 280,
     stepMs: 65,
     linesPerStep: 10,
+    /** A safety floor; with hastes bounded by their queue it is only reached late in a game. */
     minMs: 140,
     maxMs: 1800,
-    /** Drop-interval multiplier per haste; it stacks for the rest of the game. */
+    /** Drop-interval multiplier per active haste; overlapping hastes multiply. */
     hasteMultiplier: 0.8,
   },
   score: {
@@ -34,11 +35,14 @@ export const CONFIG = {
     quickBatches: [1, 10, 100],
     /** Gift batches kept for the right-hand info box. */
     historySize: 50,
+    /** A hit picks a rarity by these weights, then one of that rarity's curses evenly. */
+    rarityWeights: { common: 0.6, uncommon: 0.3, rare: 0.1 },
   },
   effects: {
-    /** Locked pieces that one fog / seal lasts; firing again adds as many more. */
-    fogLocks: 1,
-    sealLocks: 1,
+    /** Settlement rounds one firing lasts; each firing is its own instance. */
+    hasteRounds: 5,
+    fogRounds: 1,
+    sealRounds: 1,
   },
   settlement: { everyLocks: 3 },
   log: { maxEntries: 10 },

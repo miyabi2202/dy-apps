@@ -20,8 +20,11 @@ export function LogPanel({ engine }: { engine: GameEngine }) {
         <summary {...stylex.props(styles.summary)}>规则说明</summary>
         <ul {...stylex.props(styles.ruleList)}>
           <li>
-            观众送出的礼物每 1 钻独立判定是否触发，命中后从 {engine.curses.length}{' '}
-            种诅咒中等概率抽取一个，加入待执行数量。
+            观众送出的礼物每 1 钻独立判定是否触发；命中后先抽稀有度（common{' '}
+            {CONFIG.gifts.rarityWeights.common * 100}%、uncommon{' '}
+            {CONFIG.gifts.rarityWeights.uncommon * 100}%、rare{' '}
+            {CONFIG.gifts.rarityWeights.rare * 100}
+            %），再在该稀有度的诅咒中等概率抽一个，加入待执行数量。
           </li>
           <li>
             每落定 {CONFIG.settlement.everyLocks} 块结算一次：每种有待执行数量的诅咒各执行 1

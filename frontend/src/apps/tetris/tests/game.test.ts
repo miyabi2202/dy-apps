@@ -1,13 +1,15 @@
 import { createBoard } from '../core/board';
 import { CONFIG } from '../core/config';
 import { CURSES } from '../core/curses';
-import { activate } from '../core/curses/state';
+import { activate, locksLeft } from '../core/curses/state';
 import { GameEngine } from '../core/game';
 import { createPiece, shapeOf } from '../core/pieces';
 import { constantRng, sequenceRng } from '../core/random';
 import { boardWithRows, dropOnEmpty, pendingOf, setActive, startedEngine } from './helpers';
 
 const { rows, cols } = CONFIG.board;
+/** Locks one fog runs for. */
+const FOG_LOCKS = CONFIG.effects.fogRounds * CONFIG.settlement.everyLocks;
 
 function groundActive(engine: GameEngine) {
   while (engine.softDrop()) {
@@ -218,7 +220,7 @@ describe('hold', () => {
     activate(engine.effects, 'fog', CURSES.fog);
     engine.holdPiece();
     expect(engine.lockedPieceCount).toBe(0);
-    expect(engine.effects.active.fog?.remainingLocks).toBe(1);
+    expect(locksLeft(engine.effects.active.fog!)).toBe(FOG_LOCKS);
   });
 
   it('seal blocks hold without clearing the stored piece', () => {
@@ -254,17 +256,18 @@ describe('settlement cycle', () => {
     const fired = engine.lastSettlement!.executed.map((e) => e.type);
     expect(fired).toEqual(['garbage', 'haste', 'fog']);
     expect(engine.board.filter((row) => row.includes('G') && row.includes(null))).toHaveLength(1);
-    expect(engine.effects.hasteMultiplier).toBeCloseTo(0.8);
+    expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
     expect(engine.previewHidden).toBe(true);
     expect(engine.team.pending).toEqual(pendingOf({ garbage: 1 }));
     expect(engine.log[0]!.text).toContain('执行 垃圾行、加速、迷雾');
   });
 
-  it('fog and seal last one piece', () => {
+  it('fog and seal last the configured rounds', () => {
     const engine = startedEngine();
     engine.team.pending = pendingOf({ fog: 1, seal: 1 });
     dropOnEmpty(engine, 3);
-    expect(engine.effects.active.fog?.remainingLocks).toBe(1);
+    expect(locksLeft(engine.effects.active.fog!)).toBe(FOG_LOCKS);
+    dropOnEmpty(engine, FOG_LOCKS - 1);
     expect(engine.previewHidden).toBe(true);
     expect(engine.holdBlocked).toBe(true);
     dropOnEmpty(engine, 1);
@@ -329,17 +332,26 @@ describe('settlement cycle', () => {
 });
 
 describe('example F: haste and speed', () => {
-  it('haste never expires', () => {
+  it('each haste lasts the configured rounds, and overlapping hastes multiply', () => {
     const engine = startedEngine();
+    const rounds = CONFIG.effects.hasteRounds;
     engine.team.pending.haste = 1;
-    dropOnEmpty(engine, 3);
+    dropOnEmpty(engine, 3); // round 0: the first haste fires
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
-    dropOnEmpty(engine, 30);
+    engine.team.pending.haste = 1;
+    dropOnEmpty(engine, 3); // round 1: a second one
+    expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8 * 0.8);
+    dropOnEmpty(engine, 3 * (rounds - 2)); // the last round both are active
+    expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8 * 0.8);
+    dropOnEmpty(engine, 3); // the first expires
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
-    expect(engine.speedMultiplier).toBeCloseTo(1.25);
+    expect(engine.activeCurses[0]).toMatchObject({ type: 'haste', count: 1, remainingLocks: 3 });
+    dropOnEmpty(engine, 3); // the second expires
+    expect(engine.gravityIntervalMs).toBe(850);
+    expect(engine.speedMultiplier).toBe(1);
   });
 
-  it('pending hastes stack one settlement at a time', () => {
+  it('pending hastes fire one settlement at a time', () => {
     const engine = startedEngine();
     engine.team.pending.haste = 3;
     dropOnEmpty(engine, 3);
@@ -354,7 +366,7 @@ describe('example F: haste and speed', () => {
     expect(engine.speedMultiplier).toBe(1);
     engine.lines = 100;
     expect(engine.gravityIntervalMs).toBe(280);
-    engine.effects.hasteMultiplier = 0.01;
+    engine.effects.gravityMultiplier = 0.01;
     expect(engine.gravityIntervalMs).toBe(140);
     expect(engine.speedMultiplier).toBeCloseTo(850 / 140);
   });
@@ -393,7 +405,7 @@ describe('phases', () => {
     engine.start();
     engine.sendGifts('foo', 50);
     dropOnEmpty(engine, 3);
-    engine.effects.hasteMultiplier = 0.5;
+    activate(engine.effects, 'haste', CURSES.haste);
     engine.restart();
     expect(engine.phase).toBe('ready');
     expect(engine.probability).toBe(0.25);
@@ -403,7 +415,8 @@ describe('phases', () => {
     expect(engine.score).toBe(0);
     expect(engine.lockedPieceCount).toBe(0);
     expect(engine.settlementCount).toBe(0);
-    expect(engine.effects.hasteMultiplier).toBe(1);
+    expect(engine.effects.active).toEqual({});
+    expect(engine.gravityIntervalMs).toBe(850);
     expect(engine.hold).toBeNull();
     expect(engine.board.flat().every((c) => c === null)).toBe(true);
   });

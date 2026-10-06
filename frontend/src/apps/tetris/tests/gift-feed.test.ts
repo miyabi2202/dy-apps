@@ -21,7 +21,7 @@ function started(giftRng = constantRng(0)) {
 
 describe('GiftFeed', () => {
   it('draws once per diamond, credited to the viewer', () => {
-    const { engine, feed } = started();
+    const { engine, feed } = started(forceEffectRng('garbage'));
     const res = feed.send(gift('g1', 3, 10));
     expect(res.ok && res.result.count).toBe(30);
     expect(engine.giftHistory[0]?.sender).toBe('阿杰');

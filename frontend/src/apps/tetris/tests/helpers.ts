@@ -1,14 +1,16 @@
 import { createBoard } from '../core/board';
-import { EFFECT_POOL, type EffectType } from '../core/curses';
+import { CURSE_LIST, EFFECT_POOL, type EffectType } from '../core/curses';
 import { GameEngine, type EngineOptions } from '../core/game';
+import { rarityBands } from '../core/gifts';
 import { createPiece, shapeOf } from '../core/pieces';
 import { constantRng, sequenceRng, type Rng } from '../core/random';
 import type { Board, PieceType } from '../core/types';
 
-/** Gift RNG draws that always hit and always pick `type`. */
+/** Gift RNG draws that always hit and always pick `type`: trigger, its rarity, then it. */
 export function forceEffectRng(type: EffectType): Rng {
-  const index = EFFECT_POOL.indexOf(type);
-  return sequenceRng([0, (index + 0.5) / EFFECT_POOL.length]);
+  const band = rarityBands(CURSE_LIST).find((b) => b.types.includes(type))!;
+  const index = band.types.indexOf(type);
+  return sequenceRng([0, (band.from + band.to) / 2, (index + 0.5) / band.types.length]);
 }
 
 /** Pending counts for every curse: the ones given, zero for the rest. */

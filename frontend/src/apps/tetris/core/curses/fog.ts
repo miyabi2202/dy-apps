@@ -5,9 +5,9 @@ import { defineCurse } from './types';
 export const fog = defineCurse({
   type: 'fog',
   name: '迷雾',
-  description: (config) => `隐藏预览 ${config.effects.fogLocks} 块，可叠加`,
+  description: (config) => `隐藏预览 ${config.effects.fogRounds} 轮`,
   rarity: 'common',
   queue: 'c',
-  durationLocks: CONFIG.effects.fogLocks,
+  durationRounds: CONFIG.effects.fogRounds,
   hidesPreview: true,
 });

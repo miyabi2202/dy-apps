@@ -5,9 +5,9 @@ import { defineCurse } from './types';
 export const seal = defineCurse({
   type: 'seal',
   name: '封存',
-  description: (config) => `禁用暂存 ${config.effects.sealLocks} 块，可叠加`,
+  description: (config) => `禁用暂存 ${config.effects.sealRounds} 轮`,
   rarity: 'common',
   queue: 'd',
-  durationLocks: CONFIG.effects.sealLocks,
+  durationRounds: CONFIG.effects.sealRounds,
   blocks: ['hold'],
 });

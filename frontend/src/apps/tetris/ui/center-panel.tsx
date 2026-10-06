@@ -27,7 +27,8 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
   const every = CONFIG.settlement.everyLocks;
   const done = engine.lockedPieceCount % every;
   const timed = engine.activeCurses.map(
-    ({ def, remainingLocks }) => `${def.name} · 剩 ${remainingLocks} 块`,
+    ({ def, remainingLocks, count }) =>
+      `${def.name}${count > 1 ? ` ×${count}` : ''} · 剩 ${remainingLocks} 块`,
   );
   const holdBlockedBy = engine.blockedBy('hold');
   const previewHiddenBy = engine.previewHiddenBy;

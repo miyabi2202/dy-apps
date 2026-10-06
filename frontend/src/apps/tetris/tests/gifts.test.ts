@@ -1,7 +1,7 @@
 import { CONFIG } from '../core/config';
-import { EFFECT_POOL } from '../core/curses';
+import { CURSES } from '../core/curses';
 import { GameEngine } from '../core/game';
-import { processGiftBatch } from '../core/gifts';
+import { processGiftBatch, rarityBands } from '../core/gifts';
 import { createTeam, isConserved, pendingTotal } from '../core/interventions';
 import { constantRng, mulberry32, sequenceRng } from '../core/random';
 import type { GiftBatchResult } from '../core/types';
@@ -32,22 +32,43 @@ describe('example A: probability boundaries', () => {
     const team = createTeam();
     const r = processGiftBatch(team, 'foo', 1, 0.6, constantRng(0.6));
     expect(r.misses).toBe(1);
-    const r2 = processGiftBatch(team, 'foo', 1, 0.6, sequenceRng([0.5999, 0]));
+    const r2 = processGiftBatch(team, 'foo', 1, 0.6, sequenceRng([0.5999, 0, 0]));
     expect(r2.hits).toBe(1);
   });
 
-  it('draws cover equal slices of the pool', () => {
-    const n = EFFECT_POOL.length;
-    const draws: [number, string][] = [
-      [0, EFFECT_POOL[0]!],
-      [1 / n - 0.0001, EFFECT_POOL[0]!],
-      ...EFFECT_POOL.map((type, i): [number, string] => [i / n, type]),
-      [0.9999, EFFECT_POOL[n - 1]!],
+  it('a hit draws a rarity by weight, then one of its curses evenly', () => {
+    // Registry: fog and seal common, haste uncommon, garbage rare.
+    const bands = rarityBands(Object.values(CURSES));
+    expect(bands.map((b) => [b.rarity, b.types])).toEqual([
+      ['common', ['fog', 'seal']],
+      ['uncommon', ['haste']],
+      ['rare', ['garbage']],
+    ]);
+    expect(bands.map((b) => b.to)).toEqual([expect.any(Number), expect.any(Number), 1]);
+    expect(bands[0]!.to).toBeCloseTo(0.6);
+    expect(bands[1]!.from).toBeCloseTo(0.6);
+    expect(bands[1]!.to).toBeCloseTo(0.9);
+    expect(bands[2]!.from).toBeCloseTo(0.9);
+    const draws: [number, number, string][] = [
+      [0, 0, 'fog'],
+      [0.59, 0.49, 'fog'],
+      [0.59, 0.5, 'seal'],
+      [0.61, 0.99, 'haste'],
+      [0.89, 0, 'haste'],
+      [0.91, 0, 'garbage'],
+      [0.99, 0.99, 'garbage'],
     ];
-    for (const [u, expected] of draws) {
-      const r = processGiftBatch(createTeam(), 'foo', 1, 1, sequenceRng([0, u]));
+    for (const [rarity, index, expected] of draws) {
+      const r = processGiftBatch(createTeam(), 'foo', 1, 1, sequenceRng([0, rarity, index]));
       expect(Object.keys(r.effects)).toEqual([expected]);
     }
+  });
+
+  it('weights are scaled over the rarities in play', () => {
+    const bands = rarityBands([CURSES.garbage, CURSES.fog]);
+    expect(bands.map((b) => b.rarity)).toEqual(['common', 'rare']);
+    expect(bands[0]!.to).toBeCloseTo(0.6 / 0.7);
+    expect(bands[1]!.to).toBe(1);
   });
 });
 

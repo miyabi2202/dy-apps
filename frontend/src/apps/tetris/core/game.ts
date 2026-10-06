@@ -12,6 +12,7 @@ import {
   activate,
   createEffects,
   gravityIntervalMs,
+  locksLeft,
   tickTimedEffects,
   type EffectsState,
 } from './curses/state';
@@ -53,7 +54,7 @@ export interface CursesSetup {
    * `{ ...CURSES.fog, onTick: spy }` in it. Throws on a duplicate type.
    */
   pool?: readonly CurseDef<unknown>[];
-  /** Curses in effect from the start (生效中), each at its full durationLocks with a fresh initState(). Throws for a type not in the pool or a def without durationLocks. */
+  /** Curses in effect from the start (生效中), one instance each, with a fresh initState(). Throws for a type not in the pool or a def without durationRounds. */
   active?: readonly EffectType[];
   /** Triggered curses waiting for the next settlement (待执行), as counts per type. Throws for a type not in the pool. */
   upcoming?: Partial<Record<EffectType, number>>;
@@ -61,7 +62,7 @@ export interface CursesSetup {
 
 /**
  * Real randomness and an empty, standard game by default. `board`, `pieces`, `curses` and
- * `hasteMultiplier` set up a scenario (for tests and demos) that restart() starts again.
+ * `gravityMultiplier` set up a scenario (for tests and demos) that restart() starts again.
  */
 export interface EngineOptions {
   seed?: number;
@@ -79,14 +80,17 @@ export interface EngineOptions {
    * The starting drop-interval multiplier (0.5 is twice as fast), default 1; must be finite and
    * above 0. `lines` also affects gravity and stays a public field.
    */
-  hasteMultiplier?: number;
+  gravityMultiplier?: number;
 }
 
 /** An active curse as the panels show it. */
 export interface ActiveCurseView {
   type: EffectType;
   def: CurseDef<unknown>;
+  /** Locks until its last instance ends. */
   remainingLocks: number;
+  /** Instances running at once. */
+  count: number;
 }
 
 export type LogKind = 'gift' | 'miss' | 'settle' | 'system';
@@ -150,7 +154,7 @@ export class GameEngine {
   private readonly initialActivePiece: PieceShape | undefined;
   private readonly initialPending: Partial<Record<EffectType, number>>;
   private readonly initialActive: readonly EffectType[];
-  private readonly initialHaste: number;
+  private readonly initialGravity: number;
   private bag: BagGenerator;
   private gravityMs = 0;
   private lockMs = 0;
@@ -168,6 +172,7 @@ export class GameEngine {
     this.probability = options.probability ?? CONFIG.gifts.defaultProbability;
     const { pieces = {}, curses = {} } = options;
     this.curses = curses.pool ?? CURSE_LIST;
+    if (this.curses.length === 0) throw new RangeError('The curse pool is empty');
     for (const def of this.curses) {
       if (this.curseByType[def.type]) throw new RangeError(`Duplicate curse: ${def.type}`);
       this.curseByType[def.type] = def;
@@ -182,11 +187,11 @@ export class GameEngine {
     for (const type of this.initialActive) {
       const def = this.curseByType[type];
       if (!def) throw new RangeError(`Active curse not in play: ${type}`);
-      if (def.durationLocks === undefined) throw new RangeError(`Curse does not last: ${type}`);
+      if (def.durationRounds === undefined) throw new RangeError(`Curse does not last: ${type}`);
     }
-    this.initialHaste = options.hasteMultiplier ?? 1;
-    if (!Number.isFinite(this.initialHaste) || this.initialHaste <= 0) {
-      throw new RangeError(`Invalid haste multiplier: ${String(options.hasteMultiplier)}`);
+    this.initialGravity = options.gravityMultiplier ?? 1;
+    if (!Number.isFinite(this.initialGravity) || this.initialGravity <= 0) {
+      throw new RangeError(`Invalid gravity multiplier: ${String(options.gravityMultiplier)}`);
     }
     this.team = this.startingTeam();
     this.effects = this.startingEffects();
@@ -227,7 +232,16 @@ export class GameEngine {
   }
 
   get gravityIntervalMs(): number {
-    return gravityIntervalMs(this.lines, this.effects);
+    return gravityIntervalMs(this.lines, this.gravityMultiplier);
+  }
+
+  /** The scenario's base multiplier times every active curse instance's. */
+  private get gravityMultiplier(): number {
+    let m = this.effects.gravityMultiplier;
+    for (const { def, count } of this.activeCurses) {
+      if (def.gravityMultiplier !== undefined) m *= def.gravityMultiplier ** count;
+    }
+    return m;
   }
 
   /** Current fall speed relative to the starting speed (line-clear speed-ups and haste). */
@@ -244,7 +258,14 @@ export class GameEngine {
     const out: ActiveCurseView[] = [];
     for (const def of this.curses) {
       const active = this.effects.active[def.type];
-      if (active) out.push({ type: def.type, def, remainingLocks: active.remainingLocks });
+      if (active) {
+        out.push({
+          type: def.type,
+          def,
+          remainingLocks: locksLeft(active),
+          count: active.instances.length,
+        });
+      }
     }
     return out;
   }
@@ -358,7 +379,7 @@ export class GameEngine {
       };
     }
     const p = this.probability;
-    const result = processGiftBatch(this.team, sender, count, p, this.giftRng, this.pool);
+    const result = processGiftBatch(this.team, sender, count, p, this.giftRng, this.curses);
     this.batchId += 1;
     this.giftHistory.unshift({ ...result, id: this.batchId });
     if (this.giftHistory.length > CONFIG.gifts.historySize) {
@@ -510,7 +531,7 @@ export class GameEngine {
 
   private startingEffects(): EffectsState {
     const effects = createEffects();
-    effects.hasteMultiplier = this.initialHaste;
+    effects.gravityMultiplier = this.initialGravity;
     for (const type of this.initialActive) activate(effects, type, this.curseByType[type]!);
     return effects;
   }
@@ -600,7 +621,7 @@ export class GameEngine {
       const def = this.curseByType[type]!;
       // A lasting curse is (re)activated first, so apply sees the state it keeps.
       const state =
-        def.durationLocks === undefined
+        def.durationRounds === undefined
           ? def.initState?.()
           : activate(this.effects, type, def).state;
       const outcome = def.apply?.(this.curseContext(), state) ?? {};
@@ -622,9 +643,6 @@ export class GameEngine {
       garbageRng: this.garbageRng,
       tryRotate: (dir) => this.active !== null && this.rotateWithKicks(dir, false),
       trySetShape: (shape) => this.trySetShape(shape),
-      multiplyGravity: (factor) => {
-        this.effects.hasteMultiplier *= factor;
-      },
     };
   }
 

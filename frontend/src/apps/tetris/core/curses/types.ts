@@ -33,10 +33,13 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
    */
   queue: string;
   /**
-   * How many locked pieces it stays active; firing again while active adds that many more.
-   * Omitted means it fires once in apply and is done.
+   * How many settlement rounds one firing lasts (a round is CONFIG.settlement.everyLocks locks).
+   * Every firing is its own instance, and instances overlap. Omitted means it fires once in
+   * apply and is done.
    */
-  durationLocks?: number;
+  durationRounds?: number;
+  /** While active: the drop interval is multiplied by this once per active instance. */
+  gravityMultiplier?: number;
   /** Fresh state when the curse becomes active. */
   initState?(): S;
   /** At settlement, every time it fires. */
@@ -79,6 +82,4 @@ export interface CurseContext {
    * the piece unchanged. Neither resets the lock timer nor spends a lock reset.
    */
   trySetShape(shape: PieceShape): boolean;
-  /** Haste keeps its accumulator here. */
-  multiplyGravity(factor: number): void;
 }
