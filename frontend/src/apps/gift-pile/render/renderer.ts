@@ -9,7 +9,7 @@ export type CreateSprite = (
   image: HTMLImageElement | null,
 ) => CanvasImageSource;
 
-type Stage = Pick<PileSettings, 'world' | 'radius'>;
+type Stage = Pick<PileSettings, 'world' | 'radius' | 'grabRadius'>;
 
 /** An icon the user is holding, and where (pixels). */
 export interface Held {
@@ -127,11 +127,11 @@ export class PileRenderer {
   }
 
   /**
-   * The icon drawn at world position (x, y), if any: a moving one first (they are drawn on
-   * top), else a resting one.
+   * The icon to pick up at world position (x, y), if any: the nearest within `grabRadius`,
+   * a moving one first (they are drawn on top), else a resting one.
    */
   iconAt(x: number, y: number): number | null {
-    const r = this.stage.radius;
+    const r = this.stage.grabRadius;
     const r2 = r * r;
     let best: number | null = null;
     let bestD2 = r2;

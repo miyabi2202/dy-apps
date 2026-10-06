@@ -6,6 +6,8 @@ export interface PileSettings {
   radius: number;
   /** Icons collide as circles of this radius, smaller than drawn, so they visibly overlap in the pile. */
   collisionRadius: number;
+  /** How close to an icon's centre a press has to be to pick it up; bigger than drawn, for easy grabbing. */
+  grabRadius: number;
   /** The most icons the pile holds in total. */
   maxItems: number;
   gravity: number;
@@ -51,6 +53,7 @@ export const PILE: PileSettings = {
   world: { width: 400, height: 700 },
   radius: 8,
   collisionRadius: 6,
+  grabRadius: 12,
   maxItems: 100_000,
   gravity: 2400,
   spawnPerSecond: 600,
