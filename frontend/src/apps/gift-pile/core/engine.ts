@@ -1,5 +1,5 @@
 import type RAPIER from '@dimforge/rapier2d-compat';
-import { PILE, type PileSettings } from './config';
+import { canvasSize, PILE, type PileSettings } from './config';
 
 /** The Rapier module, initialised (`await RAPIER.init()`) before it is handed over. */
 export type Rapier = typeof RAPIER;
@@ -35,7 +35,7 @@ const CASCADE_MOVE = 0.5;
  * front; the engine itself works in metres (see `pxPerMetre`).
  */
 export class PileEngine {
-  /** The world's size in pixels; `resize()` changes it. */
+  /** The canvas's size in pixels (the play area plus the margin); `resize()` changes it. */
   width: number;
   height: number;
   /** The collision radius; the icon is drawn bigger than this. */
@@ -98,8 +98,9 @@ export class PileEngine {
     this.rapier = rapier;
     this.settings = settings;
     this.rng = rng;
-    this.width = settings.world.width;
-    this.height = settings.world.height;
+    const canvas = canvasSize(settings.world, settings.margin);
+    this.width = canvas.width;
+    this.height = canvas.height;
     this.radius = settings.collisionRadius;
     this.margin = settings.margin;
     this.maxItems = settings.maxItems;
@@ -142,10 +143,11 @@ export class PileEngine {
     return added;
   }
 
-  /** A new, empty world of this size (in pixels). */
+  /** A new, empty world with a play area of this size (in pixels). */
   resize(width: number, height: number): void {
-    this.width = width;
-    this.height = height;
+    const canvas = canvasSize({ width, height }, this.margin);
+    this.width = canvas.width;
+    this.height = canvas.height;
     this.clear();
   }
 

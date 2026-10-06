@@ -9,10 +9,7 @@ export type CreateSprite = (
   image: HTMLImageElement | null,
 ) => CanvasImageSource;
 
-type Stage = Pick<PileSettings, 'world' | 'radius' | 'grabRadius' | 'margin'>;
-
-/** The walls and floor, drawn as faint lines. */
-const EDGE_STROKE = 'rgba(148, 163, 184, 0.35)';
+type Stage = Pick<PileSettings, 'world' | 'radius' | 'grabRadius'>;
 
 /** An icon the user is holding, and where (pixels). */
 export interface Held {
@@ -71,7 +68,7 @@ export class PileRenderer {
     this.held = held;
   }
 
-  // The world's size: the stage's until the first frame says otherwise.
+  // The canvas's size: the stage's until the first frame says otherwise.
   private world: Stage['world'];
 
   constructor(
@@ -210,7 +207,6 @@ export class PileRenderer {
     ctx.clearRect(0, 0, pw, ph);
     ctx.drawImage(this.layer, 0, 0);
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-    this.drawEdges(ctx);
 
     const { cur, prev, held } = this;
     if (cur) {
@@ -282,21 +278,6 @@ export class PileRenderer {
       if (ox + r > x0 && ox - r < x1 && oy + r > y0 && oy - r < y1) this.stamp(layerCtx, ox, oy);
     }
     layerCtx.restore();
-  }
-
-  /** The two walls and the floor, just inside the canvas. */
-  private drawEdges(ctx: CanvasRenderingContext2D): void {
-    const { world } = this;
-    const m = this.stage.margin;
-    if (m <= 0) return;
-    ctx.strokeStyle = EDGE_STROKE;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(m - 0.5, 0);
-    ctx.lineTo(m - 0.5, world.height - m + 0.5);
-    ctx.lineTo(world.width - m + 0.5, world.height - m + 0.5);
-    ctx.lineTo(world.width - m + 0.5, 0);
-    ctx.stroke();
   }
 
   private stamp(ctx: CanvasRenderingContext2D, x: number, y: number, scale = 1): void {

@@ -1,6 +1,9 @@
 /** Tuning for the pile. Lengths are CSS pixels, times seconds, unless a name says otherwise. */
 export interface PileSettings {
-  /** The world's size; the canvas shows exactly this, scaled down with the page. */
+  /**
+   * The play area: between the walls and above the floor. The canvas is this plus the
+   * `margin` buffer on the left, right and bottom (see `canvasSize`).
+   */
   world: { width: number; height: number };
   /** Icons are drawn 2 × this across (16×16). */
   radius: number;
@@ -8,7 +11,7 @@ export interface PileSettings {
   collisionRadius: number;
   /** How close to an icon's centre a press has to be to pick it up; bigger than drawn, for easy grabbing. */
   grabRadius: number;
-  /** The walls and floor sit this far inside the canvas, so icons at the edge can still be reached. */
+  /** The buffer between the canvas edge and the walls and floor, so icons at the edge can still be reached. */
   margin: number;
   /** The most icons the pile holds in total. */
   maxItems: number;
@@ -68,3 +71,11 @@ export const PILE: PileSettings = {
   settle: { speed: 30, steps: 6, overlap: 1, maxSteps: 120 },
   heapAge: 20,
 };
+
+/** The canvas for a play area of `world`: the margin added on the left, right and bottom. */
+export function canvasSize(
+  world: { width: number; height: number },
+  margin = PILE.margin,
+): { width: number; height: number } {
+  return { width: world.width + 2 * margin, height: world.height + margin };
+}

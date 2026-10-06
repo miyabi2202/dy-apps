@@ -5,7 +5,7 @@ export type ToWorker =
   /** Destroy this many icons, picked at random. */
   | { type: 'remove'; count: number }
   | { type: 'clear' }
-  /** A new world of this size, in pixels; the pile is emptied with it. */
+  /** A new world with a play area of this size, in pixels; the pile is emptied with it. */
   | { type: 'resize'; width: number; height: number }
   /** The user picked up this icon: out of the pile and out of the engine until let go. */
   | { type: 'grab'; id: number }
@@ -18,7 +18,7 @@ export type ToWorker =
 export interface Frame {
   /** Simulation time at the end of the tick, in ms. */
   time: number;
-  /** The world's size, in pixels. */
+  /** The canvas's size, in pixels: the play area plus its margin. */
   width: number;
   height: number;
   /** Icons in the world, moving, at rest or held; destroyed ones no longer count. */

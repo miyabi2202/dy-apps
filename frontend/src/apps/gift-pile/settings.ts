@@ -8,8 +8,9 @@ export interface WorldSize {
 }
 
 /**
- * What each side of the world can be set to. The width stops at 900 so the canvas always
- * shows at full size inside the page (which is capped at 1000 px, minus its paddings).
+ * What each side of the play area can be set to. The width stops at 900 so the canvas (16 px
+ * wider, for the margin) always shows at full size inside the page (capped at 1000 px,
+ * minus its paddings).
  */
 export const SIZE_RANGE = {
   width: { min: 100, max: 900 },

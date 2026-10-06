@@ -2,6 +2,7 @@ import { text } from '@dy-apps/ui';
 import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
+import { canvasSize } from '../core/config';
 import { labels, testIds } from '../messages';
 import type { PileClient } from '../pile-client';
 import type { PileRenderer } from '../render/renderer';
@@ -12,6 +13,7 @@ interface Props {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   renderer: PileRenderer;
   client: PileClient;
+  /** The play area; the canvas is this plus the margin. */
   size: WorldSize;
 }
 
@@ -27,7 +29,8 @@ export function Stage({ canvasRef, renderer, client, size }: Props) {
   const [bin, setBin] = useState<BinPlace>(BIN_HOME);
   const [hot, setHot] = useState(false);
   const [holding, setHolding] = useState(false);
-  const [box, setBox] = useState({ width: size.width, height: size.height });
+  const canvas = canvasSize(size);
+  const [box, setBox] = useState(canvas);
   const draggingRef = useRef<number | null>(null);
   // Where the held icon last was, and whether the bin was lit for it, for finishing a drag
   // from an event that carries no useful position (a lost capture) or one that has already
@@ -54,8 +57,8 @@ export function Stage({ canvasRef, renderer, client, size }: Props) {
     const overBin =
       Math.abs(cx - bin.fx * rect.width) <= half && Math.abs(cy - bin.fy * rect.height) <= half;
     return {
-      x: (cx / rect.width) * size.width,
-      y: (cy / rect.height) * size.height,
+      x: (cx / rect.width) * canvas.width,
+      y: (cy / rect.height) * canvas.height,
       overBin,
     };
   };
@@ -99,12 +102,12 @@ export function Stage({ canvasRef, renderer, client, size }: Props) {
 
   return (
     <>
-      <div ref={stageRef} {...stylex.props(styles.stage, styles.width(size.width))}>
+      <div ref={stageRef} {...stylex.props(styles.stage, styles.width(canvas.width))}>
         <canvas
           ref={canvasRef}
           data-testid={testIds.canvas}
-          width={size.width}
-          height={size.height}
+          width={canvas.width}
+          height={canvas.height}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}

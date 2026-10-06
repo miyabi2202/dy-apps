@@ -2,7 +2,7 @@ import { Column, Grid, Page, Panel, text } from '@dy-apps/ui';
 import { space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState } from 'react';
-import { PILE } from './core/config';
+import { canvasSize, PILE } from './core/config';
 import { startPileLoop } from './loop';
 import { labels } from './messages';
 import { PileClient } from './pile-client';
@@ -18,7 +18,7 @@ const STATS_INTERVAL_MS = 200;
 
 /** The renderer, and the worker feeding it frames. */
 function createPile() {
-  const renderer = new PileRenderer(PILE);
+  const renderer = new PileRenderer({ ...PILE, world: canvasSize(PILE.world) });
   const client = new PileClient({
     onFrame: (frame) => renderer.pushFrame(frame, performance.now()),
   });
