@@ -68,4 +68,10 @@ describe('createFakeGift', () => {
     expect(gift.user.nickname).toBe('奶茶不加糖');
     expect(createFakeGift().id).not.toBe(createFakeGift().id);
   });
+
+  it('never sends more than 13 嘉年华 at once', () => {
+    // The last gift kind and the biggest combo.
+    const gift = createFakeGift({ random: () => 0.999 });
+    expect(gift.gift).toMatchObject({ name: '嘉年华', count: 13 });
+  });
 });

@@ -128,7 +128,7 @@ Where the spec left room, these are the choices made:
 ## Known limitations
 
 - Simplified wall kicks (`(0,0), (-1,0), (1,0), (-2,0), (2,0), (0,-1), (0,-2)`). This is **not SRS**.
-- No Web Worker, and every draw is rolled one by one. 10,000 draws take a few milliseconds, but a very expensive gift is slow: a 嘉年华 ×1314 (39.4 million draws) blocks the page for about 0.9 s.
+- No Web Worker, and every draw is rolled one by one. 10,000 draws take a few milliseconds, but a very expensive gift is slow: a 嘉年华 ×1314 (39.4 million draws) would block the page for about 0.9 s. Nobody sends that, and the fake viewers send at most 13 嘉年华 (390,000 draws).
 - No sound, and the game itself isn't saved: a page refresh starts a new game, as the spec requires. The config page and the OBS page are separate games.
 - The spec suggests Vitest. This project uses Jest because the toolchain was set up with it. The tests cover the same requirements.
 - `window.__blockLab` exposes the engine for browser tests and debugging.

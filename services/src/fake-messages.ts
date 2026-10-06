@@ -55,7 +55,10 @@ const TEXTS = [
   '好耶！',
 ];
 
-/** Douyin gifts with rough diamond prices; the demo has no icons, so cards show 🎁. */
+/**
+ * Douyin gifts with rough diamond prices; the demo has no icons, so cards show 🎁. An
+ * expensive gift has a `maxCount`, since nobody sends 1314 嘉年华 (that's about 4M yuan).
+ */
 const GIFTS = [
   { name: '小心心', diamonds: 1 },
   { name: '玫瑰', diamonds: 1 },
@@ -64,7 +67,7 @@ const GIFTS = [
   { name: '你最好看', diamonds: 2 },
   { name: '加油鸭', diamonds: 15 },
   { name: '鲜花', diamonds: 10 },
-  { name: '嘉年华', diamonds: 30000 },
+  { name: '嘉年华', diamonds: 30000, maxCount: 13 },
 ];
 
 /** Mostly single gifts, sometimes a big combo, to preview both ends. */
@@ -113,6 +116,7 @@ export function createFakeGift({
   now = Date.now,
 }: FakeOptions = {}): DanmakuMessage {
   const ts = now();
-  const gift: DanmakuGift = { ...pick(GIFTS, random), count: pick(GIFT_COUNTS, random) };
+  const { maxCount = Infinity, ...kind } = pick(GIFTS, random);
+  const gift: DanmakuGift = { ...kind, count: Math.min(pick(GIFT_COUNTS, random), maxCount) };
   return { id: `demo-${ts}-${seq++}`, user: pick(USERS, random), text: '', gift, ts };
 }
