@@ -1,7 +1,20 @@
 /**
- * The 嘉年华 icon, drawn by hand for now: a warm glowing disc with a sparkle, which reads at
- * 16 px. Swap `paintGiftIcon` for a `drawImage` of the real gift image once there is one.
+ * The 嘉年华 gift icon from Douyin, trimmed and scaled to 16×16 with its transparent
+ * background (the original is p3-webcast.douyinpic.com/img/webcast/a7d3b86b11df780f084d06723ad70b30.png).
  */
+export const GIFT_ICON_URL = '/gifts/jianianhua.png';
+
+/** Fetches the icon; null if it fails to load, so the page still works with the drawn fallback. */
+export function loadGiftIcon(url = GIFT_ICON_URL): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = url;
+  });
+}
+
+/** Stand-in while the image loads or if it can't: a warm glowing disc with a sparkle. */
 export function paintGiftIcon(ctx: CanvasRenderingContext2D, size: number): void {
   const r = size / 2;
   const glow = ctx.createRadialGradient(r * 0.7, r * 0.65, r * 0.1, r, r, r);
@@ -36,15 +49,27 @@ export function paintGiftIcon(ctx: CanvasRenderingContext2D, size: number): void
   ctx.fill();
 }
 
-/** The icon as an image `size` CSS px across at `pixelRatio` device px per CSS px, to stamp with `drawImage`. */
-export function createGiftSprite(size: number, pixelRatio: number): HTMLCanvasElement {
+/**
+ * The icon as an image `size` CSS px across at `pixelRatio` device px per CSS px, to stamp
+ * with `drawImage`: the gift image when there is one, otherwise the drawn stand-in.
+ */
+export function createGiftSprite(
+  size: number,
+  pixelRatio: number,
+  image: HTMLImageElement | null,
+): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.ceil(size * pixelRatio));
   canvas.height = canvas.width;
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.scale(pixelRatio, pixelRatio);
-    paintGiftIcon(ctx, size);
+    if (image) {
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(image, 0, 0, size, size);
+    } else {
+      paintGiftIcon(ctx, size);
+    }
   }
   return canvas;
 }

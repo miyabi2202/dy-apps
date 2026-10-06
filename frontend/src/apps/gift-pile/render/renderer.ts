@@ -1,8 +1,12 @@
 import type { PileWorld } from '../core/world';
 import { createGiftSprite } from './sprite';
 
-/** Makes the icon image at a pixel ratio; the default paints it, a test can return anything. */
-export type CreateSprite = (size: number, pixelRatio: number) => CanvasImageSource;
+/** Makes the icon image at a pixel ratio from the gift image, or without one; a test can return anything. */
+export type CreateSprite = (
+  size: number,
+  pixelRatio: number,
+  image: HTMLImageElement | null,
+) => CanvasImageSource;
 
 /**
  * Draws the pile in two layers. Icons at rest are stamped once onto an offscreen canvas as
@@ -10,11 +14,13 @@ export type CreateSprite = (size: number, pixelRatio: number) => CanvasImageSour
  * Each frame costs by what's in the air, however big the pile is.
  *
  * The canvas is sized to its CSS box × devicePixelRatio and the world scaled into it, so the
- * icons stay crisp at any page width; the resting layer is repainted when that ratio changes.
+ * icons stay crisp at any page width. The resting layer is repainted when that ratio
+ * changes, when the world is cleared, and when the gift image arrives.
  */
 export class PileRenderer {
   private readonly layer = document.createElement('canvas');
   private sprite: CanvasImageSource | null = null;
+  private image: HTMLImageElement | null = null;
   private pixelRatio = 0;
   private generation = -1;
 
@@ -22,6 +28,13 @@ export class PileRenderer {
     private readonly world: PileWorld,
     private readonly createSprite: CreateSprite = createGiftSprite,
   ) {}
+
+  /** The gift image to stamp from now on; the next frame rebuilds the sprite and the pile. */
+  setImage(image: HTMLImageElement | null): void {
+    if (image === this.image) return;
+    this.image = image;
+    this.pixelRatio = 0;
+  }
 
   /** Draw the world into `canvas`, called once per frame after the simulation steps. */
   draw(canvas: HTMLCanvasElement): void {
@@ -41,7 +54,7 @@ export class PileRenderer {
     if (pixelRatio !== this.pixelRatio || this.generation !== world.generation) {
       this.pixelRatio = pixelRatio;
       this.generation = world.generation;
-      this.sprite = this.createSprite(world.radius * 2, pixelRatio);
+      this.sprite = this.createSprite(world.radius * 2, pixelRatio, this.image);
       this.layer.width = pw;
       this.layer.height = ph;
       layerCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);

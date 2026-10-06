@@ -7,6 +7,7 @@ import { PileWorld } from './core/world';
 import { startPileLoop } from './loop';
 import { labels, testIds } from './messages';
 import { PileRenderer } from './render/renderer';
+import { loadGiftIcon } from './render/sprite';
 import { ControlPanel, type PileStats } from './ui/control-panel';
 
 /** How often the counts on the panel refresh; the canvas itself redraws every frame. */
@@ -51,6 +52,17 @@ export function GiftPilePage() {
   const stats = useStats(world);
 
   useEffect(() => startPileLoop(world, renderer, () => canvasRef.current), [world, renderer]);
+
+  // The gift image, once it has loaded; the drawn stand-in shows until then.
+  useEffect(() => {
+    let mounted = true;
+    void loadGiftIcon().then((image) => {
+      if (mounted) renderer.setImage(image);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [renderer]);
 
   // Test/debug hook for browser tests and manual inspection.
   useEffect(() => {
