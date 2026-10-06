@@ -40,6 +40,8 @@ export class PileEngine {
   height: number;
   /** The collision radius; the icon is drawn bigger than this. */
   readonly radius: number;
+  /** How far inside the canvas the walls and floor are. */
+  readonly margin: number;
   readonly maxItems: number;
 
   /** Every icon's position, in pixels: live for moving ones, final for resting ones. */
@@ -99,6 +101,7 @@ export class PileEngine {
     this.width = settings.world.width;
     this.height = settings.world.height;
     this.radius = settings.collisionRadius;
+    this.margin = settings.margin;
     this.maxItems = settings.maxItems;
     this.scale = 1 / settings.pxPerMetre;
     this.dt = 1 / settings.stepHz;
@@ -196,7 +199,13 @@ export class PileEngine {
     if (!this.held[i]) return;
     this.held[i] = 0;
     const r = this.radius;
-    this.launch(i, Math.min(Math.max(x, r), this.width - r), Math.min(y, this.height - r), 0);
+    const m = this.margin;
+    this.launch(
+      i,
+      Math.min(Math.max(x, m + r), this.width - m - r),
+      Math.min(y, this.height - m - r),
+      0,
+    );
   }
 
   /** The user drops held icon `i` in the bin. */
@@ -260,6 +269,7 @@ export class PileEngine {
     const world = new R.World({ x: 0, y: settings.gravity * scale });
     world.timestep = this.dt;
     world.integrationParameters.contact_natural_frequency = settings.contactHz;
+    const m = this.margin * scale;
     const w = this.width * scale;
     const h = this.height * scale;
     // Thick slabs, so nothing gets through them; the walls run far up for a tall pile.
@@ -271,11 +281,11 @@ export class PileEngine {
       );
     world.createCollider(
       R.ColliderDesc.cuboid(w / 2 + thick, thick)
-        .setTranslation(w / 2, h + thick)
+        .setTranslation(w / 2, h - m + thick)
         .setFriction(settings.friction),
     );
-    wall(-thick);
-    wall(w + thick);
+    wall(m - thick);
+    wall(w - m + thick);
     return world;
   }
 
@@ -320,7 +330,7 @@ export class PileEngine {
       let py = 0;
       let clear = false;
       for (let attempt = 0; attempt < SPAWN_TRIES && !clear; attempt++) {
-        px = r + this.rng() * (this.width - d);
+        px = this.margin + r + this.rng() * (this.width - 2 * this.margin - d);
         py = line - this.rng() * band;
         clear = true;
         for (let k = 0; k < nearX.length; k++) {
@@ -425,8 +435,9 @@ export class PileEngine {
     const { rapier: R, settings: s, scale, radius: r } = this;
     // Where it is, but never pressed into the floor or a wall: the heap's weight can push
     // a body a few pixels into them before it settles.
-    const px = Math.min(Math.max(this.x[i]!, r), this.width - r);
-    const py = Math.min(this.y[i]!, this.height - r);
+    const m = this.margin;
+    const px = Math.min(Math.max(this.x[i]!, m + r), this.width - m - r);
+    const py = Math.min(this.y[i]!, this.height - m - r);
     this.world.removeRigidBody(body);
     const collider = this.world.createCollider(
       R.ColliderDesc.ball(r * scale)

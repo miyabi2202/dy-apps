@@ -8,6 +8,8 @@ export interface PileSettings {
   collisionRadius: number;
   /** How close to an icon's centre a press has to be to pick it up; bigger than drawn, for easy grabbing. */
   grabRadius: number;
+  /** The walls and floor sit this far inside the canvas, so icons at the edge can still be reached. */
+  margin: number;
   /** The most icons the pile holds in total. */
   maxItems: number;
   gravity: number;
@@ -54,6 +56,7 @@ export const PILE: PileSettings = {
   radius: 8,
   collisionRadius: 6,
   grabRadius: 12,
+  margin: 8,
   maxItems: 100_000,
   gravity: 2400,
   spawnPerSecond: 600,
