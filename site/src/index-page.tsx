@@ -7,7 +7,7 @@ import { Shell } from './shell';
 
 export function IndexPage() {
   return (
-    <Shell title="dy-apps">
+    <Shell title="dy-apps" home={false}>
       <PageList title="应用" pages={APPS} />
       <PageList title="教程" pages={GUIDES} />
     </Shell>

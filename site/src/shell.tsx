@@ -3,10 +3,21 @@ import { space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import type { ReactNode } from 'react';
 
-/** The index and 404 pages: an app Page with its title, in a narrow centred column. */
-export function Shell({ title, children }: { title: string; children: ReactNode }) {
+/**
+ * The index and 404 pages: an app Page with its title, in a narrow centred column. The
+ * index is home, so it passes `home={false}`.
+ */
+export function Shell({
+  title,
+  home,
+  children,
+}: {
+  title: string;
+  home?: false;
+  children: ReactNode;
+}) {
   return (
-    <Page title={title} xstyle={styles.column}>
+    <Page title={title} home={home} xstyle={styles.column}>
       <Column gap="xxl">{children}</Column>
     </Page>
   );

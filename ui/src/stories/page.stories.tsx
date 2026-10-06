@@ -33,13 +33,26 @@ export default meta;
 
 export const Default: StoryObj<typeof meta> = {};
 
-/** A title adds a heading with the build hash (`dev` here) and sets the tab title. */
+/**
+ * A title adds a heading with a home icon (linking to `/`) and the build hash (`dev` here),
+ * and sets the tab title.
+ */
 export const WithTitle: StoryObj<typeof meta> = {
   args: {
     title: '方块干预实验室',
-    subtitle: '单机测试 · 本地模拟送礼，未连接直播',
+    subtitle: '观众送礼触发诅咒',
     actions: <Button>恢复默认样式</Button>,
     xstyle: styles.content,
     children: <p {...stylex.props(text.muted)}>页面内容</p>,
+  },
+};
+
+/** The home page itself has no home icon. */
+export const Home: StoryObj<typeof meta> = {
+  args: {
+    title: 'dy-apps',
+    home: false,
+    xstyle: styles.content,
+    children: <p {...stylex.props(text.muted)}>首页内容</p>,
   },
 };
