@@ -137,3 +137,7 @@ Apps import the shared libraries by name, `@dy-apps/ui` and `@dy-apps/services`.
 - **Live-stream pieces**: `MessageCard` and `MessageList` (the 弹幕墙 cards, styled by a `CardStyle`), `SourcePanel` with `useDemo` (fake or live data), `ConnectionForm` and `ObsLink`.
 
 Browse them with `pnpm storybook` in `frontend/`; stories live in `frontend/src/ui/stories/`, unit tests in `frontend/src/ui/tests/`. Every component takes an `xstyle` prop for one-off tweaks. Styles that stay inside an app (a game board, an overlay card) still use the tokens for colour, padding and radius rather than literal values.
+
+## TODO
+
+- A logging method in `@dy-apps/services` that logs only when the URL has `debug=1`, replacing per-app switches like the danmaku page's `?logmsg=1`.

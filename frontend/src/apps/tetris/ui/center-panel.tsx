@@ -1,6 +1,7 @@
 import { Button, Grid, Panel, text } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
+import type React from 'react';
 import { useEffect, useRef, type RefObject } from 'react';
 import { CONFIG } from '../core/config';
 import type { GameEngine } from '../core/game';
@@ -8,7 +9,7 @@ import { shapeOf } from '../core/pieces';
 import type { PieceShape } from '../core/types';
 import { labels, testIds } from '../messages';
 import { drawMiniPiece } from '../render/board';
-import { effectName } from './format';
+import { CurseName } from './curse-name';
 
 interface Props {
   engine: GameEngine;
@@ -26,16 +27,16 @@ const fadeIn = stylex.keyframes({
 export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Props) {
   const every = CONFIG.settlement.everyLocks;
   const done = engine.lockedPieceCount % every;
-  const timed = engine.activeCurses.map(
-    ({ def, remainingLocks, count }) =>
-      `${def.name}${count > 1 ? ` ×${count}` : ''} · 剩 ${remainingLocks} 块`,
-  );
+  const timed = engine.activeCurses.map(({ def, remainingLocks, count }) => (
+    <span key={def.type}>
+      <CurseName def={def} />
+      {count > 1 && ` ×${count}`} · 剩 {remainingLocks} 块
+    </span>
+  ));
   const holdBlockedBy = engine.blockedBy('hold');
   const previewHiddenBy = engine.previewHiddenBy;
 
-  const firingNext = engine.curses
-    .map((def) => def.type)
-    .filter((type) => engine.team.pending[type] > 0);
+  const firingNext = engine.curses.filter((def) => engine.team.pending[def.type] > 0);
 
   return (
     <Panel aria-label="棋盘">
@@ -57,7 +58,13 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
       <div {...stylex.props(styles.playArea)}>
         <div {...stylex.props(styles.side, styles.holdSide)}>
           <div {...stylex.props(text.caption)}>
-            暂存{holdBlockedBy && `（${holdBlockedBy.name}中）`}
+            暂存
+            {holdBlockedBy && (
+              <>
+                （<CurseName def={holdBlockedBy} />
+                中）
+              </>
+            )}
           </div>
           <MiniPiece shape={engine.hold} dim={!!holdBlockedBy || !engine.canHold} label="暂存" />
         </div>
@@ -77,7 +84,7 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
           <div {...stylex.props(text.caption)}>后续</div>
           {previewHiddenBy ? (
             <div {...stylex.props(styles.fog)} data-testid={testIds.previewFog}>
-              {previewHiddenBy.name}
+              <CurseName def={previewHiddenBy} />
               <br />
               预览隐藏
             </div>
@@ -108,16 +115,18 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
         <div>
           <div {...stylex.props(text.caption)}>生效中</div>
           <div data-testid={testIds.activeEffects} {...stylex.props(styles.infoText)}>
-            {timed.length ? timed.join('；') : '无'}
+            {timed.length ? joinNodes(timed, '；') : '无'}
           </div>
         </div>
         <div>
           <div {...stylex.props(text.caption)}>下次结算（每种各 1 个）</div>
-          <div
-            {...stylex.props(styles.infoText, styles.curseText)}
-            data-testid={testIds.nextSettlement}
-          >
-            {firingNext.length ? firingNext.map(effectName).join('、') : '无'}
+          <div {...stylex.props(styles.infoText)} data-testid={testIds.nextSettlement}>
+            {firingNext.length
+              ? joinNodes(
+                  firingNext.map((def) => <CurseName key={def.type} def={def} />),
+                  '、',
+                )
+              : '无'}
           </div>
         </div>
       </Grid>
@@ -132,6 +141,11 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
       )}
     </Panel>
   );
+}
+
+/** Elements with `separator` text between them; the elements carry the keys. */
+function joinNodes(nodes: React.ReactElement[], separator: string): React.ReactNode[] {
+  return nodes.flatMap((node, i) => (i ? [separator, node] : [node]));
 }
 
 function Stat({ label, value }: { label: string; value: number | string }) {
@@ -385,7 +399,6 @@ const styles = stylex.create({
     lineHeight: 1.6,
     marginTop: space.xxs,
   },
-  curseText: { color: colors.danger },
   keys: {
     margin: 0,
     textAlign: 'center',

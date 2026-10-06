@@ -4,7 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { GameEngine } from '../core/game';
 import type { GiftFeed } from '../gift-feed';
 import { testIds } from '../messages';
-import { effectName } from './format';
+import { CurseName } from './curse-name';
 import { GiftWall } from './gift-wall';
 
 interface Props {
@@ -13,19 +13,17 @@ interface Props {
 }
 
 export function TeamPanel({ engine, feed }: Props) {
-  const pending = engine.curses
-    .map((def) => def.type)
-    .filter((type) => engine.team.pending[type] > 0);
+  const pending = engine.curses.filter((def) => engine.team.pending[def.type] > 0);
 
   return (
     <Panel aria-label="诅咒" data-testid={testIds.panelTeam} xstyle={styles.panel}>
       <h3 {...stylex.props(text.caption)}>待执行诅咒</h3>
       {pending.length ? (
         <ul {...stylex.props(styles.pending)} data-testid={testIds.pending}>
-          {pending.map((type) => (
-            <li key={type} {...stylex.props(styles.pendingItem)}>
-              <span>{effectName(type)}</span>
-              <span {...stylex.props(styles.pendingCount)}>×{engine.team.pending[type]}</span>
+          {pending.map((def) => (
+            <li key={def.type} {...stylex.props(styles.pendingItem)}>
+              <CurseName def={def} />
+              <span {...stylex.props(styles.pendingCount)}>×{engine.team.pending[def.type]}</span>
             </li>
           ))}
         </ul>

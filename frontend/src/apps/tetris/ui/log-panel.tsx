@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { CONFIG } from '../core/config';
 import type { GameEngine, LogKind } from '../core/game';
 import { testIds } from '../messages';
+import { CurseName } from './curse-name';
 
 export function LogPanel({ engine }: { engine: GameEngine }) {
   return (
@@ -32,10 +33,10 @@ export function LogPanel({ engine }: { engine: GameEngine }) {
           </li>
           {engine.curses.map((def) => (
             <li key={def.type}>
-              {def.name}：{def.description(CONFIG)}
+              <CurseName def={def} />：{def.description(CONFIG)}
             </li>
           ))}
-          <li>持续若干块的诅咒再次触发会重新计时。</li>
+          <li>持续型诅咒每次触发都是独立的一份，可同时生效。</li>
         </ul>
       </details>
     </Panel>
