@@ -1,5 +1,7 @@
 import { addHit, createTeam, isConserved, pendingTotal, settleTeam } from '../core/interventions';
-import type { EffectType, TeamState } from '../core/types';
+import type { EffectType } from '../core/curses';
+import type { TeamState } from '../core/types';
+import { pendingOf } from './helpers';
 
 function hit(team: TeamState, type: EffectType, times = 1) {
   for (let i = 0; i < times; i += 1) {
@@ -14,7 +16,7 @@ describe('pending counts', () => {
     const team = createTeam();
     hit(team, 'garbage', 1000);
     hit(team, 'fog', 2);
-    expect(team.pending).toEqual({ garbage: 1000, haste: 0, fog: 2, seal: 0 });
+    expect(team.pending).toEqual(pendingOf({ garbage: 1000, fog: 2 }));
     expect(pendingTotal(team)).toBe(1002);
     expect(isConserved(team)).toBe(true);
   });
@@ -27,7 +29,7 @@ describe('settlement', () => {
     hit(team, 'haste', 2);
     hit(team, 'seal', 1);
     expect(settleTeam(team)).toEqual(['garbage', 'haste', 'seal']);
-    expect(team.pending).toEqual({ garbage: 3, haste: 1, fog: 0, seal: 0 });
+    expect(team.pending).toEqual(pendingOf({ garbage: 3, haste: 1 }));
     expect(settleTeam(team)).toEqual(['garbage', 'haste']);
     expect(team.firedCount).toBe(5);
     expect(isConserved(team)).toBe(true);

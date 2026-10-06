@@ -1,7 +1,7 @@
 import { addMessage, type DanmakuMessage } from '@dy-apps/services';
-import { CONFIG, EFFECT_POOL } from './core/config';
+import { CONFIG } from './core/config';
+import { EFFECT_POOL, type EffectType } from './core/curses';
 import type { GameEngine, GiftResponse } from './core/game';
-import type { EffectType } from './core/types';
 import { effectName } from './ui/format';
 
 /** Cards kept on the gift wall; older ones are dropped. */

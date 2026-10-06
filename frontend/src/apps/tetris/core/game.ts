@@ -1,33 +1,92 @@
 import { clearFullLines, collides, createBoard } from './board';
-import { CONFIG, EFFECT_INFO } from './config';
+import { CONFIG } from './config';
 import {
-  applyCurse,
+  CURSE_LIST,
+  type Command,
+  type CurseContext,
+  type CurseDef,
+  type CurseOutcome,
+  type EffectType,
+} from './curses';
+import {
+  activate,
   createEffects,
   gravityIntervalMs,
   tickTimedEffects,
-  type CurseOutcome,
   type EffectsState,
-} from './effects';
+} from './curses/state';
 import { isValidBatchCount, isValidProbability, processGiftBatch } from './gifts';
 import { createTeam, settleTeam } from './interventions';
-import { BagGenerator, createPiece, KICK_OFFSETS, pieceCells, rotateMatrix } from './pieces';
+import {
+  BagGenerator,
+  createPiece,
+  KICK_OFFSETS,
+  pieceCells,
+  rotateMatrix,
+  shapeOf,
+} from './pieces';
 import { deriveSeed, mulberry32, type Rng } from './random';
 import type {
   ActivePiece,
   Board,
-  EffectType,
+  BoardView,
   GiftBatchResult,
   Phase,
+  PieceShape,
   PieceType,
   TeamState,
 } from './types';
 
+/** The pieces a game starts with. Applied at construction and again on restart. */
+export interface PiecesSetup {
+  /** The piece in play when the game starts; spawned as given, with no onSpawn hooks. Default: the first of the queue. */
+  active?: PieceType | PieceShape;
+  /** The first pieces of the queue in order; the 7-bag continues after them. */
+  upcoming?: readonly PieceType[];
+}
+
+/** The curses a game has. Applied at construction and again on restart. */
+export interface CursesSetup {
+  /**
+   * Curse definitions in play, in settlement order: what gifts draw from, what settles and
+   * what the panels list. Default: CURSE_LIST (registry order); a test can put
+   * `{ ...CURSES.fog, onTick: spy }` in it. Throws on a duplicate type.
+   */
+  pool?: readonly CurseDef<unknown>[];
+  /** Curses in effect from the start (生效中), each at its full durationLocks with a fresh initState(). Throws for a type not in the pool or a def without durationLocks. */
+  active?: readonly EffectType[];
+  /** Triggered curses waiting for the next settlement (待执行), as counts per type. Throws for a type not in the pool. */
+  upcoming?: Partial<Record<EffectType, number>>;
+}
+
+/**
+ * Real randomness and an empty, standard game by default. `board`, `pieces`, `curses` and
+ * `hasteMultiplier` set up a scenario (for tests and demos) that restart() starts again.
+ */
 export interface EngineOptions {
   seed?: number;
   pieceRng?: Rng;
   garbageRng?: Rng;
   giftRng?: Rng;
+  /** For curses that roll dice. */
+  curseRng?: Rng;
   probability?: number;
+  /** The starting board; copied, so the caller's array is never changed. Default: empty. */
+  board?: Board;
+  pieces?: PiecesSetup;
+  curses?: CursesSetup;
+  /**
+   * The starting drop-interval multiplier (0.5 is twice as fast), default 1; must be finite and
+   * above 0. `lines` also affects gravity and stays a public field.
+   */
+  hasteMultiplier?: number;
+}
+
+/** An active curse as the panels show it. */
+export interface ActiveCurseView {
+  type: EffectType;
+  def: CurseDef<unknown>;
+  remainingLocks: number;
 }
 
 export type LogKind = 'gift' | 'miss' | 'settle' | 'system';
@@ -40,8 +99,7 @@ export interface LogEntry {
 
 export interface SettlementReport {
   index: number;
-  /** Curses that fired, in queue order. Empty when the queue was empty. */
-  /** Curses that fired, one per type. Empty when nothing was pending. */
+  /** Curses that fired, one per type, in registry order. Empty when nothing was pending. */
   executed: { type: EffectType; outcome: CurseOutcome }[];
 }
 
@@ -54,17 +112,20 @@ type Listener = () => void;
 
 export class GameEngine {
   phase: Phase = 'ready';
-  board: Board = createBoard();
+  board: Board;
   active: ActivePiece | null = null;
-  hold: PieceType | null = null;
+  /** The held piece's shape, unrotated. */
+  hold: PieceShape | null = null;
   canHold = true;
   upcoming: PieceType[] = [];
   score = 0;
   lines = 0;
   lockedPieceCount = 0;
   settlementCount = 0;
-  team: TeamState = createTeam();
-  effects: EffectsState = createEffects();
+  team: TeamState;
+  /** The curses in play, in settlement order. */
+  readonly curses: readonly CurseDef<unknown>[];
+  effects: EffectsState;
   probability: number;
   /** Recent gift batches, newest first, at most CONFIG.gifts.historySize. */
   giftHistory: GiftHistoryEntry[] = [];
@@ -78,6 +139,16 @@ export class GameEngine {
   private readonly pieceRng: Rng;
   private readonly garbageRng: Rng;
   private readonly giftRng: Rng;
+  private readonly curseRng: Rng;
+  private readonly curseByType: Partial<Record<EffectType, CurseDef<unknown>>> = {};
+  /** The curses' types in order: what gifts draw from and settlement fires in. */
+  private readonly pool: readonly EffectType[];
+  private readonly initialBoard: Board | undefined;
+  private readonly initialUpcoming: readonly PieceType[];
+  private readonly initialActivePiece: PieceShape | undefined;
+  private readonly initialPending: Partial<Record<EffectType, number>>;
+  private readonly initialActive: readonly EffectType[];
+  private readonly initialHaste: number;
   private bag: BagGenerator;
   private gravityMs = 0;
   private lockMs = 0;
@@ -91,7 +162,37 @@ export class GameEngine {
     this.pieceRng = options.pieceRng ?? mulberry32(deriveSeed(seed, 0));
     this.garbageRng = options.garbageRng ?? mulberry32(deriveSeed(seed, 1));
     this.giftRng = options.giftRng ?? mulberry32(deriveSeed(seed, 2));
+    this.curseRng = options.curseRng ?? mulberry32(deriveSeed(seed, 3));
     this.probability = options.probability ?? CONFIG.gifts.defaultProbability;
+    const { pieces = {}, curses = {} } = options;
+    this.curses = curses.pool ?? CURSE_LIST;
+    for (const def of this.curses) {
+      if (this.curseByType[def.type]) throw new RangeError(`Duplicate curse: ${def.type}`);
+      this.curseByType[def.type] = def;
+    }
+    this.pool = this.curses.map((def) => def.type);
+    this.initialPending = { ...curses.upcoming };
+    for (const type of Object.keys(this.initialPending) as EffectType[]) {
+      if (!this.curseByType[type]) throw new RangeError(`Pending curse not in play: ${type}`);
+    }
+    this.initialActive = [...(curses.active ?? [])];
+    for (const type of this.initialActive) {
+      const def = this.curseByType[type];
+      if (!def) throw new RangeError(`Active curse not in play: ${type}`);
+      if (def.durationLocks === undefined) throw new RangeError(`Curse does not last: ${type}`);
+    }
+    this.initialHaste = options.hasteMultiplier ?? 1;
+    if (!Number.isFinite(this.initialHaste) || this.initialHaste <= 0) {
+      throw new RangeError(`Invalid haste multiplier: ${String(options.hasteMultiplier)}`);
+    }
+    this.team = this.startingTeam();
+    this.effects = this.startingEffects();
+    this.initialBoard = options.board?.map((row) => [...row]);
+    this.initialUpcoming = [...(pieces.upcoming ?? [])];
+    this.initialActivePiece =
+      typeof pieces.active === 'string' ? shapeOf(pieces.active) : pieces.active;
+    this.board = this.startingBoard();
+    this.upcoming = [...this.initialUpcoming];
     this.bag = new BagGenerator(this.pieceRng);
     this.fillUpcoming();
   }
@@ -135,12 +236,32 @@ export class GameEngine {
     return this.upcoming.slice(0, CONFIG.sequence.visiblePreview);
   }
 
+  /** Active curses in the order of `curses`. */
+  get activeCurses(): ActiveCurseView[] {
+    const out: ActiveCurseView[] = [];
+    for (const def of this.curses) {
+      const active = this.effects.active[def.type];
+      if (active) out.push({ type: def.type, def, remainingLocks: active.remainingLocks });
+    }
+    return out;
+  }
+
+  /** The first active curse that hides the preview, if any. */
+  get previewHiddenBy(): CurseDef<unknown> | null {
+    return this.activeCurses.find(({ def }) => def.hidesPreview)?.def ?? null;
+  }
+
   get previewHidden(): boolean {
-    return this.effects.fog !== null;
+    return this.previewHiddenBy !== null;
+  }
+
+  /** The first active curse that blocks `cmd`, if any. */
+  blockedBy(cmd: Command): CurseDef<unknown> | null {
+    return this.activeCurses.find(({ def }) => def.blocks?.includes(cmd))?.def ?? null;
   }
 
   get holdBlocked(): boolean {
-    return this.effects.seal !== null;
+    return this.blockedBy('hold') !== null;
   }
 
   /** Y the active piece would land at. */
@@ -149,12 +270,18 @@ export class GameEngine {
     return this.active.y + this.dropDistance();
   }
 
+  /** What the board renderer draws. */
+  get boardView(): BoardView {
+    return { board: this.board, active: this.active, ghostY: this.ghostY };
+  }
+
   // ---------------------------------------------------------------- phases
 
   start(): void {
     if (this.phase !== 'ready') return;
     this.phase = 'playing';
-    this.spawnNext();
+    if (this.initialActivePiece) this.spawn(this.initialActivePiece);
+    else this.spawnNext();
     this.emit();
   }
 
@@ -179,19 +306,19 @@ export class GameEngine {
   /** Clears everything except the selected trigger probability. */
   restart(): void {
     this.phase = 'ready';
-    this.board = createBoard();
+    this.board = this.startingBoard();
     this.active = null;
     this.hold = null;
     this.canHold = true;
-    this.upcoming = [];
+    this.upcoming = [...this.initialUpcoming];
     this.bag = new BagGenerator(this.pieceRng);
     this.fillUpcoming();
     this.score = 0;
     this.lines = 0;
     this.lockedPieceCount = 0;
     this.settlementCount = 0;
-    this.team = createTeam();
-    this.effects = createEffects();
+    this.team = this.startingTeam();
+    this.effects = this.startingEffects();
     this.giftHistory = [];
     this.lastSettlement = null;
     this.log = [];
@@ -228,7 +355,7 @@ export class GameEngine {
       };
     }
     const p = this.probability;
-    const result = processGiftBatch(this.team, sender, count, p, this.giftRng);
+    const result = processGiftBatch(this.team, sender, count, p, this.giftRng, this.pool);
     this.batchId += 1;
     this.giftHistory.unshift({ ...result, id: this.batchId });
     if (this.giftHistory.length > CONFIG.gifts.historySize) {
@@ -246,7 +373,7 @@ export class GameEngine {
       return;
     }
     const effects = (Object.entries(r.effects) as [EffectType, number][])
-      .map(([type, n]) => `${EFFECT_INFO[type].name}×${n}`)
+      .map(([type, n]) => `${this.curseByType[type]!.name}×${n}`)
       .join('、');
     this.pushLog('gift', `${head}：触发 ${r.hits}（${effects}），未触发 ${r.misses}。`);
   }
@@ -288,7 +415,12 @@ export class GameEngine {
   }
 
   rotate(dir: 1 | -1): boolean {
-    if (!this.canControl) return false;
+    if (!this.canControl || this.blockedBy('rotate')) return false;
+    return this.rotateWithKicks(dir, true);
+  }
+
+  /** Rotate with the first kick that fits; only the player's rotations may reset the lock. */
+  private rotateWithKicks(dir: 1 | -1, mayResetLock: boolean): boolean {
     const p = this.active!;
     const rotated = rotateMatrix(p.matrix, dir);
     for (const [kx, ky] of KICK_OFFSETS) {
@@ -297,7 +429,7 @@ export class GameEngine {
         p.matrix = rotated;
         p.x += kx;
         p.y += ky;
-        this.afterManipulation(wasGrounded);
+        if (mayResetLock) this.afterManipulation(wasGrounded);
         return true;
       }
     }
@@ -323,8 +455,8 @@ export class GameEngine {
   }
 
   holdPiece(): boolean {
-    if (!this.canControl || !this.canHold || this.holdBlocked) return false;
-    const current = this.active!.type;
+    if (!this.canControl || !this.canHold || this.blockedBy('hold')) return false;
+    const current = this.active!.shape;
     if (this.hold === null) {
       this.hold = current;
       this.spawnNext();
@@ -341,6 +473,9 @@ export class GameEngine {
   /** Advance gravity and lock delay by `dtMs` of foreground play time. */
   tick(dtMs: number): void {
     if (!this.canControl) return;
+    for (const { type, def } of this.activeCurses) {
+      def.onTick?.(this.curseContext(), dtMs, this.effects.active[type]!.state);
+    }
     if (this.isGrounded()) {
       this.gravityMs = 0;
       this.lockMs += dtMs;
@@ -362,6 +497,26 @@ export class GameEngine {
 
   // ---------------------------------------------------------------- spawning & locking
 
+  private startingTeam(): TeamState {
+    const team = createTeam();
+    for (const [type, n] of Object.entries(this.initialPending) as [EffectType, number][]) {
+      team.pending[type] = n;
+    }
+    return team;
+  }
+
+  private startingEffects(): EffectsState {
+    const effects = createEffects();
+    effects.hasteMultiplier = this.initialHaste;
+    for (const type of this.initialActive) activate(effects, type, this.curseByType[type]!);
+    return effects;
+  }
+
+  /** A fresh copy of the board the game starts from. */
+  private startingBoard(): Board {
+    return this.initialBoard?.map((row) => [...row]) ?? createBoard();
+  }
+
   private fillUpcoming(): void {
     while (this.upcoming.length < CONFIG.sequence.minBuffer) this.upcoming.push(this.bag.next());
   }
@@ -375,11 +530,21 @@ export class GameEngine {
   private spawnNext(): void {
     const type = this.upcoming.shift()!;
     this.fillUpcoming();
-    this.spawn(type);
+    let piece = createPiece(shapeOf(type));
+    for (const { type: curse, def } of this.activeCurses) {
+      if (def.onSpawn) {
+        piece = def.onSpawn(this.curseContext(), piece, this.effects.active[curse]!.state);
+      }
+    }
+    this.place(piece);
   }
 
-  private spawn(type: PieceType): void {
-    const piece = createPiece(type);
+  /** A hold swap or a scenario's first piece: spawned unrotated, and no curse sees it. */
+  private spawn(shape: PieceShape): void {
+    this.place(createPiece(shape));
+  }
+
+  private place(piece: ActivePiece): void {
     this.resetPieceTimers();
     if (collides(this.board, piece.matrix, piece.x, piece.y)) {
       this.active = null;
@@ -427,18 +592,51 @@ export class GameEngine {
   private settle(): void {
     this.settlementCount += 1;
     const report: SettlementReport = { index: this.settlementCount, executed: [] };
-    for (const type of settleTeam(this.team)) {
-      const outcome = applyCurse(this.effects, this.board, type, this.garbageRng);
+    let gameOver: string | undefined;
+    for (const type of settleTeam(this.team, this.pool)) {
+      const def = this.curseByType[type]!;
+      // A lasting curse is (re)activated first, so apply sees the state it keeps.
+      const state =
+        def.durationLocks === undefined
+          ? def.initState?.()
+          : activate(this.effects, type, def).state;
+      const outcome = def.apply?.(this.curseContext(), state) ?? {};
       report.executed.push({ type, outcome });
-      if (outcome.toppedOut) break;
+      gameOver = outcome.gameOver;
+      if (gameOver) break;
     }
     this.lastSettlement = report;
     this.logSettlement(report);
-    if (report.executed.some((e) => e.outcome.toppedOut)) this.endGame('垃圾行将方块挤出顶部');
+    if (gameOver) this.endGame(gameOver);
+  }
+
+  /** What curses get to see and do: never the engine itself. */
+  private curseContext(): CurseContext {
+    return {
+      board: this.board,
+      active: this.active,
+      curseRng: this.curseRng,
+      garbageRng: this.garbageRng,
+      tryRotate: (dir) => this.active !== null && this.rotateWithKicks(dir, false),
+      trySetShape: (shape) => this.trySetShape(shape),
+      multiplyGravity: (factor) => {
+        this.effects.hasteMultiplier *= factor;
+      },
+    };
+  }
+
+  /** Swap the active piece's shape in place if it fits; the lock timer is left alone. */
+  private trySetShape(shape: PieceShape): boolean {
+    const p = this.active;
+    if (!p || collides(this.board, shape.matrix, p.x, p.y)) return false;
+    p.shape = shape;
+    p.type = shape.type;
+    p.matrix = shape.matrix.map((row) => [...row]);
+    return true;
   }
 
   private logSettlement(r: SettlementReport): void {
-    const names = r.executed.map(({ type }) => EFFECT_INFO[type].name);
+    const names = r.executed.map(({ type }) => this.curseByType[type]!.name);
     const text = names.length ? `执行 ${names.join('、')}` : '没有待执行的诅咒';
     this.pushLog('settle', `第 ${r.index} 次结算：${text}。`);
   }

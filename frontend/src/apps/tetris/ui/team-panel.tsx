@@ -1,7 +1,6 @@
 import { Panel, text } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import { EFFECT_POOL } from '../core/config';
 import type { GameEngine } from '../core/game';
 import type { GiftFeed } from '../gift-feed';
 import { testIds } from '../messages';
@@ -14,7 +13,9 @@ interface Props {
 }
 
 export function TeamPanel({ engine, feed }: Props) {
-  const pending = EFFECT_POOL.filter((type) => engine.team.pending[type] > 0);
+  const pending = engine.curses
+    .map((def) => def.type)
+    .filter((type) => engine.team.pending[type] > 0);
 
   return (
     <Panel aria-label="诅咒" data-testid={testIds.panelTeam} xstyle={styles.panel}>

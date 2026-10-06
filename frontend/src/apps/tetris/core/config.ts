@@ -1,5 +1,3 @@
-import type { EffectType } from './types';
-
 /** Every gameplay number lives here. UI and engine code must not hard-code these. */
 export const CONFIG = {
   board: { cols: 10, rows: 20 },
@@ -46,13 +44,3 @@ export const CONFIG = {
   log: { maxEntries: 10 },
   frame: { maxDtMs: 100 },
 } as const;
-
-export const EFFECT_POOL: readonly EffectType[] = ['garbage', 'haste', 'fog', 'seal'];
-
-/** What one curse does when it fires. */
-export const EFFECT_INFO: Record<EffectType, { name: string; description: string }> = {
-  garbage: { name: '垃圾行', description: '底部加 1 行垃圾' },
-  haste: { name: '加速', description: '下降间隔永久 ×0.8，可叠加' },
-  fog: { name: '迷雾', description: '隐藏预览 3 块' },
-  seal: { name: '封存', description: '禁用暂存 3 块' },
-};

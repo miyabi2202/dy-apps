@@ -1,6 +1,6 @@
 import { CONFIG } from './config';
 import { shuffle, type Rng } from './random';
-import type { ActivePiece, Matrix, PieceType } from './types';
+import type { ActivePiece, Matrix, PieceShape, PieceType } from './types';
 
 export const PIECE_TYPES: readonly PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
 
@@ -69,10 +69,20 @@ export function rotateMatrix(m: Matrix, dir: 1 | -1): Matrix {
   return out;
 }
 
-export function createPiece(type: PieceType): ActivePiece {
-  const matrix = PIECE_MATRICES[type].map((row) => [...row]);
+const PIECE_SHAPES = Object.fromEntries(
+  PIECE_TYPES.map((type) => [type, { type, matrix: PIECE_MATRICES[type] }]),
+) as Record<PieceType, PieceShape>;
+
+/** A standard piece's shape. The same object every time, so it is safe to compare. */
+export function shapeOf(type: PieceType): PieceShape {
+  return PIECE_SHAPES[type];
+}
+
+/** A piece of `shape` at the top, centred by width. */
+export function createPiece(shape: PieceShape): ActivePiece {
+  const matrix = shape.matrix.map((row) => [...row]);
   const width = matrix[0]!.length;
-  return { type, matrix, x: Math.floor((CONFIG.board.cols - width) / 2), y: 0 };
+  return { type: shape.type, shape, matrix, x: Math.floor((CONFIG.board.cols - width) / 2), y: 0 };
 }
 
 /** Absolute [x, y] of every filled cell. */

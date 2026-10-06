@@ -2,9 +2,10 @@ import { Button, Grid, Panel, text } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, type RefObject } from 'react';
-import { CONFIG, EFFECT_POOL } from '../core/config';
+import { CONFIG } from '../core/config';
 import type { GameEngine } from '../core/game';
-import type { PieceType } from '../core/types';
+import { shapeOf } from '../core/pieces';
+import type { PieceShape } from '../core/types';
 import { labels, testIds } from '../messages';
 import { drawMiniPiece } from '../render/board';
 import { effectName } from './format';
@@ -25,13 +26,15 @@ const fadeIn = stylex.keyframes({
 export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Props) {
   const every = CONFIG.settlement.everyLocks;
   const done = engine.lockedPieceCount % every;
-  const { effects } = engine;
+  const timed = engine.activeCurses.map(
+    ({ def, remainingLocks }) => `${def.name} · 剩 ${remainingLocks} 块`,
+  );
+  const holdBlockedBy = engine.blockedBy('hold');
+  const previewHiddenBy = engine.previewHiddenBy;
 
-  const timed: string[] = [];
-  if (effects.fog) timed.push(`迷雾 · 剩 ${effects.fog.remainingLocks} 块`);
-  if (effects.seal) timed.push(`封存 · 剩 ${effects.seal.remainingLocks} 块`);
-
-  const firingNext = EFFECT_POOL.filter((type) => engine.team.pending[type] > 0);
+  const firingNext = engine.curses
+    .map((def) => def.type)
+    .filter((type) => engine.team.pending[type] > 0);
 
   return (
     <Panel aria-label="棋盘">
@@ -52,8 +55,10 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
 
       <div {...stylex.props(styles.playArea)}>
         <div {...stylex.props(styles.side, styles.holdSide)}>
-          <div {...stylex.props(text.caption)}>暂存{engine.holdBlocked && '（封存中）'}</div>
-          <MiniPiece type={engine.hold} dim={engine.holdBlocked || !engine.canHold} label="暂存" />
+          <div {...stylex.props(text.caption)}>
+            暂存{holdBlockedBy && `（${holdBlockedBy.name}中）`}
+          </div>
+          <MiniPiece shape={engine.hold} dim={!!holdBlockedBy || !engine.canHold} label="暂存" />
         </div>
 
         <div {...stylex.props(styles.boardWrap)}>
@@ -69,9 +74,9 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
 
         <div {...stylex.props(styles.side, styles.nextSide)}>
           <div {...stylex.props(text.caption)}>后续</div>
-          {engine.previewHidden ? (
+          {previewHiddenBy ? (
             <div {...stylex.props(styles.fog)} data-testid={testIds.previewFog}>
-              迷雾
+              {previewHiddenBy.name}
               <br />
               预览隐藏
             </div>
@@ -80,7 +85,7 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
               {engine.preview.map((type, i) => (
                 // Preview slots are positional; the index is the identity.
                 // eslint-disable-next-line @eslint-react/no-array-index-key
-                <MiniPiece key={i} type={type} label={`第 ${i + 1} 个`} />
+                <MiniPiece key={i} shape={shapeOf(type)} label={`第 ${i + 1} 个`} />
               ))}
             </div>
           )}
@@ -138,18 +143,19 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 }
 
 function MiniPiece({
-  type,
+  shape,
   dim = false,
   label,
 }: {
-  type: PieceType | null;
+  shape: PieceShape | null;
   dim?: boolean;
   label: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const type = shape?.type;
   useEffect(() => {
-    if (ref.current) drawMiniPiece(ref.current, type, dim);
-  }, [type, dim]);
+    if (ref.current) drawMiniPiece(ref.current, shape, dim);
+  }, [shape, dim]);
   return (
     <canvas
       ref={ref}
@@ -206,17 +212,18 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
 
 function TouchControls({ engine }: { engine: GameEngine }) {
   const disabled = engine.phase !== 'playing';
-  const buttons: [string, () => void][] = [
-    ['左移', () => engine.move(-1)],
-    ['右移', () => engine.move(1)],
-    ['旋转', () => engine.rotate(1)],
-    ['暂存', () => engine.holdPiece()],
-    ['硬降', () => engine.hardDrop()],
+  const rotateBlocked = engine.blockedBy('rotate') !== null;
+  const buttons: [string, () => void, boolean][] = [
+    ['左移', () => engine.move(-1), false],
+    ['右移', () => engine.move(1), false],
+    ['旋转', () => engine.rotate(1), rotateBlocked],
+    ['暂存', () => engine.holdPiece(), false],
+    ['硬降', () => engine.hardDrop(), false],
   ];
   return (
     <Grid columns={5} gap="sm" role="group" aria-label={labels.touchControls}>
-      {buttons.map(([label, act]) => (
-        <Button key={label} disabled={disabled} onClick={act}>
+      {buttons.map(([label, act, blocked]) => (
+        <Button key={label} disabled={disabled || blocked} onClick={act}>
           {label}
         </Button>
       ))}

@@ -1,5 +1,4 @@
-import { EFFECT_INFO } from '../core/config';
-import type { EffectType } from '../core/types';
+import { EFFECT_INFO, type EffectType } from '../core/curses';
 
 export const percent = (p: number) => `${Math.round(p * 100)}%`;
 

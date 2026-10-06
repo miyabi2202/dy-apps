@@ -1,9 +1,11 @@
 import { createBoard } from '../core/board';
 import { CONFIG } from '../core/config';
+import { CURSES } from '../core/curses';
+import { activate } from '../core/curses/state';
 import { GameEngine } from '../core/game';
-import { createPiece } from '../core/pieces';
+import { createPiece, shapeOf } from '../core/pieces';
 import { constantRng, sequenceRng } from '../core/random';
-import { boardWithRows, dropOnEmpty, setActive, startedEngine } from './helpers';
+import { boardWithRows, dropOnEmpty, pendingOf, setActive, startedEngine } from './helpers';
 
 const { rows, cols } = CONFIG.board;
 
@@ -18,8 +20,8 @@ describe('spawning and movement', () => {
     const engine = startedEngine();
     setActive(engine, 'T');
     expect(engine.active).toMatchObject({ x: 3, y: 0 });
-    expect(createPiece('O')).toMatchObject({ x: 4, y: 0 });
-    expect(createPiece('I')).toMatchObject({ x: 3, y: 0 });
+    expect(createPiece(shapeOf('O'))).toMatchObject({ x: 4, y: 0 });
+    expect(createPiece(shapeOf('I'))).toMatchObject({ x: 3, y: 0 });
   });
 
   it('stops at walls', () => {
@@ -199,7 +201,7 @@ describe('hold', () => {
     const first = engine.active!.type;
     const next = engine.upcoming[0];
     expect(engine.holdPiece()).toBe(true);
-    expect(engine.hold).toBe(first);
+    expect(engine.hold?.type).toBe(first);
     expect(engine.active!.type).toBe(next);
     expect(engine.holdPiece()).toBe(false);
     engine.board = createBoard();
@@ -207,16 +209,16 @@ describe('hold', () => {
     const third = engine.active!.type;
     expect(engine.holdPiece()).toBe(true);
     expect(engine.active!.type).toBe(first);
-    expect(engine.hold).toBe(third);
+    expect(engine.hold?.type).toBe(third);
     expect(engine.lockedPieceCount).toBe(1);
   });
 
   it('hold does not count as a lock or advance timed effects', () => {
     const engine = startedEngine();
-    engine.effects.fog = { remainingLocks: 3 };
+    activate(engine.effects, 'fog', CURSES.fog);
     engine.holdPiece();
     expect(engine.lockedPieceCount).toBe(0);
-    expect(engine.effects.fog.remainingLocks).toBe(3);
+    expect(engine.effects.active.fog?.remainingLocks).toBe(3);
   });
 
   it('seal blocks hold without clearing the stored piece', () => {
@@ -224,7 +226,7 @@ describe('hold', () => {
     engine.holdPiece();
     const stored = engine.hold;
     dropOnEmpty(engine, 1);
-    engine.effects.seal = { remainingLocks: 1 };
+    activate(engine.effects, 'seal', CURSES.seal);
     expect(engine.holdPiece()).toBe(false);
     expect(engine.hold).toBe(stored);
   });
@@ -244,7 +246,7 @@ describe('settlement cycle', () => {
 
   it('fires each pending curse type once per settlement; the rest waits', () => {
     const engine = startedEngine();
-    engine.team.pending = { garbage: 2, haste: 1, fog: 1, seal: 0 };
+    engine.team.pending = pendingOf({ garbage: 2, haste: 1, fog: 1 });
     dropOnEmpty(engine, 2);
     engine.board = createBoard();
     setActive(engine, 'O');
@@ -254,15 +256,15 @@ describe('settlement cycle', () => {
     expect(engine.board.filter((row) => row.includes('G') && row.includes(null))).toHaveLength(1);
     expect(engine.effects.hasteMultiplier).toBeCloseTo(0.8);
     expect(engine.previewHidden).toBe(true);
-    expect(engine.team.pending).toEqual({ garbage: 1, haste: 0, fog: 0, seal: 0 });
+    expect(engine.team.pending).toEqual(pendingOf({ garbage: 1 }));
     expect(engine.log[0]!.text).toContain('执行 垃圾行、加速、迷雾');
   });
 
   it('fog and seal last three pieces', () => {
     const engine = startedEngine();
-    engine.team.pending = { garbage: 0, haste: 0, fog: 1, seal: 1 };
+    engine.team.pending = pendingOf({ fog: 1, seal: 1 });
     dropOnEmpty(engine, 3);
-    expect(engine.effects.fog).toEqual({ remainingLocks: 3 });
+    expect(engine.effects.active.fog?.remainingLocks).toBe(3);
     dropOnEmpty(engine, 2);
     expect(engine.previewHidden).toBe(true);
     expect(engine.holdBlocked).toBe(true);
@@ -397,7 +399,7 @@ describe('phases', () => {
     expect(engine.phase).toBe('ready');
     expect(engine.probability).toBe(0.25);
     expect(engine.team.giftCount).toBe(0);
-    expect(engine.team.pending).toEqual({ garbage: 0, haste: 0, fog: 0, seal: 0 });
+    expect(engine.team.pending).toEqual(pendingOf({}));
     expect(engine.giftHistory).toEqual([]);
     expect(engine.score).toBe(0);
     expect(engine.lockedPieceCount).toBe(0);

@@ -24,7 +24,7 @@ export function startGameLoop(
       engine.tick(dt);
     }
     const canvas = getCanvas();
-    if (canvas) drawBoard(canvas, engine);
+    if (canvas) drawBoard(canvas, engine.boardView);
     raf = requestAnimationFrame(frame);
   };
 

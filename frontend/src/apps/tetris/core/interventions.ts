@@ -1,9 +1,10 @@
-import { EFFECT_POOL } from './config';
-import type { EffectType, TeamState } from './types';
+import { EFFECT_POOL, type EffectType } from './curses';
+import type { TeamState } from './types';
 
+/** A fresh team with nothing pending, for every curse type. */
 export function createTeam(): TeamState {
   return {
-    pending: { garbage: 0, haste: 0, fog: 0, seal: 0 },
+    pending: Object.fromEntries(EFFECT_POOL.map((type) => [type, 0])) as Record<EffectType, number>,
     giftCount: 0,
     hitCount: 0,
     missCount: 0,
@@ -12,7 +13,7 @@ export function createTeam(): TeamState {
 }
 
 export function pendingTotal(team: TeamState): number {
-  return EFFECT_POOL.reduce((sum, type) => sum + team.pending[type], 0);
+  return Object.values(team.pending).reduce((sum, n) => sum + n, 0);
 }
 
 /** Queue one triggered curse. Does not touch hit/gift counters. */
@@ -21,8 +22,11 @@ export function addHit(team: TeamState, type: EffectType): void {
 }
 
 /** One settlement: every curse type with anything pending fires once. */
-export function settleTeam(team: TeamState): EffectType[] {
-  const fired = EFFECT_POOL.filter((type) => team.pending[type] > 0);
+export function settleTeam(
+  team: TeamState,
+  pool: readonly EffectType[] = EFFECT_POOL,
+): EffectType[] {
+  const fired = pool.filter((type) => team.pending[type] > 0);
   for (const type of fired) team.pending[type] -= 1;
   team.firedCount += fired.length;
   return fired;

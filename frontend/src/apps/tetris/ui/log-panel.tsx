@@ -20,18 +20,19 @@ export function LogPanel({ engine }: { engine: GameEngine }) {
         <summary {...stylex.props(styles.summary)}>规则说明</summary>
         <ul {...stylex.props(styles.ruleList)}>
           <li>
-            观众送出的礼物每 1
-            钻独立判定是否触发，命中后从四种诅咒中等概率抽取一个，加入待执行数量。
+            观众送出的礼物每 1 钻独立判定是否触发，命中后从 {engine.curses.length}{' '}
+            种诅咒中等概率抽取一个，加入待执行数量。
           </li>
           <li>
             每落定 {CONFIG.settlement.everyLocks} 块结算一次：每种有待执行数量的诅咒各执行 1
             个，其余继续等待。空队列也推进周期。
           </li>
-          <li>
-            垃圾行：底部加 1 行；加速：下降间隔永久 ×{CONFIG.gravity.hasteMultiplier}
-            并叠加，最快 {CONFIG.gravity.minMs} ms/格；迷雾：隐藏预览 {CONFIG.effects.fogLocks}{' '}
-            块；封存：禁用暂存 {CONFIG.effects.sealLocks} 块；再次触发会重新计时。
-          </li>
+          {engine.curses.map((def) => (
+            <li key={def.type}>
+              {def.name}：{def.description(CONFIG)}
+            </li>
+          ))}
+          <li>持续若干块的诅咒再次触发会重新计时。</li>
         </ul>
       </details>
     </Panel>

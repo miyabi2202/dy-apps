@@ -1,4 +1,5 @@
-import { CONFIG, EFFECT_POOL } from './config';
+import { CONFIG } from './config';
+import { EFFECT_POOL, type EffectType } from './curses';
 import { addHit } from './interventions';
 import { randomInt, type Rng } from './random';
 import type { GiftBatchResult, TeamState } from './types';
@@ -19,7 +20,7 @@ export function isValidProbability(p: unknown): p is number {
 /**
  * Resolve a batch of draws (one per diamond of gifts) one at a time, in order, using the probability
  * snapshot `probability`. Each gift: `u < p` hits, then a second draw picks one
- * of the four curse effects uniformly.
+ * of the curses in `pool` uniformly.
  */
 export function processGiftBatch(
   team: TeamState,
@@ -27,6 +28,7 @@ export function processGiftBatch(
   count: number,
   probability: number,
   rng: Rng,
+  pool: readonly EffectType[] = EFFECT_POOL,
 ): GiftBatchResult {
   if (!isValidBatchCount(count)) throw new RangeError(`Invalid gift count: ${String(count)}`);
   const result: GiftBatchResult = {
@@ -45,7 +47,7 @@ export function processGiftBatch(
       result.misses += 1;
       continue;
     }
-    const type = EFFECT_POOL[randomInt(rng, EFFECT_POOL.length)]!;
+    const type = pool[randomInt(rng, pool.length)]!;
     team.hitCount += 1;
     result.hits += 1;
     result.effects[type] = (result.effects[type] ?? 0) + 1;

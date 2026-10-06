@@ -1,4 +1,5 @@
-import { CONFIG, EFFECT_POOL } from '../core/config';
+import { CONFIG } from '../core/config';
+import { EFFECT_POOL } from '../core/curses';
 import { GameEngine } from '../core/game';
 import { processGiftBatch } from '../core/gifts';
 import { createTeam, isConserved, pendingTotal } from '../core/interventions';
@@ -35,14 +36,13 @@ describe('example A: probability boundaries', () => {
     expect(r2.hits).toBe(1);
   });
 
-  it('draws cover four equal quarters of the pool', () => {
+  it('draws cover equal slices of the pool', () => {
+    const n = EFFECT_POOL.length;
     const draws: [number, string][] = [
       [0, EFFECT_POOL[0]!],
-      [0.2499, EFFECT_POOL[0]!],
-      [0.25, EFFECT_POOL[1]!],
-      [0.5, EFFECT_POOL[2]!],
-      [0.75, EFFECT_POOL[3]!],
-      [0.9999, EFFECT_POOL[3]!],
+      [1 / n - 0.0001, EFFECT_POOL[0]!],
+      ...EFFECT_POOL.map((type, i): [number, string] => [i / n, type]),
+      [0.9999, EFFECT_POOL[n - 1]!],
     ];
     for (const [u, expected] of draws) {
       const r = processGiftBatch(createTeam(), 'foo', 1, 1, sequenceRng([0, u]));
