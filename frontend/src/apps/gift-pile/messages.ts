@@ -22,7 +22,7 @@ export const labels = {
     width: '宽度',
     height: '高度',
     apply: '应用尺寸',
-    hint: '单位 px，100–2000。应用新尺寸会清空当前的堆。',
+    hint: '单位 px，宽 100–900，高 100–2000。应用新尺寸会清空当前的堆。',
   },
   engineFailed: '物理引擎启动失败：',
 } as const;

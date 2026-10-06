@@ -15,8 +15,8 @@ interface Props {
 export function SizePanel({ size, onResize }: Props) {
   const [width, setWidth] = useState(String(size.width));
   const [height, setHeight] = useState(String(size.height));
-  const w = parseSide(width);
-  const h = parseSide(height);
+  const w = parseSide('width', width);
+  const h = parseSide('height', height);
   const changed = w !== size.width || h !== size.height;
 
   const submit = (event: FormEvent) => {
@@ -32,8 +32,8 @@ export function SizePanel({ size, onResize }: Props) {
             <Input
               type="number"
               inputMode="numeric"
-              min={SIZE_RANGE.min}
-              max={SIZE_RANGE.max}
+              min={SIZE_RANGE.width.min}
+              max={SIZE_RANGE.width.max}
               step={1}
               value={width}
               onChange={(event) => setWidth(event.target.value)}
@@ -44,8 +44,8 @@ export function SizePanel({ size, onResize }: Props) {
             <Input
               type="number"
               inputMode="numeric"
-              min={SIZE_RANGE.min}
-              max={SIZE_RANGE.max}
+              min={SIZE_RANGE.height.min}
+              max={SIZE_RANGE.height.max}
               step={1}
               value={height}
               onChange={(event) => setHeight(event.target.value)}
