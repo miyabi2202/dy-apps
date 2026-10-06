@@ -1,8 +1,8 @@
-import { addMessage, type DanmakuMessage } from '@dy-apps/services';
+import { addMessage, type DanmakuMessage, type DetailPart } from '@dy-apps/services';
 import { CONFIG } from './core/config';
-import { EFFECT_POOL, type EffectType } from './core/curses';
+import { CURSES, EFFECT_POOL, type EffectType } from './core/curses';
 import type { GameEngine, GiftResponse } from './core/game';
-import { effectName } from './ui/format';
+import { RARITY_COLORS } from './ui/rarity';
 
 /** Cards kept on the gift wall; older ones are dropped. */
 const MAX_CARDS = 200;
@@ -42,7 +42,11 @@ export class GiftFeed {
     if (!response.ok) return response;
 
     this.drawn.set(message.id, drawn);
-    this.messages = addMessage(this.messages, { ...message, detail: curseText(drawn) }, MAX_CARDS);
+    this.messages = addMessage(
+      this.messages,
+      { ...message, detail: curseDetail(drawn) },
+      MAX_CARDS,
+    );
     if (this.drawn.size > MAX_CARDS * 2) this.forgetDropped();
     this.emit();
     return response;
@@ -94,10 +98,15 @@ function batches(count: number): number[] {
   return out;
 }
 
-/** 触发 垃圾行×1、迷雾×2, or 未触发诅咒. */
-function curseText(drawn: Drawn): string {
-  const parts = EFFECT_POOL.filter((type) => drawn[type]).map(
-    (type) => `${effectName(type)}×${drawn[type]}`,
-  );
-  return parts.length ? `触发 ${parts.join('、')}` : '未触发诅咒';
+/** 触发 垃圾行×1、迷雾×2 (each name in its rarity's colour), or 未触发诅咒. */
+function curseDetail(drawn: Drawn): DetailPart[] {
+  const types = EFFECT_POOL.filter((type) => drawn[type]);
+  if (types.length === 0) return [{ text: '未触发诅咒' }];
+  const parts: DetailPart[] = [{ text: '触发 ' }];
+  types.forEach((type, i) => {
+    const def = CURSES[type];
+    parts.push({ text: def.name, color: RARITY_COLORS[def.rarity] });
+    parts.push({ text: `×${drawn[type]}${i < types.length - 1 ? '、' : ''}` });
+  });
+  return parts;
 }

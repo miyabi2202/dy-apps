@@ -98,7 +98,19 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
       )}
       {message.detail && (
         <p data-testid={testIds.detail} {...stylex.props(styles.detail)}>
-          {message.detail}
+          {typeof message.detail === 'string'
+            ? message.detail
+            : message.detail.map((part, i) =>
+                part.color ? (
+                  // Parts are positional runs of text; the index is the identity.
+                  // eslint-disable-next-line @eslint-react/no-array-index-key
+                  <span key={i} {...stylex.props(styles.tinted, styles.tint(part.color))}>
+                    {part.text}
+                  </span>
+                ) : (
+                  part.text
+                ),
+              )}
         </p>
       )}
     </article>
@@ -322,6 +334,10 @@ const styles = stylex.create({
     marginBottom: 0,
     marginTop: '0.3em',
   },
+  tinted: {
+    fontWeight: 600,
+  },
+  tint: (color: string) => ({ color }),
   detail: {
     gridArea: 'detail',
     fontSize: '0.8em',

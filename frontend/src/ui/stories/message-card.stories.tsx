@@ -54,6 +54,26 @@ export const GiftWithDetail: Story = {
   },
 };
 
+/** Detail parts can carry their own colour, like curse names by rarity. */
+export const GiftWithColouredDetail: Story = {
+  args: {
+    message: {
+      id: 'm3c',
+      user,
+      text: '',
+      gift: { name: '嘉年华', count: 1, diamonds: 30_000 },
+      detail: [
+        { text: '触发 ' },
+        { text: '垃圾行', color: '#c084fc' },
+        { text: '×12、' },
+        { text: '加速', color: '#60a5fa' },
+        { text: '×9' },
+      ],
+      ts: 0,
+    },
+  },
+};
+
 export const Likes: Story = {
   args: {
     message: { id: 'm4', user: { id: 'u2', nickname: '摸鱼大师' }, text: '', likes: 99, ts: 0 },

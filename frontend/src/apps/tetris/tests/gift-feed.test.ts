@@ -1,4 +1,4 @@
-import type { DanmakuMessage } from '@dy-apps/services';
+import { detailText, type DanmakuMessage } from '@dy-apps/services';
 import { CONFIG } from '../core/config';
 import { GameEngine } from '../core/game';
 import { constantRng } from '../core/random';
@@ -25,7 +25,7 @@ describe('GiftFeed', () => {
     const res = feed.send(gift('g1', 3, 10));
     expect(res.ok && res.result.count).toBe(30);
     expect(engine.giftHistory[0]?.sender).toBe('阿杰');
-    expect(feed.getMessages()[0]?.detail).toBe('触发 垃圾行×30');
+    expect(detailText(feed.getMessages()[0]?.detail)).toBe('触发 垃圾行×30');
   });
 
   it('counts a gift without a price as 1 diamond', () => {
@@ -41,7 +41,7 @@ describe('GiftFeed', () => {
     const messages = feed.getMessages();
     expect(messages).toHaveLength(1);
     expect(messages[0]?.gift?.count).toBe(3);
-    expect(messages[0]?.detail).toBe('触发 迷雾×3');
+    expect(detailText(messages[0]?.detail)).toBe('触发 迷雾×3');
   });
 
   it('splits a gift worth more than one batch', () => {

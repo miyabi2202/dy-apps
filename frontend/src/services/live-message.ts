@@ -19,6 +19,19 @@ export interface DanmakuGift {
   iconUrl?: string;
 }
 
+/** A run of a message's detail line, in its own colour when `color` is set. */
+export interface DetailPart {
+  text: string;
+  /** Any CSS colour; the card's default text colour when missing. */
+  color?: string;
+}
+
+/** The detail line as plain text, however it was given. */
+export function detailText(detail: DanmakuMessage['detail']): string {
+  if (detail === undefined) return '';
+  return typeof detail === 'string' ? detail : detail.map((part) => part.text).join('');
+}
+
 /** A chat message, a gift or a run of likes (the last two have an empty `text`). */
 export interface DanmakuMessage {
   id: string;
@@ -27,8 +40,8 @@ export interface DanmakuMessage {
   gift?: DanmakuGift;
   /** How many likes the user sent, added up until they stopped for a while. */
   likes?: number;
-  /** A smaller line under the text or gift, e.g. what a gift did in a game. */
-  detail?: string;
+  /** A smaller line under the text or gift, e.g. what a gift did in a game; parts can be coloured. */
+  detail?: string | DetailPart[];
   /**
    * The chat as text and images, when Douyin sent rich text (fan-club emotes, @mentions).
    * Shown instead of `text`, which is then the plain fallback.
