@@ -212,17 +212,21 @@ export class PileEngine {
    * waking what rested on it. Returns how many went.
    */
   remove(n: number): number {
-    let gone = 0;
-    const want = Math.min(Math.floor(n), this.alive);
-    // Random picks until enough are found; with few dead icons that is about one try each.
-    for (let tries = 0; gone < want && tries < want * 20 + 100; tries++) {
-      const i = Math.floor(this.rng() * this.count);
-      if (this.dead[i] || this.held[i]) continue;
+    // Draw without replacement from the icons that can go, so the count asked for always
+    // goes while there are that many: drawing blind would keep missing once most are dead.
+    const candidates: number[] = [];
+    for (let i = 0; i < this.count; i++) {
+      if (!this.dead[i] && !this.held[i]) candidates.push(i);
+    }
+    const want = Math.min(Math.floor(n), candidates.length);
+    for (let k = 0; k < want; k++) {
+      const pick = k + Math.floor(this.rng() * (candidates.length - k));
+      const i = candidates[pick]!;
+      candidates[pick] = candidates[k]!;
       this.grab(i);
       this.destroy(i);
-      gone++;
     }
-    return gone;
+    return want;
   }
 
   /** Hands over every icon that came to rest since the last call. */
