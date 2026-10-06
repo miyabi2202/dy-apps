@@ -6,6 +6,9 @@ import type { EffectType } from './index';
 /** Player commands a curse can block while it is active. */
 export type Command = 'rotate' | 'hold';
 
+/** How often a curse should come up, from most to least. */
+export type Rarity = 'common' | 'uncommon' | 'rare';
+
 /** A curse's answer at settlement: a reason ends the game, nothing means play on. */
 export interface CurseOutcome {
   gameOver?: string;
@@ -21,7 +24,18 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   name: string;
   /** Rules text; gets CONFIG so numbers are never typed twice. */
   description(config: typeof CONFIG): string;
-  /** How many locks it stays active; omitted means it fires once in apply and is done. */
+  /** How often it should come up. Gift drawing does not read this yet. */
+  rarity: Rarity;
+  /**
+   * The settlement queue it belongs to. Each settlement fires at most one pending curse per
+   * queue, the first in pool order; the rest of that queue waits. A curse in a queue of its own
+   * never has to wait for others.
+   */
+  queue: string;
+  /**
+   * How many locked pieces it stays active; firing again while active adds that many more.
+   * Omitted means it fires once in apply and is done.
+   */
   durationLocks?: number;
   /** Fresh state when the curse becomes active. */
   initState?(): S;

@@ -21,12 +21,23 @@ export function addHit(team: TeamState, type: EffectType): void {
   team.pending[type] += 1;
 }
 
-/** One settlement: every curse type with anything pending fires once. */
+/**
+ * One settlement: at most one pending curse per queue fires, the first in pool order; the rest
+ * of its queue keeps waiting. By default every type is its own queue, so each pending type fires.
+ */
 export function settleTeam(
   team: TeamState,
   pool: readonly EffectType[] = EFFECT_POOL,
+  queueOf: (type: EffectType) => string = (type) => type,
 ): EffectType[] {
-  const fired = pool.filter((type) => team.pending[type] > 0);
+  const seen = new Set<string>();
+  const fired = pool.filter((type) => {
+    if (team.pending[type] <= 0) return false;
+    const queue = queueOf(type);
+    if (seen.has(queue)) return false;
+    seen.add(queue);
+    return true;
+  });
   for (const type of fired) team.pending[type] -= 1;
   team.firedCount += fired.length;
   return fired;

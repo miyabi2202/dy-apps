@@ -20,8 +20,8 @@ export function createEffects(): EffectsState {
 }
 
 /**
- * Make `type` active for its duration, or restart its count if it already is. A curse that
- * was not active gets fresh state; one that was keeps its state.
+ * Make `type` active for its duration, or add that duration if it already is: firing a lasting
+ * curse again stacks. A curse that was not active gets fresh state; one that was keeps its state.
  */
 export function activate(
   effects: EffectsState,
@@ -31,7 +31,7 @@ export function activate(
   const remainingLocks = def.durationLocks ?? 0;
   const current = effects.active[type];
   if (current) {
-    current.remainingLocks = remainingLocks;
+    current.remainingLocks += remainingLocks;
     return current;
   }
   const fresh: ActiveCurse = { remainingLocks, state: def.initState?.() };

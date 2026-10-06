@@ -40,4 +40,4 @@ export const EFFECT_INFO: Record<EffectType, { name: string; description: string
   ) as Record<EffectType, { name: string; description: string }>;
 
 export { defineCurse } from './types';
-export type { Command, CurseContext, CurseDef, CurseOutcome } from './types';
+export type { Command, CurseContext, CurseDef, CurseOutcome, Rarity } from './types';

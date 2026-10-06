@@ -6,6 +6,8 @@ export const garbage = defineCurse({
   type: 'garbage',
   name: '垃圾行',
   description: () => '底部加 1 行垃圾',
+  rarity: 'rare',
+  queue: 'a',
   apply(ctx) {
     if (addGarbageRows(ctx.board, 1, ctx.garbageRng)) return { gameOver: '垃圾行将方块挤出顶部' };
   },

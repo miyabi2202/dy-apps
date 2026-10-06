@@ -218,7 +218,7 @@ describe('hold', () => {
     activate(engine.effects, 'fog', CURSES.fog);
     engine.holdPiece();
     expect(engine.lockedPieceCount).toBe(0);
-    expect(engine.effects.active.fog?.remainingLocks).toBe(3);
+    expect(engine.effects.active.fog?.remainingLocks).toBe(1);
   });
 
   it('seal blocks hold without clearing the stored piece', () => {
@@ -260,12 +260,11 @@ describe('settlement cycle', () => {
     expect(engine.log[0]!.text).toContain('执行 垃圾行、加速、迷雾');
   });
 
-  it('fog and seal last three pieces', () => {
+  it('fog and seal last one piece', () => {
     const engine = startedEngine();
     engine.team.pending = pendingOf({ fog: 1, seal: 1 });
     dropOnEmpty(engine, 3);
-    expect(engine.effects.active.fog?.remainingLocks).toBe(3);
-    dropOnEmpty(engine, 2);
+    expect(engine.effects.active.fog?.remainingLocks).toBe(1);
     expect(engine.previewHidden).toBe(true);
     expect(engine.holdBlocked).toBe(true);
     dropOnEmpty(engine, 1);

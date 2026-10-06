@@ -36,9 +36,9 @@ export const CONFIG = {
     historySize: 50,
   },
   effects: {
-    /** Pieces that one fog / seal lasts. */
-    fogLocks: 3,
-    sealLocks: 3,
+    /** Locked pieces that one fog / seal lasts; firing again adds as many more. */
+    fogLocks: 1,
+    sealLocks: 1,
   },
   settlement: { everyLocks: 3 },
   log: { maxEntries: 10 },

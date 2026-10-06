@@ -7,6 +7,8 @@ export const haste = defineCurse({
   name: '加速',
   description: (config) =>
     `下降间隔永久 ×${config.gravity.hasteMultiplier}，可叠加，最快 ${config.gravity.minMs} ms/格`,
+  rarity: 'rare',
+  queue: 'b',
   apply(ctx) {
     ctx.multiplyGravity(CONFIG.gravity.hasteMultiplier);
   },

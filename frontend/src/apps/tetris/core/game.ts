@@ -143,6 +143,8 @@ export class GameEngine {
   private readonly curseByType: Partial<Record<EffectType, CurseDef<unknown>>> = {};
   /** The curses' types in order: what gifts draw from and settlement fires in. */
   private readonly pool: readonly EffectType[];
+  /** Which settlement queue a curse in play belongs to. */
+  private readonly queueOf: (type: EffectType) => string;
   private readonly initialBoard: Board | undefined;
   private readonly initialUpcoming: readonly PieceType[];
   private readonly initialActivePiece: PieceShape | undefined;
@@ -171,6 +173,7 @@ export class GameEngine {
       this.curseByType[def.type] = def;
     }
     this.pool = this.curses.map((def) => def.type);
+    this.queueOf = (type) => this.curseByType[type]!.queue;
     this.initialPending = { ...curses.upcoming };
     for (const type of Object.keys(this.initialPending) as EffectType[]) {
       if (!this.curseByType[type]) throw new RangeError(`Pending curse not in play: ${type}`);
@@ -593,7 +596,7 @@ export class GameEngine {
     this.settlementCount += 1;
     const report: SettlementReport = { index: this.settlementCount, executed: [] };
     let gameOver: string | undefined;
-    for (const type of settleTeam(this.team, this.pool)) {
+    for (const type of settleTeam(this.team, this.pool, this.queueOf)) {
       const def = this.curseByType[type]!;
       // A lasting curse is (re)activated first, so apply sees the state it keeps.
       const state =
