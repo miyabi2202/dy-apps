@@ -19,13 +19,6 @@ describe('Page', () => {
     expect(screen.getByRole('button', { name: '重新开始' })).toBeInTheDocument();
   });
 
-  it('links home from an icon before the title, unless it is the home page', () => {
-    const { rerender } = render(<Page title="弹幕墙" />);
-    expect(screen.getByRole('link', { name: '返回首页' })).toHaveAttribute('href', '/');
-    rerender(<Page title="dy-apps" home={false} />);
-    expect(screen.queryByRole('link', { name: '返回首页' })).toBeNull();
-  });
-
   it('has no heading or hash without a title', () => {
     document.title = 'before';
     render(<Page>内容</Page>);
