@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { meta as danmaku } from './apps/danmaku/meta';
 import { meta as dyhubGuide } from './apps/dyhub-guide/meta';
+import { meta as giftPile } from './apps/gift-pile/meta';
 import { meta as tetris } from './apps/tetris/meta';
 
 export interface PageEntry {
@@ -16,6 +17,7 @@ export interface PageEntry {
 export const APPS: readonly PageEntry[] = [
   { ...tetris, load: () => import('./apps/tetris').then((m) => m.TetrisPage) },
   { ...danmaku, load: () => import('./apps/danmaku').then((m) => m.DanmakuPage) },
+  { ...giftPile, load: () => import('./apps/gift-pile').then((m) => m.GiftPilePage) },
 ];
 
 /** Tutorials and other reading pages, listed separately on the index. */

@@ -7,6 +7,7 @@ Small live-stream apps, served as one site: an index page at `/` and each app on
 | `frontend/src/`                  | The site itself: index page, React Router, entry (`main.tsx`)                    |
 | `frontend/src/apps/tetris/`      | 方块干预实验室 at `/tetris`: block game with audience curses                     |
 | `frontend/src/apps/danmaku/`     | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                           |
+| `frontend/src/apps/gift-pile/`   | 嘉年华堆堆乐 at `/gift-pile`: icons fall from the top and pile up, up to 100k    |
 | `frontend/src/apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers                        |
 | `frontend/src/services/`         | Shared non-UI code: the DyHub client, messages, fake data and saved settings     |
 | `frontend/src/ui/`               | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
