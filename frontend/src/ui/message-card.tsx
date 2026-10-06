@@ -93,7 +93,7 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
         </p>
       ) : (
         <p {...stylex.props(styles.text)}>
-          <ChatText text={message.text} />
+          <ChatText text={message.text} parts={message.parts} sticker={message.sticker} />
         </p>
       )}
       {message.detail && (
@@ -118,7 +118,6 @@ function GiftLine({ gift }: { gift: DanmakuGift }) {
         <img
           alt=""
           src={gift.iconUrl}
-          referrerPolicy="no-referrer"
           onError={() => setIconBroken(true)}
           {...stylex.props(styles.giftIcon)}
         />

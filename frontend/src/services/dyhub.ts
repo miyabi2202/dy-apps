@@ -45,6 +45,23 @@ export interface DyhubUser {
   fansClub?: { name: string; level: number; status?: number; anchorId?: string };
 }
 
+/** One piece of a chat's rich text, from DyHub's `data.parts`. */
+export type DyhubChatPart =
+  | { type: 'text'; text: string }
+  | { type: 'emote'; url: string; name?: string }
+  | { type: 'mention'; text: string; userId?: string };
+
+/**
+ * A chat's data. `parts` comes when Douyin sends rich text (fan-club emotes, @mentions);
+ * `sticker` marks a message that's one big emote image, with `content` its text fallback.
+ */
+// A type, not an interface, so it fits DyhubEvent's `data: Record<string, unknown>`.
+export type DyhubChatData = {
+  content: string;
+  parts?: DyhubChatPart[];
+  sticker?: boolean;
+};
+
 /** Subset of DyHub's DanmakuEvent that consumers rely on. */
 export interface DyhubEvent {
   id: string;

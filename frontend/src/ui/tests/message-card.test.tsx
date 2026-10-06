@@ -130,7 +130,6 @@ describe('MessageCard with a gift', () => {
   it("shows the gift's icon, or 🎁 if it fails to load", () => {
     const { container } = renderGift({ name: '玫瑰', count: 1, iconUrl: 'https://x/rose.png' });
     const icon = container.querySelector('img[src="https://x/rose.png"]')!;
-    expect(icon).toHaveAttribute('referrerpolicy', 'no-referrer');
     expect(screen.getByTestId('gift')).not.toHaveTextContent('🎁');
     fireEvent.error(icon);
     expect(screen.getByTestId('gift')).toHaveTextContent('🎁');

@@ -2,6 +2,7 @@ import {
   connectDyhub,
   GiftCounter,
   likeCount,
+  type DyhubChatData,
   type DyhubEvent,
   type DyhubEventType,
   type DyhubGiftData,
@@ -12,7 +13,7 @@ import {
 /** A chat message. */
 export type DyhubCommentEvent = Omit<DyhubEvent, 'type' | 'data'> & {
   type: 'chat';
-  data: { content: string };
+  data: DyhubChatData;
 };
 
 export type DyhubGiftEvent = Omit<DyhubEvent, 'type' | 'data'> & {

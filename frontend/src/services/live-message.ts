@@ -1,5 +1,6 @@
 /** Chat, gift and like messages from a live room, as the message cards show them. */
-import type { DyhubEvent, DyhubGiftData, DyhubUser } from './dyhub';
+import type { DyhubChatData, DyhubEvent, DyhubGiftData, DyhubUser } from './dyhub';
+import type { ChatPart } from './emoji';
 
 export interface DanmakuUser {
   id: string;
@@ -28,6 +29,13 @@ export interface DanmakuMessage {
   likes?: number;
   /** A smaller line under the text or gift, e.g. what a gift did in a game. */
   detail?: string;
+  /**
+   * The chat as text and images, when Douyin sent rich text (fan-club emotes, @mentions).
+   * Shown instead of `text`, which is then the plain fallback.
+   */
+  parts?: ChatPart[];
+  /** The whole message is one big emote image (in `parts`). */
+  sticker?: boolean;
   ts: number;
 }
 
@@ -93,9 +101,36 @@ export function messageFromEvent(ev: DyhubEvent, newGifts: number): DanmakuMessa
       ts: ev.ts,
     };
   }
-  const text = ev.data?.content;
-  if (ev.type !== 'chat' || typeof text !== 'string' || !text.trim()) return null;
-  return { id: ev.id, user, text, ts: ev.ts };
+  if (ev.type !== 'chat') return null;
+  const data = ev.data as Partial<DyhubChatData> | undefined;
+  const text = typeof data?.content === 'string' ? data.content : '';
+  const parts = partsFrom(data?.parts);
+  if (!text.trim() && !parts) return null;
+  return {
+    id: ev.id,
+    user,
+    text,
+    ...(parts && { parts }),
+    ...(data?.sticker && parts && { sticker: true }),
+    ts: ev.ts,
+  };
+}
+
+/** DyHub's rich-text parts as text and images; mentions read as text. Undefined if none. */
+function partsFrom(raw: unknown): ChatPart[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const parts: ChatPart[] = [];
+  for (const part of raw as Record<string, unknown>[]) {
+    if (part?.type === 'emote' && typeof part.url === 'string' && /^https?:/.test(part.url)) {
+      parts.push({
+        emoji: typeof part.name === 'string' && part.name ? part.name : '[表情]',
+        url: part.url,
+      });
+    } else if (typeof part?.text === 'string' && part.text) {
+      parts.push({ text: part.text });
+    }
+  }
+  return parts.length ? parts : undefined;
 }
 
 function userFrom({ id, nickname, avatar, fansClub }: DyhubUser): DanmakuUser {
