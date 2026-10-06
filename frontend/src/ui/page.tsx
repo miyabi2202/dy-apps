@@ -1,6 +1,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, type ComponentProps, type ReactNode } from 'react';
 import { COMMIT_HASH, SHORT_COMMIT_HASH } from './build';
+import { testIds } from './messages';
 import { text } from './text';
 import { colors, fonts, fontSize, radius, space } from './tokens.stylex';
 
@@ -54,7 +55,7 @@ export function Page({
                 {title}
                 <code
                   title={COMMIT_HASH}
-                  data-testid="commit-hash"
+                  data-testid={testIds.commitHash}
                   {...stylex.props(styles.commit)}
                 >
                   {SHORT_COMMIT_HASH}

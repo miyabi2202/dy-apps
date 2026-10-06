@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { EFFECT_POOL } from '../core/config';
 import type { GameEngine } from '../core/game';
 import type { GiftFeed } from '../gift-feed';
+import { testIds } from '../messages';
 import { effectName } from './format';
 import { GiftWall } from './gift-wall';
 
@@ -16,10 +17,10 @@ export function TeamPanel({ engine, feed }: Props) {
   const pending = EFFECT_POOL.filter((type) => engine.team.pending[type] > 0);
 
   return (
-    <Panel aria-label="诅咒" data-testid="panel-team" xstyle={styles.panel}>
+    <Panel aria-label="诅咒" data-testid={testIds.panelTeam} xstyle={styles.panel}>
       <h3 {...stylex.props(text.caption)}>待执行诅咒</h3>
       {pending.length ? (
-        <ul {...stylex.props(styles.pending)} data-testid="pending">
+        <ul {...stylex.props(styles.pending)} data-testid={testIds.pending}>
           {pending.map((type) => (
             <li key={type} {...stylex.props(styles.pendingItem)}>
               <span>{effectName(type)}</span>
@@ -28,7 +29,7 @@ export function TeamPanel({ engine, feed }: Props) {
           ))}
         </ul>
       ) : (
-        <p {...stylex.props(text.muted, styles.flush)} data-testid="pending">
+        <p {...stylex.props(text.muted, styles.flush)} data-testid={testIds.pending}>
           暂无
         </p>
       )}

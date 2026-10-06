@@ -23,6 +23,16 @@ A room can send a few gifts or tens of thousands: one combo can be hundreds, and
 
 Every app's page is a `Page` from `@dy-apps/ui` with a `title`. That shows the title with the build's commit hash after it, so anyone can tell which version they're looking at, and sets the browser tab's title. Put the page's buttons in `actions` and a one-line description in `subtitle`. Keep the title out of the OBS view so it never goes on stream; `apps/danmaku` renders its overlay without `Page`.
 
+## Integration tests: no raw strings
+
+An app's Playwright specs live in its `integration-tests/` folder. They never find an element by a raw string. Every test id, and every label or button text a spec looks up, comes from a messages file that the page renders from too:
+
+- The app's own in `messages.ts` (like `apps/tetris/messages.ts`), imported as `../messages`.
+- The shared components' in `@dy-apps/ui/messages`, such as the 数据来源 panel and the OBS link.
+- The route and page title from the app's `meta`.
+
+Role names like `'button'` stay literal, and so does made-up test data such as a viewer's nickname. Keep `messages.ts` free of runtime imports (type imports are fine), because the specs load it without the bundler. App code must not import its own `meta.ts`: that pulls `meta` into the app's chunk and makes the index download it. Repeat the title in the page instead.
+
 ## TODO
 
 - Add a template page for new apps.

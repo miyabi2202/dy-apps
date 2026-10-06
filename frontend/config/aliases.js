@@ -9,6 +9,7 @@ const file = (path) => fileURLToPath(new URL(path, import.meta.url));
 export const aliases = {
   '@dy-apps/services': file('../src/services/index.ts'),
   '@dy-apps/ui': file('../src/ui/index.ts'),
+  '@dy-apps/ui/messages': file('../src/ui/messages.ts'),
   '@dy-apps/ui/tokens.stylex': file('../src/ui/tokens.stylex.ts'),
 };
 

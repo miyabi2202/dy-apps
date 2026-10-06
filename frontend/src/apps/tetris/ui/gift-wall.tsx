@@ -2,13 +2,14 @@ import { DEFAULT_CARD_STYLE, fontFamily, MessageList } from '@dy-apps/ui';
 import * as stylex from '@stylexjs/stylex';
 import { useSyncExternalStore } from 'react';
 import type { GiftFeed } from '../gift-feed';
+import { testIds } from '../messages';
 
 /** Each gift as a 弹幕墙 card: who sent it, how many, and the curses it drew. */
 export function GiftWall({ feed }: { feed: GiftFeed }) {
   const messages = useSyncExternalStore(feed.subscribe, feed.getMessages);
   return (
     <div
-      data-testid="gift-history"
+      data-testid={testIds.giftHistory}
       aria-label="送礼记录"
       {...stylex.props(
         styles.wall,

@@ -3,11 +3,12 @@ import { colors, fontSize, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { CONFIG } from '../core/config';
 import type { GameEngine, LogKind } from '../core/game';
+import { testIds } from '../messages';
 
 export function LogPanel({ engine }: { engine: GameEngine }) {
   return (
     <Panel aria-label="日志与规则" title="最近日志" gap="md">
-      <ol aria-live="polite" data-testid="log" {...stylex.props(styles.log)}>
+      <ol aria-live="polite" data-testid={testIds.log} {...stylex.props(styles.log)}>
         {engine.log.length === 0 && <li {...stylex.props(text.muted)}>暂无记录。</li>}
         {engine.log.map((entry) => (
           <li key={entry.id} {...stylex.props(styles.entry, kindStyle(entry.kind))}>

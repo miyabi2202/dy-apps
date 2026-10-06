@@ -23,6 +23,7 @@
     "paths": {
       "@dy-apps/services": ["./src/services/index.ts"],
       "@dy-apps/ui": ["./src/ui/index.ts"],
+      "@dy-apps/ui/messages": ["./src/ui/messages.ts"],
       "@dy-apps/ui/tokens.stylex": ["./src/ui/tokens.stylex.ts"]
     }
   },

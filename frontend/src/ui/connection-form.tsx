@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Button } from './button';
 import { Field, Input } from './form';
 import { Row } from './layout';
+import { connectionFormText as t } from './messages';
 
 interface ConnectionFormProps {
   value: Connection;
@@ -37,7 +38,7 @@ export function ConnectionForm({
       }}
     >
       <Row gap="md" align="end" wrap>
-        <Field label="端口" xstyle={styles.portField}>
+        <Field label={t.port} xstyle={styles.portField}>
           <Input
             value={value.port}
             disabled={connected}
@@ -46,7 +47,7 @@ export function ConnectionForm({
             onChange={(e) => onChange({ ...value, port: e.target.value })}
           />
         </Field>
-        <Field label="直播间号" xstyle={styles.roomField}>
+        <Field label={t.room} xstyle={styles.roomField}>
           <Input
             value={value.roomId}
             disabled={connected}
@@ -61,7 +62,7 @@ export function ConnectionForm({
             variant={connected ? 'default' : 'primary'}
             disabled={!connected && !canConnect}
           >
-            {connected ? '断开' : '连接'}
+            {connected ? t.disconnect : t.connect}
           </Button>
         )}
       </Row>

@@ -5,6 +5,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 import { CONFIG, EFFECT_POOL } from '../core/config';
 import type { GameEngine } from '../core/game';
 import type { PieceType } from '../core/types';
+import { labels, testIds } from '../messages';
 import { drawMiniPiece } from '../render/board';
 import { effectName } from './format';
 
@@ -36,7 +37,7 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
     <Panel aria-label="棋盘">
       <div
         key={engine.settlementCount}
-        data-testid="countdown"
+        data-testid={testIds.countdown}
         {...stylex.props(styles.countdown, engine.settlementCount > 0 && styles.flash)}
       >
         <span>
@@ -58,7 +59,7 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
         <div {...stylex.props(styles.boardWrap)}>
           <canvas
             ref={boardRef}
-            data-testid="board"
+            data-testid={testIds.board}
             aria-label="游戏棋盘"
             role="img"
             {...stylex.props(styles.board)}
@@ -69,13 +70,13 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
         <div {...stylex.props(styles.side, styles.nextSide)}>
           <div {...stylex.props(text.caption)}>后续</div>
           {engine.previewHidden ? (
-            <div {...stylex.props(styles.fog)} data-testid="preview-fog">
+            <div {...stylex.props(styles.fog)} data-testid={testIds.previewFog}>
               迷雾
               <br />
               预览隐藏
             </div>
           ) : (
-            <div {...stylex.props(styles.previewList)} data-testid="preview">
+            <div {...stylex.props(styles.previewList)} data-testid={testIds.preview}>
               {engine.preview.map((type, i) => (
                 // Preview slots are positional; the index is the identity.
                 // eslint-disable-next-line @eslint-react/no-array-index-key
@@ -84,13 +85,13 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
             </div>
           )}
           <div {...stylex.props(text.caption, styles.speedTitle)}>速度</div>
-          <div data-testid="speed" {...stylex.props(styles.speed)}>
+          <div data-testid={testIds.speed} {...stylex.props(styles.speed)}>
             ×{engine.speedMultiplier.toFixed(1)}
           </div>
         </div>
       </div>
 
-      <dl {...stylex.props(styles.statGrid)} data-testid="stats">
+      <dl {...stylex.props(styles.statGrid)} data-testid={testIds.stats}>
         <Stat label="分数" value={engine.score} />
         <Stat label="消行" value={engine.lines} />
         <Stat label="落块" value={engine.lockedPieceCount} />
@@ -100,13 +101,16 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
       <Grid min={160} gap="md">
         <div>
           <div {...stylex.props(text.caption)}>生效中</div>
-          <div data-testid="active-effects" {...stylex.props(styles.infoText)}>
+          <div data-testid={testIds.activeEffects} {...stylex.props(styles.infoText)}>
             {timed.length ? timed.join('；') : '无'}
           </div>
         </div>
         <div>
           <div {...stylex.props(text.caption)}>下次结算（每种各 1 个）</div>
-          <div {...stylex.props(styles.infoText, styles.curseText)} data-testid="next-settlement">
+          <div
+            {...stylex.props(styles.infoText, styles.curseText)}
+            data-testid={testIds.nextSettlement}
+          >
             {firingNext.length ? firingNext.map(effectName).join('、') : '无'}
           </div>
         </div>
@@ -160,13 +164,13 @@ function MiniPiece({
 function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => void }) {
   if (engine.phase === 'playing') return null;
   return (
-    <div {...stylex.props(styles.overlay)} data-testid={`overlay-${engine.phase}`}>
+    <div {...stylex.props(styles.overlay)} data-testid={testIds.overlay(engine.phase)}>
       {engine.phase === 'ready' && (
         <>
           <strong {...stylex.props(styles.overlayTitle)}>准备就绪</strong>
           <span {...stylex.props(text.muted)}>开始后送的礼物才会触发诅咒</span>
           <Button variant="primary" onClick={() => engine.start()}>
-            开始游戏
+            {labels.start}
           </Button>
         </>
       )}
@@ -175,7 +179,7 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
           <strong {...stylex.props(styles.overlayTitle)}>已暂停</strong>
           <span {...stylex.props(text.muted)}>暂停期间仍可送礼，但不结算</span>
           <Button variant="primary" onClick={() => engine.resume()}>
-            继续游戏
+            {labels.resume}
           </Button>
         </>
       )}
@@ -183,7 +187,7 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
         <>
           <strong {...stylex.props(styles.overlayTitle)}>游戏结束</strong>
           <span>{engine.gameOverReason}</span>
-          <dl {...stylex.props(styles.summaryList)} data-testid="game-over-summary">
+          <dl {...stylex.props(styles.summaryList)} data-testid={testIds.gameOverSummary}>
             <dt>分数</dt>
             <dd>{engine.score}</dd>
             <dt>消行</dt>
@@ -192,7 +196,7 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
             <dd>{engine.settlementCount}</dd>
           </dl>
           <Button variant="primary" onClick={onRestart}>
-            重新开始
+            {labels.restart}
           </Button>
         </>
       )}
@@ -210,7 +214,7 @@ function TouchControls({ engine }: { engine: GameEngine }) {
     ['硬降', () => engine.hardDrop()],
   ];
   return (
-    <Grid columns={5} gap="sm" role="group" aria-label="鼠标/触屏操作">
+    <Grid columns={5} gap="sm" role="group" aria-label={labels.touchControls}>
       {buttons.map(([label, act]) => (
         <Button key={label} disabled={disabled} onClick={act}>
           {label}

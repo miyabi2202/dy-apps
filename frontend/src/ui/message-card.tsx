@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useState, type AnimationEvent } from 'react';
 import { Avatar } from './avatar';
 import type { CardStyle } from './card-style';
+import { testIds } from './messages';
 
 interface Props {
   message: DanmakuMessage;
@@ -84,7 +85,7 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
       {message.gift ? (
         <GiftLine gift={message.gift} />
       ) : message.likes ? (
-        <p data-testid="likes" {...stylex.props(styles.text, styles.gift)}>
+        <p data-testid={testIds.likes} {...stylex.props(styles.text, styles.gift)}>
           <span {...stylex.props(styles.giftVerb)}>点赞</span>
           <span aria-hidden>❤️</span>
           <span {...stylex.props(styles.giftCount, styles.likeCount)}>×{message.likes}</span>
@@ -93,7 +94,7 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
         <p {...stylex.props(styles.text)}>{message.text}</p>
       )}
       {message.detail && (
-        <p data-testid="detail" {...stylex.props(styles.detail)}>
+        <p data-testid={testIds.detail} {...stylex.props(styles.detail)}>
           {message.detail}
         </p>
       )}
@@ -108,7 +109,7 @@ export function MessageCard({ message, settings, animate, onLanded }: Props) {
 function GiftLine({ gift }: { gift: DanmakuGift }) {
   const [iconBroken, setIconBroken] = useState(false);
   return (
-    <p data-testid="gift" {...stylex.props(styles.text, styles.gift)}>
+    <p data-testid={testIds.gift} {...stylex.props(styles.text, styles.gift)}>
       <span {...stylex.props(styles.giftVerb)}>送出</span>
       {gift.iconUrl && !iconBroken ? (
         <img
@@ -124,7 +125,7 @@ function GiftLine({ gift }: { gift: DanmakuGift }) {
       <span {...stylex.props(styles.giftName)}>{gift.name}</span>
       <span {...stylex.props(styles.giftCount)}>×{gift.count}</span>
       {gift.diamonds ? (
-        <span data-testid="gift-diamonds" {...stylex.props(styles.giftVerb)}>
+        <span data-testid={testIds.giftDiamonds} {...stylex.props(styles.giftVerb)}>
           （{(gift.diamonds * gift.count).toLocaleString('zh-CN')}钻）
         </span>
       ) : null}
@@ -137,7 +138,7 @@ function FansClubBadge({ level, name }: { level: number; name: string }) {
   return (
     <span
       title={`${name} 粉丝团 ${level} 级`}
-      data-testid="fans-club-level"
+      data-testid={testIds.fansClubLevel}
       {...stylex.props(styles.badge, styles.badgeTier(fansClubTier(level)))}
     >
       ♥{level}

@@ -13,6 +13,7 @@ import { CONFIG } from '../core/config';
 import type { GameEngine } from '../core/game';
 import { newGame, type GiftFeed } from '../gift-feed';
 import type { KeyboardController } from '../input/keyboard';
+import { labels } from '../messages';
 import { useGiftSource } from '../use-gift-source';
 import type { CreateDyhubClient } from '../use-live-gifts';
 import { CenterPanel } from './center-panel';
@@ -93,7 +94,7 @@ export function App({ engine, feed, keyboard, config: initial, createClient, fak
             connection={connection}
             onConnectionChange={setConnection}
             liveState={liveState}
-            fakeLabels={{ start: '开始模拟送礼', stop: '停止模拟送礼' }}
+            fakeLabels={labels.fakeGifts}
           />
           <Panel title="OBS" gap="md">
             <ObsLink url={obsUrl}>

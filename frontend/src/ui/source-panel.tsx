@@ -16,17 +16,11 @@ import { Button } from './button';
 import { ConnectionForm } from './connection-form';
 import { Select } from './form';
 import { Row } from './layout';
+import { sourcePanelText as t, testIds } from './messages';
 import { Panel } from './panel';
 import { Slider } from './slider';
 import { text } from './text';
 import { colors } from './tokens.stylex';
-
-const SOURCE_LABELS: Record<DemoSource, string> = {
-  fake: '模拟数据',
-  live: '直播间（DyHub）',
-};
-
-const LIVE_LABELS = { start: '连接', stop: '断开' };
 
 /** The live source retries after an error or a drop, so say so. */
 const STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
@@ -61,30 +55,30 @@ export function SourcePanel(props: SourcePanelProps) {
     running,
     source,
     liveState,
-    fakeLabels = { start: '开始预览', stop: '停止预览' },
+    fakeLabels = t.fake,
     interval = { range: DEMO_INTERVAL_RANGE, step: 50 },
   } = props;
   const inSeconds = interval.range[0] >= 1000;
   // The live source connects to a room, so its button says so.
-  const labels = source === 'live' ? LIVE_LABELS : fakeLabels;
+  const labels = source === 'live' ? t.live : fakeLabels;
   return (
-    <Panel title="数据来源" gap="md">
+    <Panel title={t.title} gap="md">
       {/* The panel title says what this picks, so no visible label of its own. */}
       <Select
-        aria-label="数据来源"
+        aria-label={t.title}
         value={source}
         disabled={running}
         onChange={(e) => props.onSourceChange(e.target.value as DemoSource)}
       >
         {DEMO_SOURCES.map((s) => (
           <option key={s} value={s}>
-            {SOURCE_LABELS[s]}
+            {t.sources[s]}
           </option>
         ))}
       </Select>
       {source === 'fake' ? (
         <Slider
-          label="平均间隔"
+          label={t.interval}
           value={props.intervalMs}
           min={interval.range[0]}
           max={interval.range[1]}
@@ -113,7 +107,7 @@ export function SourcePanel(props: SourcePanelProps) {
       </Row>
       {source === 'live' && (
         <>
-          <p data-testid="dyhub-status" {...stylex.props(text.muted, styles.line)}>
+          <p data-testid={testIds.dyhubStatus} {...stylex.props(text.muted, styles.line)}>
             {running || props.canStart ? '状态：' : '请填写端口和直播间号 · 状态：'}
             <span {...stylex.props(liveState.status === 'error' && styles.error)}>
               {STATUS_TEXT[liveState.status]}
@@ -128,7 +122,7 @@ export function SourcePanel(props: SourcePanelProps) {
               rel="noreferrer"
               {...stylex.props(styles.link)}
             >
-              安装教程 ↗
+              {t.guideLink}
             </a>
           </p>
         </>

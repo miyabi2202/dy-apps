@@ -5,6 +5,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { Button } from './button';
 import type { CardStyle } from './card-style';
 import { MessageCard } from './message-card';
+import { testIds } from './messages';
 import { colors, fontSize, radius, space } from './tokens.stylex';
 
 /** How close to the bottom (px) still counts as following new messages. */
@@ -61,7 +62,7 @@ export function MessageList({ messages, settings, bare = false }: Props) {
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        data-testid="danmaku-list"
+        data-testid={testIds.danmakuList}
         {...stylex.props(styles.scroller, bare && styles.bare)}
       >
         {/* Pushed to the bottom while the content is shorter than the box. */}
