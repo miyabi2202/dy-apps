@@ -12,13 +12,14 @@ Gifts come from made-up viewers (the default) or from a live Douyin room through
 
 ## Commands
 
-This app is a folder in the `@dy-apps/frontend` package. It has no build of its own: it exports `TetrisPage` (and a small `meta`), and the site serves it at **`/tetris`**. Run everything from the repo root:
+This app is a folder in the `@dy-apps/frontend` package. It has no build of its own: it exports `TetrisPage` (and a small `meta`), and the site serves it at **`/tetris`**. Run the checks from the repo root and the site from `frontend/`:
 
 ```sh
 pnpm install
 pnpm typecheck      # tsc
 pnpm lint           # ESLint (root eslint.config.js)
 pnpm test           # Jest unit tests (add `-- src/apps/tetris` for just this app's)
+cd frontend
 pnpm dev            # then open http://localhost:5173/tetris
 pnpm test:integration
 ```

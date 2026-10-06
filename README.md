@@ -41,7 +41,7 @@ frontend/                 # @dy-apps/frontend: the one package
   tsconfig.json           #   stays here so editors and ESLint find it
 eslint.config.js          # lint for the whole repo, including which folders may import which
 .prettierrc.json          # repo-wide formatting (+ .prettierignore)
-package.json              # private root: lint/format tools + scripts that run in frontend
+package.json              # private root: lint/format tools and the repo-wide checks
 pnpm-workspace.yaml
 pnpm-lock.yaml
 ```
@@ -88,21 +88,26 @@ Status: both apps pick fake data or a live room in their 数据来源 panel. The
 
 ## Commands
 
-Run from the repo root.
+Checks that cover the whole repo run from the root:
 
 ```sh
 pnpm install
-pnpm dev              # site dev server → http://localhost:5173 (index) and /tetris
-pnpm build            # build the site (type-check + Vite) → frontend/dist/
-pnpm preview          # serve that build → http://localhost:4173
 pnpm typecheck        # tsc
 pnpm lint             # ESLint, whole repo
 pnpm test             # Jest
-pnpm test:integration # Playwright against the built site (run `pnpm --filter @dy-apps/frontend exec playwright install chromium` once)
-pnpm storybook        # ui components and tokens in Storybook → http://localhost:6006
-pnpm build-storybook  # → frontend/storybook-static/
 pnpm format           # Prettier, whole repo (format:check to verify)
 pnpm check            # format:check + typecheck + lint + test
+```
+
+Everything else belongs to the site, so run it from `frontend/` (or from the root with `pnpm --filter @dy-apps/frontend <script>`):
+
+```sh
+pnpm dev              # dev server → http://localhost:5173 (index) and /tetris
+pnpm build            # type-check + Vite → frontend/dist/
+pnpm preview          # serve that build → http://localhost:4173
+pnpm test:integration # Playwright against the built site (run `pnpm exec playwright install chromium` once)
+pnpm storybook        # ui components and tokens in Storybook → http://localhost:6006
+pnpm build-storybook  # → frontend/storybook-static/
 ```
 
 ## One package, kept apart by lint
@@ -130,4 +135,4 @@ Apps import the shared libraries by name, `@dy-apps/ui` and `@dy-apps/services`.
 - **Components**: `Button` (`default` / `primary` / `danger`), `Panel`, `Field` with `Input` / `Select` and an optional `hint` (and `useFieldId` for custom controls), `Slider`, `Row` / `Column` / `Grid` for spacing, `Page` for an app's root, and `text.muted` / `text.caption` styles.
 - **Live-stream pieces**: `MessageCard` and `MessageList` (the 弹幕墙 cards, styled by a `CardStyle`), `SourcePanel` with `useDemo` (fake or live data), `ConnectionForm` and `ObsLink`.
 
-Browse them with `pnpm storybook`; stories live in `frontend/src/ui/stories/`, unit tests in `frontend/src/ui/tests/`. Every component takes an `xstyle` prop for one-off tweaks. Styles that stay inside an app (a game board, an overlay card) still use the tokens for colour, padding and radius rather than literal values.
+Browse them with `pnpm storybook` in `frontend/`; stories live in `frontend/src/ui/stories/`, unit tests in `frontend/src/ui/tests/`. Every component takes an `xstyle` prop for one-off tweaks. Styles that stay inside an app (a game board, an overlay card) still use the tokens for colour, padding and radius rather than literal values.

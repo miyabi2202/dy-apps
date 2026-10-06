@@ -27,10 +27,14 @@ jobs:
       - run: pnpm test
       - name: Build site
         run: pnpm build
+        working-directory: frontend
       - name: Build Storybook
         run: pnpm build-storybook
-      - run: pnpm --filter @dy-apps/frontend exec playwright install --with-deps chromium
+        working-directory: frontend
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
       - run: pnpm test:integration
+        working-directory: frontend
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

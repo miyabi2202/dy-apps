@@ -10,4 +10,4 @@ Every component needs a story.
 - Show each variant and state, such as `primary`, `disabled` or an empty title.
 - When you change a component's props or looks, update its story in the same change.
 
-Run `pnpm storybook` to see them, and `pnpm build-storybook` to check they build (CI runs this).
+In `frontend/`, run `pnpm storybook` to see them, and `pnpm build-storybook` to check they build (CI runs this).

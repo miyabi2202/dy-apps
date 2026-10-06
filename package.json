@@ -8,15 +8,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @dy-apps/frontend dev",
-    "build": "pnpm -r build",
-    "preview": "pnpm --filter @dy-apps/frontend preview",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint --max-warnings 0 .",
     "test": "pnpm -r test",
-    "test:integration": "pnpm -r test:integration",
-    "storybook": "pnpm --filter @dy-apps/frontend storybook",
-    "build-storybook": "pnpm --filter @dy-apps/frontend build-storybook",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test"
