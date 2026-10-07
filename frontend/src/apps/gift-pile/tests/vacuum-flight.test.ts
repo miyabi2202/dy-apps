@@ -1,5 +1,6 @@
 /** @jest-environment node */
 import type { Scoop } from '../core/protocol';
+import { PaperPlane } from '../render/crafts/paper-plane';
 import {
   planRemoval,
   VACUUM_CAPACITY,
@@ -76,7 +77,7 @@ describe('planRemoval', () => {
 describe('VacuumFlights', () => {
   it('asks for a scoop at once, and removes anything over a load on the spot when its turn comes', () => {
     const sink = new FakeSink();
-    const flights = new VacuumFlights(sink, { crafts: ['plane'] });
+    const flights = new VacuumFlights(sink, { crafts: [new PaperPlane()] });
     flights.remove(30, 0);
     expect(sink.scoops).toEqual([{ count: 34, extra: 4 }]);
     expect(sink.removed).toEqual([]);
@@ -94,7 +95,7 @@ describe('VacuumFlights', () => {
 
   it('adds at once when nothing is up, and after the craft is gone when one is', () => {
     const sink = new FakeSink();
-    const flights = new VacuumFlights(sink, { rng: mulberry32(2), crafts: ['plane'] });
+    const flights = new VacuumFlights(sink, { rng: mulberry32(2), crafts: [new PaperPlane()] });
     const ctx = fakeContext();
     flights.add(50, 0);
     expect(sink.added).toEqual([50]);
@@ -127,7 +128,7 @@ describe('VacuumFlights', () => {
 
   it('takes icons as the nozzle reaches them, drops the extras over the pile and destroys the rest once gone', () => {
     const sink = new FakeSink();
-    const flights = new VacuumFlights(sink, { rng: mulberry32(3), crafts: ['plane'] });
+    const flights = new VacuumFlights(sink, { rng: mulberry32(3), crafts: [new PaperPlane()] });
     const ctx = fakeContext();
     let stamped = 0;
     const n = 30;
@@ -173,7 +174,7 @@ describe('VacuumFlights', () => {
 
   it('sends queued crafts one at a time, with a second between them', () => {
     const sink = new FakeSink();
-    const flights = new VacuumFlights(sink, { rng: mulberry32(4), crafts: ['plane'] });
+    const flights = new VacuumFlights(sink, { rng: mulberry32(4), crafts: [new PaperPlane()] });
     const ctx = fakeContext();
     flights.remove(10, 0);
     flights.remove(10, 0);

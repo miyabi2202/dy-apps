@@ -6,9 +6,12 @@ import { canvasSize, PILE } from './core/config';
 import { startPileLoop } from './loop';
 import { labels } from './messages';
 import { PileClient } from './pile-client';
-import { VacuumFlights } from './render/vacuum-flight';
+import { HotAirBalloon } from './render/crafts/hot-air-balloon';
+import { Hypercar } from './render/crafts/hypercar';
+import { PaperPlane, PLANE_URL } from './render/crafts/paper-plane';
 import { PileRenderer } from './render/renderer';
-import { createGiftSprite, GIFT_ICON_URL, loadImage, PLANE_URL } from './render/sprite';
+import { createGiftSprite, GIFT_ICON_URL, loadImage } from './render/sprite';
+import { VacuumFlights } from './render/vacuum-flight';
 import { sizeStore, type WorldSize } from './settings';
 import { ControlPanel, type PileStats } from './ui/control-panel';
 import { SizePanel } from './ui/size-panel';
@@ -22,13 +25,16 @@ function createPile() {
   const client = new PileClient({
     onFrame: (frame) => renderer.pushFrame(frame, performance.now()),
   });
-  const flights = new VacuumFlights(client);
+  const plane = new PaperPlane();
+  const flights = new VacuumFlights(client, {
+    crafts: [plane, new HotAirBalloon(), new Hypercar()],
+  });
   const renderer = new PileRenderer(
     { ...PILE, world: canvasSize(PILE.world) },
     createGiftSprite,
     flights,
   );
-  return { client, renderer, flights };
+  return { client, renderer, flights, plane };
 }
 
 /** Waiting icons are those the engine hasn't released yet plus those waiting on a craft to go. */
@@ -63,7 +69,7 @@ function useStats(client: PileClient, flights: VacuumFlights): PileStats {
  * unmounts (so StrictMode's extra mount in development just restarts it).
  */
 export function GiftPilePage() {
-  const [{ client, renderer, flights }] = useState(createPile);
+  const [{ client, renderer, flights, plane }] = useState(createPile);
   const [size, setSize] = useState<WorldSize>(() => sizeStore.read());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stats = useStats(client, flights);
@@ -92,12 +98,12 @@ export function GiftPilePage() {
       if (mounted) renderer.setImage(image);
     });
     void loadImage(PLANE_URL).then((image) => {
-      if (mounted) flights.setPlane(image);
+      if (mounted) plane.setImage(image);
     });
     return () => {
       mounted = false;
     };
-  }, [renderer, flights]);
+  }, [renderer, plane]);
 
   // Test/debug hook for browser tests and manual inspection.
   useEffect(() => {

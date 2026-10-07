@@ -4,9 +4,6 @@
  */
 export const GIFT_ICON_URL = '/gifts/jianianhua.png';
 
-/** The Douyin 纸飞机 chat emoji (see `services/douyin-emoji.ts`), which flies removed icons away. */
-export const PLANE_URL = '/emoji/paper-plane.webp';
-
 /** Fetches an image; null if it fails to load, so the page still works with a drawn stand-in. */
 export function loadImage(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {

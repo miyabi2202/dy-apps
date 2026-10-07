@@ -33,10 +33,14 @@ picks them roughly from the top of the pile down (each icon's height blurred by 
 so the top layer thins out unevenly), sets them aside so no later scoop takes them, and
 reports which in the next frame's `scooped`. They stay in the pile as they are.
 `render/vacuum-flight.ts` then sends a craft, picked at random, from the left to the right
-just above the pile, towing a vacuum cleaner on a rope: a paper plane (Douyin's 纸飞机 emoji,
-mirrored and turned to point along its path), a drawn hot-air balloon, or a hypercar, which
-runs up one half of a split bridge, jumps the gap in a ballistic arc and comes down onto the
-other, lower, half. The balloon is the slowest and the car the quickest, at three seconds. As the nozzle nears each icon the page `grab`s it, so
+just above the pile, towing a vacuum cleaner (`render/vacuum.ts`) on a rope. The crafts live
+in `render/crafts/`, one file each implementing the `Craft` interface in `craft.ts` (how
+long it takes to cross, where the rope ties on, its path, and how to draw it and any
+scenery): a paper plane (Douyin's 纸飞机 emoji, mirrored and turned to point along its path),
+a drawn hot-air balloon, and a hypercar, which runs up one half of a split bridge, jumps the
+gap in a ballistic arc and comes down onto the other, lower, half. The balloon is the slowest
+and the car the quickest, at three seconds. To add a craft, implement `Craft` and list it in
+`createPile()` in `gift-pile-page.tsx`. As the nozzle nears each icon the page `grab`s it, so
 whatever rested on it falls then and not before, and draws it being sucked up, swinging and
 shrinking on the way. The vacuum takes a few more than asked for and spits them out of its
 exhaust over the pile (`release`), so the pile loses exactly the number asked for; when the
