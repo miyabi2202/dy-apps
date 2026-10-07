@@ -36,7 +36,9 @@ class FakeSink implements FlightSink {
 const fakeContext = () =>
   new Proxy({} as CanvasRenderingContext2D, {
     get: (_, key) =>
-      key === 'createLinearGradient' ? () => ({ addColorStop() {} }) : () => undefined,
+      key === 'createLinearGradient' || key === 'createRadialGradient'
+        ? () => ({ addColorStop() {} })
+        : () => undefined,
     set: () => true,
   });
 

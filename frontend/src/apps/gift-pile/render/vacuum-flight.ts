@@ -56,21 +56,32 @@ const SWIRL = 14;
 const SWIRL_TURNS = 3;
 /** An icon shrinks to this on the way into the nozzle. */
 const SUCKED_SCALE = 0.3;
-/** The plane flies this far above the highest icon it takes, but never nearer the top than this. */
-const CLEARANCE = 100;
-const ALTITUDE_MIN = 44;
+/** The nozzle flies this far above the highest icon it takes. */
+const NOZZLE_CLEARANCE = 46;
 /** Where the plane starts to climb away, as a fraction of the width, and by how much. */
 const CLIMB_FROM = 0.7;
 const CLIMB = 90;
 const PLANE_SIZE = 72;
+/** Where the rope ties on under the plane, from its centre; and how near the top it may fly. */
+const PLANE_HANG = 13;
+const PLANE_MIN_Y = 44;
+/** The balloon: its envelope's radius, the skirt below it, the lines down to the basket, and the basket. */
+const BALLOON_R = 30;
+const BALLOON_SKIRT = 12;
+const BALLOON_LINES = 14;
+const BASKET_W = 20;
+const BASKET_H = 12;
+const BALLOON_HANG = BALLOON_R + BALLOON_SKIRT + BALLOON_LINES + BASKET_H;
+const BALLOON_MIN_Y = BALLOON_R + 8;
+const BALLOON_STRIPES = 8;
 /**
  * The paper plane image is mirrored, so its long wedge leads and the keel's fold trails like
  * a tail fin; mirrored it points up and to the right, and turned this far its nose is a
  * little up.
  */
 const PLANE_IMAGE_ANGLE = 0.19;
-/** The rope from the plane to the canister, and how far behind the plane the canister trails. */
-const ROPE = 30;
+/** The rope from the craft to the canister, and how far behind the craft the canister trails. */
+const ROPE = 18;
 const TRAIL = 14;
 /** The canister's body, and the nozzle's width and how far below the canister it hangs. */
 const BODY_W = 22;
@@ -91,6 +102,9 @@ export function planRemoval(count: number): { fly: number; extra: number; instan
   return { fly, extra, instant: count - fly };
 }
 
+/** What carries the vacuum: picked at random for each flight. */
+type Craft = 'plane' | 'balloon';
+
 /** Where an icon is in its flight. */
 const WAITING = 0; // still in the pile, drawn by the renderer
 const LIFTING = 1; // grabbed, on its way into the nozzle
@@ -99,8 +113,12 @@ const DROPPED = 3; // spat back out, the engine's again
 
 interface Flight {
   t0: number;
+  craft: Craft;
+  /** From the craft's centre down to where the rope ties on. */
+  hang: number;
   /** The canvas's width when the flight began. */
   width: number;
+  /** The craft's centre's height while crossing. */
   altitude: number;
   startX: number;
   /** Pixels per ms. */
@@ -122,9 +140,9 @@ interface Flight {
 }
 
 /**
- * The flights that carry removed icons away. A paper plane enters at the top left towing a
- * vacuum cleaner on a rope, flies across just above the pile and climbs away at the top
- * right. The icons it is to take are set aside in the engine but stay in the pile until the
+ * The flights that carry removed icons away. A paper plane or a hot-air balloon (picked at
+ * random) enters at the top left towing a vacuum cleaner on a rope, flies across just above
+ * the pile and climbs away at the top right. The icons it is to take are set aside in the engine but stay in the pile until the
  * nozzle comes near each; then it is grabbed and sucked up, swinging and shrinking on the
  * way, and whatever rested on it falls as it goes. The vacuum takes a few more than asked
  * for and spits them back out over the pile, so what the pile loses is exactly the number
@@ -199,13 +217,22 @@ export class VacuumFlights {
     const { rng } = this;
     let top = Infinity;
     for (let k = 0; k < n; k++) top = Math.min(top, scoop.xy[2 * k + 1]!);
-    const lowest = world.height - ROPE - BODY_H - NOZZLE_DROP;
-    const altitude = Math.min(Math.max(ALTITUDE_MIN, top - CLEARANCE), lowest);
+    const craft: Craft = rng() < 0.5 ? 'plane' : 'balloon';
+    const hang = craft === 'plane' ? PLANE_HANG : BALLOON_HANG;
+    const minY = craft === 'plane' ? PLANE_MIN_Y : BALLOON_MIN_Y;
+    // From the craft's centre down to the nozzle.
+    const toNozzle = hang + ROPE + BODY_H / 2 + NOZZLE_DROP;
+    const altitude = Math.min(
+      Math.max(minY, top - NOZZLE_CLEARANCE - toNozzle),
+      world.height - toNozzle,
+    );
     const startX = -OVERSHOOT;
     const speed = (world.width + 2 * OVERSHOOT) / FLY_MS;
 
     const flight: Flight = {
       t0: now,
+      craft,
+      hang,
       width: world.width,
       altitude,
       startX,
@@ -220,7 +247,7 @@ export class VacuumFlights {
       drops: [],
       inside: 0,
     };
-    const nozzleY = altitude + ROPE + BODY_H / 2 + NOZZLE_DROP;
+    const nozzleY = altitude + toNozzle;
     for (let k = 0; k < n; k++) {
       const x = scoop.xy[2 * k]!;
       const y = scoop.xy[2 * k + 1]!;
@@ -307,15 +334,20 @@ export class VacuumFlights {
   ): void {
     const t = now - f.t0;
     const px = f.startX + f.speed * t;
-    // Level, then climbing away along a parabola; the plane points along it.
+    // Level, then climbing away along a parabola; a plane points along it, a balloon
+    // just rises, and bobs more.
     const climbRun = (1 - CLIMB_FROM) * f.width + OVERSHOOT;
     const over = (px - CLIMB_FROM * f.width) / climbRun;
     const climb = over > 0 ? over * over * CLIMB : 0;
     const tilt = over > 0 ? -Math.atan((2 * over * CLIMB) / climbRun) : 0;
-    const py = f.altitude - climb + Math.sin(t / 160) * 2;
-    // The canister swings on its rope behind the plane; the nozzle hangs below it.
+    const bob = f.craft === 'plane' ? Math.sin(t / 160) * 2 : Math.sin(t / 420) * 4;
+    const py = f.altitude - climb + bob;
+    // Where the rope ties on: under the plane's belly, or under the basket.
+    const ax = f.craft === 'plane' ? px - 5 : px;
+    const ay = py + f.hang;
+    // The canister swings on its rope behind the craft; the nozzle hangs below it.
     const cx = px - TRAIL + Math.sin(t / 310) * 3;
-    const cy = py + ROPE + BODY_H / 2;
+    const cy = ay + ROPE + BODY_H / 2;
     const nx = cx - 4;
     const ny = cy + NOZZLE_DROP;
 
@@ -330,8 +362,9 @@ export class VacuumFlights {
     }
 
     this.drawSuction(ctx, nx, ny, now);
-    this.drawVacuum(ctx, px, py, cx, cy, nx, ny, f.inside / f.ids.length);
-    this.drawPlane(ctx, px, py, tilt);
+    this.drawVacuum(ctx, ax, ay, cx, cy, nx, ny, f.inside / f.ids.length);
+    if (f.craft === 'plane') this.drawPlane(ctx, px, py, tilt);
+    else this.drawBalloon(ctx, px, py);
 
     // Icons the suction has reached: swinging up into the nozzle, or counted inside.
     const n = f.ids.length;
@@ -391,11 +424,11 @@ export class VacuumFlights {
     ctx.restore();
   }
 
-  /** The rope, the canister with its gauge of what it holds, the hose and the nozzle. */
+  /** The rope from (ax, ay), the canister with its gauge of what it holds, the hose and the nozzle. */
   private drawVacuum(
     ctx: CanvasRenderingContext2D,
-    px: number,
-    py: number,
+    ax: number,
+    ay: number,
     cx: number,
     cy: number,
     nx: number,
@@ -407,7 +440,7 @@ export class VacuumFlights {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(px - 5, py + 13);
+    ctx.moveTo(ax, ay);
     ctx.lineTo(cx, cy - BODY_H / 2);
     ctx.stroke();
     // Hose: a curve from the canister's underside to the nozzle.
@@ -446,6 +479,61 @@ export class VacuumFlights {
     ctx.lineTo(nx - NOZZLE_W / 2, ny);
     ctx.closePath();
     ctx.fill();
+  }
+
+  /** A hot-air balloon: a striped envelope, its skirt, the lines, and the basket; centred on the envelope. */
+  private drawBalloon(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+    const r = BALLOON_R;
+    // The skirt first, so the envelope covers its top.
+    const throatY = y + r + BALLOON_SKIRT;
+    ctx.fillStyle = '#b91c1c';
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.6, y + r * 0.8);
+    ctx.lineTo(x + r * 0.6, y + r * 0.8);
+    ctx.lineTo(x + 6, throatY);
+    ctx.lineTo(x - 6, throatY);
+    ctx.closePath();
+    ctx.fill();
+    // The envelope: stripes narrowing towards the sides, as on a sphere.
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip();
+    for (let i = 0; i < BALLOON_STRIPES; i++) {
+      const x0 = x - r * Math.cos((i * Math.PI) / BALLOON_STRIPES);
+      const x1 = x - r * Math.cos(((i + 1) * Math.PI) / BALLOON_STRIPES);
+      ctx.fillStyle = i % 2 === 0 ? '#f87171' : '#fde68a';
+      ctx.fillRect(x0, y - r, x1 - x0, 2 * r);
+    }
+    // A soft shine at the top left.
+    const shine = ctx.createRadialGradient(x - r * 0.4, y - r * 0.4, 0, x, y, r);
+    shine.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+    shine.addColorStop(0.6, 'rgba(255, 255, 255, 0)');
+    shine.addColorStop(1, 'rgba(0, 0, 0, 0.18)');
+    ctx.fillStyle = shine;
+    ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+    ctx.restore();
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    // The lines from the throat to the basket, and the basket.
+    const basketY = throatY + BALLOON_LINES;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.beginPath();
+    ctx.moveTo(x - 6, throatY);
+    ctx.lineTo(x - BASKET_W / 2 + 2, basketY);
+    ctx.moveTo(x + 6, throatY);
+    ctx.lineTo(x + BASKET_W / 2 - 2, basketY);
+    ctx.stroke();
+    ctx.fillStyle = '#b45309';
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x - BASKET_W / 2, basketY, BASKET_W, BASKET_H, 3);
+    ctx.fill();
+    ctx.stroke();
   }
 
   private drawPlane(ctx: CanvasRenderingContext2D, x: number, y: number, tilt: number): void {

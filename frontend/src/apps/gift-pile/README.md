@@ -33,8 +33,8 @@ picks them roughly from the top of the pile down (each icon's height blurred by 
 so the top layer thins out unevenly), sets them aside so no later scoop takes them, and
 reports which in the next frame's `scooped`. They stay in the pile as they are.
 `render/vacuum-flight.ts` then flies a paper plane (Douyin's 纸飞机 emoji, mirrored and
-turned to point along its path) from the top left to the top right, just above the pile,
-towing a vacuum cleaner on a rope. As the nozzle nears each icon the page `grab`s it, so
+turned to point along its path) or a drawn hot-air balloon, picked at random, from the top
+left to the top right, just above the pile, towing a vacuum cleaner on a rope. As the nozzle nears each icon the page `grab`s it, so
 whatever rested on it falls then and not before, and draws it being sucked up, swinging and
 shrinking on the way. The vacuum takes a few more than asked for and spits them out of its
 exhaust over the pile (`release`), so the pile loses exactly the number asked for; when the
