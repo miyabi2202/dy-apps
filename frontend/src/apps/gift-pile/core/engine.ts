@@ -15,7 +15,7 @@ interface Options {
 
 /** Tries to find a clear spot for a new icon before leaving it queued for the next step. */
 const SPAWN_TRIES = 10;
-/** A woken icon that has moved this far (in collision radii) wakes whatever rested on it. */
+/** A woken icon that has moved this far (in collision radii) wakes whatever touched it. */
 const CASCADE_MOVE = 0.5;
 
 /**
@@ -28,7 +28,7 @@ const CASCADE_MOVE = 0.5;
  *
  * The user can pick an icon up (`grab`): it leaves the engine until it is let go
  * (`release`), when it falls from there, or destroyed. Taking a resting icon out of the pile
- * wakes the ones that rested on it, and each of those that moves wakes the ones on it in
+ * wakes the ones touching it, and each of those that moves wakes the ones touching it in
  * turn, so the pile settles into the gap.
  *
  * Positions are kept in pixels in typed arrays indexed by icon, sized for `maxItems` up
@@ -186,7 +186,7 @@ export class PileEngine {
     if (i < 0 || i >= this.count || this.dead[i] || this.held[i]) return;
     if (this.resting[i]) {
       this.unfix(i);
-      this.wakeAbove(this.x[i]!, this.y[i]!);
+      this.wakeAround(this.x[i]!, this.y[i]!);
     } else {
       const body = this.bodies[i];
       if (body) this.world.removeRigidBody(body);
@@ -392,23 +392,29 @@ export class PileEngine {
       const p = body.translation();
       x[i] = p.x / scale;
       y[i] = p.y / scale;
-      // Woken and now out of the way: whatever rested on it can fall too.
+      // Woken and moved on: whatever it was touching may fall too. Every bit of the way,
+      // not just once: something leaning on it may have come to rest again meanwhile.
       const wx = wokeX[i]!;
       if (!Number.isNaN(wx)) {
         const wy = wokeY[i]!;
         if ((x[i] - wx) ** 2 + (y[i] - wy) ** 2 > cascade2) {
-          wokeX[i] = NaN;
-          this.wakeAbove(wx, wy);
+          wokeX[i] = x[i]!;
+          wokeY[i] = y[i]!;
+          this.wakeAround(wx, wy, true);
         }
       }
       const v = body.linvel();
       const slow = v.x * v.x + v.y * v.y < slow2;
       still[i] = slow ? Math.min(255, still[i]! + 1) : 0;
       const n = still[i];
-      if (
-        n < s.settle.steps ||
-        (n < s.settle.maxSteps && this.pressedInto(body) > s.settle.overlap)
-      ) {
+      let rest = n >= s.settle.maxSteps;
+      if (!rest && n >= s.settle.steps) {
+        // Still for long enough, but not if pressed into a neighbour or leaning on one
+        // that is itself still moving: it would be left hanging when that one goes.
+        const { depth, onMoving } = this.contacts(body);
+        rest = depth <= s.settle.overlap && !onMoving;
+      }
+      if (!rest) {
         moving[kept++] = i;
         continue;
       }
@@ -417,19 +423,35 @@ export class PileEngine {
     this.movingLen = kept;
   }
 
-  /** How far, in pixels, the deepest of the body's contacts pushes it into a neighbour. */
-  private pressedInto(body: RAPIER.RigidBody): number {
-    const { narrowPhase, bodies } = this.world;
+  /**
+   * The body's contacts: how far, in pixels, the deepest pushes it into a neighbour, and
+   * whether any is with a body still moving faster than the settling speed. (A slow one is
+   * about to rest itself; the floor, walls and resting icons are fixed colliders with no
+   * body.)
+   */
+  private contacts(body: RAPIER.RigidBody): { depth: number; onMoving: boolean } {
+    const { narrowPhase, bodies, colliders } = this.world;
+    const slow2 = (this.settings.settle.speed * this.scale) ** 2;
     const collider = body.collider(0).handle;
     let depth = 0;
+    let onMoving = false;
     narrowPhase.contactPairsWith(collider, (other) => {
+      let touching = false;
       narrowPhase.contactPair(collider, other, bodies, (manifold) => {
         for (let c = 0; c < manifold.numContacts(); c++) {
-          depth = Math.max(depth, -manifold.contactDist(c));
+          const dist = manifold.contactDist(c);
+          if (dist <= 0) touching = true;
+          depth = Math.max(depth, -dist);
         }
       });
+      if (!touching || onMoving) return;
+      const partner = colliders.get(other)?.parent();
+      if (partner) {
+        const v = partner.linvel();
+        if (v.x * v.x + v.y * v.y >= slow2) onMoving = true;
+      }
     });
-    return depth / this.scale;
+    return { depth: depth / this.scale, onMoving };
   }
 
   /** Icon `i` comes to rest where its body is: a fixed circle takes the body's place. */
@@ -469,14 +491,18 @@ export class PileEngine {
     this.wokenBuf.push(i);
   }
 
-  /** Every resting icon touching the spot (px, py) from above starts falling again. */
-  private wakeAbove(px: number, py: number): void {
+  /**
+   * Every resting icon touching the spot (px, py) starts falling again, whichever side it is
+   * on: ones beside the gap may be part of an arch that only it held closed, and ones that
+   * are still supported come to rest again within a few steps.
+   */
+  private wakeAround(px: number, py: number, aboveOnly = false): void {
     const { rapier: R, scale, radius: r } = this;
     const reach = new R.Ball((2 * r + 1) * scale);
     const woken: number[] = [];
     this.world.intersectionsWithShape({ x: px * scale, y: py * scale }, 0, reach, (collider) => {
       const j = this.iconOfCollider.get(collider.handle);
-      if (j !== undefined && this.y[j]! < py - 0.5) woken.push(j);
+      if (j !== undefined && (!aboveOnly || this.y[j]! < py - 0.5)) woken.push(j);
       return true;
     });
     for (const j of woken) {
