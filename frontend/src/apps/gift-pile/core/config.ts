@@ -43,9 +43,10 @@ export interface PileSettings {
   /**
    * An icon slower than `speed` for `steps` steps comes to rest, unless something presses
    * it more than `overlap` into a neighbour; then it waits for the engine to push it clear,
-   * up to `maxSteps` steps.
+   * up to `maxSteps` steps. One the engine holds still for `giveUpSteps` steps in a way the
+   * support rules don't recognise rests anyway, as long as it touches something.
    */
-  settle: { speed: number; steps: number; overlap: number; maxSteps: number };
+  settle: { speed: number; steps: number; overlap: number; maxSteps: number; giveUpSteps: number };
   /**
    * Released this many steps ago or more, a moving icon counts as part of the heap rather
    * than the falling stream, so new icons are released above it. A heavy stream makes the
@@ -68,7 +69,7 @@ export const PILE: PileSettings = {
   pxPerMetre: 16,
   contactHz: 120,
   stepHz: 60,
-  settle: { speed: 30, steps: 6, overlap: 1, maxSteps: 120 },
+  settle: { speed: 30, steps: 6, overlap: 1, maxSteps: 120, giveUpSteps: 600 },
   heapAge: 20,
 };
 

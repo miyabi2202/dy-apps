@@ -83,8 +83,8 @@ export class PileEngine {
   // Moving icons, in release order.
   private readonly moving: Int32Array;
   private movingLen = 0;
-  /** Steps a moving icon has been slower than `settle.speed`, capped at 255. */
-  private readonly still: Uint8Array;
+  /** Steps a moving icon has been slower than `settle.speed`, capped at 65535. */
+  private readonly still: Uint16Array;
   /** The step each icon was released on. */
   private readonly born: Int32Array;
   private stepCount = 0;
@@ -121,7 +121,7 @@ export class PileEngine {
     this.bodies = new Array<RAPIER.RigidBody | null>(n).fill(null);
     this.fixed = new Array<RAPIER.Collider | null>(n).fill(null);
     this.moving = new Int32Array(n);
-    this.still = new Uint8Array(n);
+    this.still = new Uint16Array(n);
     this.born = new Int32Array(n);
     this.wokeX = new Float32Array(n).fill(NaN);
     this.wokeY = new Float32Array(n).fill(NaN);
@@ -190,13 +190,14 @@ export class PileEngine {
     if (i < 0 || i >= this.count || this.dead[i] || this.held[i]) return;
     if (this.resting[i]) {
       this.unfix(i);
-      this.wakeAround(this.x[i]!, this.y[i]!);
     } else {
       const body = this.bodies[i];
       if (body) this.world.removeRigidBody(body);
       this.bodies[i] = null;
       this.dropFromMoving(i);
     }
+    // Resting icons may lean on it either way: a slow mover counts as support.
+    this.wakeAround(this.x[i]!, this.y[i]!);
     this.held[i] = 1;
   }
 
@@ -281,10 +282,10 @@ export class PileEngine {
     // Thick slabs, so nothing gets through them; the walls run far up for a tall pile.
     const thick = 50 * scale;
     const tall = 100_000 * scale;
+    // The walls are frictionless: with friction, an icon pressed against one by a neighbour
+    // above it hangs there, and a column of them can grow up the wall.
     const wall = (x: number) =>
-      world.createCollider(
-        R.ColliderDesc.cuboid(thick, tall).setTranslation(x, 0).setFriction(settings.friction),
-      );
+      world.createCollider(R.ColliderDesc.cuboid(thick, tall).setTranslation(x, 0).setFriction(0));
     this.floor = world.createCollider(
       R.ColliderDesc.cuboid(w / 2 + thick, thick)
         .setTranslation(w / 2, h - m + thick)
@@ -383,6 +384,7 @@ export class PileEngine {
         .setFriction(s.friction),
       body,
     );
+    body.userData = i;
     this.bodies[i] = body;
     this.moving[this.movingLen++] = i;
   }
@@ -412,15 +414,18 @@ export class PileEngine {
       }
       const v = body.linvel();
       const slow = v.x * v.x + v.y * v.y < slow2;
-      still[i] = slow ? Math.min(255, still[i]! + 1) : 0;
+      still[i] = slow ? Math.min(65535, still[i]! + 1) : 0;
       const n = still[i];
       let rest = false;
       if (n >= s.settle.steps) {
         // Still for long enough, and something under it: never a wall alone, which only
         // holds it while a neighbour presses it there. Not if pressed into a neighbour or
         // leaning on one still moving either, unless that has gone on for a long time.
-        const { depth, onMoving, supported } = this.contacts(body, i);
-        rest = supported && (n >= s.settle.maxSteps || (depth <= s.settle.overlap && !onMoving));
+        const { depth, onMoving, supported, wedged, touching } = this.contacts(body, i);
+        rest = supported
+          ? n >= s.settle.maxSteps || (depth <= s.settle.overlap && !onMoving)
+          : !onMoving &&
+            ((wedged && n >= s.settle.maxSteps) || (touching && n >= s.settle.giveUpSteps));
       }
       if (!rest) {
         moving[kept++] = i;
@@ -436,18 +441,24 @@ export class PileEngine {
    * whether any is with a body still moving faster than the settling speed (a slow one is
    * about to rest itself); and whether something holds it up: the floor, an icon below it
    * that is at rest or slow, resting icons on both sides of it (an arch's keystone), or a
-   * wall it is wedged against by a resting icon beside it. A wall alone is not support.
+   * wall it is wedged against by a resting icon beside it. A wall alone is not support, and
+   * neither is anything above it: a column on a wall must not hold itself up. `wedged` is
+   * the loose case: any resting icon beside or below it, or resting icons on both sides at
+   * any height (stuck in a hole). The engine's friction can hold those for real, so an icon
+   * still for a long time in one of them may rest.
    */
   private contacts(
     body: RAPIER.RigidBody,
     i: number,
-  ): { depth: number; onMoving: boolean; supported: boolean } {
+  ): { depth: number; onMoving: boolean; supported: boolean; wedged: boolean; touching: boolean } {
     const { narrowPhase, bodies, colliders } = this.world;
     const slow2 = (this.settings.settle.speed * this.scale) ** 2;
     // Soft contacts hold bodies a fraction of a pixel apart at rest, so touching has slack.
     const touchGap = TOUCH_GAP * this.scale;
-    // Below means its centre is at least this much lower, so it is not just beside.
+    // Below means its centre is at least this much lower, so it is not just beside; a
+    // neighbour that holds it from the side or wedges it must at least not be above it.
     const below = this.y[i]! + this.radius / 2;
+    const notAbove = this.y[i]! - this.radius / 2;
     const collider = body.collider(0).handle;
     let depth = 0;
     let onMoving = false;
@@ -456,6 +467,9 @@ export class PileEngine {
     let onResting = false;
     let restingLeft = false;
     let restingRight = false;
+    let anyLeft = false;
+    let anyRight = false;
+    let touchingAny = false;
     narrowPhase.contactPairsWith(collider, (other) => {
       let touching = false;
       narrowPhase.contactPair(collider, other, bodies, (manifold) => {
@@ -466,16 +480,23 @@ export class PileEngine {
         }
       });
       if (!touching) return;
+      touchingAny = true;
       if (other === this.floor) {
         supported = true;
         return;
       }
       const resting = this.iconOfCollider.get(other);
       if (resting !== undefined) {
-        onResting = true;
-        if (this.y[resting]! > below) supported = true;
-        if (this.x[resting]! < this.x[i]!) restingLeft = true;
-        else restingRight = true;
+        const ry = this.y[resting]!;
+        const left = this.x[resting]! < this.x[i]!;
+        if (ry > below) supported = true;
+        if (left) anyLeft = true;
+        else anyRight = true;
+        if (ry >= notAbove) {
+          onResting = true;
+          if (left) restingLeft = true;
+          else restingRight = true;
+        }
         return;
       }
       const partner = colliders.get(other)?.parent();
@@ -485,12 +506,23 @@ export class PileEngine {
       }
       const v = partner.linvel();
       if (v.x * v.x + v.y * v.y >= slow2) onMoving = true;
-      else if (partner.translation().y / this.scale > below) supported = true;
+      else if (partner.translation().y / this.scale > below) {
+        supported = true;
+        // Something may come to rest on this slow mover: have it wake what it touches
+        // when it moves on, as a woken icon would.
+        const j = partner.userData as number;
+        if (Number.isNaN(this.wokeX[j]!)) {
+          this.wokeX[j] = this.x[j]!;
+          this.wokeY[j] = this.y[j]!;
+        }
+      }
     });
     return {
       depth: depth / this.scale,
       onMoving,
       supported: supported || (restingLeft && restingRight) || (onWall && onResting),
+      wedged: onResting || (anyLeft && anyRight),
+      touching: touchingAny,
     };
   }
 
