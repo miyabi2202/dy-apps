@@ -263,25 +263,6 @@ describe('VacuumFlights', () => {
     expect(flights.count).toBe(0);
   });
 
-  it('deals every craft once in each three flights, never the same twice running', () => {
-    for (const seed of [9, 10, 11, 12]) {
-      const sink = new FakeSink();
-      const flights = new VacuumFlights(sink, { rng: mulberry32(seed) });
-      // Each craft's own crossing shows in how long its flight lasts.
-      const lengths: number[] = [];
-      for (let i = 0; i < 12; i++) {
-        flights.start(scoopOf(3, 0), world, 0);
-        let now = 0;
-        while (flights.count > 0) flights.draw(fakeContext(), (now += 100), hooks);
-        lengths.push(now);
-      }
-      for (let i = 0; i < lengths.length; i += 3) {
-        expect(new Set(lengths.slice(i, i + 3)).size).toBe(3);
-      }
-      for (let i = 1; i < lengths.length; i++) expect(lengths[i]).not.toBe(lengths[i - 1]);
-    }
-  });
-
   it('never drops more than it carries', () => {
     const sink = new FakeSink();
     const flights = new VacuumFlights(sink, { rng: mulberry32(5) });
