@@ -107,7 +107,7 @@ export function floating(engine: PileEngine): number[] {
   return ids.filter((i) => !reached.has(i));
 }
 
-/** Grabs and destroys each of `ids`: `remove()` with a chosen list instead of a random one. */
+/** Grabs and destroys each of `ids`: `remove()` with a chosen list instead of the top of the pile. */
 export function destroyAll(engine: PileEngine, ids: Iterable<number>): void {
   for (const i of ids) {
     engine.grab(i);

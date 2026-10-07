@@ -2,7 +2,7 @@
 
 export type ToWorker =
   | { type: 'add'; count: number }
-  /** Destroy this many icons, picked at random. */
+  /** Destroy this many icons, roughly from the top of the pile down. */
   | { type: 'remove'; count: number }
   | { type: 'clear' }
   /** A new world with a play area of this size, in pixels; the pile is emptied with it. */

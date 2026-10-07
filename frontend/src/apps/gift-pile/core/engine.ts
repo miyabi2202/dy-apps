@@ -23,6 +23,11 @@ const SUPPORT_DRIFT = 0.5;
 const TOUCH_GAP = 1;
 /** How many steps apart the support sweep runs while the pile is changing. */
 const SWEEP_EVERY = 6;
+/**
+ * `remove()` takes icons from the top down, each one's height blurred by up to this many
+ * collision radii, so the top layer goes first but not in a neat line.
+ */
+const REMOVE_BLUR = 8;
 
 /**
  * The pile, simulated by Rapier. Every icon is a circle in a world with a floor and two
@@ -253,21 +258,26 @@ export class PileEngine {
   }
 
   /**
-   * Destroy `n` icons picked at random from the pile and the air (not one being held), each
-   * waking what rested on it. Returns how many went.
+   * Destroy `n` icons from the pile and the air (not one being held), roughly from the top
+   * down, each waking what rested on it. Returns how many went.
    */
   remove(n: number): number {
-    // Draw without replacement from the icons that can go, so the count asked for always
-    // goes while there are that many: drawing blind would keep missing once most are dead.
+    // Rank every icon that can go by its height, blurred by a few radii of noise so the
+    // top layer thins out unevenly instead of being peeled off in a line, and take the
+    // highest `n`. Ranking all of them means the count asked for always goes while there
+    // are that many.
     const candidates: number[] = [];
+    const rank = new Float32Array(this.count);
+    const blur = REMOVE_BLUR * this.radius;
     for (let i = 0; i < this.count; i++) {
-      if (!this.dead[i] && !this.held[i]) candidates.push(i);
+      if (this.dead[i] || this.held[i]) continue;
+      candidates.push(i);
+      rank[i] = this.y[i]! + this.rng() * blur;
     }
+    candidates.sort((a, b) => rank[a]! - rank[b]!);
     const want = Math.min(Math.floor(n), candidates.length);
     for (let k = 0; k < want; k++) {
-      const pick = k + Math.floor(this.rng() * (candidates.length - k));
-      const i = candidates[pick]!;
-      candidates[pick] = candidates[k]!;
+      const i = candidates[k]!;
       this.grab(i);
       this.destroy(i);
     }

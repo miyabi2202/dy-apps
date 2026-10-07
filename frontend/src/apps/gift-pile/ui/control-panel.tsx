@@ -17,7 +17,7 @@ interface Props {
   /** The most icons the pile holds; the input is capped at what's left. */
   maxItems: number;
   onAdd: (count: number) => void;
-  /** Destroy this many icons, picked at random. */
+  /** Destroy this many icons, roughly from the top of the pile down. */
   onRemove: (count: number) => void;
   onClear: () => void;
 }

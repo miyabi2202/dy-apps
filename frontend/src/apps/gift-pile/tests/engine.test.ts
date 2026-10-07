@@ -88,7 +88,7 @@ describe('PileEngine', () => {
     expect(engine.alive).toBe(alive);
   });
 
-  it('destroying a held icon and removing at random take exactly what was asked', async () => {
+  it('destroying a held icon and removing take exactly what was asked', async () => {
     const engine = await createEngine();
     engine.add(60);
     settle(engine);
@@ -115,6 +115,30 @@ describe('PileEngine', () => {
     expect(engine.alive).toBe(0);
     settle(engine);
     expect(engine.movingCount).toBe(0);
+  });
+
+  it('removes from the top of the pile down, loosely', async () => {
+    const engine = await createEngine();
+    engine.add(120);
+    settle(engine);
+    const before = restingIcons(engine);
+    const top = Math.min(...before.map((i) => engine.y[i]!));
+    const floor = engine.height - m - r;
+
+    expect(engine.remove(20)).toBe(20);
+    const gone = before.filter((i) => engine.dead[i]);
+    const kept = before.filter((i) => !engine.dead[i]);
+    const mean = (ids: number[]) => ids.reduce((sum, i) => sum + engine.y[i]!, 0) / ids.length;
+    expect(gone).toHaveLength(20);
+    // Everything that went came from the upper half of the pile, and nothing from the floor.
+    for (const i of gone) {
+      expect(engine.y[i]).toBeLessThan((top + floor) / 2);
+      expect(engine.y[i]).toBeLessThan(floor - 2 * r);
+    }
+    expect(mean(gone)).toBeLessThan(mean(kept));
+    // Loosely: the very highest icons don't all go, so the top isn't shaved off in a line.
+    const highest = [...before].sort((a, b) => engine.y[a]! - engine.y[b]!).slice(0, 20);
+    expect(highest.some((i) => !engine.dead[i])).toBe(true);
   });
 
   it('resizing makes an empty world of the play area plus the margin', async () => {
