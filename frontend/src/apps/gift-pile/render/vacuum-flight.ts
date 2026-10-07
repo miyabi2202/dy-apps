@@ -173,6 +173,9 @@ export class VacuumFlights {
   private bin: BinTarget | null = null;
   private readonly rng: () => number;
   private readonly crafts: readonly Craft[];
+  /** The crafts still to go in this round (see `nextCraft`), and the one that went last. */
+  private bag: Craft[] = [];
+  private lastCraft: Craft | null = null;
 
   constructor(
     private readonly sink: FlightSink,
@@ -244,7 +247,7 @@ export class VacuumFlights {
     const { rng } = this;
     let top = Infinity;
     for (let k = 0; k < n; k++) top = Math.min(top, scoop.xy[2 * k + 1]!);
-    const craft = this.crafts[Math.floor(rng() * this.crafts.length)] ?? allCrafts()[0]!;
+    const craft = this.nextCraft();
     // From the craft's centre down to the nozzle, and how far it dips below its altitude.
     const toNozzle = craft.tie.dy + TIE_TO_NOZZLE;
     const sag = craft.sag(world);
@@ -302,6 +305,31 @@ export class VacuumFlights {
       flight.drops.sort((a, b) => a.at - b.at);
     }
     this.flights.push(flight);
+  }
+
+  /**
+   * The craft for the next flight, from a shuffle bag: every craft goes once, in a random
+   * order, before any goes again, so they come up as often as each other even over a few
+   * flights, and the same one never goes twice running when there is a choice.
+   */
+  private nextCraft(): Craft {
+    if (this.bag.length === 0) {
+      const bag = [...this.crafts];
+      for (let i = bag.length - 1; i > 0; i--) {
+        const j = Math.floor(this.rng() * (i + 1));
+        [bag[i], bag[j]] = [bag[j]!, bag[i]!];
+      }
+      // The next to go is the last in the bag; not the one that just went, if it can be helped.
+      const last = bag.length - 1;
+      if (bag.length > 1 && bag[last] === this.lastCraft) {
+        const j = Math.floor(this.rng() * last);
+        [bag[last], bag[j]] = [bag[j]!, bag[last]!];
+      }
+      this.bag = bag;
+    }
+    const craft = this.bag.pop() ?? allCrafts()[0]!;
+    this.lastCraft = craft;
+    return craft;
   }
 
   /**

@@ -36,7 +36,8 @@ from the top of the pile down (each icon's height blurred by a few radii, so the
 thins out unevenly), sets them aside so no later scoop takes them, and reports which in the
 next frame's `scooped`. They stay in the pile as they are.
 
-`render/vacuum-flight.ts` then sends a craft, picked at random, from the left to the right
+`render/vacuum-flight.ts` then sends a craft, dealt from a shuffle bag so each comes up once
+in every three flights and never twice running, from the left to the right
 just above the pile, towing a vacuum cleaner (`render/vacuum.ts`) on a rope. The crafts live
 in `render/crafts/`, one file each implementing the `Craft` interface in `craft.ts` (how
 long it takes to cross, where the rope ties on, its path, and how to draw it and any
