@@ -6,28 +6,36 @@ import { canvasSize } from '../core/config';
 import { labels, testIds } from '../messages';
 import type { PileClient } from '../pile-client';
 import type { PileRenderer } from '../render/renderer';
+import type { VacuumFlights } from '../render/vacuum-flight';
 import type { WorldSize } from '../settings';
-import { Bin, BIN_DROP_SIZE, type BinPlace } from './bin';
+import { Bin, BIN_DROP_SIZE, BIN_ICON_SIZE, type BinPlace } from './bin';
 
 interface Props {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   renderer: PileRenderer;
   client: PileClient;
+  /** Told where the bin is, so icons a craft drops into it are destroyed. */
+  flights: VacuumFlights;
   /** The play area; the canvas is this plus the margin. */
   size: WorldSize;
 }
 
 /** Where the bin starts: near the bottom right. */
 const BIN_HOME: BinPlace = { fx: 0.86, fy: 0.9 };
+/** How long the bin lights up for when it catches a dropped icon. */
+const CATCH_FLASH_MS = 250;
 
 /**
  * The canvas with the bin floating over it. Press on an icon to pick it up; it follows the
- * pointer, lands where it is let go, and is destroyed if that is in the bin.
+ * pointer, lands where it is let go, and is destroyed if that is in the bin. Icons a craft
+ * drops that fall into the bin are destroyed too, and it lights up for each.
  */
-export function Stage({ canvasRef, renderer, client, size }: Props) {
+export function Stage({ canvasRef, renderer, client, flights, size }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const [bin, setBin] = useState<BinPlace>(BIN_HOME);
   const [hot, setHot] = useState(false);
+  const [flashing, setFlashing] = useState(false);
+  const flashRef = useRef(0);
   const [holding, setHolding] = useState(false);
   const canvas = canvasSize(size);
   const [box, setBox] = useState(canvas);
@@ -47,6 +55,24 @@ export function Stage({ canvasRef, renderer, client, size }: Props) {
     observer.observe(stage);
     return () => observer.disconnect();
   }, []);
+
+  // Where the bin is in world pixels, for the flights; its image's size, scaled to the world.
+  useEffect(() => {
+    if (!box.width) return;
+    const scale = canvas.width / box.width;
+    flights.setBin({
+      x: bin.fx * canvas.width,
+      y: bin.fy * canvas.height,
+      half: (BIN_ICON_SIZE / 2) * scale,
+      onCatch: () => {
+        setFlashing(true);
+        window.clearTimeout(flashRef.current);
+        flashRef.current = window.setTimeout(() => setFlashing(false), CATCH_FLASH_MS);
+      },
+    });
+    return () => flights.setBin(null);
+  }, [flights, bin, box.width, canvas.width, canvas.height]);
+  useEffect(() => () => window.clearTimeout(flashRef.current), []);
 
   /** A pointer event's place in world pixels, and whether it is over the bin. */
   const locate = (event: PointerEvent) => {
@@ -120,7 +146,7 @@ export function Stage({ canvasRef, renderer, client, size }: Props) {
           stageWidth={box.width}
           stageHeight={box.height}
           onMove={setBin}
-          hot={hot}
+          hot={hot || flashing}
         />
       </div>
       <p {...stylex.props(text.muted, styles.hint)}>{labels.stageHint}</p>

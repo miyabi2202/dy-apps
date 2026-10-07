@@ -57,11 +57,12 @@ export class PileRenderer {
   // By icon, since more removals can move them again before the next draw.
   private unstamped: number[] = [];
 
-  // The latest two frames, for interpolation; `prevAt` maps an icon to its place in `prev`.
+  // The latest two frames, for interpolation; `prevAt` and `curAt` map an icon to its place in each.
   private prev: Frame | null = null;
   private cur: Frame | null = null;
   private curArrived = 0;
   private readonly prevAt = new Map<number, number>();
+  private readonly curAt = new Map<number, number>();
 
   /** The icon the user is holding, drawn on top of the rest. */
   private held: Held | null = null;
@@ -110,6 +111,8 @@ export class PileRenderer {
     }
     this.prevAt.clear();
     if (this.prev) this.prev.movingIds.forEach((id, k) => this.prevAt.set(id, k));
+    this.curAt.clear();
+    frame.movingIds.forEach((id, k) => this.curAt.set(id, k));
     this.cur = frame;
     this.curArrived = now;
 
@@ -167,25 +170,28 @@ export class PileRenderer {
     return best;
   }
 
+  /** Where icon `id` is, at rest or as of the latest frame; null if it isn't here. */
+  private peek(id: number): { x: number; y: number; resting: boolean } | null {
+    const slot = this.slotOf.get(id);
+    if (slot !== undefined) {
+      return { x: this.restingXy[2 * slot]!, y: this.restingXy[2 * slot + 1]!, resting: true };
+    }
+    const k = this.curAt.get(id);
+    const { cur } = this;
+    if (cur && k !== undefined) {
+      return { x: cur.movingXy[2 * k]!, y: cur.movingXy[2 * k + 1]!, resting: false };
+    }
+    return null;
+  }
+
   /**
    * A flight takes icon `id`: where it is now, and off the resting layer if it was there
    * (the engine's frame will say the same a tick later). Null if it isn't here.
    */
   private take(id: number): { x: number; y: number } | null {
-    const slot = this.slotOf.get(id);
-    if (slot !== undefined) {
-      const at = { x: this.restingXy[2 * slot]!, y: this.restingXy[2 * slot + 1]! };
-      this.removeResting(id);
-      return at;
-    }
-    const { cur } = this;
-    if (cur) {
-      for (let k = 0; k < cur.movingIds.length; k++) {
-        if (cur.movingIds[k] === id)
-          return { x: cur.movingXy[2 * k]!, y: cur.movingXy[2 * k + 1]! };
-      }
-    }
-    return null;
+    const at = this.peek(id);
+    if (at?.resting) this.removeResting(id);
+    return at;
   }
 
   /** Draw the pile as of wall time `now` (ms) into `canvas`. */
@@ -256,12 +262,11 @@ export class PileRenderer {
         this.stamp(ctx, x, y);
       }
     }
-    this.flights?.draw(
-      ctx,
-      now,
-      (x, y, scale) => this.stamp(ctx, x, y, scale),
-      (id) => this.take(id),
-    );
+    this.flights?.draw(ctx, now, {
+      stamp: (x, y, scale) => this.stamp(ctx, x, y, scale),
+      take: (id) => this.take(id),
+      peek: (id) => this.peek(id),
+    });
     if (held) this.stamp(ctx, held.x, held.y, HELD_SCALE);
   }
 

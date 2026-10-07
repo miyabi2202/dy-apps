@@ -9,8 +9,9 @@ export interface BinPlace {
   fy: number;
 }
 
-/** The bin image's size on screen, in CSS px. */
-const ICON_SIZE = 50;
+/** The bin image's size on screen, in CSS px; a dropped icon falling within it is caught. */
+export const BIN_ICON_SIZE = 50;
+const ICON_SIZE = BIN_ICON_SIZE;
 /** The part of it that drags the bin, in CSS px: a little smaller, so its edge still picks up icons. */
 const DRAG_SIZE = 44;
 /** Where a held icon counts as over the bin, in CSS px: a little larger, so drops are forgiving. */

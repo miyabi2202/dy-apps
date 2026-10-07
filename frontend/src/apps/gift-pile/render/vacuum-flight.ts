@@ -7,6 +7,8 @@ import { drawSuction, drawVacuum, TIE_TO_NOZZLE, vacuumAt } from './vacuum';
 
 /** What the flights ask of the engine, through the worker; `PileClient` is one. */
 export interface FlightSink {
+  /** Icons in the pile right now, moving, resting or held. */
+  alive(): number;
   /** Drop `count` more icons in. */
   add(count: number): void;
   /** Set `count` icons aside for a flight, `extra` of them to be dropped back. */
@@ -30,6 +32,25 @@ export type Stamp = (x: number, y: number, scale?: number) => void;
  */
 export type Take = (id: number) => { x: number; y: number } | null;
 
+/** Where icon `id` is now and whether it is at rest, or null if the renderer doesn't have it. */
+export type Peek = (id: number) => { x: number; y: number; resting: boolean } | null;
+
+/** What the flights need from the renderer while drawing. */
+export interface Hooks {
+  stamp: Stamp;
+  take: Take;
+  peek: Peek;
+}
+
+/** The bin, in world pixels: a dropped icon whose centre comes within `half` of (x, y) is caught. */
+export interface BinTarget {
+  x: number;
+  y: number;
+  half: number;
+  /** Called each time the bin catches one. */
+  onCatch?: () => void;
+}
+
 interface Options {
   /** Random numbers in [0, 1). */
   rng?: () => number;
@@ -42,9 +63,9 @@ export const allCrafts = (): Craft[] => [new PaperPlane(), new HotAirBalloon(), 
 
 /** The most icons one craft carries; any more asked for go at once, without a flight. */
 export const VACUUM_CAPACITY = 2000;
-/** How many icons over the number asked for the vacuum takes, to spit back out on the way. */
-const EXTRA_SHARE = 0.12;
-const EXTRA_MAX = 12;
+/** The vacuum takes this many times the number asked for, and drops this share of what it took. */
+const TAKE_SHARE = 1.25;
+const DROP_SHARE = 0.5;
 
 // Timing, in ms, and geometry, in world (CSS) pixels.
 /** After a craft has crossed, it carries on out of sight for this long, while the last icons are drawn in. */
@@ -66,20 +87,32 @@ const SWIRL_TURNS = 3;
 const SUCKED_SCALE = 0.3;
 /** The nozzle passes this far above the highest icon it takes. */
 const NOZZLE_CLEARANCE = 46;
+/** A dropped icon the renderer can't find yet is given this long to show up in a frame before it is forgotten. */
+const FALLING_GRACE_MS = 500;
 /** When the extras are spat back out, as fractions of the crossing. */
 const DROP_FROM = 0.3;
 const DROP_TO = 0.8;
 
-/** How many to fly, how many extra to take and drop back, and how many to remove at once. */
-export function planRemoval(count: number): { fly: number; extra: number; instant: number } {
-  const fly = Math.min(count, VACUUM_CAPACITY);
-  const extra = fly === 0 ? 0 : Math.min(EXTRA_MAX, Math.max(1, Math.round(fly * EXTRA_SHARE)));
-  return { fly, extra, instant: count - fly };
+/**
+ * How a removal of `count` goes with `remaining` icons in the pile: how many the craft
+ * flies, how many of those it drops back, and how many go at once, over a craft's load.
+ * The vacuum takes a quarter more than asked for and drops half of what it took, so the
+ * pile loses at least five eighths of the number, and more for each dropped icon the bin
+ * catches; but with no more in the pile than asked for, it takes everything and keeps it.
+ */
+export function planRemoval(
+  count: number,
+  remaining: number,
+): { fly: number; drop: number; instant: number } {
+  if (count <= 0 || remaining <= 0) return { fly: 0, drop: 0, instant: 0 };
+  const take = count >= remaining ? remaining : Math.min(remaining, Math.round(count * TAKE_SHARE));
+  const fly = Math.min(take, VACUUM_CAPACITY);
+  const drop = count >= remaining ? 0 : Math.min(fly, Math.floor(take * DROP_SHARE));
+  return { fly, drop, instant: take - fly };
 }
 
-/** A press waiting its turn: icons to add, or a removal (a craft's load and any over that). */
-type Action =
-  { kind: 'add'; count: number } | { kind: 'remove'; fly: number; extra: number; instant: number };
+/** A press waiting its turn: icons to add, or icons to remove. */
+type Action = { kind: 'add'; count: number } | { kind: 'remove'; count: number };
 
 /** Where an icon is in its flight. */
 const WAITING = 0; // still in the pile, drawn by the renderer
@@ -115,9 +148,10 @@ interface Flight {
  * enters at the left towing a vacuum cleaner on a rope and crosses just above the pile. The
  * icons a flight is to take are set aside in the engine but stay in the pile until the
  * nozzle comes near each; then it is grabbed and sucked up, swinging and shrinking on the
- * way, and whatever rested on it falls as it goes. The vacuum takes a few more than asked
- * for and spits them back out over the pile, so what the pile loses is exactly the number
- * asked for. When the craft is out of sight, what it still holds is destroyed.
+ * way, and whatever rested on it falls as it goes. The vacuum takes a quarter more than
+ * asked for and spits half of what it took back out over the pile (see `planRemoval`);
+ * a dropped icon that falls into the bin is destroyed too, so the user can move the bin to
+ * catch them. When the craft is out of sight, what it still holds is destroyed.
  *
  * Presses queue, in order: a removal's craft sets off a little after the one before is gone,
  * so quick repeated presses send crafts one after another, never two at once, and an
@@ -134,6 +168,9 @@ export class VacuumFlights {
   private lastEnded = -Infinity;
   /** Every icon in a flight, waiting, lifting or inside. */
   private readonly inFlight = new Set<number>();
+  /** Icons spat out and still falling, which the bin may catch, and when each was dropped. */
+  private readonly falling = new Map<number, number>();
+  private bin: BinTarget | null = null;
   private readonly rng: () => number;
   private readonly crafts: readonly Craft[];
 
@@ -167,6 +204,11 @@ export class VacuumFlights {
     return this.inFlight.has(id);
   }
 
+  /** Where the bin is, for catching dropped icons; null while there is none. */
+  setBin(bin: BinTarget | null): void {
+    this.bin = bin;
+  }
+
   /** Add `count` icons, at wall time `now`: at once, or after any craft that is up is gone. */
   add(count: number, now: number): void {
     if (count <= 0) return;
@@ -175,13 +217,12 @@ export class VacuumFlights {
   }
 
   /**
-   * Remove `count` icons, at wall time `now`: a craft for as many as one carries, and the
-   * rest at once when its turn comes.
+   * Remove `count` icons, at wall time `now`: when its turn comes, a craft takes what
+   * `planRemoval` says from the pile as it is then, and the rest over a load goes at once.
    */
   remove(count: number, now: number): void {
-    const { fly, extra, instant } = planRemoval(count);
-    if (fly + instant <= 0) return;
-    this.queue.push({ kind: 'remove', fly, extra, instant });
+    if (count <= 0) return;
+    this.queue.push({ kind: 'remove', count });
     this.launch(now);
   }
 
@@ -192,6 +233,7 @@ export class VacuumFlights {
     this.awaiting = false;
     this.lastEnded = -Infinity;
     this.inFlight.clear();
+    this.falling.clear();
   }
 
   /** The icons the engine set aside for the next craft have arrived: it sets off at wall time `now`. */
@@ -267,23 +309,51 @@ export class VacuumFlights {
    * dropping and destroying them when their time has come, and working through the queue
    * when nothing is up.
    */
-  draw(ctx: CanvasRenderingContext2D, now: number, stamp: Stamp, take: Take): void {
+  draw(ctx: CanvasRenderingContext2D, now: number, hooks: Hooks): void {
+    this.catchFalling(hooks.peek, now);
     this.flights = this.flights.filter((flight) => {
       if (now >= flight.t0 + flight.course.crossMs + TAIL_MS) {
         flight.ids.forEach((id, k) => {
           if (flight.stage[k] === DROPPED) return;
           // One the suction never reached (the tab was hidden) still goes with the craft.
-          if (flight.stage[k] === WAITING) this.takeIcon(flight, k, take);
+          if (flight.stage[k] === WAITING) this.takeIcon(flight, k, hooks.take);
           this.sink.destroy(id);
           this.inFlight.delete(id);
         });
         this.lastEnded = now;
         return false;
       }
-      this.drawFlight(ctx, flight, now, stamp, take);
+      this.drawFlight(ctx, flight, now, hooks);
       return true;
     });
     this.launch(now);
+  }
+
+  /**
+   * Dropped icons that fall into the bin are destroyed; ones that land are forgotten, as are
+   * ones the renderer hasn't seen for a while (destroyed some other way). A just-dropped icon
+   * isn't in a frame until the engine has let it go, so it gets a moment to show up.
+   */
+  private catchFalling(peek: Peek, now: number): void {
+    if (this.falling.size === 0) return;
+    const { bin } = this;
+    for (const [id, since] of this.falling) {
+      const at = peek(id);
+      if (!at) {
+        if (now - since > FALLING_GRACE_MS) this.falling.delete(id);
+        continue;
+      }
+      if (at.resting) {
+        if (now - since > FALLING_GRACE_MS) this.falling.delete(id);
+        continue;
+      }
+      if (bin && Math.abs(at.x - bin.x) <= bin.half && Math.abs(at.y - bin.y) <= bin.half) {
+        this.falling.delete(id);
+        this.sink.grab(id);
+        this.sink.destroy(id);
+        bin.onCatch?.();
+      }
+    }
   }
 
   /**
@@ -301,10 +371,11 @@ export class VacuumFlights {
       }
       if (now - this.lastEnded < QUEUE_GAP_MS) return;
       this.queue.shift();
-      if (next.instant > 0) this.sink.remove(next.instant);
-      if (next.fly === 0) continue;
+      const { fly, drop, instant } = planRemoval(next.count, this.sink.alive());
+      if (instant > 0) this.sink.remove(instant);
+      if (fly === 0) continue;
       this.awaiting = true;
-      this.sink.scoop(next.fly + next.extra, next.extra);
+      this.sink.scoop(fly, drop);
     }
   }
 
@@ -320,13 +391,8 @@ export class VacuumFlights {
     f.stage[k] = LIFTING;
   }
 
-  private drawFlight(
-    ctx: CanvasRenderingContext2D,
-    f: Flight,
-    now: number,
-    stamp: Stamp,
-    take: Take,
-  ): void {
+  private drawFlight(ctx: CanvasRenderingContext2D, f: Flight, now: number, hooks: Hooks): void {
+    const { stamp, take } = hooks;
     const { craft, course } = f;
     const t = now - f.t0;
     const px = f.startX + f.speed * t;
@@ -342,6 +408,7 @@ export class VacuumFlights {
       if (f.stage[k] === WAITING) this.takeIcon(f, k, take);
       f.stage[k] = DROPPED;
       this.inFlight.delete(f.ids[k]!);
+      this.falling.set(f.ids[k]!, now);
       this.sink.release(f.ids[k]!, vacuum.exhaustX, vacuum.exhaustY);
     }
 

@@ -128,7 +128,13 @@ export function GiftPilePage() {
           />
         </Grid>
         <Panel xstyle={styles.stage}>
-          <Stage canvasRef={canvasRef} renderer={renderer} client={client} size={size} />
+          <Stage
+            canvasRef={canvasRef}
+            renderer={renderer}
+            client={client}
+            flights={flights}
+            size={size}
+          />
           {client.error && (
             <p {...stylex.props(text.muted)}>
               {labels.engineFailed} {client.error}

@@ -26,12 +26,16 @@ worker a `grab`: the icon leaves the engine entirely while held and the page dra
 pointer. Letting go sends `release` (it falls from there) or, over the bin, `destroy`. The
 renderer repaints only the removed icon's patch of the resting layer.
 
-## Removing: the plane and the vacuum
+## Removing: the crafts and the vacuum
 
-减少 doesn't delete icons on the spot. The page asks the worker to `scoop` them: the engine
-picks them roughly from the top of the pile down (each icon's height blurred by a few radii,
-so the top layer thins out unevenly), sets them aside so no later scoop takes them, and
-reports which in the next frame's `scooped`. They stay in the pile as they are.
+减少 doesn't delete icons on the spot. When its turn comes (see below), the page works out
+from the pile's count what to take (`planRemoval` in `render/vacuum-flight.ts`): a quarter
+more than asked for, half of which will be dropped back, or everything if the pile has no
+more than asked for. It asks the worker to `scoop` that many: the engine picks them roughly
+from the top of the pile down (each icon's height blurred by a few radii, so the top layer
+thins out unevenly), sets them aside so no later scoop takes them, and reports which in the
+next frame's `scooped`. They stay in the pile as they are.
+
 `render/vacuum-flight.ts` then sends a craft, picked at random, from the left to the right
 just above the pile, towing a vacuum cleaner (`render/vacuum.ts`) on a rope. The crafts live
 in `render/crafts/`, one file each implementing the `Craft` interface in `craft.ts` (how
@@ -40,14 +44,18 @@ scenery): a paper plane (Douyin's 纸飞机 emoji, mirrored and turned to point 
 a drawn hot-air balloon, and a hypercar, which runs up one half of a split bridge, jumps the
 gap in a ballistic arc and comes down onto the other, lower, half. The balloon is the slowest
 and the car the quickest, at three seconds. To add a craft, implement `Craft` and list it in
-`createPile()` in `gift-pile-page.tsx`. As the nozzle nears each icon the page `grab`s it, so
-whatever rested on it falls then and not before, and draws it being sucked up, swinging and
-shrinking on the way. The vacuum takes a few more than asked for and spits them out of its
-exhaust over the pile (`release`), so the pile loses exactly the number asked for; when the
-plane is out of sight the rest are `destroy`ed. Presses queue in order: each craft sets off a
-second after the one before is gone, so two are never up at once, and 添加 waits for any
-craft that is up (the panel counts those icons as 待添加 meanwhile). One plane carries at most `VACUUM_CAPACITY` icons; anything
-over that is removed at once, with no flight, to keep drawing cheap.
+`createPile()` in `gift-pile-page.tsx`.
+
+As the nozzle nears each icon the page `grab`s it, so whatever rested on it falls then and
+not before, and draws it being sucked up, swinging and shrinking on the way. The ones to drop
+are spat out of the exhaust over the pile (`release`) and fall as physics has them; the stage
+tells the flights where the bin is, and a dropped icon that falls into it is destroyed, with
+the bin lighting up, so moving the bin under the craft catches more. When the craft is out of
+sight the rest are `destroy`ed. Presses queue in order: each craft sets off a second after
+the one before is gone, so two are never up at once, and 添加 waits for any craft that is up
+(the panel counts those icons as 待添加 meanwhile). One craft carries at most
+`VACUUM_CAPACITY` icons; anything over that is removed at once, with no flight, to keep
+drawing cheap.
 
 ## How the pile stays honest
 

@@ -60,6 +60,11 @@ export class PileClient {
     this.ready = false;
   }
 
+  /** Icons in the world as of the latest frame: moving, resting or held. */
+  alive(): number {
+    return this.stats.total;
+  }
+
   /** Drop `count` more icons in. */
   add(count: number): void {
     this.send({ type: 'add', count });
