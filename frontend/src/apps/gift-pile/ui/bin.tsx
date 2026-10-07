@@ -10,11 +10,11 @@ export interface BinPlace {
 }
 
 /** The bin image's size on screen, in CSS px. */
-const ICON_SIZE = 50;
+const ICON_SIZE = 36;
 /** The part of it that drags the bin, in CSS px: a little smaller, so its edge still picks up icons. */
-const DRAG_SIZE = 44;
+const DRAG_SIZE = 32;
 /** Where a held icon counts as over the bin, in CSS px: a little larger, so drops are forgiving. */
-export const BIN_DROP_SIZE = 56;
+export const BIN_DROP_SIZE = 40;
 
 /** The Windows-style Recycle Bin by Icons8 (see the README for the credit). */
 const BIN_IMAGE = '/bin/recycle-bin.png';
