@@ -75,11 +75,15 @@ const BALLOON_STRIPES = 8;
 /** The hypercar: its length, and how far its centre sits above the road. */
 const CAR_L = 64;
 const CAR_LIFT = 12;
-/** The split bridge the car jumps: each half's run and rise, and how high the car jumps the gap. */
+/**
+ * The split bridge the car jumps: each half's run, its rise as a share of that, and how far
+ * below the left half's top the right half's top is, as a share of the rise, since a car
+ * comes down lower than it took off.
+ */
 const RAMP_RUN_SHARE = 0.28;
 const RAMP_RUN_MAX = 150;
-const RAMP_RISE_SHARE = 0.42;
-const JUMP_H = 55;
+const RAMP_RISE_SHARE = 0.5;
+const LANDING_DROP_SHARE = 0.6;
 /** The ramps fade in and out over this long. */
 const RAMP_FADE_MS = 300;
 
@@ -95,7 +99,8 @@ const CRAFTS: Record<Craft, { crossMs: number; hang: number; minY: number }> = {
     hang: BALLOON_R + BALLOON_SKIRT + BALLOON_LINES + BASKET_H,
     minY: BALLOON_R + 8,
   },
-  car: { crossMs: 4200, hang: CAR_LIFT, minY: JUMP_H + 24 },
+  // The car's minimum is worked out from its jump, which depends on the canvas's width.
+  car: { crossMs: 3000, hang: CAR_LIFT, minY: 0 },
 };
 const ALL_CRAFTS: readonly Craft[] = ['plane', 'balloon', 'car'];
 /**
@@ -162,10 +167,21 @@ interface Flight {
   inside: number;
 }
 
-/** The split bridge for a car's flight: each half's horizontal run and rise. */
-const ramps = (width: number) => {
+/**
+ * The split bridge for a car's flight: each half's horizontal run and rise, the gap between
+ * them, how far below the left half's top the right half's top is, and how high above the
+ * left top the jump peaks. The jump is the ballistic arc that leaves the left ramp along
+ * its slope, so the car's nose follows through smoothly rather than rearing up, and comes
+ * down onto the lower right half: `y(s) = -g·gap·s + (drop + g·gap)·s²` over the gap, for
+ * grade `g`.
+ */
+const bridge = (width: number) => {
   const run = Math.min(RAMP_RUN_MAX, width * RAMP_RUN_SHARE);
-  return { run, rise: run * RAMP_RISE_SHARE };
+  const rise = run * RAMP_RISE_SHARE;
+  const gap = width - 2 * run;
+  const drop = rise * LANDING_DROP_SHARE;
+  const launch = (rise / run) * gap;
+  return { run, rise, gap, drop, apex: (launch * launch) / (4 * (drop + launch)) };
 };
 
 /**
@@ -254,12 +270,15 @@ export class VacuumFlights {
     let top = Infinity;
     for (let k = 0; k < n; k++) top = Math.min(top, scoop.xy[2 * k + 1]!);
     const craft = this.crafts[Math.floor(rng() * this.crafts.length)] ?? 'plane';
-    const { crossMs, hang, minY } = CRAFTS[craft];
+    const { crossMs, hang } = CRAFTS[craft];
+    const minY = craft === 'car' ? bridge(world.width).apex + 24 : CRAFTS[craft].minY;
+    // How far below `altitude` the craft dips while over the pile: the car lands lower.
+    const sag = craft === 'car' ? bridge(world.width).drop : 0;
     // From the craft's centre down to the nozzle.
     const toNozzle = hang + ROPE + BODY_H / 2 + NOZZLE_DROP;
     const altitude = Math.min(
-      Math.max(minY, top - NOZZLE_CLEARANCE - toNozzle),
-      world.height - toNozzle,
+      Math.max(minY, top - NOZZLE_CLEARANCE - toNozzle - sag),
+      world.height - toNozzle - sag,
     );
     const startX = -OVERSHOOT;
     const speed = (world.width + 2 * OVERSHOOT) / crossMs;
@@ -369,19 +388,24 @@ export class VacuumFlights {
    */
   private pathAt(f: Flight, px: number, t: number): { py: number; tilt: number } {
     if (f.craft === 'car') {
-      const { run, rise } = ramps(f.width);
-      const gap = f.width - 2 * run;
+      const { run, rise, gap, drop } = bridge(f.width);
+      const grade = rise / run;
       if (px < run) {
         const s = Math.min(1, Math.max(0, px / run));
-        return { py: f.altitude + rise * (1 - s), tilt: px < 0 ? 0 : -Math.atan2(rise, run) };
+        return { py: f.altitude + rise * (1 - s), tilt: px < 0 ? 0 : -Math.atan(grade) };
       }
+      const launch = grade * gap;
       if (px <= run + gap) {
         const s = (px - run) / gap;
-        const slope = (-JUMP_H * 4 * (1 - 2 * s)) / gap;
-        return { py: f.altitude - JUMP_H * 4 * s * (1 - s), tilt: Math.atan(slope) };
+        const slope = (-launch + 2 * (drop + launch) * s) / gap;
+        return { py: f.altitude - launch * s + (drop + launch) * s * s, tilt: Math.atan(slope) };
       }
+      // Down the right half, settling from the landing angle onto the ramp's.
       const s = Math.min(1, (px - run - gap) / run);
-      return { py: f.altitude + rise * s, tilt: s < 1 ? Math.atan2(rise, run) : 0 };
+      const landing = Math.atan((launch + 2 * drop) / gap);
+      const settled = Math.min(1, s * 4);
+      const tilt = s < 1 ? landing + (Math.atan(grade) - landing) * settled : 0;
+      return { py: f.altitude + drop + rise * s, tilt };
     }
     const climbRun = (1 - CLIMB_FROM) * f.width + OVERSHOOT;
     const over = (px - CLIMB_FROM * f.width) / climbRun;
@@ -599,21 +623,21 @@ export class VacuumFlights {
 
   /**
    * The split bridge for the car: two halves rising from the sides towards the gap in the
-   * middle, like / and \, each a deck with a rail; they fade in as the flight starts and out
-   * as it ends.
+   * middle, like / and \, the right one lower, each a deck with a rail; they fade in as the
+   * flight starts and out as it ends.
    */
   private drawRamps(ctx: CanvasRenderingContext2D, f: Flight, t: number): void {
-    const { run, rise } = ramps(f.width);
-    const roadY = f.altitude + CAR_LIFT;
+    const { run, rise, drop } = bridge(f.width);
     const remaining = f.crossMs + TAIL_MS - t;
     const alpha = Math.min(1, t / RAMP_FADE_MS, remaining / RAMP_FADE_MS);
     ctx.save();
     ctx.globalAlpha = Math.max(0, alpha);
     ctx.lineCap = 'butt';
     for (const side of [-1, 1]) {
-      // From the canvas's edge up to the gap.
+      // From the canvas's edge up to the gap; the right half's top is lower.
       const edgeX = side < 0 ? 0 : f.width;
       const gapX = side < 0 ? run : f.width - run;
+      const roadY = f.altitude + CAR_LIFT + (side < 0 ? 0 : drop);
       // Deck.
       ctx.strokeStyle = '#475569';
       ctx.lineWidth = 7;

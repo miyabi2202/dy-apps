@@ -35,8 +35,8 @@ reports which in the next frame's `scooped`. They stay in the pile as they are.
 `render/vacuum-flight.ts` then sends a craft, picked at random, from the left to the right
 just above the pile, towing a vacuum cleaner on a rope: a paper plane (Douyin's 纸飞机 emoji,
 mirrored and turned to point along its path), a drawn hot-air balloon, or a hypercar, which
-runs up one half of a split bridge, jumps the gap and drives off down the other. The balloon
-is the slowest and the car the quickest, though none crosses in under four seconds. As the nozzle nears each icon the page `grab`s it, so
+runs up one half of a split bridge, jumps the gap in a ballistic arc and comes down onto the
+other, lower, half. The balloon is the slowest and the car the quickest, at three seconds. As the nozzle nears each icon the page `grab`s it, so
 whatever rested on it falls then and not before, and draws it being sucked up, swinging and
 shrinking on the way. The vacuum takes a few more than asked for and spits them out of its
 exhaust over the pile (`release`), so the pile loses exactly the number asked for; when the
