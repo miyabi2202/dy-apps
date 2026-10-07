@@ -40,8 +40,9 @@ other, lower, half. The balloon is the slowest and the car the quickest, at thre
 whatever rested on it falls then and not before, and draws it being sucked up, swinging and
 shrinking on the way. The vacuum takes a few more than asked for and spits them out of its
 exhaust over the pile (`release`), so the pile loses exactly the number asked for; when the
-plane is out of sight the rest are `destroy`ed. Removals queue, each craft setting off a
-second after the one before is gone, so two are never up at once. One plane carries at most `VACUUM_CAPACITY` icons; anything
+plane is out of sight the rest are `destroy`ed. Presses queue in order: each craft sets off a
+second after the one before is gone, so two are never up at once, and 添加 waits for any
+craft that is up (the panel counts those icons as 待添加 meanwhile). One plane carries at most `VACUUM_CAPACITY` icons; anything
 over that is removed at once, with no flight, to keep drawing cheap.
 
 ## How the pile stays honest

@@ -10,11 +10,15 @@ import { mulberry32 } from './helpers';
 
 /** Remembers what the flights ask of the engine. */
 class FakeSink implements FlightSink {
+  added: number[] = [];
   scoops: { count: number; extra: number }[] = [];
   removed: number[] = [];
   grabbed: number[] = [];
   released: { id: number; x: number; y: number }[] = [];
   destroyed: number[] = [];
+  add(count: number) {
+    this.added.push(count);
+  }
   scoop(count: number, extra: number) {
     this.scoops.push({ count, extra });
   }
@@ -70,17 +74,55 @@ describe('planRemoval', () => {
 });
 
 describe('VacuumFlights', () => {
-  it('asks for a scoop at once, and removes anything over a plane load on the spot', () => {
+  it('asks for a scoop at once, and removes anything over a load on the spot when its turn comes', () => {
     const sink = new FakeSink();
-    const flights = new VacuumFlights(sink);
+    const flights = new VacuumFlights(sink, { crafts: ['plane'] });
     flights.remove(30, 0);
     expect(sink.scoops).toEqual([{ count: 34, extra: 4 }]);
     expect(sink.removed).toEqual([]);
+    // The second removal waits for the first scoop to come back and its craft to go.
     flights.remove(VACUUM_CAPACITY + 10, 0);
-    expect(sink.removed).toEqual([10]);
-    // The second plane waits for the first scoop to come back and the first plane to go.
+    expect(sink.removed).toEqual([]);
     expect(sink.scoops).toHaveLength(1);
     expect(flights.queued).toBe(1);
+    flights.start(scoopOf(34, 4), world, 0);
+    const ctx = fakeContext();
+    for (let now = 0; now <= 7000; now += 100) flights.draw(ctx, now, noStamp, take);
+    expect(sink.removed).toEqual([10]);
+    expect(sink.scoops).toHaveLength(2);
+  });
+
+  it('adds at once when nothing is up, and after the craft is gone when one is', () => {
+    const sink = new FakeSink();
+    const flights = new VacuumFlights(sink, { rng: mulberry32(2), crafts: ['plane'] });
+    const ctx = fakeContext();
+    flights.add(50, 0);
+    expect(sink.added).toEqual([50]);
+    expect(flights.pendingAdds).toBe(0);
+
+    flights.remove(10, 0);
+    flights.start(scoopOf(11, 1), world, 0);
+    flights.add(20, 100);
+    flights.remove(10, 100);
+    flights.add(30, 100);
+    expect(sink.added).toEqual([50]);
+    expect(flights.pendingAdds).toBe(50);
+    expect(flights.queued).toBe(3);
+    flights.draw(ctx, 3000, noStamp, take);
+    expect(sink.added).toEqual([50]);
+    // The craft is gone: the first addition goes at once, then the next craft after the gap,
+    // and the last addition only once that one is gone too.
+    flights.draw(ctx, 5600, noStamp, take);
+    expect(sink.added).toEqual([50, 20]);
+    expect(flights.pendingAdds).toBe(30);
+    expect(sink.scoops).toHaveLength(1);
+    flights.draw(ctx, 6700, noStamp, take);
+    expect(sink.scoops).toHaveLength(2);
+    expect(sink.added).toEqual([50, 20]);
+    flights.start(scoopOf(11, 1, 200), world, 6700);
+    flights.draw(ctx, 6700 + 5500, noStamp, take);
+    expect(sink.added).toEqual([50, 20, 30]);
+    expect(flights.queued).toBe(0);
   });
 
   it('takes icons as the nozzle reaches them, drops the extras over the pile and destroys the rest once gone', () => {

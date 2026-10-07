@@ -2,6 +2,8 @@ import type { Scoop } from '../core/protocol';
 
 /** What the flights ask of the engine, through the worker; `PileClient` is one. */
 export interface FlightSink {
+  /** Drop `count` more icons in. */
+  add(count: number): void;
   /** Set `count` icons aside for a flight, `extra` of them to be dropped back. */
   scoop(count: number, extra: number): void;
   /** Destroy `count` icons at once. */
@@ -131,6 +133,10 @@ export function planRemoval(count: number): { fly: number; extra: number; instan
   return { fly, extra, instant: count - fly };
 }
 
+/** A press waiting its turn: icons to add, or a removal (a craft's load and any over that). */
+type Action =
+  { kind: 'add'; count: number } | { kind: 'remove'; fly: number; extra: number; instant: number };
+
 /** Where an icon is in its flight. */
 const WAITING = 0; // still in the pile, drawn by the renderer
 const LIFTING = 1; // grabbed, on its way into the nozzle
@@ -195,14 +201,15 @@ const bridge = (width: number) => {
  * for and spits them back out over the pile, so what the pile loses is exactly the number
  * asked for. When the plane is out of sight, what it still holds is destroyed.
  *
- * Removals queue: a plane sets off when the one before is well across, so quick repeated
- * presses send planes one after another rather than all at once. Every icon a flight takes
- * ends up released or destroyed: on the tick the plane is gone, and at once on `reset()`,
- * since the engine has already let go of everything then.
+ * Presses queue, in order: a removal's craft sets off a little after the one before is gone,
+ * so quick repeated presses send crafts one after another, never two at once, and an
+ * addition waits for any craft that is up, so icons don't rain down through a removal.
+ * Every icon a flight takes ends up released or destroyed: on the tick the craft is gone,
+ * and at once on `reset()`, since the engine has already let go of everything then.
  */
 export class VacuumFlights {
   private flights: Flight[] = [];
-  private readonly queue: { fly: number; extra: number }[] = [];
+  private readonly queue: Action[] = [];
   /** A scoop has been asked for and its icons haven't come back in a frame yet. */
   private awaiting = false;
   /** When the last flight ended, for the gap before the next. */
@@ -231,9 +238,16 @@ export class VacuumFlights {
     return this.flights.length;
   }
 
-  /** Removals waiting for a plane. */
+  /** Presses waiting their turn. */
   get queued(): number {
     return this.queue.length;
+  }
+
+  /** Icons asked for but still waiting on a craft to be gone before they drop in. */
+  get pendingAdds(): number {
+    let n = 0;
+    for (const action of this.queue) if (action.kind === 'add') n += action.count;
+    return n;
   }
 
   /** Icon `id` belongs to a flight, so the user can't pick it up. */
@@ -241,14 +255,21 @@ export class VacuumFlights {
     return this.inFlight.has(id);
   }
 
+  /** Add `count` icons, at wall time `now`: at once, or after any craft that is up is gone. */
+  add(count: number, now: number): void {
+    if (count <= 0) return;
+    this.queue.push({ kind: 'add', count });
+    this.launch(now);
+  }
+
   /**
-   * Remove `count` icons, at wall time `now`: a plane for as many as one carries, queued
-   * behind any already going, and the rest at once.
+   * Remove `count` icons, at wall time `now`: a craft for as many as one carries, and the
+   * rest at once when its turn comes.
    */
   remove(count: number, now: number): void {
     const { fly, extra, instant } = planRemoval(count);
-    if (instant > 0) this.sink.remove(instant);
-    if (fly > 0) this.queue.push({ fly, extra });
+    if (fly + instant <= 0) return;
+    this.queue.push({ kind: 'remove', fly, extra, instant });
     this.launch(now);
   }
 
@@ -359,13 +380,26 @@ export class VacuumFlights {
     this.launch(now);
   }
 
-  /** Send the next queued craft off, if none is going and the last has been gone long enough. */
+  /**
+   * Work through the queue while nothing is up: additions go at once; a removal's craft
+   * sets off once the last has been gone long enough, and nothing more until it is gone too.
+   */
   private launch(now: number): void {
-    if (this.awaiting || this.queue.length === 0 || this.flights.length > 0) return;
-    if (now - this.lastEnded < QUEUE_GAP_MS) return;
-    const { fly, extra } = this.queue.shift()!;
-    this.awaiting = true;
-    this.sink.scoop(fly + extra, extra);
+    while (!this.awaiting && this.flights.length === 0) {
+      const next = this.queue[0];
+      if (!next) return;
+      if (next.kind === 'add') {
+        this.queue.shift();
+        this.sink.add(next.count);
+        continue;
+      }
+      if (now - this.lastEnded < QUEUE_GAP_MS) return;
+      this.queue.shift();
+      if (next.instant > 0) this.sink.remove(next.instant);
+      if (next.fly === 0) continue;
+      this.awaiting = true;
+      this.sink.scoop(next.fly + next.extra, next.extra);
+    }
   }
 
   /** Icon `k` of `f` leaves the pile for the flight, lifting from wherever it is now. */

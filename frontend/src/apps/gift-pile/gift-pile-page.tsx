@@ -31,18 +31,19 @@ function createPile() {
   return { client, renderer, flights };
 }
 
-const readStats = (client: PileClient): PileStats => ({
+/** Waiting icons are those the engine hasn't released yet plus those waiting on a craft to go. */
+const readStats = (client: PileClient, flights: VacuumFlights): PileStats => ({
   total: client.stats.total,
   falling: client.stats.moving,
-  queued: client.stats.queued,
+  queued: client.stats.queued + flights.pendingAdds,
 });
 
 /** The counts, polled a few times a second rather than re-rendering React every frame. */
-function useStats(client: PileClient): PileStats {
-  const [stats, setStats] = useState(() => readStats(client));
+function useStats(client: PileClient, flights: VacuumFlights): PileStats {
+  const [stats, setStats] = useState(() => readStats(client, flights));
   useEffect(() => {
     const id = setInterval(() => {
-      const next = readStats(client);
+      const next = readStats(client, flights);
       setStats((prev) =>
         prev.total === next.total && prev.falling === next.falling && prev.queued === next.queued
           ? prev
@@ -50,7 +51,7 @@ function useStats(client: PileClient): PileStats {
       );
     }, STATS_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [client]);
+  }, [client, flights]);
   return stats;
 }
 
@@ -65,7 +66,7 @@ export function GiftPilePage() {
   const [{ client, renderer, flights }] = useState(createPile);
   const [size, setSize] = useState<WorldSize>(() => sizeStore.read());
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const stats = useStats(client);
+  const stats = useStats(client, flights);
 
   // The worker starts with the default size; tell it the saved one (queued until ready).
   useEffect(() => {
@@ -115,7 +116,7 @@ export function GiftPilePage() {
           <ControlPanel
             stats={stats}
             maxItems={PILE.maxItems}
-            onAdd={(count) => client.add(count)}
+            onAdd={(count) => flights.add(count, performance.now())}
             onRemove={(count) => flights.remove(count, performance.now())}
             onClear={() => client.clear()}
           />
