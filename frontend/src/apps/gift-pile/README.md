@@ -44,7 +44,7 @@ free licence, which asks for this link.
 
 ## Edge cases
 
-[edge-cases.md](edge-cases.md) lists every floating-icon, counting and rendering case found so
+[edge-cases.md](edge-cases.md) lists every way an icon has been left floating in the air so
 far, with a reproduction and the invariant to assert, for turning into tests.
 
 ## TODO
