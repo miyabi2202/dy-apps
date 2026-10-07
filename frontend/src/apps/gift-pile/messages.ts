@@ -11,7 +11,7 @@ export const testIds = {
 } as const;
 
 export const labels = {
-  title: '嘉年华堆堆乐',
+  title: '嘉年华堆堆乐（WIP）',
   subtitle: '输入数量，嘉年华从画面顶部落下，堆成一座山',
   panel: '添加嘉年华',
   count: '数量',
