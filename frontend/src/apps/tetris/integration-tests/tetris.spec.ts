@@ -5,6 +5,7 @@ import {
   testIds as uiTestIds,
 } from '@dy-apps/ui/messages';
 import { expect, test, type Page } from '@playwright/test';
+import { CONFIG } from '../core/config';
 import { labels, testIds } from '../messages';
 import { meta } from '../meta';
 
@@ -176,14 +177,15 @@ test('holding a move key auto-repeats with DAS/ARR', async ({ page }) => {
   expect(rightmost).toBe(9);
 });
 
-test('rapid hard drops lock once each and settle every third piece', async ({ page }) => {
+test('rapid hard drops lock once each and settle once per round', async ({ page }) => {
+  const round = CONFIG.settlement.everyLocks;
   await page.getByRole('button', { name: labels.start }).click();
-  for (let i = 0; i < 6; i += 1) await page.keyboard.press('Space');
+  for (let i = 0; i < round * 2; i += 1) await page.keyboard.press('Space');
   const s = await engineState(page);
-  expect(s.locks).toBe(6);
+  expect(s.locks).toBe(round * 2);
   expect(s.settlements).toBe(2);
   expect(s.active).not.toBeNull();
-  await expect(page.getByTestId(testIds.countdown)).toContainText('再落下 3 块');
+  await expect(page.getByTestId(testIds.countdown)).toContainText(`再落下 ${round} 块`);
 });
 
 test('hiding the tab pauses; returning does not resume or catch up', async ({ page }) => {
