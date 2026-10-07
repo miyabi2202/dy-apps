@@ -35,9 +35,17 @@ export interface PileSettings {
   pxPerMetre: number;
   /**
    * Stiffness of contacts, in Hz. The engine's default of 30 lets a fast, heavy stream sink
-   * icons into each other by most of a radius; at 120 they stay within a pixel.
+   * icons into each other by most of a radius; at 120 they stay within a pixel. Soft contacts
+   * only calm down when `contactHz <= solverSubsteps × stepHz / 4`; above that a deep moving
+   * mass jitters for good.
    */
   contactHz: number;
+  /**
+   * Solver substeps per physics step. Rapier's default of 4 gives 240 Hz, which can't settle
+   * 120 Hz contacts: after a bulk removal a 9,000-icon column took 67 s to come to rest. At 8
+   * (480 Hz) it takes 7 s, resting icons overlap by half a pixel, and a step costs the same.
+   */
+  solverSubsteps: number;
   /** Physics steps per second. */
   stepHz: number;
   /**
@@ -67,6 +75,7 @@ export const PILE: PileSettings = {
   friction: 0.6,
   pxPerMetre: 16,
   contactHz: 120,
+  solverSubsteps: 8,
   stepHz: 60,
   settle: { speed: 30, steps: 6, overlap: 1, maxSteps: 120 },
   heapAge: 20,

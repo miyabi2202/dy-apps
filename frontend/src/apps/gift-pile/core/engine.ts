@@ -295,10 +295,33 @@ export class PileEngine {
   step(): void {
     this.stepCount++;
     this.spawn();
-    this.world.step();
+    this.stepWorld();
     this.settle();
     // Sweep every few steps while the pile changes, and at once when it has come to rest.
     if (this.dirty && (this.movingLen === 0 || ++this.sinceSweep >= SWEEP_EVERY)) this.sweep();
+  }
+
+  /**
+   * One physics step. `World.step()` would do the same and then rescan every body and
+   * collider to wrap any the simulation itself created or removed (soft-body debris), which
+   * this engine never has; that scan is O(all colliders) and costs 13 ms a step at 100,000
+   * resting icons, so the pipeline is stepped directly.
+   */
+  private stepWorld(): void {
+    const w = this.world;
+    w.physicsPipeline.step(
+      w.gravity,
+      w.integrationParameters,
+      w.islands,
+      w.broadPhase,
+      w.narrowPhase,
+      w.bodies,
+      w.colliders,
+      w.softBodies,
+      w.impulseJoints,
+      w.multibodyJoints,
+      w.ccdSolver,
+    );
   }
 
   /** A world with the floor and walls in it, in metres. */
@@ -307,6 +330,7 @@ export class PileEngine {
     const world = new R.World({ x: 0, y: settings.gravity * scale });
     world.timestep = this.dt;
     world.integrationParameters.contact_natural_frequency = settings.contactHz;
+    world.numSolverIterations = settings.solverSubsteps;
     const m = this.margin * scale;
     const w = this.width * scale;
     const h = this.height * scale;
@@ -538,7 +562,8 @@ export class PileEngine {
       const dy = py - this.anchorY[i]!;
       if (dx * dx + dy * dy > SUPPORT_DRIFT * SUPPORT_DRIFT) this.wakeDependents(i);
     }
-    this.dirty = true;
+    // Resting can't leave anything unreached, so no sweep is needed for it: only leaving
+    // rest (`unfix`) marks the graph dirty, and a pure stream never sweeps.
   }
 
   /** Resting icon `i` leaves the pile: its fixed circle goes, and the renderer is told. */
