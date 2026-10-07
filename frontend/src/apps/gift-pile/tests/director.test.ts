@@ -70,7 +70,7 @@ describe('FlightDirector', () => {
     sink.inPile = 5000;
     const flights = new FlightDirector(sink, { crafts: [new PaperPlane()] });
     flights.remove(30, 0);
-    expect(sink.scoops).toEqual([{ count: 38, extra: 19 }]);
+    expect(sink.scoops).toEqual([{ count: 38, extra: 7 }]);
     expect(sink.removed).toEqual([]);
     // The second removal waits for the first scoop to come back and its craft to go, and
     // is planned from the pile as it is then.
@@ -78,13 +78,13 @@ describe('FlightDirector', () => {
     expect(sink.removed).toEqual([]);
     expect(sink.scoops).toHaveLength(1);
     expect(flights.queued).toBe(1);
-    flights.onScoop(scoopOf(38, 19), world, 0);
+    flights.onScoop(scoopOf(38, 7), world, 0);
     const ctx = fakeContext();
     sink.inPile = 30;
     for (let now = 0; now <= 7000; now += 100) flights.draw(ctx, now, hooks);
     expect(sink.removed).toEqual([]);
     expect(sink.scoops).toEqual([
-      { count: 38, extra: 19 },
+      { count: 38, extra: 7 },
       { count: 30, extra: 0 },
     ]);
   });

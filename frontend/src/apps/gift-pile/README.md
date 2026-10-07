@@ -30,7 +30,7 @@ renderer repaints only the removed icon's patch of the resting layer.
 
 减少 doesn't delete icons on the spot. When its turn comes (see below), the page works out
 from the pile's count what to take (`planRemoval` in `flights/queue.ts`): a quarter
-more than asked for, half of which will be dropped back, or everything if the pile has no
+more than asked for, a fifth of which (a quarter of the number asked for) will be dropped back, or everything if the pile has no
 more than asked for. It asks the worker to `scoop` that many: the engine picks them roughly
 from the top of the pile down (each icon's height blurred by a few radii, so the top layer
 thins out unevenly), sets them aside so no later scoop takes them, and reports which in the

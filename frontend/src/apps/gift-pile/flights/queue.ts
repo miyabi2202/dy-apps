@@ -2,17 +2,17 @@ import type { FlightSink } from './sink';
 
 /** The most icons one craft carries; any more asked for go at once, without a flight. */
 export const VACUUM_CAPACITY = 2000;
-/** The vacuum takes this many times the number asked for, and drops this share of what it took. */
+/** The vacuum takes this many times the number asked for, and drops this share of what it took (a fifth, so a quarter of the number asked for). */
 const TAKE_SHARE = 1.25;
-const DROP_SHARE = 0.5;
+const DROP_SHARE = 0.2;
 /** The next queued craft sets off this long after the one before is gone, so two are never up at once. */
 const QUEUE_GAP_MS = 1000;
 
 /**
  * How a removal of `count` goes with `remaining` icons in the pile: how many the craft
  * flies, how many of those it drops back, and how many go at once, over a craft's load.
- * The vacuum takes a quarter more than asked for and drops half of what it took, so the
- * pile loses at least five eighths of the number, and more for each dropped icon the bin
+ * The vacuum takes a quarter more than asked for and drops a fifth of what it took (a quarter
+ * of the number), so the pile loses at least the number, and more for each dropped icon the bin
  * catches; but with no more in the pile than asked for, it takes everything and keeps it.
  */
 export function planRemoval(
