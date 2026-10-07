@@ -323,7 +323,7 @@ export class VacuumFlights {
       const last = bag.length - 1;
       if (bag.length > 1 && bag[last] === this.lastCraft) {
         const j = Math.floor(this.rng() * last);
-        [bag[last], bag[j]] = [bag[j]!, bag[last]!];
+        [bag[last], bag[j]] = [bag[j]!, bag[last]];
       }
       this.bag = bag;
     }
