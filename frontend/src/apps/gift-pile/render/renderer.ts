@@ -1,6 +1,6 @@
 import type { PileSettings } from '../core/config';
 import type { Frame } from '../core/protocol';
-import type { VacuumFlights } from './vacuum-flight';
+import type { Overlay } from './overlay';
 import { createGiftSprite } from './sprite';
 
 /** Makes the icon image at a pixel ratio from the gift image, or without one; a test can return anything. */
@@ -30,8 +30,8 @@ const HELD_SCALE = 1.2;
  *
  * Frames arrive at the physics rate and draws happen at the display rate, so a moving icon
  * is drawn between where the last two frames put it, by how long ago the latest arrived.
- * Icons the worker has scooped for removal are handed to the flights, which draw each from
- * the moment they take it.
+ * Icons the worker has scooped for removal are handed to the overlay (the flights), which
+ * draws each from the moment it takes it.
  *
  * The canvas is sized to its CSS box × devicePixelRatio and the world scaled into it, so the
  * icons stay crisp at any page width. The resting layer is repainted when that ratio
@@ -79,7 +79,7 @@ export class PileRenderer {
     private readonly stage: Stage,
     private readonly createSprite: CreateSprite = createGiftSprite,
     /** Carries scooped icons away; without one they just vanish. */
-    private readonly flights: VacuumFlights | null = null,
+    private readonly overlay: Overlay | null = null,
   ) {
     this.world = stage.world;
   }
@@ -105,7 +105,7 @@ export class PileRenderer {
       this.stamped = 0;
       this.pixelRatio = 0;
       this.prev = null;
-      this.flights?.reset();
+      this.overlay?.reset();
     } else {
       this.prev = this.cur;
     }
@@ -133,7 +133,7 @@ export class PileRenderer {
     this.restingXy.set(frame.settledXy, this.restingCount * 2);
     this.restingCount += frame.settledIds.length;
     frame.wokenIds.forEach((id) => this.removeResting(id));
-    for (const scoop of frame.scooped) this.flights?.start(scoop, this.world, now);
+    for (const scoop of frame.scooped) this.overlay?.onScoop(scoop, this.world, now);
   }
 
   /**
@@ -145,13 +145,13 @@ export class PileRenderer {
     const r2 = r * r;
     let best: number | null = null;
     let bestD2 = r2;
-    const { cur, flights } = this;
+    const { cur, overlay } = this;
     if (cur) {
       for (let k = 0; k < cur.movingIds.length; k++) {
         const dx = cur.movingXy[2 * k]! - x;
         const dy = cur.movingXy[2 * k + 1]! - y;
         const d2 = dx * dx + dy * dy;
-        if (d2 <= bestD2 && !flights?.holds(cur.movingIds[k]!)) {
+        if (d2 <= bestD2 && !overlay?.holds(cur.movingIds[k]!)) {
           bestD2 = d2;
           best = cur.movingIds[k]!;
         }
@@ -162,7 +162,7 @@ export class PileRenderer {
       const dx = this.restingXy[2 * k]! - x;
       const dy = this.restingXy[2 * k + 1]! - y;
       const d2 = dx * dx + dy * dy;
-      if (d2 <= bestD2 && !flights?.holds(this.restingIds[k]!)) {
+      if (d2 <= bestD2 && !overlay?.holds(this.restingIds[k]!)) {
         bestD2 = d2;
         best = this.restingIds[k]!;
       }
@@ -185,7 +185,7 @@ export class PileRenderer {
   }
 
   /**
-   * A flight takes icon `id`: where it is now, and off the resting layer if it was there
+   * The overlay takes icon `id`: where it is now, and off the resting layer if it was there
    * (the engine's frame will say the same a tick later). Null if it isn't here.
    */
   private take(id: number): { x: number; y: number } | null {
@@ -262,7 +262,7 @@ export class PileRenderer {
         this.stamp(ctx, x, y);
       }
     }
-    this.flights?.draw(ctx, now, {
+    this.overlay?.draw(ctx, now, {
       stamp: (x, y, scale) => this.stamp(ctx, x, y, scale),
       take: (id) => this.take(id),
       peek: (id) => this.peek(id),

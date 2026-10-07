@@ -6,7 +6,7 @@ import { canvasSize } from '../core/config';
 import { labels, testIds } from '../messages';
 import type { PileClient } from '../pile-client';
 import type { PileRenderer } from '../render/renderer';
-import type { VacuumFlights } from '../render/vacuum-flight';
+import type { FlightDirector } from '../flights/director';
 import type { WorldSize } from '../settings';
 import { Bin, BIN_DROP_SIZE, BIN_ICON_SIZE, type BinPlace } from './bin';
 
@@ -15,7 +15,7 @@ interface Props {
   renderer: PileRenderer;
   client: PileClient;
   /** Told where the bin is, so icons a craft drops into it are destroyed. */
-  flights: VacuumFlights;
+  director: FlightDirector;
   /** The play area; the canvas is this plus the margin. */
   size: WorldSize;
 }
@@ -30,7 +30,7 @@ const CATCH_FLASH_MS = 250;
  * pointer, lands where it is let go, and is destroyed if that is in the bin. Icons a craft
  * drops that fall into the bin are destroyed too, and it lights up for each.
  */
-export function Stage({ canvasRef, renderer, client, flights, size }: Props) {
+export function Stage({ canvasRef, renderer, client, director, size }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const [bin, setBin] = useState<BinPlace>(BIN_HOME);
   const [hot, setHot] = useState(false);
@@ -56,11 +56,11 @@ export function Stage({ canvasRef, renderer, client, flights, size }: Props) {
     return () => observer.disconnect();
   }, []);
 
-  // Where the bin is in world pixels, for the flights; its image's size, scaled to the world.
+  // Where the bin is in world pixels, for the director; its image's size, scaled to the world.
   useEffect(() => {
     if (!box.width) return;
     const scale = canvas.width / box.width;
-    flights.setBin({
+    director.setBin({
       x: bin.fx * canvas.width,
       y: bin.fy * canvas.height,
       half: (BIN_ICON_SIZE / 2) * scale,
@@ -70,8 +70,8 @@ export function Stage({ canvasRef, renderer, client, flights, size }: Props) {
         flashRef.current = window.setTimeout(() => setFlashing(false), CATCH_FLASH_MS);
       },
     });
-    return () => flights.setBin(null);
-  }, [flights, bin, box.width, canvas.width, canvas.height]);
+    return () => director.setBin(null);
+  }, [director, bin, box.width, canvas.width, canvas.height]);
   useEffect(() => () => window.clearTimeout(flashRef.current), []);
 
   /** A pointer event's place in world pixels, and whether it is over the bin. */

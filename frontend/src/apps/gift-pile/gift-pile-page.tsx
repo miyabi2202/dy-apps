@@ -2,64 +2,15 @@ import { Column, Grid, Page, Panel, text } from '@dy-apps/ui';
 import { space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useRef, useState } from 'react';
-import { canvasSize, PILE } from './core/config';
+import { PILE } from './core/config';
+import { createPile } from './create-pile';
 import { startPileLoop } from './loop';
 import { labels } from './messages';
-import { PileClient } from './pile-client';
-import { HotAirBalloon } from './render/crafts/hot-air-balloon';
-import { Hypercar } from './render/crafts/hypercar';
-import { PaperPlane, PLANE_URL } from './render/crafts/paper-plane';
-import { PileRenderer } from './render/renderer';
-import { createGiftSprite, GIFT_ICON_URL, loadImage } from './render/sprite';
-import { VacuumFlights } from './render/vacuum-flight';
 import { sizeStore, type WorldSize } from './settings';
-import { ControlPanel, type PileStats } from './ui/control-panel';
+import { ControlPanel } from './ui/control-panel';
 import { SizePanel } from './ui/size-panel';
 import { Stage } from './ui/stage';
-
-/** How often the counts on the panel refresh; the canvas itself redraws every frame. */
-const STATS_INTERVAL_MS = 200;
-
-/** The worker's client, the flights that carry removed icons off, and the renderer they feed. */
-function createPile() {
-  const client = new PileClient({
-    onFrame: (frame) => renderer.pushFrame(frame, performance.now()),
-  });
-  const plane = new PaperPlane();
-  const flights = new VacuumFlights(client, {
-    crafts: [plane, new HotAirBalloon(), new Hypercar()],
-  });
-  const renderer = new PileRenderer(
-    { ...PILE, world: canvasSize(PILE.world) },
-    createGiftSprite,
-    flights,
-  );
-  return { client, renderer, flights, plane };
-}
-
-/** Waiting icons are those the engine hasn't released yet plus those waiting on a craft to go. */
-const readStats = (client: PileClient, flights: VacuumFlights): PileStats => ({
-  total: client.stats.total,
-  falling: client.stats.moving,
-  queued: client.stats.queued + flights.pendingAdds,
-});
-
-/** The counts, polled a few times a second rather than re-rendering React every frame. */
-function useStats(client: PileClient, flights: VacuumFlights): PileStats {
-  const [stats, setStats] = useState(() => readStats(client, flights));
-  useEffect(() => {
-    const id = setInterval(() => {
-      const next = readStats(client, flights);
-      setStats((prev) =>
-        prev.total === next.total && prev.falling === next.falling && prev.queued === next.queued
-          ? prev
-          : next,
-      );
-    }, STATS_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [client, flights]);
-  return stats;
-}
+import { useStats } from './use-stats';
 
 /**
  * The 嘉年华堆堆乐 route: the canvas-size panel, then the adding panel (always last), above
@@ -69,10 +20,10 @@ function useStats(client: PileClient, flights: VacuumFlights): PileStats {
  * unmounts (so StrictMode's extra mount in development just restarts it).
  */
 export function GiftPilePage() {
-  const [{ client, renderer, flights, plane }] = useState(createPile);
+  const [{ client, renderer, director, loadImages }] = useState(createPile);
   const [size, setSize] = useState<WorldSize>(() => sizeStore.read());
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const stats = useStats(client, flights);
+  const stats = useStats(client, director);
 
   // The worker starts with the default size; tell it the saved one (queued until ready).
   useEffect(() => {
@@ -91,19 +42,7 @@ export function GiftPilePage() {
   };
   useEffect(() => startPileLoop(renderer, () => canvasRef.current), [renderer]);
 
-  // The gift and plane images, once they have loaded; drawn stand-ins show until then.
-  useEffect(() => {
-    let mounted = true;
-    void loadImage(GIFT_ICON_URL).then((image) => {
-      if (mounted) renderer.setImage(image);
-    });
-    void loadImage(PLANE_URL).then((image) => {
-      if (mounted) plane.setImage(image);
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [renderer, plane]);
+  useEffect(loadImages, [loadImages]);
 
   // Test/debug hook for browser tests and manual inspection.
   useEffect(() => {
@@ -122,8 +61,8 @@ export function GiftPilePage() {
           <ControlPanel
             stats={stats}
             maxItems={PILE.maxItems}
-            onAdd={(count) => flights.add(count, performance.now())}
-            onRemove={(count) => flights.remove(count, performance.now())}
+            onAdd={(count) => director.add(count, performance.now())}
+            onRemove={(count) => director.remove(count, performance.now())}
             onClear={() => client.clear()}
           />
         </Grid>
@@ -132,7 +71,7 @@ export function GiftPilePage() {
             canvasRef={canvasRef}
             renderer={renderer}
             client={client}
-            flights={flights}
+            director={director}
             size={size}
           />
           {client.error && (

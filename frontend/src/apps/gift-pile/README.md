@@ -29,32 +29,35 @@ renderer repaints only the removed icon's patch of the resting layer.
 ## Removing: the crafts and the vacuum
 
 减少 doesn't delete icons on the spot. When its turn comes (see below), the page works out
-from the pile's count what to take (`planRemoval` in `render/vacuum-flight.ts`): a quarter
+from the pile's count what to take (`planRemoval` in `flights/queue.ts`): a quarter
 more than asked for, half of which will be dropped back, or everything if the pile has no
 more than asked for. It asks the worker to `scoop` that many: the engine picks them roughly
 from the top of the pile down (each icon's height blurred by a few radii, so the top layer
 thins out unevenly), sets them aside so no later scoop takes them, and reports which in the
 next frame's `scooped`. They stay in the pile as they are.
 
-`render/vacuum-flight.ts` then sends a craft, dealt from a shuffle bag so each comes up once
-in every three flights and never twice running, from the left to the right
-just above the pile, towing a vacuum cleaner (`render/vacuum.ts`) on a rope. The crafts live
-in `render/crafts/`, one file each implementing the `Craft` interface in `craft.ts` (how
+The `FlightDirector` (`flights/director.ts`) then sends a craft, dealt from a shuffle bag so
+each comes up once in every three flights and never twice running, from the left to the
+right just above the pile, towing a vacuum cleaner (`flights/vacuum.ts`) on a rope: one
+`Flight` (`flights/flight.ts`) at a time, drawn as the renderer's `Overlay`
+(`render/overlay.ts`). The crafts live in `flights/crafts/`, one file each implementing the
+`Craft` interface in `craft.ts` (how
 long it takes to cross, where the rope ties on, its path, and how to draw it and any
 scenery): a paper plane (Douyin's 纸飞机 emoji, mirrored and turned to point along its path),
 a drawn hot-air balloon, and a hypercar, which runs up one half of a split bridge, jumps the
 gap in a ballistic arc and comes down onto the other, lower, half. The balloon is the slowest
 and the car the quickest, at three seconds. To add a craft, implement `Craft` and list it in
-`createPile()` in `gift-pile-page.tsx`.
+`createPile()` in `create-pile.ts`, where everything the page drives is wired together.
 
 As the nozzle nears each icon the page `grab`s it, so whatever rested on it falls then and
 not before, and draws it being sucked up, swinging and shrinking on the way. The ones to drop
 are spat out of the exhaust over the pile (`release`) and fall as physics has them; the stage
 tells the flights where the bin is, and a dropped icon that falls into it is destroyed, with
 the bin lighting up, so moving the bin under the craft catches more. When the craft is out of
-sight the rest are `destroy`ed. Presses queue in order: each craft sets off a second after
-the one before is gone, so two are never up at once, and 添加 waits for any craft that is up
-(the panel counts those icons as 待添加 meanwhile). One craft carries at most
+sight the rest are `destroy`ed. Presses queue in order (`ActionQueue` in `flights/queue.ts`):
+each craft sets off a second after the one before is gone, so two are never up at once, and
+添加 waits for any craft that is up (the panel counts those icons as 待添加 meanwhile). One
+craft carries at most
 `VACUUM_CAPACITY` icons; anything over that is removed at once, with no flight, to keep
 drawing cheap.
 
