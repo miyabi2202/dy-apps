@@ -37,5 +37,6 @@ export function frame(
     settledIds: Int32Array.from(settled.map(([id]) => id)),
     settledXy: Float32Array.from(settled.flatMap(([, x, y]) => [x, y])),
     wokenIds: Int32Array.from(parts.woken ?? []),
+    scooped: parts.scooped ?? [],
   };
 }

@@ -26,6 +26,20 @@ worker a `grab`: the icon leaves the engine entirely while held and the page dra
 pointer. Letting go sends `release` (it falls from there) or, over the bin, `destroy`. The
 renderer repaints only the removed icon's patch of the resting layer.
 
+## Removing: the plane and the vacuum
+
+减少 doesn't delete icons on the spot. The page asks the worker to `scoop` them: the engine
+picks them roughly from the top of the pile down (each icon's height blurred by a few radii,
+so the top layer thins out unevenly) and holds them, like grabbed icons, reporting which in
+the next frame's `scooped`. `render/vacuum-flight.ts` then flies a paper plane (Douyin's
+纸飞机 emoji, turned to point along its path) from the top left to the top right, just above
+the pile, towing a vacuum cleaner on a rope: each icon waits where it was until the nozzle is
+near, then is sucked up into it, swinging and shrinking on the way. The vacuum takes a few
+more than asked for and spits them out of its exhaust over the pile (`release`), so the pile
+loses exactly the number asked for; when the plane is out of sight the rest are `destroy`ed.
+One plane carries at most `VACUUM_CAPACITY` icons; anything over that is removed at once,
+with no flight, to keep drawing cheap.
+
 ## How the pile stays honest
 
 A resting icon is a fixed collider, so it can't notice when what held it up goes. Rather than

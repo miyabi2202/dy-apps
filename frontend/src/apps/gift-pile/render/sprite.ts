@@ -4,8 +4,11 @@
  */
 export const GIFT_ICON_URL = '/gifts/jianianhua.png';
 
-/** Fetches the icon; null if it fails to load, so the page still works with the drawn fallback. */
-export function loadGiftIcon(url = GIFT_ICON_URL): Promise<HTMLImageElement | null> {
+/** The Douyin 纸飞机 chat emoji (see `services/douyin-emoji.ts`), which flies removed icons away. */
+export const PLANE_URL = '/emoji/paper-plane.webp';
+
+/** Fetches an image; null if it fails to load, so the page still works with a drawn stand-in. */
+export function loadImage(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const image = new Image();
     image.onload = () => resolve(image);

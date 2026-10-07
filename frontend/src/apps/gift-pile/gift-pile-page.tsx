@@ -6,8 +6,9 @@ import { canvasSize, PILE } from './core/config';
 import { startPileLoop } from './loop';
 import { labels } from './messages';
 import { PileClient } from './pile-client';
+import { planRemoval, VacuumFlights } from './render/vacuum-flight';
 import { PileRenderer } from './render/renderer';
-import { loadGiftIcon } from './render/sprite';
+import { createGiftSprite, GIFT_ICON_URL, loadImage, PLANE_URL } from './render/sprite';
 import { sizeStore, type WorldSize } from './settings';
 import { ControlPanel, type PileStats } from './ui/control-panel';
 import { SizePanel } from './ui/size-panel';
@@ -16,13 +17,25 @@ import { Stage } from './ui/stage';
 /** How often the counts on the panel refresh; the canvas itself redraws every frame. */
 const STATS_INTERVAL_MS = 200;
 
-/** The renderer, and the worker feeding it frames. */
+/** The worker's client, the flights that carry removed icons off, and the renderer they feed. */
 function createPile() {
-  const renderer = new PileRenderer({ ...PILE, world: canvasSize(PILE.world) });
   const client = new PileClient({
     onFrame: (frame) => renderer.pushFrame(frame, performance.now()),
   });
-  return { client, renderer };
+  const flights = new VacuumFlights(client);
+  const renderer = new PileRenderer(
+    { ...PILE, world: canvasSize(PILE.world) },
+    createGiftSprite,
+    flights,
+  );
+  return { client, renderer, flights };
+}
+
+/** Remove `count` icons: a plane flies off with them, bar any over what one plane carries. */
+function remove(client: PileClient, count: number) {
+  const { fly, extra, instant } = planRemoval(count);
+  if (fly > 0) client.scoop(fly + extra, extra);
+  if (instant > 0) client.remove(instant);
 }
 
 const readStats = (client: PileClient): PileStats => ({
@@ -56,7 +69,7 @@ function useStats(client: PileClient): PileStats {
  * unmounts (so StrictMode's extra mount in development just restarts it).
  */
 export function GiftPilePage() {
-  const [{ client, renderer }] = useState(createPile);
+  const [{ client, renderer, flights }] = useState(createPile);
   const [size, setSize] = useState<WorldSize>(() => sizeStore.read());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stats = useStats(client);
@@ -78,16 +91,19 @@ export function GiftPilePage() {
   };
   useEffect(() => startPileLoop(renderer, () => canvasRef.current), [renderer]);
 
-  // The gift image, once it has loaded; the drawn stand-in shows until then.
+  // The gift and plane images, once they have loaded; drawn stand-ins show until then.
   useEffect(() => {
     let mounted = true;
-    void loadGiftIcon().then((image) => {
+    void loadImage(GIFT_ICON_URL).then((image) => {
       if (mounted) renderer.setImage(image);
+    });
+    void loadImage(PLANE_URL).then((image) => {
+      if (mounted) flights.setPlane(image);
     });
     return () => {
       mounted = false;
     };
-  }, [renderer]);
+  }, [renderer, flights]);
 
   // Test/debug hook for browser tests and manual inspection.
   useEffect(() => {
@@ -107,7 +123,7 @@ export function GiftPilePage() {
             stats={stats}
             maxItems={PILE.maxItems}
             onAdd={(count) => client.add(count)}
-            onRemove={(count) => client.remove(count)}
+            onRemove={(count) => remove(client, count)}
             onClear={() => client.clear()}
           />
         </Grid>

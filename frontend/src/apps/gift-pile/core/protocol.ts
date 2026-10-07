@@ -4,6 +4,12 @@ export type ToWorker =
   | { type: 'add'; count: number }
   /** Destroy this many icons, roughly from the top of the pile down. */
   | { type: 'remove'; count: number }
+  /**
+   * Pick this many icons up, roughly from the top of the pile down, for the page to fly
+   * away: they are held until the page releases or destroys each. `extra` of them are over
+   * the number the user asked to remove, to be dropped back; it is echoed in the `Scoop`.
+   */
+  | { type: 'scoop'; count: number; extra: number }
   | { type: 'clear' }
   /** A new world with a play area of this size, in pixels; the pile is emptied with it. */
   | { type: 'resize'; width: number; height: number }
@@ -13,6 +19,14 @@ export type ToWorker =
   | { type: 'release'; id: number; x: number; y: number }
   /** The user dropped a held icon in the bin: gone for good. */
   | { type: 'destroy'; id: number };
+
+/** The icons one `scoop` picked up: their indices and x, y pairs in pixels, highest first. */
+export interface Scoop {
+  ids: Int32Array;
+  xy: Float32Array;
+  /** How many of them are over the number asked for, and are to be dropped back. */
+  drop: number;
+}
 
 /** One physics tick's worth of change, after one or more steps. */
 export interface Frame {
@@ -35,6 +49,8 @@ export interface Frame {
   settledXy: Float32Array;
   /** Icons that left the resting pile during the tick: picked up, or woken by a gap under them. */
   wokenIds: Int32Array;
+  /** What each `scoop` since the last frame picked up, in order. */
+  scooped: Scoop[];
 }
 
 export type FromWorker =

@@ -258,10 +258,11 @@ export class PileEngine {
   }
 
   /**
-   * Destroy `n` icons from the pile and the air (not one being held), roughly from the top
-   * down, each waking what rested on it. Returns how many went.
+   * Pick up `n` icons from the pile and the air (not one being held), roughly from the top
+   * down, each waking what rested on it. They are held, like a grabbed icon, until each is
+   * released or destroyed. Returns them, roughly highest first; their positions stay in `x`, `y`.
    */
-  remove(n: number): number {
+  scoop(n: number): number[] {
     // Rank every icon that can go by its height, blurred by a few radii of noise so the
     // top layer thins out unevenly instead of being peeled off in a line, and take the
     // highest `n`. Ranking all of them means the count asked for always goes while there
@@ -275,13 +276,16 @@ export class PileEngine {
       rank[i] = this.y[i]! + this.rng() * blur;
     }
     candidates.sort((a, b) => rank[a]! - rank[b]!);
-    const want = Math.min(Math.floor(n), candidates.length);
-    for (let k = 0; k < want; k++) {
-      const i = candidates[k]!;
-      this.grab(i);
-      this.destroy(i);
-    }
-    return want;
+    candidates.length = Math.min(Math.floor(n), candidates.length);
+    for (const i of candidates) this.grab(i);
+    return candidates;
+  }
+
+  /** Destroy `n` icons, as `scoop` picks them. Returns how many went. */
+  remove(n: number): number {
+    const ids = this.scoop(n);
+    for (const i of ids) this.destroy(i);
+    return ids.length;
   }
 
   /** Hands over every icon that came to rest since the last call. */

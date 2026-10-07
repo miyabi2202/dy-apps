@@ -117,6 +117,40 @@ describe('PileEngine', () => {
     expect(engine.movingCount).toBe(0);
   });
 
+  it('scooping holds icons for the page to fly off, until each is released or destroyed', async () => {
+    const engine = await createEngine();
+    engine.add(60);
+    settle(engine);
+    const before = restingIcons(engine);
+
+    const top = Math.min(...before.map((i) => engine.y[i]!));
+    const floor = engine.height - m - r;
+
+    const ids = engine.scoop(5);
+    expect(ids).toHaveLength(5);
+    // From the top of the pile, and still counted while held.
+    for (const i of ids) {
+      expect(engine.y[i]).toBeLessThan((top + floor) / 2);
+      expect(engine.held[i]).toBe(1);
+      expect(engine.dead[i]).toBe(0);
+      expect(engine.resting[i]).toBe(0);
+    }
+    expect(engine.alive).toBe(60);
+    expect(restingIcons(engine)).toHaveLength(before.length - 5);
+    // A second scoop can't take what the first holds.
+    const again = engine.scoop(5);
+    expect(again.some((i) => ids.includes(i))).toBe(false);
+
+    // One falls back into the pile; the rest are gone.
+    engine.release(ids[0]!, 100, 40);
+    for (const i of ids.slice(1)) engine.destroy(i);
+    for (const i of again) engine.destroy(i);
+    expect(engine.alive).toBe(51);
+    settle(engine);
+    expect(engine.resting[ids[0]!]).toBe(1);
+    expect(engine.movingCount).toBe(0);
+  });
+
   it('removes from the top of the pile down, loosely', async () => {
     const engine = await createEngine();
     engine.add(120);

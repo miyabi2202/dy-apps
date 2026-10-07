@@ -1,5 +1,6 @@
 import type { PileSettings } from '../core/config';
 import type { Frame } from '../core/protocol';
+import type { VacuumFlights } from './vacuum-flight';
 import { createGiftSprite } from './sprite';
 
 /** Makes the icon image at a pixel ratio from the gift image, or without one; a test can return anything. */
@@ -29,6 +30,7 @@ const HELD_SCALE = 1.2;
  *
  * Frames arrive at the physics rate and draws happen at the display rate, so a moving icon
  * is drawn between where the last two frames put it, by how long ago the latest arrived.
+ * Icons the worker has scooped for removal are handed to the flights, which draw them.
  *
  * The canvas is sized to its CSS box × devicePixelRatio and the world scaled into it, so the
  * icons stay crisp at any page width. The resting layer is repainted when that ratio
@@ -74,6 +76,8 @@ export class PileRenderer {
   constructor(
     private readonly stage: Stage,
     private readonly createSprite: CreateSprite = createGiftSprite,
+    /** Carries scooped icons away; without one they just vanish. */
+    private readonly flights: VacuumFlights | null = null,
   ) {
     this.world = stage.world;
   }
@@ -99,6 +103,7 @@ export class PileRenderer {
       this.stamped = 0;
       this.pixelRatio = 0;
       this.prev = null;
+      this.flights?.reset();
     } else {
       this.prev = this.cur;
     }
@@ -124,6 +129,7 @@ export class PileRenderer {
     this.restingXy.set(frame.settledXy, this.restingCount * 2);
     this.restingCount += frame.settledIds.length;
     frame.wokenIds.forEach((id) => this.removeResting(id));
+    for (const scoop of frame.scooped) this.flights?.start(scoop, this.world, now);
   }
 
   /**
@@ -228,6 +234,7 @@ export class PileRenderer {
         this.stamp(ctx, x, y);
       }
     }
+    this.flights?.draw(ctx, now, (x, y, scale) => this.stamp(ctx, x, y, scale));
     if (held) this.stamp(ctx, held.x, held.y, HELD_SCALE);
   }
 

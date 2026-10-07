@@ -65,9 +65,18 @@ export class PileClient {
     this.send({ type: 'add', count });
   }
 
-  /** Destroy `count` icons, roughly from the top of the pile down. */
+  /** Destroy `count` icons, roughly from the top of the pile down, at once. */
   remove(count: number): void {
     this.send({ type: 'remove', count });
+  }
+
+  /**
+   * Pick `count` icons up, roughly from the top of the pile down, to fly away: the next
+   * frame's `scooped` says which, and each is held until `release`d or `destroy`ed. `extra`
+   * of them are over the number to remove, for dropping back.
+   */
+  scoop(count: number, extra: number): void {
+    this.send({ type: 'scoop', count, extra });
   }
 
   /** Empty the pile. */
