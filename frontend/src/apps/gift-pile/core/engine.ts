@@ -15,23 +15,36 @@ interface Options {
 
 /** Tries to find a clear spot for a new icon before leaving it queued for the next step. */
 const SPAWN_TRIES = 10;
-/** A woken icon that has moved this far (in collision radii) wakes whatever touched it. */
-const CASCADE_MOVE = 0.5;
-/** Contacts up to this far apart, in pixels, count as touching. */
+/** A support that has moved this far (in collision radii) from where its dependents rested on it has left them. */
+const SUPPORT_MOVE = 0.35;
+/** A support that comes to rest this far (in pixels) from where its dependents rested on it hands them on to be re-checked. */
+const SUPPORT_DRIFT = 0.5;
+/** Contacts up to this far apart, in pixels, count as touching: soft contacts hold bodies a little apart at rest. */
 const TOUCH_GAP = 1;
+/** How many steps apart the support sweep runs while the pile is changing. */
+const SWEEP_EVERY = 6;
 
 /**
  * The pile, simulated by Rapier. Every icon is a circle in a world with a floor and two
  * walls. New icons are released on a line above the pile and fall as rigid bodies that
  * don't bounce but do rub against each other, so they slide down the heap until it holds
- * them. Once one has been near enough to still for a while it comes to rest: its body is
- * taken out of the engine and a fixed circle is left in its place for the others to land on.
- * So the engine only ever simulates what is moving, however big the pile.
+ * them. Once one has been near enough to still for a while, touching something that can
+ * hold it, it comes to rest: its body is taken out of the engine and a fixed circle is left
+ * in its place for the others to land on. So the engine only ever simulates what is moving,
+ * however big the pile.
+ *
+ * A fixed circle can't notice when what held it up goes, so the engine keeps the support
+ * graph itself. Only the floor and resting icons hold an icon up (never a wall, which is
+ * frictionless, nor anything still moving), so the pile settles from the ground up. When an
+ * icon rests it records what it was touching, and each of those remembers it as a
+ * dependent. A support that is taken away, or moves away from where its dependents rested
+ * on it, wakes them. And whenever the pile has changed, a sweep walks the graph from the
+ * floor and wakes every resting icon it can't reach: icons holding each other up with no
+ * path to the ground go together, as they should. That is the whole rule, so there is no
+ * geometry to get wrong.
  *
  * The user can pick an icon up (`grab`): it leaves the engine until it is let go
- * (`release`), when it falls from there, or destroyed. Taking a resting icon out of the pile
- * wakes the ones touching it, and each of those that moves wakes the ones touching it in
- * turn, so the pile settles into the gap.
+ * (`release`), when it falls from there, or destroyed.
  *
  * Positions are kept in pixels in typed arrays indexed by icon, sized for `maxItems` up
  * front; the engine itself works in metres (see `pxPerMetre`).
@@ -74,7 +87,7 @@ export class PileEngine {
   private readonly dt: number;
 
   private world: RAPIER.World;
-  /** The floor's collider handle, the one fixed thing that holds an icon up on its own. */
+  /** The floor's collider handle. */
   private floor = -1;
   private readonly bodies: (RAPIER.RigidBody | null)[];
   /** The fixed circle left where a resting icon is, and which icon each such collider is. */
@@ -89,9 +102,20 @@ export class PileEngine {
   private readonly born: Int32Array;
   private stepCount = 0;
   private spawnCredit = 0;
-  /** For a woken icon, where it was woken (pixels); NaN once it has passed its wake on. */
-  private readonly wokeX: Float32Array;
-  private readonly wokeY: Float32Array;
+
+  // The support graph. `dependents[j]` lists the icons resting on j, and `floorDeps` the
+  // ones on the floor, as (icon, rest) pairs: `rest` is the icon's rest count at the time,
+  // so an entry from an earlier rest on something else is seen to be stale. `anchor` is
+  // where a woken support was when it was woken, which is where its dependents rested on it.
+  private dependents: (number[] | null)[];
+  private floorDeps: number[] = [];
+  private readonly restCount: Uint32Array;
+  private readonly anchorX: Float32Array;
+  private readonly anchorY: Float32Array;
+  // Whether the graph has changed since the last sweep, and steps since then.
+  private dirty = false;
+  private sinceSweep = 0;
+  private readonly reached: Uint8Array;
 
   // Icons that came to rest, and that left rest, since the last drain, for the renderer.
   private readonly settledBuf: Int32Array;
@@ -123,8 +147,11 @@ export class PileEngine {
     this.moving = new Int32Array(n);
     this.still = new Uint16Array(n);
     this.born = new Int32Array(n);
-    this.wokeX = new Float32Array(n).fill(NaN);
-    this.wokeY = new Float32Array(n).fill(NaN);
+    this.dependents = new Array<number[] | null>(n).fill(null);
+    this.restCount = new Uint32Array(n);
+    this.anchorX = new Float32Array(n);
+    this.anchorY = new Float32Array(n);
+    this.reached = new Uint8Array(n);
     this.settledBuf = new Int32Array(n);
     this.world = this.createWorld();
   }
@@ -162,6 +189,9 @@ export class PileEngine {
     this.bodies.fill(null);
     this.fixed.fill(null);
     this.iconOfCollider.clear();
+    this.dependents = new Array<number[] | null>(this.maxItems).fill(null);
+    this.floorDeps = [];
+    this.dirty = false;
     this.count = 0;
     this.destroyed = 0;
     this.queued = 0;
@@ -183,8 +213,8 @@ export class PileEngine {
   }
 
   /**
-   * The user picks icon `i` up: out of the pile (waking what rested on it) or out of the
-   * air, and out of the engine until `release` or `destroy`.
+   * The user picks icon `i` up: out of the pile or out of the air, and out of the engine
+   * until `release` or `destroy`. Whatever rested on it is woken.
    */
   grab(i: number): void {
     if (i < 0 || i >= this.count || this.dead[i] || this.held[i]) return;
@@ -196,8 +226,7 @@ export class PileEngine {
       this.bodies[i] = null;
       this.dropFromMoving(i);
     }
-    // Resting icons may lean on it either way: a slow mover counts as support.
-    this.wakeAround(this.x[i]!, this.y[i]!);
+    this.wakeDependents(i);
     this.held[i] = 1;
   }
 
@@ -268,6 +297,8 @@ export class PileEngine {
     this.spawn();
     this.world.step();
     this.settle();
+    // Sweep every few steps while the pile changes, and at once when it has come to rest.
+    if (this.dirty && (this.movingLen === 0 || ++this.sinceSweep >= SWEEP_EVERY)) this.sweep();
   }
 
   /** A world with the floor and walls in it, in metres. */
@@ -367,6 +398,8 @@ export class PileEngine {
     const { settings: s, rapier: R, scale } = this;
     this.x[i] = px;
     this.y[i] = py;
+    this.anchorX[i] = px;
+    this.anchorY[i] = py;
     this.still[i] = 0;
     this.born[i] = this.stepCount;
     const body = this.world.createRigidBody(
@@ -384,16 +417,18 @@ export class PileEngine {
         .setFriction(s.friction),
       body,
     );
-    body.userData = i;
     this.bodies[i] = body;
     this.moving[this.movingLen++] = i;
   }
 
-  /** Read back where the moving icons are, put the ones that have stopped to rest, and pass wakes on. */
+  /**
+   * Read back where the moving icons are, wake the dependents of any that has moved away
+   * from where they rested on it, and put the ones that have stopped to rest.
+   */
   private settle(): void {
-    const { settings: s, scale, x, y, moving, still, wokeX, wokeY } = this;
+    const { settings: s, scale, x, y, moving, still, anchorX, anchorY } = this;
     const slow2 = (s.settle.speed * scale) ** 2;
-    const cascade2 = (CASCADE_MOVE * this.radius) ** 2;
+    const moved2 = (SUPPORT_MOVE * this.radius) ** 2;
     let kept = 0;
     for (let k = 0; k < this.movingLen; k++) {
       const i = moving[k]!;
@@ -401,75 +436,49 @@ export class PileEngine {
       const p = body.translation();
       x[i] = p.x / scale;
       y[i] = p.y / scale;
-      // Woken and moved on: whatever it was touching may fall too. Every bit of the way,
-      // not just once: something leaning on it may have come to rest again meanwhile.
-      const wx = wokeX[i]!;
-      if (!Number.isNaN(wx)) {
-        const wy = wokeY[i]!;
-        if ((x[i] - wx) ** 2 + (y[i] - wy) ** 2 > cascade2) {
-          wokeX[i] = x[i]!;
-          wokeY[i] = y[i]!;
-          this.wakeAround(wx, wy);
-        }
+      const deps = this.dependents[i];
+      if (deps && deps.length > 0) {
+        const dx = x[i] - anchorX[i]!;
+        const dy = y[i] - anchorY[i]!;
+        if (dx * dx + dy * dy > moved2) this.wakeDependents(i);
       }
       const v = body.linvel();
       const slow = v.x * v.x + v.y * v.y < slow2;
       still[i] = slow ? Math.min(65535, still[i]! + 1) : 0;
       const n = still[i];
-      let rest = false;
-      if (n >= s.settle.steps) {
-        // Still for long enough, and something under it: never a wall alone, which only
-        // holds it while a neighbour presses it there. Not if pressed into a neighbour or
-        // leaning on one still moving either, unless that has gone on for a long time.
-        const { depth, onMoving, supported, wedged, touching } = this.contacts(body, i);
-        rest = supported
-          ? n >= s.settle.maxSteps || (depth <= s.settle.overlap && !onMoving)
-          : !onMoving &&
-            ((wedged && n >= s.settle.maxSteps) || (touching && n >= s.settle.giveUpSteps));
-      }
-      if (!rest) {
+      if (n < s.settle.steps) {
         moving[kept++] = i;
         continue;
       }
-      this.stop(i, body);
+      const { depth, onFloor, supports } = this.contacts(body);
+      // Still for long enough, with something to hold it, and not pressed into a
+      // neighbour, unless that has gone on for a long time.
+      const held = onFloor || supports.length > 0;
+      if (held && (depth <= s.settle.overlap || n >= s.settle.maxSteps)) {
+        this.stop(i, body, onFloor, supports);
+      } else {
+        moving[kept++] = i;
+      }
     }
     this.movingLen = kept;
   }
 
   /**
-   * Icon `i`'s body's contacts: how far, in pixels, the deepest pushes it into a neighbour;
-   * whether any is with a body still moving faster than the settling speed (a slow one is
-   * about to rest itself); and whether something holds it up: the floor, an icon below it
-   * that is at rest or slow, resting icons on both sides of it (an arch's keystone), or a
-   * wall it is wedged against by a resting icon beside it. A wall alone is not support, and
-   * neither is anything above it: a column on a wall must not hold itself up. `wedged` is
-   * the loose case: any resting icon beside or below it, or resting icons on both sides at
-   * any height (stuck in a hole). The engine's friction can hold those for real, so an icon
-   * still for a long time in one of them may rest.
+   * The body's touching contacts: how far, in pixels, the deepest pushes it into a
+   * neighbour; whether it is on the floor; and the resting icons it touches. Walls and
+   * moving icons hold nothing.
    */
-  private contacts(
-    body: RAPIER.RigidBody,
-    i: number,
-  ): { depth: number; onMoving: boolean; supported: boolean; wedged: boolean; touching: boolean } {
-    const { narrowPhase, bodies, colliders } = this.world;
-    const slow2 = (this.settings.settle.speed * this.scale) ** 2;
-    // Soft contacts hold bodies a fraction of a pixel apart at rest, so touching has slack.
+  private contacts(body: RAPIER.RigidBody): {
+    depth: number;
+    onFloor: boolean;
+    supports: number[];
+  } {
+    const { narrowPhase, bodies } = this.world;
     const touchGap = TOUCH_GAP * this.scale;
-    // Below means its centre is at least this much lower, so it is not just beside; a
-    // neighbour that holds it from the side or wedges it must at least not be above it.
-    const below = this.y[i]! + this.radius / 2;
-    const notAbove = this.y[i]! - this.radius / 2;
     const collider = body.collider(0).handle;
     let depth = 0;
-    let onMoving = false;
-    let supported = false;
-    let onWall = false;
-    let onResting = false;
-    let restingLeft = false;
-    let restingRight = false;
-    let anyLeft = false;
-    let anyRight = false;
-    let touchingAny = false;
+    let onFloor = false;
+    const supports: number[] = [];
     narrowPhase.contactPairsWith(collider, (other) => {
       let touching = false;
       narrowPhase.contactPair(collider, other, bodies, (manifold) => {
@@ -480,54 +489,21 @@ export class PileEngine {
         }
       });
       if (!touching) return;
-      touchingAny = true;
       if (other === this.floor) {
-        supported = true;
+        onFloor = true;
         return;
       }
       const resting = this.iconOfCollider.get(other);
-      if (resting !== undefined) {
-        const ry = this.y[resting]!;
-        const left = this.x[resting]! < this.x[i]!;
-        if (ry > below) supported = true;
-        if (left) anyLeft = true;
-        else anyRight = true;
-        if (ry >= notAbove) {
-          onResting = true;
-          if (left) restingLeft = true;
-          else restingRight = true;
-        }
-        return;
-      }
-      const partner = colliders.get(other)?.parent();
-      if (!partner) {
-        onWall = true;
-        return;
-      }
-      const v = partner.linvel();
-      if (v.x * v.x + v.y * v.y >= slow2) onMoving = true;
-      else if (partner.translation().y / this.scale > below) {
-        supported = true;
-        // Something may come to rest on this slow mover: have it wake what it touches
-        // when it moves on, as a woken icon would.
-        const j = partner.userData as number;
-        if (Number.isNaN(this.wokeX[j]!)) {
-          this.wokeX[j] = this.x[j]!;
-          this.wokeY[j] = this.y[j]!;
-        }
-      }
+      if (resting !== undefined) supports.push(resting);
     });
-    return {
-      depth: depth / this.scale,
-      onMoving,
-      supported: supported || (restingLeft && restingRight) || (onWall && onResting),
-      wedged: onResting || (anyLeft && anyRight),
-      touching: touchingAny,
-    };
+    return { depth: depth / this.scale, onFloor, supports };
   }
 
-  /** Icon `i` comes to rest where its body is: a fixed circle takes the body's place. */
-  private stop(i: number, body: RAPIER.RigidBody): void {
+  /**
+   * Icon `i` comes to rest where its body is, held by `supports`: a fixed circle takes the
+   * body's place, and each support remembers it.
+   */
+  private stop(i: number, body: RAPIER.RigidBody, onFloor: boolean, supports: number[]): void {
     const { rapier: R, settings: s, scale, radius: r } = this;
     // Where it is, but never pressed into the floor or a wall: the heap's weight can push
     // a body a few pixels into them before it settles.
@@ -545,10 +521,24 @@ export class PileEngine {
     this.x[i] = px;
     this.y[i] = py;
     this.bodies[i] = null;
-    this.wokeX[i] = NaN;
     this.resting[i] = 1;
     if (py < this.topY) this.topY = py;
     this.settledBuf[this.settledLen++] = i;
+    const rest = ++this.restCount[i]!;
+    if (onFloor) this.floorDeps.push(i, rest);
+    for (const j of supports) {
+      const deps = this.dependents[j];
+      if (deps) deps.push(i, rest);
+      else this.dependents[j] = [i, rest];
+    }
+    // Woken and come to rest a little away from where its dependents rested on it: they
+    // re-check their footing now, so drift can't add up across wakes.
+    if (this.dependents[i]) {
+      const dx = px - this.anchorX[i]!;
+      const dy = py - this.anchorY[i]!;
+      if (dx * dx + dy * dy > SUPPORT_DRIFT * SUPPORT_DRIFT) this.wakeDependents(i);
+    }
+    this.dirty = true;
   }
 
   /** Resting icon `i` leaves the pile: its fixed circle goes, and the renderer is told. */
@@ -561,27 +551,64 @@ export class PileEngine {
     this.fixed[i] = null;
     this.resting[i] = 0;
     this.wokenBuf.push(i);
+    this.dirty = true;
+  }
+
+  /** Whatever rests on icon `j` falls again: `j` has gone, or moved away from under it. */
+  private wakeDependents(j: number): void {
+    const deps = this.dependents[j];
+    if (!deps) return;
+    this.dependents[j] = null;
+    for (let k = 0; k < deps.length; k += 2) {
+      const i = deps[k]!;
+      if (this.resting[i] && this.restCount[i] === deps[k + 1]) this.wake(i);
+    }
+    if (this.bodies[j]) {
+      this.anchorX[j] = this.x[j]!;
+      this.anchorY[j] = this.y[j]!;
+    }
+  }
+
+  /** Resting icon `i` falls again from where it is. */
+  private wake(i: number): void {
+    this.unfix(i);
+    this.launch(i, this.x[i]!, this.y[i]!, 0);
   }
 
   /**
-   * Every resting icon touching the spot (px, py) starts falling again, whichever side it is
-   * on: ones beside the gap may be part of an arch that only it held closed, and ones that
-   * are still supported come to rest again within a few steps.
+   * Wake every resting icon with no path to the ground: walk the graph from the floor along
+   * current support edges, dropping stale ones on the way, and wake whatever wasn't reached.
    */
-  private wakeAround(px: number, py: number, aboveOnly = false): void {
-    const { rapier: R, scale, radius: r } = this;
-    const reach = new R.Ball((2 * r + 1) * scale);
-    const woken: number[] = [];
-    this.world.intersectionsWithShape({ x: px * scale, y: py * scale }, 0, reach, (collider) => {
-      const j = this.iconOfCollider.get(collider.handle);
-      if (j !== undefined && (!aboveOnly || this.y[j]! < py - 0.5)) woken.push(j);
-      return true;
-    });
-    for (const j of woken) {
-      this.unfix(j);
-      this.wokeX[j] = this.x[j]!;
-      this.wokeY[j] = this.y[j]!;
-      this.launch(j, this.x[j]!, this.y[j]!, 0);
+  private sweep(): void {
+    this.dirty = false;
+    this.sinceSweep = 0;
+    const { reached, restCount, resting, dependents } = this;
+    reached.fill(0, 0, this.count);
+    const queue: number[] = [];
+    /** Valid entries of a pair list reach their icon; the list is compacted to them. */
+    const follow = (pairs: number[]): number[] => {
+      let w = 0;
+      for (let k = 0; k < pairs.length; k += 2) {
+        const i = pairs[k]!;
+        if (!resting[i] || restCount[i] !== pairs[k + 1]) continue;
+        pairs[w++] = i;
+        pairs[w++] = pairs[k + 1]!;
+        if (!reached[i]) {
+          reached[i] = 1;
+          queue.push(i);
+        }
+      }
+      pairs.length = w;
+      return pairs;
+    };
+    this.floorDeps = follow(this.floorDeps);
+    while (queue.length) {
+      const j = queue.pop()!;
+      const deps = dependents[j];
+      if (deps) dependents[j] = follow(deps).length ? deps : null;
+    }
+    for (let i = 0; i < this.count; i++) {
+      if (resting[i] && !reached[i]) this.wake(i);
     }
   }
 

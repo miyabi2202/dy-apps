@@ -23,10 +23,20 @@ radius.
 The bin (`ui/bin.tsx`) is an HTML element floating over the canvas, so it is outside the
 physics and always on top; drag it to move it. Pressing on an icon (`ui/stage.tsx`) sends the
 worker a `grab`: the icon leaves the engine entirely while held and the page draws it at the
-pointer. Letting go sends `release` (it falls from there) or, over the bin, `destroy`. Taking
-a resting icon out of the pile wakes the resting icons touching it from above, and each one
-that moves half a radius wakes the ones that rested on it in turn, so the pile settles into
-the gap. The renderer repaints only the removed icon's patch of the resting layer.
+pointer. Letting go sends `release` (it falls from there) or, over the bin, `destroy`. The
+renderer repaints only the removed icon's patch of the resting layer.
+
+## How the pile stays honest
+
+A resting icon is a fixed collider, so it can't notice when what held it up goes. Rather than
+guess with geometry, the engine keeps the support graph: only the floor and resting icons
+hold an icon up (walls are frictionless and moving icons don't count), so the pile settles from
+the ground up; when an icon rests it records what it was touching, and each support remembers
+it as a dependent. A support that is taken away, or moves away from where its dependents
+rested on it, wakes them. And whenever the pile has changed, a sweep walks the graph from the
+floor and wakes every resting icon it can't reach, so icons holding each other up with no path
+to the ground fall together. Rapier's own sleep is off for icons: it would leave one hanging
+off a single neighbour it should slide down from.
 
 The bin image (`public/bin/recycle-bin.png`) is the Windows-style
 [Recycle Bin icon by Icons8](https://icons8.com/icon/set/recycle-bin/color), used under their
