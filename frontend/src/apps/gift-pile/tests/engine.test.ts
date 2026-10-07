@@ -1,22 +1,14 @@
 /** @jest-environment node */
 import { PILE } from '../core/config';
 import type { PileEngine } from '../core/engine';
-import { createEngine, settle } from './engine-helpers';
+import { createEngine, neighbours, restingIcons, settle } from './engine-helpers';
 
 const r = PILE.collisionRadius;
 const m = PILE.margin;
 
-/** Every icon that is at rest, by index. */
-const restingIcons = (engine: PileEngine) =>
-  Array.from({ length: engine.count }, (_, i) => i).filter((i) => engine.resting[i]);
-
 /** The resting icons touching `i` from above. */
 const restingOn = (engine: PileEngine, i: number) =>
-  restingIcons(engine).filter((j) => {
-    const dx = engine.x[j]! - engine.x[i]!;
-    const dy = engine.y[j]! - engine.y[i]!;
-    return j !== i && dy < 0 && Math.hypot(dx, dy) <= 2 * r + 1;
-  });
+  neighbours(engine, i).filter((j) => engine.y[j]! < engine.y[i]!);
 
 describe('PileEngine', () => {
   it('drops the icons asked for, and they all come to rest inside the walls and above the floor', async () => {

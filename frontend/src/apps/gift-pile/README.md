@@ -44,8 +44,8 @@ free licence, which asks for this link.
 
 ## Edge cases
 
-[edge-cases.md](edge-cases.md) lists every way an icon has been left floating in the air so
-far, with a reproduction and the invariant to assert, for turning into tests.
+[edge-cases.md](edge-cases.md) states the pile's one invariant (no resting icon without a path
+to the floor) and how a new floating-icon case becomes a test in `tests/floating.test.ts`.
 
 ## TODO
 
