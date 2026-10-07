@@ -8,10 +8,22 @@ import {
 } from '../render/vacuum-flight';
 import { mulberry32 } from './helpers';
 
-/** Remembers what a flight does to the engine's icons. */
+/** Remembers what the flights ask of the engine. */
 class FakeSink implements FlightSink {
+  scoops: { count: number; extra: number }[] = [];
+  removed: number[] = [];
+  grabbed: number[] = [];
   released: { id: number; x: number; y: number }[] = [];
   destroyed: number[] = [];
+  scoop(count: number, extra: number) {
+    this.scoops.push({ count, extra });
+  }
+  remove(count: number) {
+    this.removed.push(count);
+  }
+  grab(id: number) {
+    this.grabbed.push(id);
+  }
   release(id: number, x: number, y: number) {
     this.released.push({ id, x, y });
   }
@@ -29,11 +41,16 @@ const fakeContext = () =>
   });
 
 const world = { width: 416, height: 708 };
+const noStamp = () => {};
+/** The renderer knows where every icon is: in a row along the top of a pile. */
+const take = (id: number) => ({ x: 20 + (id - 100) * 12, y: 500 });
 
 /** `n` icons in a row along the top of a pile, with `drop` of them to come back. */
-const scoopOf = (n: number, drop: number): Scoop => ({
-  ids: Int32Array.from({ length: n }, (_, k) => 100 + k),
-  xy: Float32Array.from({ length: 2 * n }, (_, i) => (i % 2 === 0 ? 20 + (i / 2) * 12 : 500)),
+const scoopOf = (n: number, drop: number, from = 100): Scoop => ({
+  ids: Int32Array.from({ length: n }, (_, k) => from + k),
+  xy: Float32Array.from({ length: 2 * n }, (_, i) =>
+    i % 2 === 0 ? 20 + ((from - 100 + i / 2) % 33) * 12 : 500,
+  ),
   drop,
 });
 
@@ -51,22 +68,41 @@ describe('planRemoval', () => {
 });
 
 describe('VacuumFlights', () => {
-  it('drops the extras back over the pile during the crossing and destroys the rest once gone', () => {
+  it('asks for a scoop at once, and removes anything over a plane load on the spot', () => {
+    const sink = new FakeSink();
+    const flights = new VacuumFlights(sink);
+    flights.remove(30, 0);
+    expect(sink.scoops).toEqual([{ count: 34, extra: 4 }]);
+    expect(sink.removed).toEqual([]);
+    flights.remove(VACUUM_CAPACITY + 10, 0);
+    expect(sink.removed).toEqual([10]);
+    // The second plane waits for the first scoop to come back and the first plane to go.
+    expect(sink.scoops).toHaveLength(1);
+    expect(flights.queued).toBe(1);
+  });
+
+  it('takes icons as the nozzle reaches them, drops the extras over the pile and destroys the rest once gone', () => {
     const sink = new FakeSink();
     const flights = new VacuumFlights(sink, { rng: mulberry32(3) });
     const ctx = fakeContext();
-    const stamped: number[] = [];
-    const stamp = () => stamped.push(1);
+    let stamped = 0;
     const n = 30;
     const drop = 4;
 
     flights.start(scoopOf(n, drop), world, 1000);
     expect(flights.count).toBe(1);
+    // Nothing leaves the pile when the plane appears; the suction takes them one by one.
+    flights.draw(ctx, 1000, noStamp, take);
+    expect(sink.grabbed).toHaveLength(0);
+    flights.draw(ctx, 1000 + 800, noStamp, take);
+    expect(sink.grabbed.length).toBeGreaterThan(0);
+    expect(sink.grabbed.length).toBeLessThan(n);
+    const back = new Set(sink.released.map((r) => r.id));
+    for (const id of sink.grabbed) expect(flights.holds(id)).toBe(!back.has(id));
 
-    // Draw through the flight at display rate.
     let destroyedAt: number | null = null;
-    for (let now = 1000; now <= 1000 + 4000; now += 16) {
-      flights.draw(ctx, now, stamp);
+    for (let now = 1800; now <= 1000 + 4000; now += 16) {
+      flights.draw(ctx, now, () => stamped++, take);
       if (destroyedAt === null && sink.destroyed.length > 0) destroyedAt = now;
       // Nothing is destroyed while the plane is still crossing the canvas.
       if (now < 1000 + 2400) expect(sink.destroyed).toHaveLength(0);
@@ -74,11 +110,13 @@ describe('VacuumFlights', () => {
 
     expect(flights.count).toBe(0);
     expect(destroyedAt).not.toBeNull();
+    expect(new Set(sink.grabbed).size).toBe(n);
     expect(sink.released).toHaveLength(drop);
     expect(sink.destroyed).toHaveLength(n - drop);
-    // Every icon went one way or the other, and none both ways.
+    // Every icon went one way or the other, none both ways, and none is still held.
     const gone = new Set([...sink.released.map((r) => r.id), ...sink.destroyed]);
     expect(gone.size).toBe(n);
+    for (const id of gone) expect(flights.holds(id)).toBe(false);
     // The drops happened over the pile, inside the canvas and above where the icons were.
     for (const { x, y } of sink.released) {
       expect(x).toBeGreaterThan(0);
@@ -86,28 +124,61 @@ describe('VacuumFlights', () => {
       expect(y).toBeGreaterThan(0);
       expect(y).toBeLessThan(500);
     }
-    // Icons were drawn while the plane was crossing.
-    expect(stamped.length).toBeGreaterThan(n);
+    expect(stamped).toBeGreaterThan(n);
+  });
+
+  it('sends queued planes one after another', () => {
+    const sink = new FakeSink();
+    const flights = new VacuumFlights(sink, { rng: mulberry32(4) });
+    const ctx = fakeContext();
+    flights.remove(10, 0);
+    flights.remove(10, 0);
+    flights.remove(10, 0);
+    expect(sink.scoops).toHaveLength(1);
+    flights.start(scoopOf(11, 1), world, 0);
+    // Still only one plane while the first is early in its crossing.
+    flights.draw(ctx, 500, noStamp, take);
+    expect(sink.scoops).toHaveLength(1);
+    // Once it is well across, the next is asked for, and sets off when its icons arrive.
+    flights.draw(ctx, 1500, noStamp, take);
+    expect(sink.scoops).toHaveLength(2);
+    flights.draw(ctx, 1600, noStamp, take);
+    expect(sink.scoops).toHaveLength(2);
+    flights.start(scoopOf(11, 1, 200), world, 1600);
+    expect(flights.count).toBe(2);
+    expect(flights.queued).toBe(1);
+    flights.draw(ctx, 1600 + 1400, noStamp, take);
+    expect(sink.scoops).toHaveLength(3);
+    // An empty scoop (the pile ran out) frees the queue too.
+    flights.start(scoopOf(0, 1), world, 3100);
+    expect(flights.queued).toBe(0);
+    expect(flights.count).toBe(2);
   });
 
   it('never drops more than it carries', () => {
     const sink = new FakeSink();
     const flights = new VacuumFlights(sink, { rng: mulberry32(5) });
     flights.start(scoopOf(2, 5), world, 0);
-    for (let now = 0; now <= 4000; now += 16) flights.draw(fakeContext(), now, () => {});
+    for (let now = 0; now <= 4000; now += 16) flights.draw(fakeContext(), now, noStamp, take);
     expect(sink.released).toHaveLength(2);
     expect(sink.destroyed).toHaveLength(0);
   });
 
-  it('forgets its flights on reset without touching the icons, since the engine already has', () => {
+  it('forgets its flights and queue on reset without touching the icons, since the engine already has', () => {
     const sink = new FakeSink();
     const flights = new VacuumFlights(sink, { rng: mulberry32(7) });
+    flights.remove(10, 0);
+    flights.remove(10, 0);
     flights.start(scoopOf(10, 2), world, 0);
-    flights.draw(fakeContext(), 500, () => {});
+    flights.draw(fakeContext(), 500, noStamp, take);
+    sink.grabbed.length = 0;
     flights.reset();
     expect(flights.count).toBe(0);
-    flights.draw(fakeContext(), 10_000, () => {});
+    expect(flights.queued).toBe(0);
+    flights.draw(fakeContext(), 10_000, noStamp, take);
+    expect(sink.grabbed).toHaveLength(0);
     expect(sink.released).toHaveLength(0);
     expect(sink.destroyed).toHaveLength(0);
+    expect(sink.scoops).toHaveLength(1);
   });
 });

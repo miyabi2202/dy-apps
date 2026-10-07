@@ -5,9 +5,10 @@ export type ToWorker =
   /** Destroy this many icons, roughly from the top of the pile down. */
   | { type: 'remove'; count: number }
   /**
-   * Pick this many icons up, roughly from the top of the pile down, for the page to fly
-   * away: they are held until the page releases or destroys each. `extra` of them are over
-   * the number the user asked to remove, to be dropped back; it is echoed in the `Scoop`.
+   * Set this many icons aside, roughly from the top of the pile down, for the page to fly
+   * away: each stays in the pile until the page grabs it, and is then held until released
+   * or destroyed. `extra` of them are over the number the user asked to remove, to be
+   * dropped back; it is echoed in the `Scoop`.
    */
   | { type: 'scoop'; count: number; extra: number }
   | { type: 'clear' }
@@ -20,7 +21,7 @@ export type ToWorker =
   /** The user dropped a held icon in the bin: gone for good. */
   | { type: 'destroy'; id: number };
 
-/** The icons one `scoop` picked up: their indices and x, y pairs in pixels, highest first. */
+/** The icons one `scoop` set aside: their indices and x, y pairs in pixels, roughly highest first. */
 export interface Scoop {
   ids: Int32Array;
   xy: Float32Array;
@@ -49,7 +50,7 @@ export interface Frame {
   settledXy: Float32Array;
   /** Icons that left the resting pile during the tick: picked up, or woken by a gap under them. */
   wokenIds: Int32Array;
-  /** What each `scoop` since the last frame picked up, in order. */
+  /** What each `scoop` since the last frame set aside, in order. */
   scooped: Scoop[];
 }
 

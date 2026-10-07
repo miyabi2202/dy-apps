@@ -1,15 +1,27 @@
 import type { Scoop } from '../core/protocol';
 
-/** What a flight does to the icons it holds, through the worker; `PileClient` is one. */
+/** What the flights ask of the engine, through the worker; `PileClient` is one. */
 export interface FlightSink {
-  /** Let icon `id` go at (x, y): it falls from there. */
+  /** Set `count` icons aside for a flight, `extra` of them to be dropped back. */
+  scoop(count: number, extra: number): void;
+  /** Destroy `count` icons at once. */
+  remove(count: number): void;
+  /** Take icon `id` out of the pile; it is held from then on. */
+  grab(id: number): void;
+  /** Let held icon `id` go at (x, y): it falls from there. */
   release(id: number, x: number, y: number): void;
-  /** Icon `id` is gone for good. */
+  /** Held icon `id` is gone for good. */
   destroy(id: number): void;
 }
 
 /** Stamps the icon sprite centred at (x, y), in world pixels, at `scale` times its size. */
 export type Stamp = (x: number, y: number, scale?: number) => void;
+
+/**
+ * Where icon `id` is now, in world pixels, or null if the renderer doesn't have it; the
+ * renderer stops drawing it from here on, as the flight takes over.
+ */
+export type Take = (id: number) => { x: number; y: number } | null;
 
 interface Options {
   /** Random numbers in [0, 1). */
@@ -27,6 +39,8 @@ const EXTRA_MAX = 12;
 const FLY_MS = 2400;
 /** Then flies on out of sight for this long, while the last icons are drawn in. */
 const TAIL_MS = 700;
+/** The next queued plane may set off once the one before is this far across. */
+const NEXT_AFTER = 0.55;
 /** How far outside the canvas the plane starts and finishes. */
 const OVERSHOOT = 70;
 /** An icon is caught by the suction when the nozzle is this far short of it. */
@@ -77,6 +91,12 @@ export function planRemoval(count: number): { fly: number; extra: number; instan
   return { fly, extra, instant: count - fly };
 }
 
+/** Where an icon is in its flight. */
+const WAITING = 0; // still in the pile, drawn by the renderer
+const LIFTING = 1; // grabbed, on its way into the nozzle
+const INSIDE = 2; // in the canister
+const DROPPED = 3; // spat back out, the engine's again
+
 interface Flight {
   t0: number;
   /** The canvas's width when the flight began. */
@@ -86,7 +106,7 @@ interface Flight {
   /** Pixels per ms. */
   speed: number;
   ids: Int32Array;
-  /** Where each icon was taken from. */
+  /** Where each icon lifts from: where it was scooped, until it is taken. */
   x0: Float32Array;
   y0: Float32Array;
   /** When each is caught by the suction, and how long it takes to reach the nozzle. */
@@ -94,8 +114,7 @@ interface Flight {
   liftMs: Float32Array;
   /** Which way each swings first, and where in its swing it starts. */
   phase: Float32Array;
-  /** 1 once an icon has been spat back out. */
-  dropped: Uint8Array;
+  stage: Uint8Array;
   /** The icons to drop back, in time order. */
   drops: { k: number; at: number }[];
   /** Icons in the canister, for its gauge. */
@@ -105,17 +124,24 @@ interface Flight {
 /**
  * The flights that carry removed icons away. A paper plane enters at the top left towing a
  * vacuum cleaner on a rope, flies across just above the pile and climbs away at the top
- * right. Each icon it was given is drawn where it was until the nozzle comes near, then is
- * sucked up into it, swinging and shrinking on the way; the vacuum takes a few more than
- * asked for and spits them back out over the pile, so what the pile loses is exactly the
- * number asked for. When the plane is out of sight, what it still holds is destroyed.
+ * right. The icons it is to take are set aside in the engine but stay in the pile until the
+ * nozzle comes near each; then it is grabbed and sucked up, swinging and shrinking on the
+ * way, and whatever rested on it falls as it goes. The vacuum takes a few more than asked
+ * for and spits them back out over the pile, so what the pile loses is exactly the number
+ * asked for. When the plane is out of sight, what it still holds is destroyed.
  *
- * Icons in flight are held by the engine (see `PileEngine.scoop`), so this is the only
- * thing drawing them, and every one ends up released or destroyed: on the tick the plane is
- * gone, and at once on `reset()`, since the engine has already let go of everything then.
+ * Removals queue: a plane sets off when the one before is well across, so quick repeated
+ * presses send planes one after another rather than all at once. Every icon a flight takes
+ * ends up released or destroyed: on the tick the plane is gone, and at once on `reset()`,
+ * since the engine has already let go of everything then.
  */
 export class VacuumFlights {
   private flights: Flight[] = [];
+  private readonly queue: { fly: number; extra: number }[] = [];
+  /** A scoop has been asked for and its icons haven't come back in a frame yet. */
+  private awaiting = false;
+  /** Every icon in a flight, waiting, lifting or inside. */
+  private readonly inFlight = new Set<number>();
   private plane: HTMLImageElement | null = null;
   private readonly rng: () => number;
 
@@ -136,13 +162,38 @@ export class VacuumFlights {
     return this.flights.length;
   }
 
-  /** The engine let everything go (a clear or resize): the flights have nothing to carry. */
-  reset(): void {
-    this.flights = [];
+  /** Removals waiting for a plane. */
+  get queued(): number {
+    return this.queue.length;
   }
 
-  /** A plane sets off, at wall time `now`, with the icons a scoop picked up. */
+  /** Icon `id` belongs to a flight, so the user can't pick it up. */
+  holds(id: number): boolean {
+    return this.inFlight.has(id);
+  }
+
+  /**
+   * Remove `count` icons, at wall time `now`: a plane for as many as one carries, queued
+   * behind any already going, and the rest at once.
+   */
+  remove(count: number, now: number): void {
+    const { fly, extra, instant } = planRemoval(count);
+    if (instant > 0) this.sink.remove(instant);
+    if (fly > 0) this.queue.push({ fly, extra });
+    this.launch(now);
+  }
+
+  /** The engine let everything go (a clear or resize): nothing is left to fly or to remove. */
+  reset(): void {
+    this.flights = [];
+    this.queue.length = 0;
+    this.awaiting = false;
+    this.inFlight.clear();
+  }
+
+  /** The icons the engine set aside for the next plane have arrived: it sets off at wall time `now`. */
   start(scoop: Scoop, world: { width: number; height: number }, now: number): void {
+    this.awaiting = false;
     const n = scoop.ids.length;
     if (n === 0) return;
     const { rng } = this;
@@ -165,7 +216,7 @@ export class VacuumFlights {
       liftAt: new Float32Array(n),
       liftMs: new Float32Array(n),
       phase: new Float32Array(n),
-      dropped: new Uint8Array(n),
+      stage: new Uint8Array(n),
       drops: [],
       inside: 0,
     };
@@ -181,6 +232,7 @@ export class VacuumFlights {
       const climb = Math.abs(y - nozzleY);
       flight.liftMs[k] = Math.min(LIFT_MAX_MS, LIFT_MIN_MS + climb * LIFT_PER_PX);
       flight.phase[k] = rng() * Math.PI * 2;
+      this.inFlight.add(scoop.ids[k]!);
     }
 
     // The extras to spit out are the first in, so they can fall while the vacuum is still
@@ -201,22 +253,58 @@ export class VacuumFlights {
     this.flights.push(flight);
   }
 
-  /** Draw every flight as of wall time `now`, dropping and destroying icons whose time has come. */
-  draw(ctx: CanvasRenderingContext2D, now: number, stamp: Stamp): void {
-    if (this.flights.length === 0) return;
+  /**
+   * Draw every flight as of wall time `now`, taking icons as the suction reaches them,
+   * dropping and destroying them when their time has come, and sending the next plane off
+   * when it may go.
+   */
+  draw(ctx: CanvasRenderingContext2D, now: number, stamp: Stamp, take: Take): void {
     this.flights = this.flights.filter((flight) => {
       if (now >= flight.t0 + FLY_MS + TAIL_MS) {
         flight.ids.forEach((id, k) => {
-          if (!flight.dropped[k]) this.sink.destroy(id);
+          if (flight.stage[k] === DROPPED) return;
+          // One the suction never reached (the tab was hidden) still goes with the plane.
+          if (flight.stage[k] === WAITING) this.takeIcon(flight, k, take);
+          this.sink.destroy(id);
+          this.inFlight.delete(id);
         });
         return false;
       }
-      this.drawFlight(ctx, flight, now, stamp);
+      this.drawFlight(ctx, flight, now, stamp, take);
       return true;
     });
+    this.launch(now);
   }
 
-  private drawFlight(ctx: CanvasRenderingContext2D, f: Flight, now: number, stamp: Stamp): void {
+  /** Send the next queued plane off, if none is going or the last is far enough across. */
+  private launch(now: number): void {
+    if (this.awaiting || this.queue.length === 0) return;
+    const last = this.flights[this.flights.length - 1];
+    if (last && now - last.t0 < FLY_MS * NEXT_AFTER) return;
+    const { fly, extra } = this.queue.shift()!;
+    this.awaiting = true;
+    this.sink.scoop(fly + extra, extra);
+  }
+
+  /** Icon `k` of `f` leaves the pile for the flight, lifting from wherever it is now. */
+  private takeIcon(f: Flight, k: number, take: Take): void {
+    const id = f.ids[k]!;
+    const at = take(id);
+    if (at) {
+      f.x0[k] = at.x;
+      f.y0[k] = at.y;
+    }
+    this.sink.grab(id);
+    f.stage[k] = LIFTING;
+  }
+
+  private drawFlight(
+    ctx: CanvasRenderingContext2D,
+    f: Flight,
+    now: number,
+    stamp: Stamp,
+    take: Take,
+  ): void {
     const t = now - f.t0;
     const px = f.startX + f.speed * t;
     // Level, then climbing away along a parabola; the plane points along it.
@@ -234,9 +322,10 @@ export class VacuumFlights {
     // Extras whose moment has come are spat out of the back of the canister.
     while (f.drops.length > 0 && f.drops[0]!.at <= now) {
       const { k } = f.drops.shift()!;
-      if (f.dropped[k]) continue;
-      f.dropped[k] = 1;
-      f.inside--;
+      if (f.stage[k] === DROPPED) continue;
+      if (f.stage[k] === WAITING) this.takeIcon(f, k, take);
+      f.stage[k] = DROPPED;
+      this.inFlight.delete(f.ids[k]!);
       this.sink.release(f.ids[k]!, cx - BODY_W / 2 - 4, cy + BODY_H / 2);
     }
 
@@ -244,18 +333,22 @@ export class VacuumFlights {
     this.drawVacuum(ctx, px, py, cx, cy, nx, ny, f.inside / f.ids.length);
     this.drawPlane(ctx, px, py, tilt);
 
-    // Icons not yet inside: waiting where they were, or swinging up into the nozzle.
+    // Icons the suction has reached: swinging up into the nozzle, or counted inside.
     const n = f.ids.length;
     let inside = 0;
     for (let k = 0; k < n; k++) {
-      if (f.dropped[k]) continue;
-      const u = (now - f.liftAt[k]!) / f.liftMs[k]!;
-      if (u >= 1) {
+      const stage = f.stage[k];
+      if (stage === DROPPED) continue;
+      if (stage === INSIDE) {
         inside++;
         continue;
       }
-      if (u <= 0) {
-        stamp(f.x0[k]!, f.y0[k]!);
+      if (now < f.liftAt[k]!) continue;
+      if (stage === WAITING) this.takeIcon(f, k, take);
+      const u = (now - f.liftAt[k]!) / f.liftMs[k]!;
+      if (u >= 1) {
+        f.stage[k] = INSIDE;
+        inside++;
         continue;
       }
       // Slow to start and ever faster towards the nozzle, as suction takes hold.

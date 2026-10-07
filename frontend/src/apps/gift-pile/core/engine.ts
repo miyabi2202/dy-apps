@@ -73,6 +73,8 @@ export class PileEngine {
   readonly held: Uint8Array;
   /** 1 once an icon has been destroyed. */
   readonly dead: Uint8Array;
+  /** 1 while an icon is set aside for the page to take (see `scoop`). */
+  readonly reserved: Uint8Array;
 
   /** Icons released into the world so far (indices `0 … count - 1`), destroyed ones included. */
   count = 0;
@@ -147,6 +149,7 @@ export class PileEngine {
     this.resting = new Uint8Array(n);
     this.held = new Uint8Array(n);
     this.dead = new Uint8Array(n);
+    this.reserved = new Uint8Array(n);
     this.bodies = new Array<RAPIER.RigidBody | null>(n).fill(null);
     this.fixed = new Array<RAPIER.Collider | null>(n).fill(null);
     this.moving = new Int32Array(n);
@@ -209,6 +212,7 @@ export class PileEngine {
     this.resting.fill(0);
     this.held.fill(0);
     this.dead.fill(0);
+    this.reserved.fill(0);
     this.generation++;
   }
 
@@ -239,6 +243,7 @@ export class PileEngine {
   release(i: number, x: number, y: number): void {
     if (!this.held[i]) return;
     this.held[i] = 0;
+    this.reserved[i] = 0;
     const r = this.radius;
     const m = this.margin;
     this.launch(
@@ -258,9 +263,10 @@ export class PileEngine {
   }
 
   /**
-   * Pick up `n` icons from the pile and the air (not one being held), roughly from the top
-   * down, each waking what rested on it. They are held, like a grabbed icon, until each is
-   * released or destroyed. Returns them, roughly highest first; their positions stay in `x`, `y`.
+   * Set aside `n` icons from the pile and the air (not one being held or already set
+   * aside), roughly from the top down, for the page to `grab` one by one as it flies them
+   * off. Until then each stays in the pile as it is, and no later scoop takes it; a
+   * `release` puts it back up for scooping. Returns them, roughly highest first.
    */
   scoop(n: number): number[] {
     // Rank every icon that can go by its height, blurred by a few radii of noise so the
@@ -271,20 +277,23 @@ export class PileEngine {
     const rank = new Float32Array(this.count);
     const blur = REMOVE_BLUR * this.radius;
     for (let i = 0; i < this.count; i++) {
-      if (this.dead[i] || this.held[i]) continue;
+      if (this.dead[i] || this.held[i] || this.reserved[i]) continue;
       candidates.push(i);
       rank[i] = this.y[i]! + this.rng() * blur;
     }
     candidates.sort((a, b) => rank[a]! - rank[b]!);
     candidates.length = Math.min(Math.floor(n), candidates.length);
-    for (const i of candidates) this.grab(i);
+    for (const i of candidates) this.reserved[i] = 1;
     return candidates;
   }
 
-  /** Destroy `n` icons, as `scoop` picks them. Returns how many went. */
+  /** Destroy `n` icons at once, as `scoop` picks them. Returns how many went. */
   remove(n: number): number {
     const ids = this.scoop(n);
-    for (const i of ids) this.destroy(i);
+    for (const i of ids) {
+      this.grab(i);
+      this.destroy(i);
+    }
     return ids.length;
   }
 

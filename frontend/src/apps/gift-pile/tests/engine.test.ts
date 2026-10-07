@@ -117,38 +117,44 @@ describe('PileEngine', () => {
     expect(engine.movingCount).toBe(0);
   });
 
-  it('scooping holds icons for the page to fly off, until each is released or destroyed', async () => {
+  it('scooping sets icons aside for the page to grab, leaving the pile as it is until then', async () => {
     const engine = await createEngine();
     engine.add(60);
     settle(engine);
     const before = restingIcons(engine);
-
     const top = Math.min(...before.map((i) => engine.y[i]!));
     const floor = engine.height - m - r;
 
     const ids = engine.scoop(5);
     expect(ids).toHaveLength(5);
-    // From the top of the pile, and still counted while held.
+    // From the top of the pile, and still resting where they were.
     for (const i of ids) {
       expect(engine.y[i]).toBeLessThan((top + floor) / 2);
-      expect(engine.held[i]).toBe(1);
-      expect(engine.dead[i]).toBe(0);
-      expect(engine.resting[i]).toBe(0);
+      expect(engine.reserved[i]).toBe(1);
+      expect(engine.held[i]).toBe(0);
+      expect(engine.resting[i]).toBe(1);
     }
     expect(engine.alive).toBe(60);
-    expect(restingIcons(engine)).toHaveLength(before.length - 5);
-    // A second scoop can't take what the first holds.
+    expect(restingIcons(engine)).toHaveLength(60);
+    settle(engine);
+    expect(engine.movingCount).toBe(0);
+    // A second scoop can't take what the first has set aside.
     const again = engine.scoop(5);
     expect(again.some((i) => ids.includes(i))).toBe(false);
 
-    // One falls back into the pile; the rest are gone.
+    // The page takes them one by one; one falls back into the pile, the rest are gone.
+    for (const i of [...ids, ...again]) engine.grab(i);
+    expect(engine.alive).toBe(60);
     engine.release(ids[0]!, 100, 40);
+    expect(engine.reserved[ids[0]!]).toBe(0);
     for (const i of ids.slice(1)) engine.destroy(i);
     for (const i of again) engine.destroy(i);
     expect(engine.alive).toBe(51);
     settle(engine);
     expect(engine.resting[ids[0]!]).toBe(1);
     expect(engine.movingCount).toBe(0);
+    // Released, it can be scooped again.
+    expect(engine.scoop(60)).toContain(ids[0]);
   });
 
   it('removes from the top of the pile down, loosely', async () => {

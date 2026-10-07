@@ -71,9 +71,10 @@ export class PileClient {
   }
 
   /**
-   * Pick `count` icons up, roughly from the top of the pile down, to fly away: the next
-   * frame's `scooped` says which, and each is held until `release`d or `destroy`ed. `extra`
-   * of them are over the number to remove, for dropping back.
+   * Set `count` icons aside, roughly from the top of the pile down, to fly away: the next
+   * frame's `scooped` says which. Each stays put until `grab`bed, and is then held until
+   * `release`d or `destroy`ed. `extra` of them are over the number to remove, for dropping
+   * back.
    */
   scoop(count: number, extra: number): void {
     this.send({ type: 'scoop', count, extra });

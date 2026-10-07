@@ -6,7 +6,7 @@ import { canvasSize, PILE } from './core/config';
 import { startPileLoop } from './loop';
 import { labels } from './messages';
 import { PileClient } from './pile-client';
-import { planRemoval, VacuumFlights } from './render/vacuum-flight';
+import { VacuumFlights } from './render/vacuum-flight';
 import { PileRenderer } from './render/renderer';
 import { createGiftSprite, GIFT_ICON_URL, loadImage, PLANE_URL } from './render/sprite';
 import { sizeStore, type WorldSize } from './settings';
@@ -29,13 +29,6 @@ function createPile() {
     flights,
   );
   return { client, renderer, flights };
-}
-
-/** Remove `count` icons: a plane flies off with them, bar any over what one plane carries. */
-function remove(client: PileClient, count: number) {
-  const { fly, extra, instant } = planRemoval(count);
-  if (fly > 0) client.scoop(fly + extra, extra);
-  if (instant > 0) client.remove(instant);
 }
 
 const readStats = (client: PileClient): PileStats => ({
@@ -123,7 +116,7 @@ export function GiftPilePage() {
             stats={stats}
             maxItems={PILE.maxItems}
             onAdd={(count) => client.add(count)}
-            onRemove={(count) => remove(client, count)}
+            onRemove={(count) => flights.remove(count, performance.now())}
             onClear={() => client.clear()}
           />
         </Grid>

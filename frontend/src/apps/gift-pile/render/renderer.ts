@@ -30,7 +30,8 @@ const HELD_SCALE = 1.2;
  *
  * Frames arrive at the physics rate and draws happen at the display rate, so a moving icon
  * is drawn between where the last two frames put it, by how long ago the latest arrived.
- * Icons the worker has scooped for removal are handed to the flights, which draw them.
+ * Icons the worker has scooped for removal are handed to the flights, which draw each from
+ * the moment they take it.
  *
  * The canvas is sized to its CSS box × devicePixelRatio and the world scaled into it, so the
  * icons stay crisp at any page width. The resting layer is repainted when that ratio
@@ -141,13 +142,13 @@ export class PileRenderer {
     const r2 = r * r;
     let best: number | null = null;
     let bestD2 = r2;
-    const { cur } = this;
+    const { cur, flights } = this;
     if (cur) {
       for (let k = 0; k < cur.movingIds.length; k++) {
         const dx = cur.movingXy[2 * k]! - x;
         const dy = cur.movingXy[2 * k + 1]! - y;
         const d2 = dx * dx + dy * dy;
-        if (d2 <= bestD2) {
+        if (d2 <= bestD2 && !flights?.holds(cur.movingIds[k]!)) {
           bestD2 = d2;
           best = cur.movingIds[k]!;
         }
@@ -158,12 +159,33 @@ export class PileRenderer {
       const dx = this.restingXy[2 * k]! - x;
       const dy = this.restingXy[2 * k + 1]! - y;
       const d2 = dx * dx + dy * dy;
-      if (d2 <= bestD2) {
+      if (d2 <= bestD2 && !flights?.holds(this.restingIds[k]!)) {
         bestD2 = d2;
         best = this.restingIds[k]!;
       }
     }
     return best;
+  }
+
+  /**
+   * A flight takes icon `id`: where it is now, and off the resting layer if it was there
+   * (the engine's frame will say the same a tick later). Null if it isn't here.
+   */
+  private take(id: number): { x: number; y: number } | null {
+    const slot = this.slotOf.get(id);
+    if (slot !== undefined) {
+      const at = { x: this.restingXy[2 * slot]!, y: this.restingXy[2 * slot + 1]! };
+      this.removeResting(id);
+      return at;
+    }
+    const { cur } = this;
+    if (cur) {
+      for (let k = 0; k < cur.movingIds.length; k++) {
+        if (cur.movingIds[k] === id)
+          return { x: cur.movingXy[2 * k]!, y: cur.movingXy[2 * k + 1]! };
+      }
+    }
+    return null;
   }
 
   /** Draw the pile as of wall time `now` (ms) into `canvas`. */
@@ -234,7 +256,12 @@ export class PileRenderer {
         this.stamp(ctx, x, y);
       }
     }
-    this.flights?.draw(ctx, now, (x, y, scale) => this.stamp(ctx, x, y, scale));
+    this.flights?.draw(
+      ctx,
+      now,
+      (x, y, scale) => this.stamp(ctx, x, y, scale),
+      (id) => this.take(id),
+    );
     if (held) this.stamp(ctx, held.x, held.y, HELD_SCALE);
   }
 
