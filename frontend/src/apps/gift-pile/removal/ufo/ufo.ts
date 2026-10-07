@@ -1,9 +1,10 @@
-import { TractorBeam } from '../beam';
-import { pick } from '../../removal';
-import { type Course, type Craft, type Pose } from '../craft';
-import { UFO_SVG } from './fluent-art';
-import { climbAway } from '../climb-away';
-import { type Recolour, SvgArt } from './svg-art';
+import { TractorBeam } from '../kit/beam';
+import { type Board, pick, type Removal, type Remover } from '../board';
+import { Crossing } from '../kit/crossing';
+import { type Course, type Craft, type Pose } from '../kit/craft';
+import { UFO_SVG } from './art';
+import { climbAway } from '../kit/climb-away';
+import { type Recolour, SvgArt } from '../kit/svg-art';
 
 const SIZE = 76;
 /** The middle of the saucer, in the art's 32×32 view box. */
@@ -39,13 +40,13 @@ interface Options {
  * A flying saucer: wobbles over, bobbing, beaming the icons up into its belly, then zips
  * away without pitching.
  */
-export class Ufo implements Craft {
+export class Ufo implements Craft, Remover {
   readonly name = 'ufo';
   readonly crossMs = 3800;
   /** The beam leaves the middle of its underside. */
   readonly tie = { dx: 0, dy: 9 };
   readonly intake = new TractorBeam();
-  readonly art: SvgArt;
+  private readonly art: SvgArt;
   private readonly schemes: readonly Recolour[];
   private scheme: Recolour;
 
@@ -55,8 +56,14 @@ export class Ufo implements Craft {
     this.art = new SvgArt(UFO_SVG, schemes);
   }
 
-  repaint(rng: () => number): void {
+  load(): Promise<void> {
+    return this.art.load();
+  }
+
+  /** Picks this crossing's colours, then sets off. */
+  begin(board: Board, now: number, rng: () => number): Removal {
     this.scheme = pick(this.schemes, rng);
+    return new Crossing(this, board, now, rng);
   }
 
   /** Room for the dome. */

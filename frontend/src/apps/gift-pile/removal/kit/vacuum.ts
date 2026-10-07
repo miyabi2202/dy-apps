@@ -28,7 +28,7 @@ export interface VacuumPose {
   exhaustY: number;
 }
 
-/** The vacuum hanging from (tieX, tieY), `t` ms into the pass: it swings a little on its rope. */
+/** The vacuum hanging from (tieX, tieY), `t` ms into the crossing: it swings a little on its rope. */
 export function vacuumAt(tieX: number, tieY: number, t: number): VacuumPose {
   const cx = tieX - TRAIL + Math.sin(t / 310) * 3;
   const cy = tieY + ROPE + BODY_H / 2;

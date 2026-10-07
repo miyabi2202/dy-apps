@@ -1,4 +1,4 @@
-import { loadImage } from '../../../render/sprite';
+import { loadImage } from '../../render/sprite';
 
 /** Swaps for an SVG's fills: each of its own colours (upper-case `#RRGGBB`) to the one to use. */
 export type Recolour = Readonly<Record<string, string>>;

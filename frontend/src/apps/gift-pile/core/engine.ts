@@ -28,6 +28,8 @@ const SWEEP_EVERY = 6;
  * collision radii, so the top layer goes first but not in a neat line.
  */
 const REMOVE_BLUR = 8;
+/** A clump scooped `near` somewhere is centred on the highest icon within this many radii of it. */
+const NEAR_REACH = 3;
 
 /**
  * The pile, simulated by Rapier. Every icon is a circle in a world with a floor and two
@@ -264,11 +266,13 @@ export class PileEngine {
 
   /**
    * Set aside `n` icons from the pile and the air (not one being held or already set
-   * aside), roughly from the top down, for the page to `grab` one by one as it flies them
-   * off. Until then each stays in the pile as it is, and no later scoop takes it; a
-   * `release` puts it back up for scooping. Returns them, roughly highest first.
+   * aside), roughly from the top down, for the page to `grab` one by one as it carries them
+   * off. With `near`, a fraction of the canvas's width, they are a rounded clump of the pile
+   * there instead, the nearest to the top of the pile at that point. Until then each
+   * stays in the pile as it is, and no later scoop takes it; a `release` puts it back up for
+   * scooping. Returns them, roughly highest first.
    */
-  scoop(n: number): number[] {
+  scoop(n: number, near?: number): number[] {
     // Rank every icon that can go by its height, blurred by a few radii of noise so the
     // top layer thins out unevenly instead of being peeled off in a line, and take the
     // highest `n`. Ranking all of them means the count asked for always goes while there
@@ -279,12 +283,30 @@ export class PileEngine {
     for (let i = 0; i < this.count; i++) {
       if (this.dead[i] || this.held[i] || this.reserved[i]) continue;
       candidates.push(i);
-      rank[i] = this.y[i]! + this.rng() * blur;
+    }
+    const centre = near === undefined ? null : this.surfaceNear(candidates, near * this.width);
+    for (const i of candidates) {
+      // By distance from the clump's centre, or else by height.
+      const by = centre ? Math.hypot(this.x[i]! - centre.x, this.y[i]! - centre.y) : this.y[i]!;
+      rank[i] = by + this.rng() * blur;
     }
     candidates.sort((a, b) => rank[a]! - rank[b]!);
     candidates.length = Math.min(Math.floor(n), candidates.length);
     for (const i of candidates) this.reserved[i] = 1;
     return candidates;
+  }
+
+  /** The top of the pile at `x`: the highest of `candidates` within `NEAR_REACH` radii of it, or the nearest. */
+  private surfaceNear(candidates: number[], x: number): { x: number; y: number } | null {
+    let best: number | null = null;
+    let nearest: number | null = null;
+    for (const i of candidates) {
+      const dx = Math.abs(this.x[i]! - x);
+      if (nearest === null || dx < Math.abs(this.x[nearest]! - x)) nearest = i;
+      if (dx <= NEAR_REACH * this.radius && (best === null || this.y[i]! < this.y[best]!)) best = i;
+    }
+    const at = best ?? nearest;
+    return at === null ? null : { x, y: this.y[at]! };
   }
 
   /** Destroy `n` icons at once, as `scoop` picks them. Returns how many went. */

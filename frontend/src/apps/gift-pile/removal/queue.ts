@@ -29,10 +29,12 @@ export function planRemoval(
 /** A press waiting its turn: icons to add, or icons to remove. */
 type Action = { kind: 'add'; count: number } | { kind: 'remove'; count: number };
 
-/** Whether a removal is under way, and when the last one was over. */
+/** Whether a removal is under way and when the last one was over, and how to start the next. */
 export interface Traffic {
   readonly busy: boolean;
   readonly lastEnded: number;
+  /** Ask the engine for the next removal's icons: `count`, `drop` of them to be dropped back. */
+  scoop(count: number, drop: number): void;
 }
 
 /**
@@ -106,7 +108,7 @@ export class ActionQueue {
       if (instant > 0) this.sink.remove(instant);
       if (carry === 0) continue;
       this.awaiting = true;
-      this.sink.scoop(carry, drop);
+      this.traffic.scoop(carry, drop);
     }
   }
 }

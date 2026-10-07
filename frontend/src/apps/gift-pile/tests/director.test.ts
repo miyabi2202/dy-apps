@@ -1,16 +1,18 @@
 /** @jest-environment node */
 import type { Scoop } from '../core/protocol';
 import { RemovalDirector } from '../removal/director';
-import { climbAway } from '../removal/flyover/climb-away';
-import type { Course, Craft } from '../removal/flyover/craft';
-import { Flyover } from '../removal/flyover/flyover';
-import { Vacuum } from '../removal/flyover/vacuum';
+import type { Board, Remover } from '../removal/board';
+import { climbAway } from '../removal/kit/climb-away';
+import type { Course, Craft } from '../removal/kit/craft';
+import { Crossing } from '../removal/kit/crossing';
+import { Vacuum } from '../removal/kit/vacuum';
+import { allRemovers } from '../removal/removers';
 import { LOAD_CAPACITY } from '../removal/queue';
 import type { RemovalSink } from '../removal/sink';
 import { mulberry32 } from './helpers';
 
 /** A plain craft that tows the vacuum over at a steady 4.8 s, drawing nothing. */
-class TestCraft implements Craft {
+class TestCraft implements Craft, Remover {
   readonly name = 'test';
   readonly crossMs = 4800;
   readonly tie = { dx: -5, dy: 13 };
@@ -26,9 +28,12 @@ class TestCraft implements Craft {
     return { py: course.altitude - climb, tilt };
   }
   draw() {}
+  begin(board: Board, now: number, rng: () => number) {
+    return new Crossing(this, board, now, rng);
+  }
 }
 
-const testRemovers = () => [new Flyover(new TestCraft())];
+const testRemovers = () => [new TestCraft()];
 
 /** Remembers what the flights ask of the engine. */
 class FakeSink implements RemovalSink {
@@ -77,7 +82,12 @@ const world = { width: 416, height: 708 };
 const noStamp = () => {};
 /** The renderer knows where every icon is: in a row along the top of a pile. */
 const take = (id: number) => ({ x: 20 + (id - 100) * 12, y: 500 });
-const hooks = { stamp: noStamp, take, peek: (id: number) => ({ ...take(id), resting: true }) };
+const hooks = {
+  radius: 8,
+  stamp: noStamp,
+  take,
+  peek: (id: number) => ({ ...take(id), resting: true }),
+};
 
 /** `n` icons in a row along the top of a pile, with `drop` of them to come back. */
 const scoopOf = (n: number, drop: number, from = 100): Scoop => ({
@@ -256,7 +266,7 @@ describe('RemovalDirector', () => {
 
   it('never drops more than it carries', () => {
     const sink = new FakeSink();
-    const flights = new RemovalDirector(sink, { rng: mulberry32(5) });
+    const flights = new RemovalDirector(sink, { removers: allRemovers(), rng: mulberry32(5) });
     flights.onScoop(scoopOf(2, 5), world, 0);
     for (let now = 0; now <= 8000; now += 16) flights.draw(fakeContext(), now, hooks);
     expect(sink.released).toHaveLength(2);
@@ -265,7 +275,7 @@ describe('RemovalDirector', () => {
 
   it('forgets its flights and queue on reset without touching the icons, since the engine already has', () => {
     const sink = new FakeSink();
-    const flights = new RemovalDirector(sink, { rng: mulberry32(7) });
+    const flights = new RemovalDirector(sink, { removers: allRemovers(), rng: mulberry32(7) });
     flights.remove(10, 0);
     flights.remove(10, 0);
     flights.onScoop(scoopOf(10, 2), world, 0);

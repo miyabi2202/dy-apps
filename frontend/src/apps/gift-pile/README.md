@@ -26,7 +26,7 @@ worker a `grab`: the icon leaves the engine entirely while held and the page dra
 pointer. Letting go sends `release` (it falls from there) or, over the bin, `destroy`. The
 renderer repaints only the removed icon's patch of the resting layer.
 
-## Removing: removers and crafts
+## Removing: the removers
 
 减少 doesn't delete icons on the spot. When its turn comes (see below), the page works out
 from the pile's count what to take (`planRemoval` in `removal/queue.ts`): a quarter
@@ -34,32 +34,45 @@ more than asked for, a fifth of which (a quarter of the number asked for) will b
 more than asked for. It asks the worker to `scoop` that many: the engine picks them roughly
 from the top of the pile down (each icon's height blurred by a few radii, so the top layer
 thins out unevenly), sets them aside so no later scoop takes them, and reports which in the
-next frame's `scooped`. They stay in the pile as they are.
+next frame's `scooped`. They stay in the pile as they are. The remover for the removal is
+dealt before the scoop is asked for, so it can `aim` it: then the engine takes a rounded clump
+off the top of the pile at that point across it instead, nearest first.
 
 The `RemovalDirector` (`removal/director.ts`) then deals a `Remover` from a shuffle bag, so
-each comes up as often as the others and never twice running, and has it `begin` a
-`Removal`: one at a time, drawn as the renderer's `Overlay` (`render/overlay.ts`). Both are
-defined in `removal/removal.ts`, along with the `Haul` every removal keeps of its icons, which
-makes sure each is `grab`bed before it moves and is in the end either `release`d or
-`destroy`ed. A remover is any way of carrying icons off; to add one, implement `Remover` in
-its own folder under `removal/` and list it in `createPile()` in `create-pile.ts`, where
-everything the page drives is wired together.
+each comes up as often as the others and never twice running, and has it `begin` a `Removal`
+on a `Board`: one at a time, drawn as the renderer's `Overlay` (`render/overlay.ts`). The
+contract is `removal/board.ts`, and it is all the pile knows of removers: the board gives a
+removal the icons set aside for it and lets it look where each is (`where`), `take` one out of
+the pile, `drop` one back, `destroy` one, and `stamp` an icon anywhere. The pile's side of it,
+`ScoopBoard` (`scoop-board.ts`), keeps the books, so each icon is `grab`bed before it moves
+and, when the removal is over, every one it didn't drop is `destroy`ed. Each remover has its
+own folder under `removal/` and decides for itself how it moves, what it looks like (it loads
+its own images, `load`) and how it carries icons off; they are listed in one place,
+`removal/removers.ts`, which `createPile()` in `create-pile.ts` hands to the director. To add
+one, implement `Remover` in a new folder and list it there.
 
-So far there is one kind, the `Flyover` (`removal/flyover/`): a craft crosses from the left to
-the right just above the pile in a `Pass`, taking icons in with its `Intake`, which is the
-craft's to choose: a `Vacuum` cleaner towed on a rope (`vacuum.ts`), a `TractorBeam` that
-draws them straight up into its belly (`beam.ts`), or its own `Mouth` (`mouth.ts`). The crafts
-live in `removal/flyover/crafts/`, one file each implementing `Craft` (`craft.ts`: how long it
-takes to cross, where the intake fits on, its path, and how to draw it and any scenery): a
-helicopter and a flying saucer, drawn from Microsoft's Fluent Emoji SVGs (MIT, credited in
-`fluent-art.ts`), the helicopter mirrored to face the way it flies with its rotors drawn
-spinning over the art, and the saucer beaming icons up; a drawn hot-air balloon; and a
-hypercar, which runs up one half of a split bridge, jumps the gap in a ballistic arc and comes
-down onto the other, lower, half. The balloon is the slowest and the car the quickest, at
-three seconds. A flyover has its craft pick its colours (`repaint`) from the palettes it was
-given in `createPile()`: the balloon's stripes, skirt and outline, the car's body and trim,
-and for the SVG crafts swaps of the art's own fills (`SvgArt` in `svg-art.ts`), each
+Removers share what they like from `removal/kit/`. So far all of them are crafts (`Craft` in
+`kit/craft.ts`) that run a `Crossing` (`kit/crossing.ts`): the craft crosses from the left to
+the right just above the pile, taking icons in with its `Intake`, which is the craft's to
+choose: a `Vacuum` cleaner towed on a rope (`vacuum.ts`), a `TractorBeam` that draws them
+straight up into its belly (`beam.ts`), or its own `Mouth` (`mouth.ts`). A craft says how
+long it takes to cross, where the intake fits on, its path, and how to draw it and any
+scenery: the `helicopter/` and the flying saucer (`ufo/`) are drawn from Microsoft's Fluent
+Emoji SVGs (MIT, credited in each one's `art.ts`, drawn with `kit/svg-art.ts`), the helicopter
+mirrored to face the way it flies with its rotors drawn spinning over the art, and the saucer
+beaming icons up; the hot-air balloon (`balloon/`) is drawn; and the `hypercar/` runs up one
+half of a split bridge, jumps the gap in a ballistic arc and comes down onto the other, lower,
+half. The balloon is the slowest and the car the quickest, at three seconds. Each craft picks
+its colours for the crossing from its palettes when it begins: the balloon's stripes, skirt and
+outline, the car's body and trim, and for the SVG crafts swaps of the art's own fills, each
 colouring turned into an image once when the page loads.
+
+Two removers don't cross. The claw machine (`claw/`) aims at a spot, slides along a rail at
+the top to it, lowers the claw and draws the clump up into a bunch in its grip (shrunk to fit
+if there are many), lets a few slip out on the way up, and carries the rest off. The fireworks
+(`fireworks/`) send the icons up in a handful of rockets, each gathered from its own stretch of
+the pile, that burst into sparks; the icons fly apart with the sparks and are `destroy`ed as
+they burn out, so the count goes down burst by burst, and the duds fall back onto the pile.
 
 As the intake nears each icon the page `grab`s it, so whatever rested on it falls then and
 not before, and draws it being drawn in, swinging and shrinking on the way. The ones to drop

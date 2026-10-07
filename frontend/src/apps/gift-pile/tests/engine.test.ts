@@ -157,6 +157,22 @@ describe('PileEngine', () => {
     expect(engine.scoop(60)).toContain(ids[0]);
   });
 
+  it('scoops a clump off the top of the pile near a point across it, when asked', async () => {
+    const engine = await createEngine({ world: { width: 400, height: 300 } });
+    engine.add(240);
+    settle(engine);
+    const resting = restingIcons(engine);
+    const x = 0.25 * engine.width;
+    const ids = engine.scoop(12, 0.25);
+    expect(ids).toHaveLength(12);
+    // All from around there, and from the top: none lower than the pile's middle.
+    const middle = resting.map((i) => engine.y[i]!).sort((a, b) => a - b)[resting.length / 2]!;
+    for (const i of ids) {
+      expect(Math.abs(engine.x[i]! - x)).toBeLessThan(8 * r);
+      expect(engine.y[i]).toBeLessThan(middle);
+    }
+  });
+
   it('removes from the top of the pile down, loosely', async () => {
     const engine = await createEngine();
     engine.add(120);

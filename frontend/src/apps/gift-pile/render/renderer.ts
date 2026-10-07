@@ -263,6 +263,7 @@ export class PileRenderer {
       }
     }
     this.overlay?.draw(ctx, now, {
+      radius: this.stage.radius,
       stamp: (x, y, scale) => this.stamp(ctx, x, y, scale),
       take: (id) => this.take(id),
       peek: (id) => this.peek(id),

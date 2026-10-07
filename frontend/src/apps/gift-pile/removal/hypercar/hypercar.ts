@@ -1,6 +1,7 @@
-import { pick } from '../../removal';
-import { type Course, type Craft, type Pose, type World } from '../craft';
-import { Vacuum } from '../vacuum';
+import { type Board, pick, type Removal, type Remover, type World } from '../board';
+import { Crossing } from '../kit/crossing';
+import { type Course, type Craft, type Pose } from '../kit/craft';
+import { Vacuum } from '../kit/vacuum';
 
 /** The car's length, and how far its centre sits above the road. */
 const CAR_L = 64;
@@ -67,7 +68,7 @@ export function bridge(width: number) {
  * runs up the left, jumps the gap in an arc and drives off down the right, nose following
  * the way it is going. The quickest craft, though not so quick you miss it.
  */
-export class Hypercar implements Craft {
+export class Hypercar implements Craft, Remover {
   readonly name = 'car';
   readonly crossMs = 3000;
   /** The rope ties on under the car. */
@@ -81,8 +82,10 @@ export class Hypercar implements Craft {
     this.palette = palettes[0]!;
   }
 
-  repaint(rng: () => number): void {
+  /** Picks this crossing's colours, then sets off. */
+  begin(board: Board, now: number, rng: () => number): Removal {
     this.palette = pick(this.palettes, rng);
+    return new Crossing(this, board, now, rng);
   }
 
   /** Room for the jump's peak. */

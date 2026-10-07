@@ -1,9 +1,10 @@
-import { pick } from '../../removal';
-import { type Course, type Craft, type Pose } from '../craft';
-import { HELICOPTER_SVG } from './fluent-art';
-import { climbAway } from '../climb-away';
-import { type Recolour, SvgArt } from './svg-art';
-import { Vacuum } from '../vacuum';
+import { type Board, pick, type Removal, type Remover } from '../board';
+import { Crossing } from '../kit/crossing';
+import { type Course, type Craft, type Pose } from '../kit/craft';
+import { HELICOPTER_SVG } from './art';
+import { climbAway } from '../kit/climb-away';
+import { type Recolour, SvgArt } from '../kit/svg-art';
+import { Vacuum } from '../kit/vacuum';
 
 const SIZE = 76;
 /** The middle of the cabin, in the art's 32×32 view box, which faces left. */
@@ -48,13 +49,13 @@ interface Options {
 }
 
 /** A helicopter: chugs over nose down with a slow sway, then lifts away still nose down. */
-export class Helicopter implements Craft {
+export class Helicopter implements Craft, Remover {
   readonly name = 'helicopter';
   readonly crossMs = 5000;
   /** The rope ties on under the skids. */
   readonly tie = { dx: 2, dy: 27 };
   readonly intake = new Vacuum();
-  readonly art: SvgArt;
+  private readonly art: SvgArt;
   private readonly schemes: readonly Recolour[];
   private scheme: Recolour;
 
@@ -64,8 +65,14 @@ export class Helicopter implements Craft {
     this.art = new SvgArt(HELICOPTER_SVG, schemes);
   }
 
-  repaint(rng: () => number): void {
+  load(): Promise<void> {
+    return this.art.load();
+  }
+
+  /** Picks this crossing's colours, then sets off. */
+  begin(board: Board, now: number, rng: () => number): Removal {
     this.scheme = pick(this.schemes, rng);
+    return new Crossing(this, board, now, rng);
   }
 
   /** Room for the rotor. */

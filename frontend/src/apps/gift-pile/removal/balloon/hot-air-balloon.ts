@@ -1,7 +1,8 @@
-import { pick } from '../../removal';
-import { type Course, type Craft, type Pose } from '../craft';
-import { climbAway } from '../climb-away';
-import { Vacuum } from '../vacuum';
+import { type Board, pick, type Removal, type Remover } from '../board';
+import { Crossing } from '../kit/crossing';
+import { type Course, type Craft, type Pose } from '../kit/craft';
+import { climbAway } from '../kit/climb-away';
+import { Vacuum } from '../kit/vacuum';
 
 /** The envelope's radius, the skirt below it, the lines down to the basket, and the basket. */
 const R = 30;
@@ -39,7 +40,7 @@ interface Options {
 }
 
 /** A hot-air balloon: drifts over slowly with a lazy bob, then rises away without tilting. */
-export class HotAirBalloon implements Craft {
+export class HotAirBalloon implements Craft, Remover {
   readonly name = 'balloon';
   readonly crossMs = 5600;
   /** The rope ties on under the basket. */
@@ -53,8 +54,10 @@ export class HotAirBalloon implements Craft {
     this.palette = palettes[0]!;
   }
 
-  repaint(rng: () => number): void {
+  /** Picks this crossing's colours, then sets off. */
+  begin(board: Board, now: number, rng: () => number): Removal {
     this.palette = pick(this.palettes, rng);
+    return new Crossing(this, board, now, rng);
   }
 
   minY(): number {

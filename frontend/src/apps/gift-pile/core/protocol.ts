@@ -5,12 +5,13 @@ export type ToWorker =
   /** Destroy this many icons, roughly from the top of the pile down. */
   | { type: 'remove'; count: number }
   /**
-   * Set this many icons aside, roughly from the top of the pile down, for the page to fly
+   * Set this many icons aside, roughly from the top of the pile down, for the page to carry
    * away: each stays in the pile until the page grabs it, and is then held until released
    * or destroyed. `extra` of them are over the number the user asked to remove, to be
-   * dropped back; it is echoed in the `Scoop`.
+   * dropped back; it is echoed in the `Scoop`. With `near`, a fraction of the canvas's
+   * width, they are a clump of the pile around there instead.
    */
-  | { type: 'scoop'; count: number; extra: number }
+  | { type: 'scoop'; count: number; extra: number; near?: number }
   | { type: 'clear' }
   /** A new world with a play area of this size, in pixels; the pile is emptied with it. */
   | { type: 'resize'; width: number; height: number }

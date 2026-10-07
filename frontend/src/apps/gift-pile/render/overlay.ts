@@ -12,8 +12,9 @@ export type Take = (id: number) => { x: number; y: number } | null;
 /** Where icon `id` is now and whether it is at rest, or null if the renderer doesn't have it. */
 export type Peek = (id: number) => { x: number; y: number; resting: boolean } | null;
 
-/** What an overlay may ask of the renderer while drawing. */
+/** What an overlay may ask of the renderer while drawing, and an icon's drawn radius. */
 export interface Hooks {
+  radius: number;
   stamp: Stamp;
   take: Take;
   peek: Peek;
