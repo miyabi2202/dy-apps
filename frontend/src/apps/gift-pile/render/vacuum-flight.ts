@@ -43,7 +43,7 @@ const EXTRA_MAX = 12;
 /** After a craft has crossed, it carries on out of sight for this long, while the last icons are drawn in. */
 const TAIL_MS = 700;
 /** The next queued craft sets off this long after the one before is gone, so two are never up at once. */
-const QUEUE_GAP_MS = 2000;
+const QUEUE_GAP_MS = 1000;
 /** How far outside the canvas a craft starts and finishes. */
 const OVERSHOOT = 70;
 /** An icon is caught by the suction when the nozzle is this far short of it. */

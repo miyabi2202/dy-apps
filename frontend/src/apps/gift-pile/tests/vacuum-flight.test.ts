@@ -129,7 +129,7 @@ describe('VacuumFlights', () => {
     expect(stamped).toBeGreaterThan(n);
   });
 
-  it('sends queued crafts one at a time, with a gap between them', () => {
+  it('sends queued crafts one at a time, with a second between them', () => {
     const sink = new FakeSink();
     const flights = new VacuumFlights(sink, { rng: mulberry32(4), crafts: ['plane'] });
     const ctx = fakeContext();
@@ -143,23 +143,23 @@ describe('VacuumFlights', () => {
     flights.draw(ctx, 5000, noStamp, take);
     expect(sink.scoops).toHaveLength(1);
     expect(flights.count).toBe(1);
-    // Gone at 5500; the next is asked for 2 s later, and sets off when its icons arrive.
+    // Gone at 5500; the next is asked for 1 s later, and sets off when its icons arrive.
     flights.draw(ctx, 5600, noStamp, take);
     expect(flights.count).toBe(0);
     expect(sink.scoops).toHaveLength(1);
-    flights.draw(ctx, 7500, noStamp, take);
+    flights.draw(ctx, 6500, noStamp, take);
     expect(sink.scoops).toHaveLength(1);
-    flights.draw(ctx, 7700, noStamp, take);
+    flights.draw(ctx, 6700, noStamp, take);
     expect(sink.scoops).toHaveLength(2);
-    flights.start(scoopOf(11, 1, 200), world, 7700);
+    flights.start(scoopOf(11, 1, 200), world, 6700);
     expect(flights.count).toBe(1);
     expect(flights.queued).toBe(1);
     // The gap counts from the draw that finds the craft gone.
-    flights.draw(ctx, 7700 + 5500, noStamp, take);
+    flights.draw(ctx, 6700 + 5500, noStamp, take);
     expect(flights.count).toBe(0);
-    flights.draw(ctx, 7700 + 5500 + 1900, noStamp, take);
+    flights.draw(ctx, 6700 + 5500 + 900, noStamp, take);
     expect(sink.scoops).toHaveLength(2);
-    flights.draw(ctx, 7700 + 5500 + 2100, noStamp, take);
+    flights.draw(ctx, 6700 + 5500 + 1100, noStamp, take);
     expect(sink.scoops).toHaveLength(3);
     // An empty scoop (the pile ran out) frees the queue too.
     flights.start(scoopOf(0, 1), world, 16_000);
