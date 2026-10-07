@@ -42,6 +42,11 @@ The bin image (`public/bin/recycle-bin.png`) is the Windows-style
 [Recycle Bin icon by Icons8](https://icons8.com/icon/set/recycle-bin/color), used under their
 free licence, which asks for this link.
 
+## Edge cases
+
+[edge-cases.md](edge-cases.md) lists every floating-icon, counting and rendering case found so
+far, with a reproduction and the invariant to assert, for turning into tests.
+
 ## TODO
 
 - A vacuum at the mouse for about a second, pulling nearby icons in. Icons need a velocity in any direction for this, not just a speed along their way down.
