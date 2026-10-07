@@ -85,7 +85,7 @@ describe('VacuumFlights', () => {
 
   it('takes icons as the nozzle reaches them, drops the extras over the pile and destroys the rest once gone', () => {
     const sink = new FakeSink();
-    const flights = new VacuumFlights(sink, { rng: mulberry32(3) });
+    const flights = new VacuumFlights(sink, { rng: mulberry32(3), crafts: ['plane'] });
     const ctx = fakeContext();
     let stamped = 0;
     const n = 30;
@@ -103,11 +103,11 @@ describe('VacuumFlights', () => {
     for (const id of sink.grabbed) expect(flights.holds(id)).toBe(!back.has(id));
 
     let destroyedAt: number | null = null;
-    for (let now = 1800; now <= 1000 + 4000; now += 16) {
+    for (let now = 1800; now <= 1000 + 6000; now += 16) {
       flights.draw(ctx, now, () => stamped++, take);
       if (destroyedAt === null && sink.destroyed.length > 0) destroyedAt = now;
       // Nothing is destroyed while the plane is still crossing the canvas.
-      if (now < 1000 + 2400) expect(sink.destroyed).toHaveLength(0);
+      if (now < 1000 + 4800) expect(sink.destroyed).toHaveLength(0);
     }
 
     expect(flights.count).toBe(0);
@@ -129,39 +129,63 @@ describe('VacuumFlights', () => {
     expect(stamped).toBeGreaterThan(n);
   });
 
-  it('sends queued planes one after another', () => {
+  it('sends queued crafts one at a time, with a gap between them', () => {
     const sink = new FakeSink();
-    const flights = new VacuumFlights(sink, { rng: mulberry32(4) });
+    const flights = new VacuumFlights(sink, { rng: mulberry32(4), crafts: ['plane'] });
     const ctx = fakeContext();
     flights.remove(10, 0);
     flights.remove(10, 0);
     flights.remove(10, 0);
     expect(sink.scoops).toHaveLength(1);
     flights.start(scoopOf(11, 1), world, 0);
-    // Still only one plane while the first is early in its crossing.
+    // Only one craft while the first is up, even once it has crossed.
     flights.draw(ctx, 500, noStamp, take);
+    flights.draw(ctx, 5000, noStamp, take);
     expect(sink.scoops).toHaveLength(1);
-    // Once it is well across, the next is asked for, and sets off when its icons arrive.
-    flights.draw(ctx, 1500, noStamp, take);
+    expect(flights.count).toBe(1);
+    // Gone at 5500; the next is asked for 2 s later, and sets off when its icons arrive.
+    flights.draw(ctx, 5600, noStamp, take);
+    expect(flights.count).toBe(0);
+    expect(sink.scoops).toHaveLength(1);
+    flights.draw(ctx, 7500, noStamp, take);
+    expect(sink.scoops).toHaveLength(1);
+    flights.draw(ctx, 7700, noStamp, take);
     expect(sink.scoops).toHaveLength(2);
-    flights.draw(ctx, 1600, noStamp, take);
-    expect(sink.scoops).toHaveLength(2);
-    flights.start(scoopOf(11, 1, 200), world, 1600);
-    expect(flights.count).toBe(2);
+    flights.start(scoopOf(11, 1, 200), world, 7700);
+    expect(flights.count).toBe(1);
     expect(flights.queued).toBe(1);
-    flights.draw(ctx, 1600 + 1400, noStamp, take);
+    // The gap counts from the draw that finds the craft gone.
+    flights.draw(ctx, 7700 + 5500, noStamp, take);
+    expect(flights.count).toBe(0);
+    flights.draw(ctx, 7700 + 5500 + 1900, noStamp, take);
+    expect(sink.scoops).toHaveLength(2);
+    flights.draw(ctx, 7700 + 5500 + 2100, noStamp, take);
     expect(sink.scoops).toHaveLength(3);
     // An empty scoop (the pile ran out) frees the queue too.
-    flights.start(scoopOf(0, 1), world, 3100);
+    flights.start(scoopOf(0, 1), world, 16_000);
     expect(flights.queued).toBe(0);
-    expect(flights.count).toBe(2);
+    expect(flights.count).toBe(0);
+  });
+
+  it('gives every craft a turn', () => {
+    const sink = new FakeSink();
+    const flights = new VacuumFlights(sink, { rng: mulberry32(9) });
+    // Each craft's own crossing shows in how long its flight lasts.
+    const lengths = new Set<number>();
+    for (let i = 0; i < 12; i++) {
+      flights.start(scoopOf(3, 0), world, 0);
+      let now = 0;
+      while (flights.count > 0) flights.draw(fakeContext(), (now += 100), noStamp, take);
+      lengths.add(now);
+    }
+    expect(lengths.size).toBe(3);
   });
 
   it('never drops more than it carries', () => {
     const sink = new FakeSink();
     const flights = new VacuumFlights(sink, { rng: mulberry32(5) });
     flights.start(scoopOf(2, 5), world, 0);
-    for (let now = 0; now <= 4000; now += 16) flights.draw(fakeContext(), now, noStamp, take);
+    for (let now = 0; now <= 8000; now += 16) flights.draw(fakeContext(), now, noStamp, take);
     expect(sink.released).toHaveLength(2);
     expect(sink.destroyed).toHaveLength(0);
   });

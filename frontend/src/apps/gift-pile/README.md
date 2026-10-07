@@ -32,14 +32,16 @@ renderer repaints only the removed icon's patch of the resting layer.
 picks them roughly from the top of the pile down (each icon's height blurred by a few radii,
 so the top layer thins out unevenly), sets them aside so no later scoop takes them, and
 reports which in the next frame's `scooped`. They stay in the pile as they are.
-`render/vacuum-flight.ts` then flies a paper plane (Douyin's 纸飞机 emoji, mirrored and
-turned to point along its path) or a drawn hot-air balloon, picked at random, from the top
-left to the top right, just above the pile, towing a vacuum cleaner on a rope. As the nozzle nears each icon the page `grab`s it, so
+`render/vacuum-flight.ts` then sends a craft, picked at random, from the left to the right
+just above the pile, towing a vacuum cleaner on a rope: a paper plane (Douyin's 纸飞机 emoji,
+mirrored and turned to point along its path), a drawn hot-air balloon, or a hypercar, which
+runs up one half of a split bridge, jumps the gap and drives off down the other. The balloon
+is the slowest and the car the quickest, though none crosses in under four seconds. As the nozzle nears each icon the page `grab`s it, so
 whatever rested on it falls then and not before, and draws it being sucked up, swinging and
 shrinking on the way. The vacuum takes a few more than asked for and spits them out of its
 exhaust over the pile (`release`), so the pile loses exactly the number asked for; when the
-plane is out of sight the rest are `destroy`ed. Removals queue, each plane setting off once
-the one before is well across. One plane carries at most `VACUUM_CAPACITY` icons; anything
+plane is out of sight the rest are `destroy`ed. Removals queue, each craft setting off two
+seconds after the one before is gone, so two are never up at once. One plane carries at most `VACUUM_CAPACITY` icons; anything
 over that is removed at once, with no flight, to keep drawing cheap.
 
 ## How the pile stays honest

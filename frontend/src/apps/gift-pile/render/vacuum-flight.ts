@@ -23,9 +23,14 @@ export type Stamp = (x: number, y: number, scale?: number) => void;
  */
 export type Take = (id: number) => { x: number; y: number } | null;
 
+/** What carries the vacuum: picked at random for each flight. */
+export type Craft = 'plane' | 'balloon' | 'car';
+
 interface Options {
   /** Random numbers in [0, 1). */
   rng?: () => number;
+  /** The crafts to pick from; all of them unless a test narrows it. */
+  crafts?: readonly Craft[];
 }
 
 /** The most icons one plane carries; any more asked for go at once, without a flight. */
@@ -35,13 +40,11 @@ const EXTRA_SHARE = 0.12;
 const EXTRA_MAX = 12;
 
 // Timing, in ms, and geometry, in world (CSS) pixels.
-/** The plane crosses from off the left edge to off the right edge in this long. */
-const FLY_MS = 2400;
-/** Then flies on out of sight for this long, while the last icons are drawn in. */
+/** After a craft has crossed, it carries on out of sight for this long, while the last icons are drawn in. */
 const TAIL_MS = 700;
-/** The next queued plane may set off once the one before is this far across. */
-const NEXT_AFTER = 0.55;
-/** How far outside the canvas the plane starts and finishes. */
+/** The next queued craft sets off this long after the one before is gone, so two are never up at once. */
+const QUEUE_GAP_MS = 2000;
+/** How far outside the canvas a craft starts and finishes. */
 const OVERSHOOT = 70;
 /** An icon is caught by the suction when the nozzle is this far short of it. */
 const REACH = 80;
@@ -58,22 +61,43 @@ const SWIRL_TURNS = 3;
 const SUCKED_SCALE = 0.3;
 /** The nozzle flies this far above the highest icon it takes. */
 const NOZZLE_CLEARANCE = 46;
-/** Where the plane starts to climb away, as a fraction of the width, and by how much. */
+/** Where a plane or balloon starts to climb away, as a fraction of the width, and by how much. */
 const CLIMB_FROM = 0.7;
 const CLIMB = 90;
 const PLANE_SIZE = 72;
-/** Where the rope ties on under the plane, from its centre; and how near the top it may fly. */
-const PLANE_HANG = 13;
-const PLANE_MIN_Y = 44;
 /** The balloon: its envelope's radius, the skirt below it, the lines down to the basket, and the basket. */
 const BALLOON_R = 30;
 const BALLOON_SKIRT = 12;
 const BALLOON_LINES = 14;
 const BASKET_W = 20;
 const BASKET_H = 12;
-const BALLOON_HANG = BALLOON_R + BALLOON_SKIRT + BALLOON_LINES + BASKET_H;
-const BALLOON_MIN_Y = BALLOON_R + 8;
 const BALLOON_STRIPES = 8;
+/** The hypercar: its length, and how far its centre sits above the road. */
+const CAR_L = 64;
+const CAR_LIFT = 12;
+/** The split bridge the car jumps: each half's run and rise, and how high the car jumps the gap. */
+const RAMP_RUN_SHARE = 0.28;
+const RAMP_RUN_MAX = 150;
+const RAMP_RISE_SHARE = 0.42;
+const JUMP_H = 55;
+/** The ramps fade in and out over this long. */
+const RAMP_FADE_MS = 300;
+
+/**
+ * Each craft: how long it takes to cross the canvas (a balloon drifts, a hypercar hurries,
+ * but not so fast you miss it), from its centre down to where the rope ties on, and how
+ * near the top of the canvas its centre may be while still showing.
+ */
+const CRAFTS: Record<Craft, { crossMs: number; hang: number; minY: number }> = {
+  plane: { crossMs: 4800, hang: 13, minY: 44 },
+  balloon: {
+    crossMs: 5600,
+    hang: BALLOON_R + BALLOON_SKIRT + BALLOON_LINES + BASKET_H,
+    minY: BALLOON_R + 8,
+  },
+  car: { crossMs: 4200, hang: CAR_LIFT, minY: JUMP_H + 24 },
+};
+const ALL_CRAFTS: readonly Craft[] = ['plane', 'balloon', 'car'];
 /**
  * The paper plane image is mirrored, so its long wedge leads and the keel's fold trails like
  * a tail fin; mirrored it points up and to the right, and turned this far its nose is a
@@ -102,9 +126,6 @@ export function planRemoval(count: number): { fly: number; extra: number; instan
   return { fly, extra, instant: count - fly };
 }
 
-/** What carries the vacuum: picked at random for each flight. */
-type Craft = 'plane' | 'balloon';
-
 /** Where an icon is in its flight. */
 const WAITING = 0; // still in the pile, drawn by the renderer
 const LIFTING = 1; // grabbed, on its way into the nozzle
@@ -114,11 +135,13 @@ const DROPPED = 3; // spat back out, the engine's again
 interface Flight {
   t0: number;
   craft: Craft;
+  /** How long the crossing takes. */
+  crossMs: number;
   /** From the craft's centre down to where the rope ties on. */
   hang: number;
   /** The canvas's width when the flight began. */
   width: number;
-  /** The craft's centre's height while crossing. */
+  /** The craft's centre's height while crossing (for the car: at the top of a ramp). */
   altitude: number;
   startX: number;
   /** Pixels per ms. */
@@ -139,10 +162,18 @@ interface Flight {
   inside: number;
 }
 
+/** The split bridge for a car's flight: each half's horizontal run and rise. */
+const ramps = (width: number) => {
+  const run = Math.min(RAMP_RUN_MAX, width * RAMP_RUN_SHARE);
+  return { run, rise: run * RAMP_RISE_SHARE };
+};
+
 /**
- * The flights that carry removed icons away. A paper plane or a hot-air balloon (picked at
- * random) enters at the top left towing a vacuum cleaner on a rope, flies across just above
- * the pile and climbs away at the top right. The icons it is to take are set aside in the engine but stay in the pile until the
+ * The flights that carry removed icons away. A paper plane, a hot-air balloon or a hypercar
+ * (picked at random) enters at the left towing a vacuum cleaner on a rope and crosses just
+ * above the pile: the plane and balloon fly over and climb away at the top right; the car
+ * drives up one half of a split bridge, jumps the gap and drives off down the other. The
+ * icons a flight is to take are set aside in the engine but stay in the pile until the
  * nozzle comes near each; then it is grabbed and sucked up, swinging and shrinking on the
  * way, and whatever rested on it falls as it goes. The vacuum takes a few more than asked
  * for and spits them back out over the pile, so what the pile loses is exactly the number
@@ -158,16 +189,20 @@ export class VacuumFlights {
   private readonly queue: { fly: number; extra: number }[] = [];
   /** A scoop has been asked for and its icons haven't come back in a frame yet. */
   private awaiting = false;
+  /** When the last flight ended, for the gap before the next. */
+  private lastEnded = -Infinity;
   /** Every icon in a flight, waiting, lifting or inside. */
   private readonly inFlight = new Set<number>();
   private plane: HTMLImageElement | null = null;
   private readonly rng: () => number;
+  private readonly crafts: readonly Craft[];
 
   constructor(
     private readonly sink: FlightSink,
-    { rng = Math.random }: Options = {},
+    { rng = Math.random, crafts = ALL_CRAFTS }: Options = {},
   ) {
     this.rng = rng;
+    this.crafts = crafts;
   }
 
   /** The plane image; a drawn stand-in flies until it arrives. */
@@ -206,6 +241,7 @@ export class VacuumFlights {
     this.flights = [];
     this.queue.length = 0;
     this.awaiting = false;
+    this.lastEnded = -Infinity;
     this.inFlight.clear();
   }
 
@@ -217,9 +253,8 @@ export class VacuumFlights {
     const { rng } = this;
     let top = Infinity;
     for (let k = 0; k < n; k++) top = Math.min(top, scoop.xy[2 * k + 1]!);
-    const craft: Craft = rng() < 0.5 ? 'plane' : 'balloon';
-    const hang = craft === 'plane' ? PLANE_HANG : BALLOON_HANG;
-    const minY = craft === 'plane' ? PLANE_MIN_Y : BALLOON_MIN_Y;
+    const craft = this.crafts[Math.floor(rng() * this.crafts.length)] ?? 'plane';
+    const { crossMs, hang, minY } = CRAFTS[craft];
     // From the craft's centre down to the nozzle.
     const toNozzle = hang + ROPE + BODY_H / 2 + NOZZLE_DROP;
     const altitude = Math.min(
@@ -227,11 +262,12 @@ export class VacuumFlights {
       world.height - toNozzle,
     );
     const startX = -OVERSHOOT;
-    const speed = (world.width + 2 * OVERSHOOT) / FLY_MS;
+    const speed = (world.width + 2 * OVERSHOOT) / crossMs;
 
     const flight: Flight = {
       t0: now,
       craft,
+      crossMs,
       hang,
       width: world.width,
       altitude,
@@ -272,7 +308,7 @@ export class VacuumFlights {
       const lastOver = now + (world.width - startX) / speed;
       for (const k of order.slice(0, drop)) {
         const inside = flight.liftAt[k]! + flight.liftMs[k]! + 150;
-        const when = now + FLY_MS * (DROP_FROM + (DROP_TO - DROP_FROM) * rng());
+        const when = now + crossMs * (DROP_FROM + (DROP_TO - DROP_FROM) * rng());
         flight.drops.push({ k, at: Math.max(inside, Math.min(when, lastOver)) });
       }
       flight.drops.sort((a, b) => a.at - b.at);
@@ -287,14 +323,15 @@ export class VacuumFlights {
    */
   draw(ctx: CanvasRenderingContext2D, now: number, stamp: Stamp, take: Take): void {
     this.flights = this.flights.filter((flight) => {
-      if (now >= flight.t0 + FLY_MS + TAIL_MS) {
+      if (now >= flight.t0 + flight.crossMs + TAIL_MS) {
         flight.ids.forEach((id, k) => {
           if (flight.stage[k] === DROPPED) return;
-          // One the suction never reached (the tab was hidden) still goes with the plane.
+          // One the suction never reached (the tab was hidden) still goes with the craft.
           if (flight.stage[k] === WAITING) this.takeIcon(flight, k, take);
           this.sink.destroy(id);
           this.inFlight.delete(id);
         });
+        this.lastEnded = now;
         return false;
       }
       this.drawFlight(ctx, flight, now, stamp, take);
@@ -303,11 +340,10 @@ export class VacuumFlights {
     this.launch(now);
   }
 
-  /** Send the next queued plane off, if none is going or the last is far enough across. */
+  /** Send the next queued craft off, if none is going and the last has been gone long enough. */
   private launch(now: number): void {
-    if (this.awaiting || this.queue.length === 0) return;
-    const last = this.flights[this.flights.length - 1];
-    if (last && now - last.t0 < FLY_MS * NEXT_AFTER) return;
+    if (this.awaiting || this.queue.length === 0 || this.flights.length > 0) return;
+    if (now - this.lastEnded < QUEUE_GAP_MS) return;
     const { fly, extra } = this.queue.shift()!;
     this.awaiting = true;
     this.sink.scoop(fly + extra, extra);
@@ -325,6 +361,36 @@ export class VacuumFlights {
     f.stage[k] = LIFTING;
   }
 
+  /**
+   * The craft's centre and heading at `px`, `t` ms into the flight. A plane or balloon flies
+   * level and bobs, then climbs away along a parabola (the plane pointing along it). The car
+   * runs up the left ramp, jumps the gap in an arc and runs down the right ramp, pointing
+   * the way it is going.
+   */
+  private pathAt(f: Flight, px: number, t: number): { py: number; tilt: number } {
+    if (f.craft === 'car') {
+      const { run, rise } = ramps(f.width);
+      const gap = f.width - 2 * run;
+      if (px < run) {
+        const s = Math.min(1, Math.max(0, px / run));
+        return { py: f.altitude + rise * (1 - s), tilt: px < 0 ? 0 : -Math.atan2(rise, run) };
+      }
+      if (px <= run + gap) {
+        const s = (px - run) / gap;
+        const slope = (-JUMP_H * 4 * (1 - 2 * s)) / gap;
+        return { py: f.altitude - JUMP_H * 4 * s * (1 - s), tilt: Math.atan(slope) };
+      }
+      const s = Math.min(1, (px - run - gap) / run);
+      return { py: f.altitude + rise * s, tilt: s < 1 ? Math.atan2(rise, run) : 0 };
+    }
+    const climbRun = (1 - CLIMB_FROM) * f.width + OVERSHOOT;
+    const over = (px - CLIMB_FROM * f.width) / climbRun;
+    const climb = over > 0 ? over * over * CLIMB : 0;
+    const bob = f.craft === 'plane' ? Math.sin(t / 160) * 2 : Math.sin(t / 420) * 4;
+    const tilt = f.craft === 'plane' && over > 0 ? -Math.atan((2 * over * CLIMB) / climbRun) : 0;
+    return { py: f.altitude - climb + bob, tilt };
+  }
+
   private drawFlight(
     ctx: CanvasRenderingContext2D,
     f: Flight,
@@ -334,15 +400,8 @@ export class VacuumFlights {
   ): void {
     const t = now - f.t0;
     const px = f.startX + f.speed * t;
-    // Level, then climbing away along a parabola; a plane points along it, a balloon
-    // just rises, and bobs more.
-    const climbRun = (1 - CLIMB_FROM) * f.width + OVERSHOOT;
-    const over = (px - CLIMB_FROM * f.width) / climbRun;
-    const climb = over > 0 ? over * over * CLIMB : 0;
-    const tilt = over > 0 ? -Math.atan((2 * over * CLIMB) / climbRun) : 0;
-    const bob = f.craft === 'plane' ? Math.sin(t / 160) * 2 : Math.sin(t / 420) * 4;
-    const py = f.altitude - climb + bob;
-    // Where the rope ties on: under the plane's belly, or under the basket.
+    const { py, tilt } = this.pathAt(f, px, t);
+    // Where the rope ties on: under the plane's belly, the basket or the car.
     const ax = f.craft === 'plane' ? px - 5 : px;
     const ay = py + f.hang;
     // The canister swings on its rope behind the craft; the nozzle hangs below it.
@@ -361,10 +420,12 @@ export class VacuumFlights {
       this.sink.release(f.ids[k]!, cx - BODY_W / 2 - 4, cy + BODY_H / 2);
     }
 
+    if (f.craft === 'car') this.drawRamps(ctx, f, t);
     this.drawSuction(ctx, nx, ny, now);
     this.drawVacuum(ctx, ax, ay, cx, cy, nx, ny, f.inside / f.ids.length);
     if (f.craft === 'plane') this.drawPlane(ctx, px, py, tilt);
-    else this.drawBalloon(ctx, px, py);
+    else if (f.craft === 'balloon') this.drawBalloon(ctx, px, py);
+    else this.drawCar(ctx, px, py, tilt);
 
     // Icons the suction has reached: swinging up into the nozzle, or counted inside.
     const n = f.ids.length;
@@ -534,6 +595,119 @@ export class VacuumFlights {
     ctx.roundRect(x - BASKET_W / 2, basketY, BASKET_W, BASKET_H, 3);
     ctx.fill();
     ctx.stroke();
+  }
+
+  /**
+   * The split bridge for the car: two halves rising from the sides towards the gap in the
+   * middle, like / and \, each a deck with a rail; they fade in as the flight starts and out
+   * as it ends.
+   */
+  private drawRamps(ctx: CanvasRenderingContext2D, f: Flight, t: number): void {
+    const { run, rise } = ramps(f.width);
+    const roadY = f.altitude + CAR_LIFT;
+    const remaining = f.crossMs + TAIL_MS - t;
+    const alpha = Math.min(1, t / RAMP_FADE_MS, remaining / RAMP_FADE_MS);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.lineCap = 'butt';
+    for (const side of [-1, 1]) {
+      // From the canvas's edge up to the gap.
+      const edgeX = side < 0 ? 0 : f.width;
+      const gapX = side < 0 ? run : f.width - run;
+      // Deck.
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(edgeX, roadY + rise);
+      ctx.lineTo(gapX, roadY);
+      ctx.stroke();
+      // Road surface and its centre dashes.
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(edgeX, roadY + rise - 3);
+      ctx.lineTo(gapX, roadY - 3);
+      ctx.stroke();
+      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = '#fde68a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(edgeX, roadY + rise - 3);
+      ctx.lineTo(gapX, roadY - 3);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // The torn end of the half at the gap.
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(gapX - 2, roadY - 5, 4, 10);
+      // Rail: posts and a top rail along the far side.
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.8)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i <= 4; i++) {
+        const x = edgeX + ((gapX - edgeX) * i) / 4;
+        const y = roadY + rise * (1 - i / 4) - 3;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y - 10);
+      }
+      ctx.moveTo(edgeX, roadY + rise - 13);
+      ctx.lineTo(gapX, roadY - 13);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** A low, wedge-shaped hypercar facing right, with its wheels on the road `CAR_LIFT` below its centre. */
+  private drawCar(ctx: CanvasRenderingContext2D, x: number, y: number, tilt: number): void {
+    const l = CAR_L;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(tilt);
+    // Body.
+    ctx.fillStyle = '#f43f5e';
+    ctx.strokeStyle = '#881337';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-l / 2, 6);
+    ctx.lineTo(-l / 2 + 2, -4);
+    ctx.lineTo(-l / 4, -5);
+    ctx.lineTo(-l / 8, -14);
+    ctx.lineTo(l / 6, -14);
+    ctx.lineTo(l / 3, -6);
+    ctx.lineTo(l / 2 - 2, -2);
+    ctx.lineTo(l / 2, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Rear wing.
+    ctx.fillStyle = '#881337';
+    ctx.fillRect(-l / 2 - 4, -11, 12, 2.5);
+    ctx.fillRect(-l / 2 + 2, -9, 2, 5);
+    // Windows.
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.moveTo(-l / 4 + 3, -5);
+    ctx.lineTo(-l / 8 + 2, -12);
+    ctx.lineTo(l / 6 - 2, -12);
+    ctx.lineTo(l / 3 - 4, -6);
+    ctx.closePath();
+    ctx.fill();
+    // Lights.
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(l / 2 - 7, -2, 6, 2);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-l / 2, -3, 3, 2);
+    // Wheels.
+    for (const wx of [-l / 3, l / 3]) {
+      ctx.fillStyle = '#111827';
+      ctx.beginPath();
+      ctx.arc(wx, CAR_LIFT - 6, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.arc(wx, CAR_LIFT - 6, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   private drawPlane(ctx: CanvasRenderingContext2D, x: number, y: number, tilt: number): void {
