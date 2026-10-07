@@ -1,6 +1,6 @@
 /** Every gameplay number lives here. UI and engine code must not hard-code these. */
 export const CONFIG = {
-  board: { cols: 10, rows: 20 },
+  board: { cols: 10, rows: 40 },
   sequence: {
     /** Upcoming pieces kept internally. */
     minBuffer: 5,
@@ -40,7 +40,7 @@ export const CONFIG = {
   },
   effects: {
     /** Settlement rounds one firing lasts; each firing is its own instance. */
-    hasteRounds: 5,
+    hasteRounds: 3,
     fogRounds: 1,
     sealRounds: 1,
     /** Locked pieces one firing lasts, for the two short rotation curses. */
@@ -49,7 +49,7 @@ export const CONFIG = {
     /** How often 自转 turns the piece. */
     spinIntervalMs: 500,
   },
-  settlement: { everyLocks: 3 },
+  settlement: { everyLocks: 5 },
   log: { maxEntries: 10 },
   frame: { maxDtMs: 100 },
 } as const;

@@ -9,7 +9,9 @@ import { boardWithRows, dropOnEmpty, pendingOf, setActive, startedEngine } from 
 
 const { rows, cols } = CONFIG.board;
 /** Locks one fog runs for. */
-const FOG_LOCKS = CONFIG.effects.fogRounds * CONFIG.settlement.everyLocks;
+/** Locks in one settlement round. */
+const ROUND = CONFIG.settlement.everyLocks;
+const FOG_LOCKS = CONFIG.effects.fogRounds * ROUND;
 
 function groundActive(engine: GameEngine) {
   while (engine.softDrop()) {
@@ -235,21 +237,21 @@ describe('hold', () => {
 });
 
 describe('settlement cycle', () => {
-  it('settles exactly every 3 locks, even with empty queues', () => {
+  it('settles exactly every round of locks, even with empty queues', () => {
     const engine = startedEngine();
-    dropOnEmpty(engine, 2);
+    dropOnEmpty(engine, ROUND - 1);
     expect(engine.settlementCount).toBe(0);
     expect(engine.piecesUntilSettlement).toBe(1);
     dropOnEmpty(engine, 1);
     expect(engine.settlementCount).toBe(1);
-    dropOnEmpty(engine, 6);
+    dropOnEmpty(engine, ROUND * 2);
     expect(engine.settlementCount).toBe(3);
   });
 
   it('fires each pending curse type once per settlement; the rest waits', () => {
     const engine = startedEngine();
     engine.team.pending = pendingOf({ garbage: 2, haste: 1, fog: 1 });
-    dropOnEmpty(engine, 2);
+    dropOnEmpty(engine, ROUND - 1);
     engine.board = createBoard();
     setActive(engine, 'O');
     engine.hardDrop();
@@ -265,7 +267,7 @@ describe('settlement cycle', () => {
   it('fog and seal last the configured rounds', () => {
     const engine = startedEngine();
     engine.team.pending = pendingOf({ fog: 1, seal: 1 });
-    dropOnEmpty(engine, 3);
+    dropOnEmpty(engine, ROUND);
     expect(locksLeft(engine.effects.active.fog!)).toBe(FOG_LOCKS);
     dropOnEmpty(engine, FOG_LOCKS - 1);
     expect(engine.previewHidden).toBe(true);
@@ -277,7 +279,7 @@ describe('settlement cycle', () => {
 
   it('line clears do not cancel pending garbage', () => {
     const engine = startedEngine();
-    dropOnEmpty(engine, 2);
+    dropOnEmpty(engine, ROUND - 1);
     engine.team.pending.garbage = 3;
     engine.board = boardWithRows([rows - 1, rows - 2], [4, 5]);
     setActive(engine, 'O');
@@ -289,7 +291,7 @@ describe('settlement cycle', () => {
 
   it('garbage pushing blocks off the top ends the game', () => {
     const engine = startedEngine();
-    dropOnEmpty(engine, 2);
+    dropOnEmpty(engine, ROUND - 1);
     engine.team.pending.garbage = 1;
     engine.board = createBoard();
     engine.board[0]![0] = 'G';
@@ -336,17 +338,21 @@ describe('example F: haste and speed', () => {
     const engine = startedEngine();
     const rounds = CONFIG.effects.hasteRounds;
     engine.team.pending.haste = 1;
-    dropOnEmpty(engine, 3); // round 0: the first haste fires
+    dropOnEmpty(engine, ROUND); // round 0: the first haste fires
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
     engine.team.pending.haste = 1;
-    dropOnEmpty(engine, 3); // round 1: a second one
+    dropOnEmpty(engine, ROUND); // round 1: a second one
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8 * 0.8);
-    dropOnEmpty(engine, 3 * (rounds - 2)); // the last round both are active
+    dropOnEmpty(engine, ROUND * (rounds - 2)); // the last round both are active
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8 * 0.8);
-    dropOnEmpty(engine, 3); // the first expires
+    dropOnEmpty(engine, ROUND); // the first expires
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
-    expect(engine.activeCurses[0]).toMatchObject({ type: 'haste', count: 1, remainingLocks: 3 });
-    dropOnEmpty(engine, 3); // the second expires
+    expect(engine.activeCurses[0]).toMatchObject({
+      type: 'haste',
+      count: 1,
+      remainingLocks: ROUND,
+    });
+    dropOnEmpty(engine, ROUND); // the second expires
     expect(engine.gravityIntervalMs).toBe(850);
     expect(engine.speedMultiplier).toBe(1);
   });
@@ -354,9 +360,9 @@ describe('example F: haste and speed', () => {
   it('pending hastes fire one settlement at a time', () => {
     const engine = startedEngine();
     engine.team.pending.haste = 3;
-    dropOnEmpty(engine, 3);
+    dropOnEmpty(engine, ROUND);
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8);
-    dropOnEmpty(engine, 6);
+    dropOnEmpty(engine, ROUND * 2);
     expect(engine.gravityIntervalMs).toBeCloseTo(850 * 0.8 ** 3);
     expect(engine.team.pending.haste).toBe(0);
   });

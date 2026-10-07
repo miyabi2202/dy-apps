@@ -145,7 +145,7 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
             data-testid={testIds.board}
             aria-label="游戏棋盘"
             role="img"
-            {...stylex.props(styles.board)}
+            {...stylex.props(styles.board, styles.boardShape(CONFIG.board.cols, CONFIG.board.rows))}
           />
           <Overlay engine={engine} onRestart={onRestart} />
         </div>
@@ -408,17 +408,18 @@ const styles = stylex.create({
     gridArea: 'board',
     justifySelf: 'center',
     position: 'relative',
-    width: 'min(300px, 100%)',
+    /** 15px cells: 40 rows keep the board 600px tall at most. */
+    width: 'min(150px, 100%)',
   },
   board: {
     borderColor: colors.border,
     borderRadius: radius.sm,
     borderStyle: 'solid',
     borderWidth: 1,
-    aspectRatio: '1 / 2',
     display: 'block',
     width: '100%',
   },
+  boardShape: (cols: number, rows: number) => ({ aspectRatio: `${cols} / ${rows}` }),
   mini: {
     borderRadius: radius.sm,
     backgroundColor: colors.panelRaised,
