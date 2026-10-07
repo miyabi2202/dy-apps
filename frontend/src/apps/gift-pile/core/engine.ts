@@ -17,6 +17,8 @@ interface Options {
 const SPAWN_TRIES = 10;
 /** A woken icon that has moved this far (in collision radii) wakes whatever touched it. */
 const CASCADE_MOVE = 0.5;
+/** Contacts up to this far apart, in pixels, count as touching. */
+const TOUCH_GAP = 1;
 
 /**
  * The pile, simulated by Rapier. Every icon is a circle in a world with a floor and two
@@ -72,6 +74,8 @@ export class PileEngine {
   private readonly dt: number;
 
   private world: RAPIER.World;
+  /** The floor's collider handle, the one fixed thing that holds an icon up on its own. */
+  private floor = -1;
   private readonly bodies: (RAPIER.RigidBody | null)[];
   /** The fixed circle left where a resting icon is, and which icon each such collider is. */
   private readonly fixed: (RAPIER.Collider | null)[];
@@ -281,11 +285,11 @@ export class PileEngine {
       world.createCollider(
         R.ColliderDesc.cuboid(thick, tall).setTranslation(x, 0).setFriction(settings.friction),
       );
-    world.createCollider(
+    this.floor = world.createCollider(
       R.ColliderDesc.cuboid(w / 2 + thick, thick)
         .setTranslation(w / 2, h - m + thick)
         .setFriction(settings.friction),
-    );
+    ).handle;
     wall(m - thick);
     wall(w - m + thick);
     return world;
@@ -368,7 +372,10 @@ export class PileEngine {
       R.RigidBodyDesc.dynamic()
         .setTranslation(px * scale, py * scale)
         .setLinvel(0, vy * scale)
-        .setCcdEnabled(true),
+        .setCcdEnabled(true)
+        // Resting is ours to decide: Rapier's sleep would leave an icon hanging off a
+        // single neighbour that it should slide down from.
+        .setCanSleep(false),
     );
     this.world.createCollider(
       R.ColliderDesc.ball(this.radius * scale)
@@ -400,19 +407,20 @@ export class PileEngine {
         if ((x[i] - wx) ** 2 + (y[i] - wy) ** 2 > cascade2) {
           wokeX[i] = x[i]!;
           wokeY[i] = y[i]!;
-          this.wakeAround(wx, wy, true);
+          this.wakeAround(wx, wy);
         }
       }
       const v = body.linvel();
       const slow = v.x * v.x + v.y * v.y < slow2;
       still[i] = slow ? Math.min(255, still[i]! + 1) : 0;
       const n = still[i];
-      let rest = n >= s.settle.maxSteps;
-      if (!rest && n >= s.settle.steps) {
-        // Still for long enough, but not if pressed into a neighbour or leaning on one
-        // that is itself still moving: it would be left hanging when that one goes.
-        const { depth, onMoving } = this.contacts(body);
-        rest = depth <= s.settle.overlap && !onMoving;
+      let rest = false;
+      if (n >= s.settle.steps) {
+        // Still for long enough, and something under it: never a wall alone, which only
+        // holds it while a neighbour presses it there. Not if pressed into a neighbour or
+        // leaning on one still moving either, unless that has gone on for a long time.
+        const { depth, onMoving, supported } = this.contacts(body, i);
+        rest = supported && (n >= s.settle.maxSteps || (depth <= s.settle.overlap && !onMoving));
       }
       if (!rest) {
         moving[kept++] = i;
@@ -424,34 +432,66 @@ export class PileEngine {
   }
 
   /**
-   * The body's contacts: how far, in pixels, the deepest pushes it into a neighbour, and
-   * whether any is with a body still moving faster than the settling speed. (A slow one is
-   * about to rest itself; the floor, walls and resting icons are fixed colliders with no
-   * body.)
+   * Icon `i`'s body's contacts: how far, in pixels, the deepest pushes it into a neighbour;
+   * whether any is with a body still moving faster than the settling speed (a slow one is
+   * about to rest itself); and whether something holds it up: the floor, an icon below it
+   * that is at rest or slow, resting icons on both sides of it (an arch's keystone), or a
+   * wall it is wedged against by a resting icon beside it. A wall alone is not support.
    */
-  private contacts(body: RAPIER.RigidBody): { depth: number; onMoving: boolean } {
+  private contacts(
+    body: RAPIER.RigidBody,
+    i: number,
+  ): { depth: number; onMoving: boolean; supported: boolean } {
     const { narrowPhase, bodies, colliders } = this.world;
     const slow2 = (this.settings.settle.speed * this.scale) ** 2;
+    // Soft contacts hold bodies a fraction of a pixel apart at rest, so touching has slack.
+    const touchGap = TOUCH_GAP * this.scale;
+    // Below means its centre is at least this much lower, so it is not just beside.
+    const below = this.y[i]! + this.radius / 2;
     const collider = body.collider(0).handle;
     let depth = 0;
     let onMoving = false;
+    let supported = false;
+    let onWall = false;
+    let onResting = false;
+    let restingLeft = false;
+    let restingRight = false;
     narrowPhase.contactPairsWith(collider, (other) => {
       let touching = false;
       narrowPhase.contactPair(collider, other, bodies, (manifold) => {
         for (let c = 0; c < manifold.numContacts(); c++) {
           const dist = manifold.contactDist(c);
-          if (dist <= 0) touching = true;
+          if (dist <= touchGap) touching = true;
           depth = Math.max(depth, -dist);
         }
       });
-      if (!touching || onMoving) return;
-      const partner = colliders.get(other)?.parent();
-      if (partner) {
-        const v = partner.linvel();
-        if (v.x * v.x + v.y * v.y >= slow2) onMoving = true;
+      if (!touching) return;
+      if (other === this.floor) {
+        supported = true;
+        return;
       }
+      const resting = this.iconOfCollider.get(other);
+      if (resting !== undefined) {
+        onResting = true;
+        if (this.y[resting]! > below) supported = true;
+        if (this.x[resting]! < this.x[i]!) restingLeft = true;
+        else restingRight = true;
+        return;
+      }
+      const partner = colliders.get(other)?.parent();
+      if (!partner) {
+        onWall = true;
+        return;
+      }
+      const v = partner.linvel();
+      if (v.x * v.x + v.y * v.y >= slow2) onMoving = true;
+      else if (partner.translation().y / this.scale > below) supported = true;
     });
-    return { depth: depth / this.scale, onMoving };
+    return {
+      depth: depth / this.scale,
+      onMoving,
+      supported: supported || (restingLeft && restingRight) || (onWall && onResting),
+    };
   }
 
   /** Icon `i` comes to rest where its body is: a fixed circle takes the body's place. */
