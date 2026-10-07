@@ -30,7 +30,7 @@ const HELD_SCALE = 1.2;
  *
  * Frames arrive at the physics rate and draws happen at the display rate, so a moving icon
  * is drawn between where the last two frames put it, by how long ago the latest arrived.
- * Icons the worker has scooped for removal are handed to the overlay (the flights), which
+ * Icons the worker has scooped for removal are handed to the overlay (the removals), which
  * draws each from the moment it takes it.
  *
  * The canvas is sized to its CSS box × devicePixelRatio and the world scaled into it, so the

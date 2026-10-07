@@ -1,5 +1,7 @@
-// The vacuum cleaner every craft tows: a canister on a rope, a hose to a nozzle, and the
+// The vacuum cleaner most crafts tow: a canister on a rope, a hose to a nozzle, and the
 // cone of suction below it. Geometry is in world (CSS) pixels.
+
+import type { Intake, Openings } from './craft';
 
 /** The rope from where it ties on to the canister, and how far behind the tie the canister trails. */
 const ROPE = 18;
@@ -26,7 +28,7 @@ export interface VacuumPose {
   exhaustY: number;
 }
 
-/** The vacuum hanging from (tieX, tieY), `t` ms into the flight: it swings a little on its rope. */
+/** The vacuum hanging from (tieX, tieY), `t` ms into the pass: it swings a little on its rope. */
 export function vacuumAt(tieX: number, tieY: number, t: number): VacuumPose {
   const cx = tieX - TRAIL + Math.sin(t / 310) * 3;
   const cy = tieY + ROPE + BODY_H / 2;
@@ -126,4 +128,26 @@ export function drawVacuum(
   ctx.lineTo(nx - NOZZLE_W / 2, ny);
   ctx.closePath();
   ctx.fill();
+}
+
+/** The vacuum as a craft's intake: icons are sucked into the nozzle and spat out of the exhaust. */
+export class Vacuum implements Intake {
+  readonly reach = TIE_TO_NOZZLE;
+
+  openings(tieX: number, tieY: number, t: number): Openings {
+    const { nx, ny, exhaustX, exhaustY } = vacuumAt(tieX, tieY, t);
+    return { inX: nx, inY: ny, outX: exhaustX, outY: exhaustY };
+  }
+
+  draw(
+    ctx: CanvasRenderingContext2D,
+    tieX: number,
+    tieY: number,
+    t: number,
+    fullness: number,
+  ): void {
+    const pose = vacuumAt(tieX, tieY, t);
+    drawSuction(ctx, pose, t);
+    drawVacuum(ctx, tieX, tieY, pose, fullness);
+  }
 }

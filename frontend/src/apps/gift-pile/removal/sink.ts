@@ -1,10 +1,10 @@
-/** What the flights ask of the engine, through the worker; `PileClient` is one. */
-export interface FlightSink {
+/** What the removals ask of the engine, through the worker; `PileClient` is one. */
+export interface RemovalSink {
   /** Icons in the pile right now, moving, resting or held. */
   alive(): number;
   /** Drop `count` more icons in. */
   add(count: number): void;
-  /** Set `count` icons aside for a flight, `drop` of them to be dropped back. */
+  /** Set `count` icons aside for a removal, `drop` of them to be dropped back. */
   scoop(count: number, drop: number): void;
   /** Destroy `count` icons at once. */
   remove(count: number): void;

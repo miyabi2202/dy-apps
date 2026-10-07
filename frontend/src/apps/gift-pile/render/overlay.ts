@@ -21,7 +21,7 @@ export interface Hooks {
 
 /**
  * Something drawn over the pile each frame that can take icons out of the renderer's hands:
- * the flights that carry removed icons away. The renderer tells it what the worker scooped
+ * the removals that carry icons away. The renderer tells it what the worker scooped
  * and when the pile was cleared, asks it which icons it holds (so they can't be grabbed), and
  * has it draw after the moving icons, with hooks into the renderer's own drawing and state.
  */

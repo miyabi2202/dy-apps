@@ -26,40 +26,53 @@ worker a `grab`: the icon leaves the engine entirely while held and the page dra
 pointer. Letting go sends `release` (it falls from there) or, over the bin, `destroy`. The
 renderer repaints only the removed icon's patch of the resting layer.
 
-## Removing: the crafts and the vacuum
+## Removing: removers and crafts
 
 减少 doesn't delete icons on the spot. When its turn comes (see below), the page works out
-from the pile's count what to take (`planRemoval` in `flights/queue.ts`): a quarter
+from the pile's count what to take (`planRemoval` in `removal/queue.ts`): a quarter
 more than asked for, a fifth of which (a quarter of the number asked for) will be dropped back, or everything if the pile has no
 more than asked for. It asks the worker to `scoop` that many: the engine picks them roughly
 from the top of the pile down (each icon's height blurred by a few radii, so the top layer
 thins out unevenly), sets them aside so no later scoop takes them, and reports which in the
 next frame's `scooped`. They stay in the pile as they are.
 
-The `FlightDirector` (`flights/director.ts`) then sends a craft, dealt from a shuffle bag so
-each comes up once in every three flights and never twice running, from the left to the
-right just above the pile, towing a vacuum cleaner (`flights/vacuum.ts`) on a rope: one
-`Flight` (`flights/flight.ts`) at a time, drawn as the renderer's `Overlay`
-(`render/overlay.ts`). The crafts live in `flights/crafts/`, one file each implementing the
-`Craft` interface in `craft.ts` (how
-long it takes to cross, where the rope ties on, its path, and how to draw it and any
-scenery): a paper plane (Douyin's 纸飞机 emoji, mirrored and turned to point along its path),
-a drawn hot-air balloon, and a hypercar, which runs up one half of a split bridge, jumps the
-gap in a ballistic arc and comes down onto the other, lower, half. The balloon is the slowest
-and the car the quickest, at three seconds. To add a craft, implement `Craft` and list it in
-`createPile()` in `create-pile.ts`, where everything the page drives is wired together.
+The `RemovalDirector` (`removal/director.ts`) then deals a `Remover` from a shuffle bag, so
+each comes up as often as the others and never twice running, and has it `begin` a
+`Removal`: one at a time, drawn as the renderer's `Overlay` (`render/overlay.ts`). Both are
+defined in `removal/removal.ts`, along with the `Haul` every removal keeps of its icons, which
+makes sure each is `grab`bed before it moves and is in the end either `release`d or
+`destroy`ed. A remover is any way of carrying icons off; to add one, implement `Remover` in
+its own folder under `removal/` and list it in `createPile()` in `create-pile.ts`, where
+everything the page drives is wired together.
 
-As the nozzle nears each icon the page `grab`s it, so whatever rested on it falls then and
-not before, and draws it being sucked up, swinging and shrinking on the way. The ones to drop
-are spat out of the exhaust over the pile (`release`) and fall as physics has them; the stage
-tells the flights where the bin is, and a dropped icon that falls into it is destroyed, with
-the bin lighting up, so moving the bin under the craft catches more. When the craft is out of
-sight the rest are `destroy`ed. Presses queue in order (`ActionQueue` in `flights/queue.ts`):
-each craft sets off a second after the one before is gone, so two are never up at once, and
-添加 waits for any craft that is up (the panel counts those icons as 待添加 meanwhile). One
-craft carries at most
-`VACUUM_CAPACITY` icons; anything over that is removed at once, with no flight, to keep
-drawing cheap.
+So far there is one kind, the `Flyover` (`removal/flyover/`): a craft crosses from the left to
+the right just above the pile in a `Pass`, taking icons in with its `Intake`, which is the
+craft's to choose: a `Vacuum` cleaner towed on a rope (`vacuum.ts`), a `TractorBeam` that
+draws them straight up into its belly (`beam.ts`), or its own `Mouth` (`mouth.ts`). The crafts
+live in `removal/flyover/crafts/`, one file each implementing `Craft` (`craft.ts`: how long it
+takes to cross, where the intake fits on, its path, and how to draw it and any scenery): a
+helicopter and a flying saucer, drawn from Microsoft's Fluent Emoji SVGs (MIT, credited in
+`fluent-art.ts`), the helicopter mirrored to face the way it flies with its rotors drawn
+spinning over the art, and the saucer beaming icons up; a drawn hot-air balloon; and a
+hypercar, which runs up one half of a split bridge, jumps the gap in a ballistic arc and comes
+down onto the other, lower, half. The balloon is the slowest and the car the quickest, at
+three seconds. A flyover has its craft pick its colours (`repaint`) from the palettes it was
+given in `createPile()`: the balloon's stripes, skirt and outline, the car's body and trim,
+and for the SVG crafts swaps of the art's own fills (`SvgArt` in `svg-art.ts`), each
+colouring turned into an image once when the page loads.
+
+As the intake nears each icon the page `grab`s it, so whatever rested on it falls then and
+not before, and draws it being drawn in, swinging and shrinking on the way. The ones to drop
+come back out over the pile (`release`: out of the vacuum's exhaust, say) and fall as physics
+has them; the stage tells the director where the bin is, and a dropped icon that falls into it
+is destroyed, with the bin lighting up, so moving the bin under the craft catches more. When
+the craft, and anything trailing it, is out of sight the rest are `destroy`ed.
+
+Presses queue in order (`ActionQueue` in `removal/queue.ts`): each removal begins a second
+after the one before is over, so two are never under way at once, and 添加 waits for any
+removal under way (the panel counts those icons as 待添加 meanwhile). One removal carries at
+most `LOAD_CAPACITY` icons; anything over that is removed at once, unseen, to keep drawing
+cheap.
 
 ## How the pile stays honest
 

@@ -1,13 +1,37 @@
 /** @jest-environment node */
 import type { Scoop } from '../core/protocol';
-import { PaperPlane } from '../flights/crafts/paper-plane';
-import { FlightDirector } from '../flights/director';
-import { VACUUM_CAPACITY } from '../flights/queue';
-import type { FlightSink } from '../flights/sink';
+import { RemovalDirector } from '../removal/director';
+import { climbAway } from '../removal/flyover/climb-away';
+import type { Course, Craft } from '../removal/flyover/craft';
+import { Flyover } from '../removal/flyover/flyover';
+import { Vacuum } from '../removal/flyover/vacuum';
+import { LOAD_CAPACITY } from '../removal/queue';
+import type { RemovalSink } from '../removal/sink';
 import { mulberry32 } from './helpers';
 
+/** A plain craft that tows the vacuum over at a steady 4.8 s, drawing nothing. */
+class TestCraft implements Craft {
+  readonly name = 'test';
+  readonly crossMs = 4800;
+  readonly tie = { dx: -5, dy: 13 };
+  readonly intake = new Vacuum();
+  minY() {
+    return 44;
+  }
+  sag() {
+    return 0;
+  }
+  pathAt(course: Course, px: number) {
+    const { climb, tilt } = climbAway(course, px);
+    return { py: course.altitude - climb, tilt };
+  }
+  draw() {}
+}
+
+const testRemovers = () => [new Flyover(new TestCraft())];
+
 /** Remembers what the flights ask of the engine. */
-class FakeSink implements FlightSink {
+class FakeSink implements RemovalSink {
   /** What the engine would say is in the pile. */
   inPile = 400;
   added: number[] = [];
@@ -64,17 +88,17 @@ const scoopOf = (n: number, drop: number, from = 100): Scoop => ({
   drop,
 });
 
-describe('FlightDirector', () => {
+describe('RemovalDirector', () => {
   it('asks for a scoop at once from the pile as it is then, and removes anything over a load on the spot', () => {
     const sink = new FakeSink();
     sink.inPile = 5000;
-    const flights = new FlightDirector(sink, { crafts: [new PaperPlane()] });
+    const flights = new RemovalDirector(sink, { removers: testRemovers() });
     flights.remove(30, 0);
     expect(sink.scoops).toEqual([{ count: 38, extra: 7 }]);
     expect(sink.removed).toEqual([]);
     // The second removal waits for the first scoop to come back and its craft to go, and
     // is planned from the pile as it is then.
-    flights.remove(VACUUM_CAPACITY + 10, 0);
+    flights.remove(LOAD_CAPACITY + 10, 0);
     expect(sink.removed).toEqual([]);
     expect(sink.scoops).toHaveLength(1);
     expect(flights.queued).toBe(1);
@@ -91,7 +115,7 @@ describe('FlightDirector', () => {
 
   it('destroys a dropped icon that falls into the bin, and forgets one that lands', () => {
     const sink = new FakeSink();
-    const flights = new FlightDirector(sink, { rng: mulberry32(6), crafts: [new PaperPlane()] });
+    const flights = new RemovalDirector(sink, { rng: mulberry32(6), removers: testRemovers() });
     const ctx = fakeContext();
     let caught = 0;
     flights.setBin({ x: 200, y: 600, half: 25, onCatch: () => caught++ });
@@ -115,7 +139,7 @@ describe('FlightDirector', () => {
 
   it('adds at once when nothing is up, and after the craft is gone when one is', () => {
     const sink = new FakeSink();
-    const flights = new FlightDirector(sink, { rng: mulberry32(2), crafts: [new PaperPlane()] });
+    const flights = new RemovalDirector(sink, { rng: mulberry32(2), removers: testRemovers() });
     const ctx = fakeContext();
     flights.add(50, 0);
     expect(sink.added).toEqual([50]);
@@ -148,7 +172,7 @@ describe('FlightDirector', () => {
 
   it('takes icons as the nozzle reaches them, drops the extras over the pile and destroys the rest once gone', () => {
     const sink = new FakeSink();
-    const flights = new FlightDirector(sink, { rng: mulberry32(3), crafts: [new PaperPlane()] });
+    const flights = new RemovalDirector(sink, { rng: mulberry32(3), removers: testRemovers() });
     const ctx = fakeContext();
     let stamped = 0;
     const n = 30;
@@ -194,7 +218,7 @@ describe('FlightDirector', () => {
 
   it('sends queued crafts one at a time, with a second between them', () => {
     const sink = new FakeSink();
-    const flights = new FlightDirector(sink, { rng: mulberry32(4), crafts: [new PaperPlane()] });
+    const flights = new RemovalDirector(sink, { rng: mulberry32(4), removers: testRemovers() });
     const ctx = fakeContext();
     flights.remove(10, 0);
     flights.remove(10, 0);
@@ -232,7 +256,7 @@ describe('FlightDirector', () => {
 
   it('never drops more than it carries', () => {
     const sink = new FakeSink();
-    const flights = new FlightDirector(sink, { rng: mulberry32(5) });
+    const flights = new RemovalDirector(sink, { rng: mulberry32(5) });
     flights.onScoop(scoopOf(2, 5), world, 0);
     for (let now = 0; now <= 8000; now += 16) flights.draw(fakeContext(), now, hooks);
     expect(sink.released).toHaveLength(2);
@@ -241,7 +265,7 @@ describe('FlightDirector', () => {
 
   it('forgets its flights and queue on reset without touching the icons, since the engine already has', () => {
     const sink = new FakeSink();
-    const flights = new FlightDirector(sink, { rng: mulberry32(7) });
+    const flights = new RemovalDirector(sink, { rng: mulberry32(7) });
     flights.remove(10, 0);
     flights.remove(10, 0);
     flights.onScoop(scoopOf(10, 2), world, 0);

@@ -1,11 +1,14 @@
-import type { Scoop } from '../core/protocol';
-import type { Hooks, Take } from '../render/overlay';
-import { type Course, type Craft, OVERSHOOT, type World } from './crafts/craft';
-import type { FlightSink } from './sink';
-import { drawSuction, drawVacuum, TIE_TO_NOZZLE, vacuumAt } from './vacuum';
+import type { Scoop } from '../../core/protocol';
+import type { Hooks, Take } from '../../render/overlay';
+import { Haul, type Removal, type World } from '../removal';
+import type { RemovalSink } from '../sink';
+import { type Course, type Craft, OVERSHOOT } from './craft';
 
 // Timing, in ms, and geometry, in world (CSS) pixels.
-/** After a craft has crossed, it carries on out of sight for this long, while the last icons are drawn in. */
+/**
+ * After a craft has crossed, it carries on out of sight for this long (and longer for
+ * whatever trails behind it), while the last icons are drawn in.
+ */
 const TAIL_MS = 700;
 /** An icon is caught by the suction when the nozzle is this far short of it. */
 const REACH = 80;
@@ -26,27 +29,23 @@ const NOZZLE_CLEARANCE = 46;
 const DROP_FROM = 0.3;
 const DROP_TO = 0.8;
 
-/** Where an icon is in its flight. */
-const WAITING = 0; // still in the pile, drawn by the renderer
-const LIFTING = 1; // grabbed, on its way into the nozzle
-const INSIDE = 2; // in the canister
-const DROPPED = 3; // spat back out, the engine's again
-
 /**
- * One craft's trip across the canvas with the vacuum, carrying off the icons of one scoop.
+ * One craft's trip across the canvas, carrying off the icons of one scoop with its intake.
  * They stay in the pile until the nozzle comes near each; then it is grabbed and sucked up,
  * swinging and shrinking on the way, and whatever rested on it falls as it goes. The ones
  * marked to drop are spat back out over the pile (see `drops`), and when the craft is out
  * of sight the rest are destroyed (`end`).
  */
-export class Flight {
+export class Pass implements Removal {
   readonly craft: Craft;
   private readonly course: Course;
   private readonly t0: number;
+  /** How long after `t0` it is all out of sight. */
+  private readonly endMs: number;
   private readonly startX = -OVERSHOOT;
   /** Pixels per ms. */
   private readonly speed: number;
-  private readonly ids: Int32Array;
+  private readonly haul: Haul;
   /** Where each icon lifts from: where it was scooped, until it is taken. */
   private readonly x0: Float32Array;
   private readonly y0: Float32Array;
@@ -55,20 +54,19 @@ export class Flight {
   private readonly liftMs: Float32Array;
   /** Which way each swings first, and where in its swing it starts. */
   private readonly phase: Float32Array;
-  private readonly stage: Uint8Array;
+  /** Which of the taken icons have gone all the way in. */
+  private readonly arrived: Uint8Array;
   /** The icons to drop back, in time order. */
   private readonly dropAt: { k: number; at: number }[] = [];
-  /** Icons in the canister, for its gauge. */
+  /** Icons inside, for the intake's gauge. */
   private inside = 0;
-  /** Icons spat out since the last `drops()`. */
-  private dropped: number[] = [];
 
   /**
    * A craft sets off at wall time `now` with the icons of `scoop`, flying just high enough
    * for the nozzle to clear the highest of them.
    */
   constructor(
-    private readonly sink: FlightSink,
+    sink: RemovalSink,
     craft: Craft,
     scoop: Scoop,
     world: World,
@@ -78,11 +76,11 @@ export class Flight {
     const n = scoop.ids.length;
     this.craft = craft;
     this.t0 = now;
-    this.ids = scoop.ids;
+    this.haul = new Haul(sink, scoop);
     let top = Infinity;
     for (let k = 0; k < n; k++) top = Math.min(top, scoop.xy[2 * k + 1]!);
-    // From the craft's centre down to the nozzle, and how far it dips below its altitude.
-    const toNozzle = craft.tie.dy + TIE_TO_NOZZLE;
+    // From the craft's centre down to where icons go in, and how far it dips below its altitude.
+    const toNozzle = craft.tie.dy + craft.intake.reach;
     const sag = craft.sag(world);
     const altitude = Math.min(
       Math.max(craft.minY(world), top - NOZZLE_CLEARANCE - toNozzle - sag),
@@ -90,13 +88,14 @@ export class Flight {
     );
     this.course = { ...world, altitude, crossMs: craft.crossMs };
     this.speed = (world.width + 2 * OVERSHOOT) / craft.crossMs;
+    this.endMs = craft.crossMs + TAIL_MS + (craft.trail ?? 0) / this.speed;
 
     this.x0 = new Float32Array(n);
     this.y0 = new Float32Array(n);
     this.liftAt = new Float32Array(n);
     this.liftMs = new Float32Array(n);
     this.phase = new Float32Array(n);
-    this.stage = new Uint8Array(n);
+    this.arrived = new Uint8Array(n);
     const nozzleY = altitude + toNozzle;
     for (let k = 0; k < n; k++) {
       const x = scoop.xy[2 * k]!;
@@ -111,7 +110,7 @@ export class Flight {
       this.phase[k] = rng() * Math.PI * 2;
     }
 
-    // The ones to spit out are the first in, so they can fall while the vacuum is still
+    // The ones to spit out are the first in, so they can fall while the craft is still
     // over the pile; each goes at a random moment of the crossing once it is inside.
     const drop = Math.min(scoop.drop, n);
     if (drop > 0) {
@@ -128,37 +127,23 @@ export class Flight {
     }
   }
 
-  /** The icons this flight set off with. */
-  forEachIcon(fn: (id: number) => void): void {
-    this.ids.forEach((id) => fn(id));
-  }
-
-  /** The craft is out of sight. */
+  /** The craft, and anything trailing it, is out of sight. */
   isOver(now: number): boolean {
-    return now >= this.t0 + this.course.crossMs + TAIL_MS;
+    return now >= this.t0 + this.endMs;
   }
 
-  /** Icons spat out since the last call. */
   drops(): number[] {
-    const out = this.dropped;
-    this.dropped = [];
-    return out;
+    return this.haul.drops();
   }
 
-  /** The craft is gone: whatever it still holds is destroyed. Returns those icons. */
   end(take: Take): number[] {
-    const gone: number[] = [];
-    this.ids.forEach((id, k) => {
-      if (this.stage[k] === DROPPED) return;
-      // One the suction never reached (the tab was hidden) still goes with the craft.
-      if (this.stage[k] === WAITING) this.takeIcon(k, take);
-      this.sink.destroy(id);
-      gone.push(id);
-    });
-    return gone;
+    return this.haul.end(take);
   }
 
-  /** Draw the flight as of wall time `now`: scenery, suction, vacuum, craft, then the icons on their way in. */
+  /**
+   * Draw the pass as of wall time `now`: scenery, the craft's intake, the craft, then the
+   * icons on their way in.
+   */
   draw(ctx: CanvasRenderingContext2D, now: number, hooks: Hooks): void {
     const { craft, course } = this;
     const { stamp, take } = hooks;
@@ -167,39 +152,34 @@ export class Flight {
     const { py, tilt } = craft.pathAt(course, px, t);
     const tieX = px + craft.tie.dx;
     const tieY = py + craft.tie.dy;
-    const vacuum = vacuumAt(tieX, tieY, t);
+    const { intake } = craft;
+    const openings = intake.openings(tieX, tieY, t);
 
-    // Icons whose moment has come are spat out of the back of the canister.
+    // Icons whose moment has come are spat out.
     while (this.dropAt.length > 0 && this.dropAt[0]!.at <= now) {
       const { k } = this.dropAt.shift()!;
-      if (this.stage[k] === DROPPED) continue;
-      if (this.stage[k] === WAITING) this.takeIcon(k, take);
-      this.stage[k] = DROPPED;
-      this.dropped.push(this.ids[k]!);
-      this.sink.release(this.ids[k]!, vacuum.exhaustX, vacuum.exhaustY);
+      this.haul.drop(k, openings.outX, openings.outY, take);
     }
 
-    craft.drawScene?.(ctx, course, t, course.crossMs + TAIL_MS - t);
-    drawSuction(ctx, vacuum, now);
-    drawVacuum(ctx, tieX, tieY, vacuum, this.inside / this.ids.length);
-    craft.draw(ctx, px, py, tilt);
+    craft.drawScene?.(ctx, course, t, this.endMs - t);
+    intake.draw(ctx, tieX, tieY, t, this.inside / this.haul.size);
+    craft.draw(ctx, px, py, tilt, t);
 
-    // Icons the suction has reached: swinging up into the nozzle, or counted inside.
-    const { nx, ny } = vacuum;
-    const n = this.ids.length;
+    // Icons the intake has reached: swinging up into it, or counted inside.
+    const { inX: nx, inY: ny } = openings;
+    const n = this.haul.size;
     let inside = 0;
     for (let k = 0; k < n; k++) {
-      const stage = this.stage[k];
-      if (stage === DROPPED) continue;
-      if (stage === INSIDE) {
+      if (this.haul.isDropped(k)) continue;
+      if (this.arrived[k]) {
         inside++;
         continue;
       }
       if (now < this.liftAt[k]!) continue;
-      if (stage === WAITING) this.takeIcon(k, take);
+      this.takeIcon(k, take);
       const u = (now - this.liftAt[k]!) / this.liftMs[k]!;
       if (u >= 1) {
-        this.stage[k] = INSIDE;
+        this.arrived[k] = 1;
         inside++;
         continue;
       }
@@ -214,15 +194,12 @@ export class Flight {
     this.inside = inside;
   }
 
-  /** Icon `k` leaves the pile for the flight, lifting from wherever it is now. */
+  /** Icon `k` leaves the pile for the pass, if it hasn't yet, lifting from wherever it is now. */
   private takeIcon(k: number, take: Take): void {
-    const id = this.ids[k]!;
-    const at = take(id);
+    const at = this.haul.take(k, take);
     if (at) {
       this.x0[k] = at.x;
       this.y0[k] = at.y;
     }
-    this.sink.grab(id);
-    this.stage[k] = LIFTING;
   }
 }

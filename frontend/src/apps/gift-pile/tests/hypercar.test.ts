@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { bridge, Hypercar } from '../flights/crafts/hypercar';
+import { bridge, Hypercar } from '../removal/flyover/crafts/hypercar';
 
 const course = { width: 416, height: 708, altitude: 300, crossMs: 3000 };
 

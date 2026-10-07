@@ -6,7 +6,7 @@ import { canvasSize } from '../core/config';
 import { labels, testIds } from '../messages';
 import type { PileClient } from '../pile-client';
 import type { PileRenderer } from '../render/renderer';
-import type { FlightDirector } from '../flights/director';
+import type { RemovalDirector } from '../removal/director';
 import type { WorldSize } from '../settings';
 import { Bin, BIN_DROP_SIZE, BIN_ICON_SIZE, type BinPlace } from './bin';
 
@@ -14,8 +14,8 @@ interface Props {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   renderer: PileRenderer;
   client: PileClient;
-  /** Told where the bin is, so icons a craft drops into it are destroyed. */
-  director: FlightDirector;
+  /** Told where the bin is, so icons a removal drops into it are destroyed. */
+  director: RemovalDirector;
   /** The play area; the canvas is this plus the margin. */
   size: WorldSize;
 }
@@ -27,7 +27,7 @@ const CATCH_FLASH_MS = 250;
 
 /**
  * The canvas with the bin floating over it. Press on an icon to pick it up; it follows the
- * pointer, lands where it is let go, and is destroyed if that is in the bin. Icons a craft
+ * pointer, lands where it is let go, and is destroyed if that is in the bin. Icons a removal
  * drops that fall into the bin are destroyed too, and it lights up for each.
  */
 export function Stage({ canvasRef, renderer, client, director, size }: Props) {

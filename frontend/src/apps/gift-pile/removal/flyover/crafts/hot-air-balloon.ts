@@ -1,5 +1,7 @@
-import type { Course, Craft, Pose } from './craft';
-import { climbAway } from './flyover';
+import { pick } from '../../removal';
+import { type Course, type Craft, type Pose } from '../craft';
+import { climbAway } from '../climb-away';
+import { Vacuum } from '../vacuum';
 
 /** The envelope's radius, the skirt below it, the lines down to the basket, and the basket. */
 const R = 30;
@@ -9,12 +11,51 @@ const BASKET_W = 20;
 const BASKET_H = 12;
 const STRIPES = 8;
 
+/** A balloon's colours: the envelope's stripes, taken in turn, the skirt, and the outline. */
+export interface BalloonPalette {
+  stripes: readonly string[];
+  skirt: string;
+  outline: string;
+}
+
+export const BALLOON_PALETTES: readonly BalloonPalette[] = [
+  // Red and cream, the classic.
+  { stripes: ['#f87171', '#fde68a'], skirt: '#b91c1c', outline: '#7f1d1d' },
+  // Sky blue and white.
+  { stripes: ['#38bdf8', '#f0f9ff'], skirt: '#0369a1', outline: '#0c4a6e' },
+  // Sunset orange and pink.
+  { stripes: ['#fb923c', '#f472b6'], skirt: '#be185d', outline: '#831843' },
+  // Lavender.
+  { stripes: ['#a78bfa', '#ede9fe'], skirt: '#6d28d9', outline: '#4c1d95' },
+  // Mint and lemon.
+  { stripes: ['#34d399', '#fef9c3'], skirt: '#047857', outline: '#064e3b' },
+  // Rainbow.
+  { stripes: ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6'], skirt: '#334155', outline: '#1e293b' },
+];
+
+interface Options {
+  /** The colours to pick from for each pass; the first until the first pick. */
+  palettes?: readonly BalloonPalette[];
+}
+
 /** A hot-air balloon: drifts over slowly with a lazy bob, then rises away without tilting. */
 export class HotAirBalloon implements Craft {
   readonly name = 'balloon';
   readonly crossMs = 5600;
   /** The rope ties on under the basket. */
   readonly tie = { dx: 0, dy: R + SKIRT + LINES + BASKET_H };
+  readonly intake = new Vacuum();
+  private readonly palettes: readonly BalloonPalette[];
+  private palette: BalloonPalette;
+
+  constructor({ palettes = BALLOON_PALETTES }: Options = {}) {
+    this.palettes = palettes;
+    this.palette = palettes[0]!;
+  }
+
+  repaint(rng: () => number): void {
+    this.palette = pick(this.palettes, rng);
+  }
 
   minY(): number {
     return R + 8;
@@ -32,9 +73,10 @@ export class HotAirBalloon implements Craft {
   /** Centred on the envelope. */
   draw(ctx: CanvasRenderingContext2D, x: number, y: number): void {
     const r = R;
+    const { stripes, skirt, outline } = this.palette;
     // The skirt first, so the envelope covers its top.
     const throatY = y + r + SKIRT;
-    ctx.fillStyle = '#b91c1c';
+    ctx.fillStyle = skirt;
     ctx.beginPath();
     ctx.moveTo(x - r * 0.6, y + r * 0.8);
     ctx.lineTo(x + r * 0.6, y + r * 0.8);
@@ -50,7 +92,7 @@ export class HotAirBalloon implements Craft {
     for (let i = 0; i < STRIPES; i++) {
       const x0 = x - r * Math.cos((i * Math.PI) / STRIPES);
       const x1 = x - r * Math.cos(((i + 1) * Math.PI) / STRIPES);
-      ctx.fillStyle = i % 2 === 0 ? '#f87171' : '#fde68a';
+      ctx.fillStyle = stripes[i % stripes.length]!;
       ctx.fillRect(x0, y - r, x1 - x0, 2 * r);
     }
     // A soft shine at the top left.
@@ -61,7 +103,7 @@ export class HotAirBalloon implements Craft {
     ctx.fillStyle = shine;
     ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
     ctx.restore();
-    ctx.strokeStyle = '#7f1d1d';
+    ctx.strokeStyle = outline;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);

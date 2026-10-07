@@ -1,4 +1,6 @@
-import type { Course, Craft, Pose, World } from './craft';
+import { pick } from '../../removal';
+import { type Course, type Craft, type Pose, type World } from '../craft';
+import { Vacuum } from '../vacuum';
 
 /** The car's length, and how far its centre sits above the road. */
 const CAR_L = 64;
@@ -14,6 +16,34 @@ const RAMP_RISE_SHARE = 0.5;
 const LANDING_DROP_SHARE = 0.6;
 /** The bridge fades in and out over this long. */
 const FADE_MS = 300;
+
+/** A car's paint: the body, and the trim (its outline and the rear wing). */
+export interface CarPalette {
+  body: string;
+  trim: string;
+}
+
+export const CAR_PALETTES: readonly CarPalette[] = [
+  // Rosso.
+  { body: '#f43f5e', trim: '#881337' },
+  // Papaya orange.
+  { body: '#f97316', trim: '#7c2d12' },
+  // Racing yellow.
+  { body: '#facc15', trim: '#713f12' },
+  // British racing green.
+  { body: '#15803d', trim: '#052e16' },
+  // Electric blue.
+  { body: '#2563eb', trim: '#172554' },
+  // Pearl white.
+  { body: '#f1f5f9', trim: '#475569' },
+  // Violet.
+  { body: '#9333ea', trim: '#3b0764' },
+];
+
+interface Options {
+  /** The paints to pick from for each pass; the first until the first pick. */
+  palettes?: readonly CarPalette[];
+}
 
 /**
  * The split bridge for a canvas this wide: each half's horizontal run and rise, the gap
@@ -42,6 +72,18 @@ export class Hypercar implements Craft {
   readonly crossMs = 3000;
   /** The rope ties on under the car. */
   readonly tie = { dx: 0, dy: CAR_LIFT };
+  readonly intake = new Vacuum();
+  private readonly palettes: readonly CarPalette[];
+  private palette: CarPalette;
+
+  constructor({ palettes = CAR_PALETTES }: Options = {}) {
+    this.palettes = palettes;
+    this.palette = palettes[0]!;
+  }
+
+  repaint(rng: () => number): void {
+    this.palette = pick(this.palettes, rng);
+  }
 
   /** Room for the jump's peak. */
   minY(world: World): number {
@@ -130,12 +172,13 @@ export class Hypercar implements Craft {
   /** A low, wedge-shaped car facing right, its wheels on the road `CAR_LIFT` below its centre. */
   draw(ctx: CanvasRenderingContext2D, x: number, y: number, tilt: number): void {
     const l = CAR_L;
+    const { body, trim } = this.palette;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(tilt);
     // Body.
-    ctx.fillStyle = '#f43f5e';
-    ctx.strokeStyle = '#881337';
+    ctx.fillStyle = body;
+    ctx.strokeStyle = trim;
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.moveTo(-l / 2, 6);
@@ -150,7 +193,7 @@ export class Hypercar implements Craft {
     ctx.fill();
     ctx.stroke();
     // Rear wing.
-    ctx.fillStyle = '#881337';
+    ctx.fillStyle = trim;
     ctx.fillRect(-l / 2 - 4, -11, 12, 2.5);
     ctx.fillRect(-l / 2 + 2, -9, 2, 5);
     // Windows.
