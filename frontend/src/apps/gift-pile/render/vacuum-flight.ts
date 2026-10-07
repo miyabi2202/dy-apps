@@ -62,7 +62,7 @@ const ALTITUDE_MIN = 44;
 /** Where the plane starts to climb away, as a fraction of the width, and by how much. */
 const CLIMB_FROM = 0.7;
 const CLIMB = 90;
-const PLANE_SIZE = 58;
+const PLANE_SIZE = 72;
 /**
  * The paper plane image is mirrored, so its long wedge leads and the keel's fold trails like
  * a tail fin; mirrored it points up and to the right, and turned this far its nose is a
@@ -70,16 +70,16 @@ const PLANE_SIZE = 58;
  */
 const PLANE_IMAGE_ANGLE = 0.19;
 /** The rope from the plane to the canister, and how far behind the plane the canister trails. */
-const ROPE = 28;
-const TRAIL = 12;
+const ROPE = 30;
+const TRAIL = 14;
 /** The canister's body, and the nozzle's width and how far below the canister it hangs. */
-const BODY_W = 28;
-const BODY_H = 17;
-const NOZZLE_W = 20;
-const NOZZLE_DROP = 20;
+const BODY_W = 22;
+const BODY_H = 13;
+const NOZZLE_W = 16;
+const NOZZLE_DROP = 16;
 /** The suction cone below the nozzle: how far down it shows and how wide it gets. */
 const CONE_LENGTH = 110;
-const CONE_HALF_WIDTH = 48;
+const CONE_HALF_WIDTH = 42;
 /** When the extras are spat back out, as fractions of the crossing. */
 const DROP_FROM = 0.3;
 const DROP_TO = 0.8;
@@ -316,7 +316,7 @@ export class VacuumFlights {
     // The canister swings on its rope behind the plane; the nozzle hangs below it.
     const cx = px - TRAIL + Math.sin(t / 310) * 3;
     const cy = py + ROPE + BODY_H / 2;
-    const nx = cx - 5;
+    const nx = cx - 4;
     const ny = cy + NOZZLE_DROP;
 
     // Extras whose moment has come are spat out of the back of the canister.
@@ -407,15 +407,15 @@ export class VacuumFlights {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(px - 4, py + 10);
+    ctx.moveTo(px - 5, py + 13);
     ctx.lineTo(cx, cy - BODY_H / 2);
     ctx.stroke();
     // Hose: a curve from the canister's underside to the nozzle.
     ctx.strokeStyle = '#64748b';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(cx, cy + BODY_H / 2 - 2);
-    ctx.quadraticCurveTo(cx - 11, cy + NOZZLE_DROP * 0.6, nx, ny - 3);
+    ctx.quadraticCurveTo(cx - 9, cy + NOZZLE_DROP * 0.6, nx, ny - 2);
     ctx.stroke();
     // Canister body with a window showing how full it is.
     ctx.fillStyle = '#cbd5e1';
@@ -436,12 +436,12 @@ export class VacuumFlights {
     ctx.fillRect(winX, winY + winH - level, winW, level);
     // Exhaust at the back, where extras come out.
     ctx.fillStyle = '#475569';
-    ctx.fillRect(cx - BODY_W / 2 - 4, cy - 2.5, 5, 5);
+    ctx.fillRect(cx - BODY_W / 2 - 3, cy - 2, 4, 4);
     // Nozzle.
     ctx.fillStyle = '#334155';
     ctx.beginPath();
-    ctx.moveTo(nx - 4, ny - 6);
-    ctx.lineTo(nx + 4, ny - 6);
+    ctx.moveTo(nx - 3, ny - 5);
+    ctx.lineTo(nx + 3, ny - 5);
     ctx.lineTo(nx + NOZZLE_W / 2, ny);
     ctx.lineTo(nx - NOZZLE_W / 2, ny);
     ctx.closePath();
