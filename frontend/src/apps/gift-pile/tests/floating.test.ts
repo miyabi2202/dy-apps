@@ -1,5 +1,5 @@
 /** @jest-environment node */
-// Every way an icon has been left floating in the air (see edge-cases.md for the history).
+// Every way an icon has been left floating in the air, each as a test.
 // Each test ends with the one invariant: no resting icon without a path to the floor.
 import {
   createEngine,

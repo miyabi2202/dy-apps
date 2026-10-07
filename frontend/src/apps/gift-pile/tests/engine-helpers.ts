@@ -70,9 +70,9 @@ export function neighbours(engine: PileEngine, i: number, ids = restingIcons(eng
 }
 
 /**
- * The resting icons with no path to the floor through touching resting icons: the pile's
- * one invariant (see edge-cases.md). Only an icon whose centre is within 1 px of the floor
- * anchors; a wall holds nothing up. Empty means the pile is honest.
+ * The resting icons with no path to the floor through touching resting icons, which the
+ * pile's one invariant says there are none of. Only an icon whose centre is within 1 px of
+ * the floor anchors; a wall holds nothing up. Empty means the pile is honest.
  */
 export function floating(engine: PileEngine): number[] {
   const ids = restingIcons(engine);
