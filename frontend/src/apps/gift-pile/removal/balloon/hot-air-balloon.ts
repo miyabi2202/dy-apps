@@ -108,7 +108,7 @@ export class HotAirBalloon implements Craft, Remover {
 
   /** Calm: no freeze-frame or shake. */
   cutInRequest(): CutInRequest {
-    return { name: this.name, color: '#fb923c', portrait: this.sprite(), hitStopMs: 0, shake: 0 };
+    return { name: this.name, color: '#fb923c', portrait: this.sprite(), shake: 0 };
   }
 
   /** Centred on the envelope. */

@@ -3,6 +3,9 @@
 // numbers (`a_p`, `a_q`), and where it is in the shape, in px from its centre (`a_local`),
 // so the fragment shader can work out the signed distance to the edge and cover the edge by it.
 
+import { NOISE_GLSL } from './noise';
+import { BEAM_GLSL, SAUCER_GLSL } from './ufo';
+
 /** What shape a vertex belongs to; the same numbers as `KIND` in `shape-batch.ts`. */
 export const SHAPES_VS = `#version 300 es
 precision highp float;
@@ -63,6 +66,7 @@ float outline(float d) {
   return v_q.x > 0.0 ? abs(d) - v_q.x * 0.5 : d;
 }
 
+${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}
 void main() {
   int k = int(v_kind + 0.5);
   vec4 c = v_color; // straight alpha
@@ -151,6 +155,12 @@ void main() {
     }
     col += vec4(vec3(photon), photon);
     o = col * c.a;
+    return;
+  } else if (k == 15) { // saucer: p.x radius, p.yzw hull tint, q.xyz dome colour, q.w glow; c the lights
+    o = saucerColor(v_local, v_p.x, v_p.yzw, v_q.xyz, c.rgb, v_q.w, u_time, u_px) * c.a;
+    return;
+  } else if (k == 16) { // plasma beam: p.x half width at the top, p.y at the foot, p.z length, p.w strength; c the colour
+    o = beamColor(v_local, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, u_time) * c.a;
     return;
   } else if (k == 9) { // holographic sheen: p.x angle, p.y strength
     vec4 t = texture(u_tex, v_uv);

@@ -126,7 +126,7 @@ its colours for the crossing from its palettes when it begins: the balloon's str
 and outline, and the car's body and trim.
 
 Removers get showy effects from `Gfx` (`render/gfx.ts`): glows, particles, ribbons, speed lines,
-materials on sprites (`holo`, `metal`, `rim`, `solid`), a procedural `blackHole`, and ones that
+materials on sprites (`holo`, `metal`, `rim`, `solid`), a procedural `blackHole`, `saucer` and `plasmaBeam`, and ones that
 act on the whole picture once it is drawn (`shockwave`, `lens`, `haze`, `aberration`, `flash`),
 which the renderer's post pass applies (`render/gl/post-pass.ts`). On `high` quality that pass
 also adds bloom and the pile gets a faint sweeping sheen; `low` drops both and gives every
@@ -142,7 +142,9 @@ ms)`, `hitStop(ms)`, which freezes the removal's own clock (the director gives i
 what it has spent frozen, so what it draws and when it is over stand still together), and
 `cutIn(request)`, the anime banner (`ui/cut-in.tsx`) with the remover's name, its line
 (`labels.cutIn.lines`) and a portrait (`kit/portraits.ts`, or the remover's own art, painted
-once by `render/bake.ts`). A remover asks for it at its best moment, once, and the director
+once by `render/bake.ts`). The removal is paused for as long as the banner is up (`CUT_IN_MS`, handed to the director by
+`create-pile.ts`)
+and carries on once it is gone, even when freeze-frames are off. A remover asks for it at its best moment, once, and the director
 lets one through every 8 s at most, so asking is always safe. Each remover is dressed with the kit
 at hand: the helicopter has downwash, a searchlight and a vortex at the nozzle (`helicopter/
 effects.ts`), the saucer a metal hull, a holographic dome (the dome alone, drawn from the same SVG
@@ -172,8 +174,10 @@ one and comes back the other way, until he has eaten all the board's icons (`run
 the ones he meets. Then,
 if some are to be dropped back, the ghost, following where he has been (`trail.ts`), catches
 him and he shrivels away as they burst back out of him; if not (the pile had no more than
-asked for), he runs off. His drawing and the ghost's are in `sprites.ts`. The flying saucer (`ufo/`, also from Fluent Emoji) aims at a
-spot, flies in and stops over it, and shines its tractor beam (`ufo/beam.ts`) down on the
+asked for), he runs off. His drawing and the ghost's are in `sprites.ts`. The flying saucer (`ufo/`, drawn wholly in GLSL by `Gfx.saucer`: a chrome hull, a ring of chasing
+lights, a glass dome of swirling energy; its portrait for the cut-in is in `kit/portraits.ts`) aims at a
+spot, flies in and stops over it, and shines its tractor beam (`ufo/beam.ts`, a rippling plasma
+beam from `Gfx.plasmaBeam`) down on the
 clump: the icons rise up it into its belly, a few falling back out part way, then the beam
 goes off and it zips away. The claw machine (`claw/`) aims at a spot, slides along a rail at
 the top to it, lowers the claw and draws the clump up into a bunch in its grip (shrunk to fit
@@ -219,3 +223,8 @@ free licence, which asks for this link.
 
 - A vacuum at the mouse for about a second, pulling nearby icons in. Icons need a velocity in any direction for this, not just a speed along their way down.
 - A blast that destroys every icon in range: the same as the rubbish bin for many icons at once, found through the grid, with the icons around the hole woken.
+
+## Credits
+
+The saucer's and beam's shaders use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise)
+(Ian McEwan, Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence.

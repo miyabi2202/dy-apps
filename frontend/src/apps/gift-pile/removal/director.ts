@@ -11,6 +11,8 @@ interface Options {
   removers: readonly Remover[];
   /** Random numbers in [0, 1). */
   rng?: () => number;
+  /** How long a cut-in banner is up, ms; the removal is paused that long. None by default. */
+  cutInMs?: number;
 }
 
 /** The bin, in world pixels: a dropped icon whose centre comes within `half` of (x, y) is caught. */
@@ -27,8 +29,7 @@ const FALLING_GRACE_MS = 500;
 
 /** A cut-in is not shown if the last began under this long ago. */
 const CUT_IN_COOLDOWN_MS = 8000;
-/** The freeze-frame and shake of a cut-in, when its request names none. */
-const DEFAULT_HIT_STOP_MS = 90;
+/** The shake of a cut-in, when its request names none. */
 const DEFAULT_CUT_IN_SHAKE = 4;
 const CUT_IN_SHAKE_MS = 300;
 
@@ -51,11 +52,13 @@ export interface Motion {
  *
  * A removal's clock is the wall time less what it has spent frozen (`hitStop`, from its
  * board's `fx`): it sees the frozen time while frozen, and `isOver` the same, so a freeze-frame
- * holds it still and it carries on from there. The queue, the bin and the gaps between
+ * holds it still and it carries on from there. A cut-in pauses it the same way for as long as
+ * the banner is up, even when freeze-frames are off. The queue, the bin and the gaps between
  * removals keep wall time.
  */
 export class RemovalDirector implements Traffic {
   private readonly queue: ActionQueue;
+  private readonly cutInMs: number;
   /** The remover dealt for the scoop asked for, until its icons come. */
   private next: Remover | null = null;
   /** The removal under way, and its board. */
@@ -86,9 +89,10 @@ export class RemovalDirector implements Traffic {
 
   constructor(
     private readonly sink: RemovalSink,
-    { ground, removers, rng = Math.random }: Options,
+    { ground, removers, rng = Math.random, cutInMs = 0 }: Options,
   ) {
     this.ground = ground;
+    this.cutInMs = cutInMs;
     this.rng = rng;
     this.removers = removers;
     this.queue = new ActionQueue(sink, this);
@@ -219,7 +223,12 @@ export class RemovalDirector implements Traffic {
 
   /** Freeze the removal for `ms` from the frame being drawn, or longer if it is frozen already. */
   private hitStop(ms: number): void {
-    if (!this.motion.hitStop || !(ms > 0)) return;
+    if (this.motion.hitStop) this.pause(ms);
+  }
+
+  /** Stand the removal still for `ms` from the frame being drawn, or longer if it is frozen already, whatever the settings. */
+  private pause(ms: number): void {
+    if (!(ms > 0)) return;
     const until = this.now + ms;
     this.freeze = this.freeze
       ? { from: this.freeze.from, until: Math.max(this.freeze.until, until) }
@@ -243,7 +252,8 @@ export class RemovalDirector implements Traffic {
     this.cutInShown = true;
     this.lastCutIn = now;
     this.ground.fx?.cutIn(request);
-    this.hitStop(request.hitStopMs ?? DEFAULT_HIT_STOP_MS);
+    // The removal waits while the banner is up, so nothing of it is missed behind it.
+    this.pause(this.cutInMs);
     if (motion.shake) {
       this.ground.fx?.shake(request.shake ?? DEFAULT_CUT_IN_SHAKE, CUT_IN_SHAKE_MS);
     }

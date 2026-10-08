@@ -73,6 +73,8 @@ interface Options {
   effects?: EffectSettings;
   /** The visitor wants less motion: no screen shake or freeze-frames, whatever the effects say. */
   reducedMotion?: boolean;
+  /** How long the page shows a cut-in banner, ms; the removal is paused that long. */
+  cutInMs?: number;
 }
 
 /** What the page shows of the pile's count. */
@@ -137,6 +139,7 @@ export class Pile {
     loadGiftImage = () => Promise.resolve(null),
     effects = { cutIns: true, shake: true, quality: 'high' },
     reducedMotion = false,
+    cutInMs,
   }: Options) {
     this.client = client;
     this.state = state;
@@ -168,7 +171,12 @@ export class Pile {
         },
       },
     };
-    this.director = new RemovalDirector(client, { ground, removers, ...(rng && { rng }) });
+    this.director = new RemovalDirector(client, {
+      ground,
+      removers,
+      ...(rng && { rng }),
+      ...(cutInMs !== undefined && { cutInMs }),
+    });
     this.director.setMotion(this.motion);
   }
 

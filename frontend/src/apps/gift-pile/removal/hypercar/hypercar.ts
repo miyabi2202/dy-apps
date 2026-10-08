@@ -157,7 +157,7 @@ export class Hypercar implements Craft, Remover {
   }
 
   cutInRequest(): CutInRequest {
-    return { name: this.name, color: '#ef4444', portrait: this.sprite(), hitStopMs: 70, shake: 5 };
+    return { name: this.name, color: '#ef4444', portrait: this.sprite(), shake: 5 };
   }
 
   /** The two bridge halves, each a deck with a rail and a torn end at the gap. */

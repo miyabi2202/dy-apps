@@ -573,6 +573,50 @@ export class GlGfx implements Gfx {
     this.box(x, y, 1, 0, half, half, parseColor(colors.glow), 1);
   }
 
+  saucer(
+    x: number,
+    y: number,
+    width: number,
+    o: { hull: Color; dome: Color; lights: Color; tilt?: number; glow?: number; alpha?: number },
+  ): void {
+    const s = this.scale;
+    const R = width / 2;
+    const [hr, hg, hb] = parseColor(o.hull);
+    const [dr, dg, db] = parseColor(o.dome);
+    const tilt = o.tilt ?? 0;
+    this.batch.use(null, 'normal');
+    this.batch.shape(KIND.saucer, R * s, hr, hg, hb, dr, dg, db, o.glow ?? 1);
+    const half = R * 1.3;
+    this.box(x, y, Math.cos(tilt), Math.sin(tilt), half, half, parseColor(o.lights), o.alpha ?? 1);
+  }
+
+  plasmaBeam(
+    topX: number,
+    topY: number,
+    topWidth: number,
+    bottomY: number,
+    bottomWidth: number,
+    o: { color: Color; intensity?: number },
+  ): void {
+    const length = bottomY - topY;
+    if (length <= 0) return;
+    const s = this.scale;
+    const strength = o.intensity ?? 1;
+    this.batch.use(null, 'add');
+    this.batch.shape(
+      KIND.plasmaBeam,
+      (topWidth / 2) * s,
+      (bottomWidth / 2) * s,
+      length * s,
+      strength,
+    );
+    const wide = Math.max(topWidth, bottomWidth) / 2;
+    const halfX = wide * 1.45 + 6;
+    const pool = wide * 0.35;
+    // Taller than the beam by room for the pool at its foot (the same above, which stays dark).
+    this.box(topX, topY + length / 2, 1, 0, halfX, length / 2 + pool, parseColor(o.color), 1);
+  }
+
   ribbon(
     points: ArrayLike<number>,
     width: number | ((u: number) => number),

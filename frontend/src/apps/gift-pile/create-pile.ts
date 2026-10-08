@@ -7,6 +7,7 @@ import { PileState, pileStateOptions } from './render/pile-state';
 import { GlRenderer } from './render/gl-renderer';
 import { GIFT_ICON_URL, loadImage } from './render/sprite';
 import { prefersReducedMotion, readEffects } from './settings';
+import { CUT_IN_MS } from './ui/cut-in';
 
 /**
  * Wires the real objects together, once, for the page: the client posts frames to the pile,
@@ -32,6 +33,7 @@ export function createPile(): Pile {
     loadGiftImage: () => loadImage(GIFT_ICON_URL),
     effects,
     reducedMotion: prefersReducedMotion(),
+    cutInMs: CUT_IN_MS,
   });
   return pile;
 }

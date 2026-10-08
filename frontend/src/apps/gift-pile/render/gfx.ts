@@ -209,6 +209,31 @@ export interface Gfx {
     open: number,
     colors: { glow: Color; disk: Color },
   ): void;
+  /**
+   * A procedural flying saucer, `width` across, centred at (x, y) and tipped by `tilt`: a chrome
+   * hull with a seam, a ring of chasing lights and an emitter underneath, and a glass dome with
+   * swirling energy. `hull` tints the metal, `dome` the energy, `lights` the lights and emitter;
+   * `glow` (default 1) scales how much they shine. It animates with the frame's time.
+   */
+  saucer(
+    x: number,
+    y: number,
+    width: number,
+    o: { hull: Color; dome: Color; lights: Color; tilt?: number; glow?: number; alpha?: number },
+  ): void;
+  /**
+   * A procedural plasma beam, additive: from a top edge `topWidth` wide at (topX, topY) down to
+   * `bottomY`, `bottomWidth` wide there, with rippling edges, bands of energy climbing it, a hot
+   * core, sparkles, and a pool of light at its foot. `intensity` (default 1) 0 to 1 fades it.
+   */
+  plasmaBeam(
+    topX: number,
+    topY: number,
+    topWidth: number,
+    bottomY: number,
+    bottomWidth: number,
+    o: { color: Color; intensity?: number },
+  ): void;
   /** Soft textured quads in one instanced draw (see `ParticleData`); `kit/particles.ts` makes the data. */
   particles(data: ParticleData): void;
   ribbon(

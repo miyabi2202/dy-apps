@@ -266,7 +266,6 @@ export class Mission implements Removal {
             name: 'helicopter',
             color: '#38bdf8',
             portrait: this.art.sprite(this.scheme),
-            hitStopMs: 90,
           });
           this.next('lower');
         }

@@ -1,6 +1,5 @@
 import { type Board, type Gfx, pick, type Removal, type Remover, type ScoopShape } from '../board';
-import { NONE, type Recolour, SvgArt } from '../kit/svg-art';
-import { UFO_SVG } from './art';
+import { ufoPortrait } from '../kit/portraits';
 import { drawBeam } from './beam';
 import { easeOut, smooth } from '../kit/easing';
 import { clumpOf, clumpSomewhere } from '../kit/clump';
@@ -10,12 +9,8 @@ import { Wake } from '../kit/trail';
 import { sparkBurst } from '../kit/fx';
 
 // Timing in ms, geometry in world pixels.
-const SIZE = 76;
-/** The middle of the saucer, in the art's 32×32 view box. */
-const CX = 16.3;
-const CY = 16.9;
-/** The art's saucer is tipped down to the right by this much; turned back, it is level. */
-const ART_ANGLE = -0.262;
+/** How wide the saucer is, rim to rim. */
+const SIZE = 84;
 /** From the saucer's middle down to its belly, where the beam leaves it. */
 const BELLY = 9;
 /** It hovers with its belly this far above the top of the clump, but no nearer the view's top than this. */
@@ -39,27 +34,32 @@ const IN_SCALE = 0.3;
 const AIM_FROM = 0.2;
 const AIM_TO = 0.8;
 
-/**
- * Colour schemes, by the art's own fills: the saucer's top (`#D3D3D3`) and underside
- * (`#9B9B9B`), the dome (`#26C9FC`) and the lights (`#321B41`). The art's silver is the first.
- */
-export const UFO_SCHEMES: readonly Recolour[] = [
-  {},
+/** What a saucer is painted with: its metal, the energy in its dome, its lights, and the beam. */
+export interface UfoScheme {
+  hull: string;
+  dome: string;
+  lights: string;
+  beam: string;
+}
+
+/** Colour schemes; the silver one is the first. */
+export const UFO_SCHEMES: readonly UfoScheme[] = [
+  { hull: '#dbe4f0', dome: '#26c9fc', lights: '#fde047', beam: '#fcd53f' },
   // Little green men.
-  { '#26C9FC': '#4ADE80', '#321B41': '#FDE047' },
+  { hull: '#dbe4f0', dome: '#4ade80', lights: '#fde047', beam: '#86efac' },
   // Gold, with a violet dome.
-  { '#D3D3D3': '#FCD34D', '#9B9B9B': '#D97706', '#26C9FC': '#A78BFA' },
+  { hull: '#fcd34d', dome: '#a78bfa', lights: '#fb923c', beam: '#fcd34d' },
   // Silver, with a pink dome and cyan lights.
-  { '#26C9FC': '#F472B6', '#321B41': '#22D3EE' },
+  { hull: '#e2e8f0', dome: '#f472b6', lights: '#22d3ee', beam: '#f9a8d4' },
   // Gunmetal, with a mint dome and yellow lights.
-  { '#D3D3D3': '#94A3B8', '#9B9B9B': '#475569', '#26C9FC': '#34D399', '#321B41': '#FDE047' },
+  { hull: '#8494ab', dome: '#34d399', lights: '#fde047', beam: '#6ee7b7' },
   // Purple, with an orchid dome.
-  { '#D3D3D3': '#C4B5FD', '#9B9B9B': '#7C3AED', '#26C9FC': '#F0ABFC' },
+  { hull: '#c4b5fd', dome: '#f0abfc', lights: '#67e8f9', beam: '#e9d5ff' },
 ];
 
 interface Options {
   /** The schemes to pick from for each abduction; the first until the first pick. */
-  schemes?: readonly Recolour[];
+  schemes?: readonly UfoScheme[];
 }
 
 /**
@@ -69,27 +69,10 @@ interface Options {
  */
 export class Ufo implements Remover {
   readonly name = 'ufo';
-  private readonly art: SvgArt;
-  /** The dome alone, in each scheme, to draw over the saucer with a sheen. */
-  private readonly dome: SvgArt;
-  private readonly domes: readonly Recolour[];
-  private readonly schemes: readonly Recolour[];
+  private readonly schemes: readonly UfoScheme[];
 
   constructor({ schemes = UFO_SCHEMES }: Options = {}) {
     this.schemes = schemes;
-    this.art = new SvgArt(UFO_SVG, schemes);
-    this.domes = schemes.map((scheme) => ({
-      '#D3D3D3': NONE,
-      '#9B9B9B': NONE,
-      '#321B41': NONE,
-      WHITE: NONE,
-      '#26C9FC': scheme['#26C9FC'] ?? '#26C9FC',
-    }));
-    this.dome = new SvgArt(UFO_SVG, this.domes);
-  }
-
-  load(): Promise<void> {
-    return Promise.all([this.art.load(), this.dome.load()]).then(() => undefined);
   }
 
   /** A clump of the pile somewhere across it. */
@@ -98,9 +81,7 @@ export class Ufo implements Remover {
   }
 
   begin(board: Board, now: number, rng: () => number): Removal {
-    const scheme = pick(this.schemes, rng);
-    const dome = this.domes[this.schemes.indexOf(scheme)]!;
-    return new Abduction(board, now, rng, this.art, scheme, this.dome, dome);
+    return new Abduction(board, now, rng, pick(this.schemes, rng));
   }
 }
 
@@ -134,17 +115,12 @@ class Abduction implements Removal {
   private readonly rng: () => number;
   private readonly frames = new Frames();
   private readonly wake = new Wake(400);
-  /** The saucer's lights, from its scheme or yellow. */
-  private lights = '#fde047';
 
   constructor(
     private readonly board: Board,
     now: number,
     rng: () => number,
-    private readonly art: SvgArt,
-    private readonly scheme: Recolour,
-    private readonly domeArt: SvgArt,
-    private readonly dome: Recolour,
+    private readonly scheme: UfoScheme,
   ) {
     const { icons, world, iconRadius } = board;
     const n = icons.length;
@@ -162,7 +138,6 @@ class Abduction implements Removal {
       rng,
     );
     this.rng = rng;
-    this.lights = scheme['#321B41'] ?? this.lights;
     this.t0 = now;
     const { x: hoverX, top, bottom, spread } = clumpOf(icons, world, 40);
     this.hoverX = hoverX;
@@ -219,8 +194,7 @@ class Abduction implements Removal {
       board.fx.cutIn({
         name: 'ufo',
         color: '#fde047',
-        portrait: this.art.sprite(this.scheme),
-        hitStopMs: 80,
+        portrait: ufoPortrait(this.scheme.hull, this.scheme.dome, this.scheme.lights),
       });
     }
     if (t >= this.arrived) {
@@ -245,7 +219,12 @@ class Abduction implements Removal {
       gfx,
       bellyX,
       bellyY,
-      { length: this.beamLength * reach, bottomHalf: this.beamHalf, strength },
+      {
+        length: this.beamLength * reach,
+        bottomHalf: this.beamHalf,
+        strength,
+        color: this.scheme.beam,
+      },
       t,
     );
     // Dust drifting up the beam from the pile.
@@ -285,7 +264,11 @@ class Abduction implements Removal {
       if (u >= 1) {
         this.finished[i] = 1;
         // Gone into the belly in a spark.
-        sparkBurst(this.sparks, bellyX, bellyY, this.lights, 3, { speed: 140, life: 300, size: 5 });
+        sparkBurst(this.sparks, bellyX, bellyY, this.scheme.lights, 3, {
+          speed: 140,
+          life: 300,
+          size: 5,
+        });
         continue;
       }
       // Lit gold by the beam, brighter the nearer the saucer.
@@ -300,7 +283,7 @@ class Abduction implements Removal {
     // Zipping away: a streak behind it, speed lines, and a kick as it goes.
     if (t >= leave) {
       const u = Math.min(1, (t - leave) / ESCAPE_MS);
-      gfx.ribbon(this.wake.points(), (v) => 30 * (1 - v), this.lights, {
+      gfx.ribbon(this.wake.points(), (v) => 30 * (1 - v), this.scheme.lights, {
         blend: 'add',
         alphaFrom: 0.8,
         alphaTo: 0,
@@ -314,44 +297,13 @@ class Abduction implements Removal {
       if (u > 0.9) gfx.aberration(0.3);
     }
 
-    this.drawSaucer(gfx, saucer, t);
+    this.drawSaucer(gfx, saucer);
   }
 
-  /** The saucer: metal, with a holographic dome and lights circling its rim. */
-  private drawSaucer(gfx: Gfx, saucer: { x: number; y: number; tilt: number }, t: number): void {
-    const place = {
-      x: saucer.x,
-      y: saucer.y,
-      width: SIZE,
-      height: SIZE,
-      anchorX: CX / 32,
-      anchorY: CY / 32,
-      rotation: saucer.tilt + ART_ANGLE,
-    };
-    gfx.glow(saucer.x, saucer.y + 2, 46, this.lights, { intensity: 0.28 });
-    gfx.sprite(this.art.sprite(this.scheme), {
-      ...place,
-      material: { kind: 'metal', strength: 0.8 },
-    });
-    gfx.sprite(this.domeArt.sprite(this.dome), {
-      ...place,
-      alpha: 0.9,
-      material: { kind: 'holo', strength: 0.9 },
-    });
-    // Lights chasing round its rim.
-    const rim = 25;
-    for (let k = 0; k < 6; k++) {
-      const a = t / 700 + (k * Math.PI * 2) / 6;
-      // Only the front half is seen in front; the back half is hidden by the dome's glow, so dim.
-      const front = Math.sin(a) > 0;
-      const px = Math.cos(a) * rim;
-      const py = 4 + Math.sin(a) * 4;
-      const c = Math.cos(saucer.tilt);
-      const sn = Math.sin(saucer.tilt);
-      gfx.glow(saucer.x + px * c - py * sn, saucer.y + px * sn + py * c, 7, this.lights, {
-        intensity: front ? 1.4 : 0.5,
-      });
-    }
+  /** The saucer: a chrome hull with lights chasing round its rim, under a dome of swirling energy. */
+  private drawSaucer(gfx: Gfx, saucer: { x: number; y: number; tilt: number }): void {
+    const { hull, dome, lights } = this.scheme;
+    gfx.saucer(saucer.x, saucer.y, SIZE, { hull, dome, lights, tilt: saucer.tilt });
   }
 
   /** Where the saucer's middle is at `t`, and how it is tipped. */

@@ -194,7 +194,6 @@ class Grab implements Removal {
         name: 'claw',
         color: this.palette.body,
         portrait: clawPortrait(this.palette.body, this.palette.metal),
-        hitStopMs: 60,
         shake: 2,
       });
       board.icons.forEach((icon, i) => {

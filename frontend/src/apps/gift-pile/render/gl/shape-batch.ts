@@ -18,6 +18,8 @@ export const KIND = {
   solid: 12,
   blackHole: 13,
   flat: 14,
+  saucer: 15,
+  plasmaBeam: 16,
 } as const;
 
 /** What the shader needs to know about the frame. */

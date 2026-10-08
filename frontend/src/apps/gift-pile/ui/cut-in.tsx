@@ -5,9 +5,6 @@ import type { CutInRequest } from '../removal/board';
 import { testIds } from '../messages';
 import { bakeSprite } from '../render/bake';
 
-/** How long the banner is up, from slamming in to gone, ms. Every animation below runs this long. */
-export const CUT_IN_MS = 1100;
-
 interface Props {
   request: CutInRequest;
   /** The remover's name to show, and its line. */
@@ -16,6 +13,9 @@ interface Props {
   /** Called once it is gone. */
   onDone: () => void;
 }
+
+/** How long the banner is up, from slamming in to gone, ms. Every animation below runs this long. */
+export const CUT_IN_MS = 1100;
 
 /**
  * The anime cut-in: a flash, rays turning behind a diagonal banner that slashes in from the

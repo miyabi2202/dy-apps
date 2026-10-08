@@ -459,7 +459,6 @@ class Show implements Removal {
         name: 'fireworks',
         color: rocket.colour,
         portrait: fireworksPortrait(rocket.colour),
-        hitStopMs: 0,
         shake: 0,
       });
     }

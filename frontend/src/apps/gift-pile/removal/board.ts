@@ -67,8 +67,6 @@ export interface CutInRequest {
   color: string;
   /** A small picture to put in the banner; the page paints it. */
   portrait?: SpriteSource;
-  /** How long to freeze the removal as the banner slams in, in ms; default 90. */
-  hitStopMs?: number;
   /** How hard to shake the view then, in world px; default 4. */
   shake?: number;
 }
@@ -80,8 +78,9 @@ export interface Fx {
   /** Freeze the removal for `ms`: what it sees as the time, and when it is over, stands still. */
   hitStop(ms: number): void;
   /**
-   * Bring on the anime banner, with a freeze-frame and a shake. At most one a removal, and
-   * none if the last was under 8 s ago, so asking is always safe.
+   * Bring on the anime banner, with a shake. The removal is paused while the banner is up
+   * (the director's `cutInMs`). At most one a removal, and none if the last was under 8 s ago, so asking
+   * is always safe.
    */
   cutIn(request: CutInRequest): void;
 }
