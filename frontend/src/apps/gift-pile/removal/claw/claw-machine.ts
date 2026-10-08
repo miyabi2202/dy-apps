@@ -1,10 +1,26 @@
-import { type Board, type Gfx, pick, type Removal, type Remover, type ScoopShape } from '../board';
+import {
+  type Board,
+  type Gfx,
+  pick,
+  type Removal,
+  type Remover,
+  type ScoopShape,
+  type SpriteSource,
+} from '../board';
 import { smooth } from '../kit/easing';
 import { clumpOf, clumpSomewhere } from '../kit/clump';
-import { clawPortrait } from '../kit/portraits';
 import { Frames } from '../kit/clock';
 import { confetti, sparkBurst } from '../kit/fx';
 import { Emitter } from '../kit/particles';
+import { clawPortrait } from './portrait';
+import {
+  CLAW_SHADERS,
+  drawClawAura,
+  drawClawChain,
+  drawClawHead,
+  drawClawRail,
+  drawClawSpotlight,
+} from './shader';
 
 // Timing in ms, geometry in world pixels.
 /** The rail along the top of the view that the carriage runs on, and how long it fades in and out. */
@@ -65,10 +81,15 @@ interface Options {
  */
 export class ClawMachine implements Remover {
   readonly name = 'claw';
+  /** Compiled when the page opens. */
+  readonly shaders = CLAW_SHADERS;
+  /** Its cut-in portraits, painted ahead of time. */
+  readonly sprites: readonly SpriteSource[];
   private readonly palettes: readonly ClawPalette[];
 
   constructor({ palettes = CLAW_PALETTES }: Options = {}) {
     this.palettes = palettes;
+    this.sprites = palettes.map(({ body, metal }) => clawPortrait(body, metal));
   }
 
   /** A clump of the pile somewhere across it. */
@@ -236,13 +257,13 @@ class Grab implements Removal {
 
     // The gantry with its carriage, a spotlight on the prize and the chain the claw hangs on.
     const fade = Math.max(0, Math.min(1, t / FADE_MS, (this.done - t) / FADE_MS));
-    gfx.clawRail(0, width, this.railY, hub.cx, {
+    drawClawRail(gfx, 0, width, this.railY, hub.cx, {
       body: this.palette.body,
       rail: this.palette.rail,
       alpha: fade,
     });
     this.drawSpotlight(gfx, hub, t);
-    gfx.clawChain(hub.cx, this.railY + 6, hub.x, hub.y - 9, {
+    drawClawChain(gfx, hub.cx, this.railY + 6, hub.x, hub.y - 9, {
       metal: this.palette.metal,
       neon: this.palette.body,
       alpha: fade,
@@ -251,7 +272,7 @@ class Grab implements Removal {
     // The prize glows in an aura of its own.
     if (this.taken && t < this.raised + EXIT_MS) {
       const pulse = 0.85 + 0.15 * Math.sin(t / 150);
-      gfx.clawAura(prizeX, prizeY, this.prizeR * 1.15 + 8, {
+      drawClawAura(gfx, prizeX, prizeY, this.prizeR * 1.15 + 8, {
         color: this.palette.body,
         intensity: pulse * gather,
       });
@@ -289,7 +310,7 @@ class Grab implements Removal {
     const on = Math.min(1, (t - this.entered * 0.5) / 300);
     const bottom = hub.y + 30 + (this.taken ? this.prizeR * 2 : 0);
     const half = 26 + (this.taken ? this.prizeR : 0);
-    gfx.clawSpotlight(hub.cx, this.railY + 8, 12, hub.x, bottom, half * 2, {
+    drawClawSpotlight(gfx, hub.cx, this.railY + 8, 12, hub.x, bottom, half * 2, {
       color: this.palette.body,
       intensity: 0.9 * on,
     });
@@ -345,7 +366,13 @@ class Grab implements Removal {
       this.taken && t < this.raised
         ? Math.max(1 - biting / (GRIP_MS * 2), 0.12 * (0.5 + 0.5 * Math.sin(t / 37)))
         : 0;
-    gfx.clawHead(0, 0, { body: this.palette.body, metal: this.palette.metal, open, arc, glow });
+    drawClawHead(gfx, 0, 0, {
+      body: this.palette.body,
+      metal: this.palette.metal,
+      open,
+      arc,
+      glow,
+    });
     gfx.pop();
   }
 }
