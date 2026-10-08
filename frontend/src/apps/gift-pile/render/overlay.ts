@@ -15,6 +15,8 @@ export type Peek = (id: number) => { x: number; y: number; resting: boolean } | 
 /** What an overlay may ask of the renderer while drawing, and an icon's drawn radius. */
 export interface Hooks {
   radius: number;
+  /** The top of the pile at world x, by the middle of the highest icon there; null if there are none. */
+  top: (x: number) => number | null;
   stamp: Stamp;
   take: Take;
   peek: Peek;

@@ -66,6 +66,8 @@ export class PileRenderer {
 
   /** The icon the user is holding, drawn on top of the rest. */
   private held: Held | null = null;
+  /** The top of the pile in columns two radii wide (Infinity where there is none), built when asked and dropped when the pile changes. */
+  private tops: Float32Array | null = null;
 
   /** The user is holding this icon here, or (null) nothing. */
   hold(held: Held | null): void {
@@ -91,8 +93,38 @@ export class PileRenderer {
     this.pixelRatio = 0;
   }
 
+  /**
+   * The top of the pile at world x: the middle of the highest icon, resting or moving, in its
+   * column or the one either side; null if there are none there.
+   */
+  topAt(x: number): number | null {
+    const width = 2 * this.stage.radius;
+    if (!this.tops) {
+      const tops = new Float32Array(Math.ceil(this.world.width / width) + 2).fill(Infinity);
+      const add = (px: number, py: number) => {
+        const c = Math.min(tops.length - 1, Math.max(0, Math.floor(px / width)));
+        if (py < tops[c]!) tops[c] = py;
+      };
+      for (let k = 0; k < this.restingCount; k++) {
+        add(this.restingXy[2 * k]!, this.restingXy[2 * k + 1]!);
+      }
+      const { cur } = this;
+      if (cur)
+        for (let k = 0; k < cur.movingIds.length; k++)
+          add(cur.movingXy[2 * k]!, cur.movingXy[2 * k + 1]!);
+      this.tops = tops;
+    }
+    const { tops } = this;
+    const c = Math.floor(x / width);
+    let best = Infinity;
+    for (let j = Math.max(0, c - 1); j <= Math.min(tops.length - 1, c + 1); j++)
+      best = Math.min(best, tops[j]!);
+    return Number.isFinite(best) ? best : null;
+  }
+
   /** Take in a frame from the worker, received at wall time `now` (ms). */
   pushFrame(frame: Frame, now: number): void {
+    this.tops = null;
     if (frame.width !== this.world.width || frame.height !== this.world.height) {
       this.world = { width: frame.width, height: frame.height };
     }
@@ -191,6 +223,7 @@ export class PileRenderer {
   private take(id: number): { x: number; y: number } | null {
     const at = this.peek(id);
     if (at?.resting) this.removeResting(id);
+    this.tops = null;
     return at;
   }
 
@@ -264,6 +297,7 @@ export class PileRenderer {
     }
     this.overlay?.draw(ctx, now, {
       radius: this.stage.radius,
+      top: (x) => this.topAt(x),
       stamp: (x, y, scale) => this.stamp(ctx, x, y, scale),
       take: (id) => this.take(id),
       peek: (id) => this.peek(id),

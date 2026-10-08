@@ -56,6 +56,10 @@ export class ScoopBoard implements Board {
     return i !== undefined && this.state[i]! <= TAKEN;
   }
 
+  topAt(x: number): number | null {
+    return this.hooks?.top(x) ?? null;
+  }
+
   where(i: number): Point | null {
     if (this.state[i]! > TAKEN) return null;
     const at = this.hooks?.peek(this.ids[i]!);

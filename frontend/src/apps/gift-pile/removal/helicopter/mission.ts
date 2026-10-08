@@ -34,8 +34,8 @@ const END_MARGIN = 6;
 const SUCK_R = 22;
 const SUCK_DEPTH = 48;
 const SUCK_MS = 220;
-/** After each walk along the pile he works this much lower, down into what he has cleared. */
-const LAYER = 16;
+/** His feet settle onto the top of the pile over about this long, so he doesn't jolt as it changes. */
+const SETTLE_MS = 120;
 /** Lifted this far off the pile, it is too heavy: it sinks this far over this long, throws out what is too much over this long, and rises back. */
 const LIFT_FIRST = 40;
 const SINK = 28;
@@ -65,7 +65,7 @@ type Phase =
 /**
  * One trip of the helicopter. It flies in from the left and stops over the middle of the
  * pile; a winchman goes down the rope with a vacuum on his back, its hose up to the
- * helicopter, lets go onto the pile and walks it end to end, lower each time, until he has
+ * helicopter, lets go onto the pile and walks it end to end on top of it as it is, until he has
  * vacuumed up all the board's icons. He goes back to the rope and is winched up; if some are
  * to be dropped, the helicopter sags under the weight, throws them out of the door and rises
  * back; then he is winched in and it flies off to the right. Every icon he vacuums is gone at
@@ -77,6 +77,7 @@ export class Mission implements Removal {
   private t = 0;
   private phaseT = 0;
   private readonly t0: number;
+  /** The top of the pile as it was, for before the pile's own can be asked, or where there is none. */
   private readonly top: PileTop;
   private readonly iconR: number;
   private readonly lowest: number;
@@ -91,7 +92,6 @@ export class Mission implements Removal {
   private man: Point;
   private facing: 1 | -1 = -1;
   private stride = 0;
-  private cleared = 0;
   /** The ends of the pile he walks between. */
   private readonly leftEnd: number;
   private readonly rightEnd: number;
@@ -129,9 +129,9 @@ export class Mission implements Removal {
     this.sucked = new Uint8Array(icons.length);
   }
 
-  /** The top of what is left of the pile at x, where his feet go. */
+  /** The top of the pile at x as it is now, where his feet go. */
   private groundAt(x: number): number {
-    return this.top.rowAt(x, 0) - this.iconR + this.cleared;
+    return (this.board.topAt(x) ?? this.top.rowAt(x, 0)) - this.iconR;
   }
 
   /** The winch under the helicopter. */
@@ -243,11 +243,10 @@ export class Mission implements Removal {
         this.suck();
         const end = this.facing === 1 ? this.rightEnd : this.leftEnd;
         if ((this.man.x - end) * this.facing >= 0) {
-          // The end of a walk along the pile: back the other way, working lower. A whole walk
+          // The end of a walk along the pile: back the other way. A whole walk
           // that found none means the rest have moved out of his way: he takes them from here.
           if (this.suckedThisWalk === 0) this.suck(true);
           this.facing = this.facing === 1 ? -1 : 1;
-          this.cleared += LAYER;
           this.suckedThisWalk = 0;
         }
         if (this.suckedCount === board.icons.length && this.flying.length === 0)
@@ -325,7 +324,7 @@ export class Mission implements Removal {
     }
   }
 
-  /** He walks on, towards `toward` (or on the way he faces), along the top of what is left. */
+  /** He walks on, towards `toward` (or on the way he faces), along the top of the pile as it is. */
   private walk(dt: number, toward?: number): void {
     const step = WALK_SPEED * dt;
     const x =
@@ -333,7 +332,8 @@ export class Mission implements Removal {
         ? this.man.x + this.facing * step
         : this.man.x +
           Math.sign(toward - this.man.x) * Math.min(step, Math.abs(toward - this.man.x));
-    this.man = { x, y: this.groundAt(x) };
+    const ground = this.groundAt(x);
+    this.man = { x, y: this.man.y + (ground - this.man.y) * Math.min(1, dt / SETTLE_MS) };
     this.stride += step / 4;
   }
 

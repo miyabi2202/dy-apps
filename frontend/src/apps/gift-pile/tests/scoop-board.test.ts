@@ -18,6 +18,7 @@ const fakeSink = (log: string[]): RemovalSink => ({
 /** The renderer, with every icon where it was scooped. */
 const hooks: Hooks = {
   radius: 8,
+  top: () => null,
   stamp: () => {},
   take: (id) => ({ x: id, y: 0 }),
   peek: (id) => ({ x: id, y: 0, resting: true }),

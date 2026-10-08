@@ -34,6 +34,8 @@ export interface Board {
   readonly icons: readonly Point[];
   /** How many of them to drop back: the ones over the number asked for. */
   readonly dropCount: number;
+  /** The top of the pile at x now, by the middle of the highest icon there, any icon; null if there are none. */
+  topAt(x: number): number | null;
   /** Where icon `i` is now, in the pile or held; null once it is dropped or gone. */
   where(i: number): Point | null;
   /**

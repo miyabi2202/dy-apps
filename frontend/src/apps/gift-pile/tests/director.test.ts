@@ -84,6 +84,7 @@ const noStamp = () => {};
 const take = (id: number) => ({ x: 20 + (id - 100) * 12, y: 500 });
 const hooks = {
   radius: 8,
+  top: () => null,
   stamp: noStamp,
   take,
   peek: (id: number) => ({ ...take(id), resting: true }),

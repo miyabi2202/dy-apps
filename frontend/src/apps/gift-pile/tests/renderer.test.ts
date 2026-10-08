@@ -223,3 +223,26 @@ describe('PileRenderer overlay', () => {
     expect(renderer.iconAt(30, 10)).toBe(2);
   });
 });
+
+describe('PileRenderer pile top', () => {
+  it('finds the highest icon near a point across, resting or moving, and none where there are none', () => {
+    const renderer = new PileRenderer(PILE, () => ({}) as CanvasImageSource);
+    renderer.pushFrame(
+      frame({
+        settled: [
+          [1, 100, 600],
+          [2, 108, 590],
+          [3, 300, 640],
+        ],
+        moving: [[4, 300, 500]],
+      }),
+      0,
+    );
+    expect(renderer.topAt(104)).toBe(590);
+    expect(renderer.topAt(300)).toBe(500);
+    expect(renderer.topAt(200)).toBeNull();
+    // A frame with the moving one settled lower: the top follows.
+    renderer.pushFrame(frame({ settled: [[4, 300, 630]] }), 1);
+    expect(renderer.topAt(300)).toBe(630);
+  });
+});

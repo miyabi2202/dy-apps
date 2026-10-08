@@ -37,6 +37,11 @@ function recordingBoard(n: number, dropCount: number) {
     iconRadius: 8,
     icons,
     dropCount,
+    // The highest of the icons left near x, as the pile's top would be.
+    topAt: (x) => {
+      const near = icons.filter((p, i) => !done(i) && !taken.has(i) && Math.abs(p.x - x) < 16);
+      return near.length > 0 ? Math.min(...near.map((p) => p.y)) : null;
+    },
     where: (i) => (done(i) ? null : icons[i]!),
     take: (i) => {
       if (taken.has(i) || done(i)) return null;
