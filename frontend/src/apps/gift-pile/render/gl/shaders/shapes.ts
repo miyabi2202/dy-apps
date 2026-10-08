@@ -3,6 +3,12 @@
 // numbers (`a_p`, `a_q`), and where it is in the shape, in px from its centre (`a_local`),
 // so the fragment shader can work out the signed distance to the edge and cover the edge by it.
 
+import {
+  BALLOON_BASKET_GLSL,
+  BALLOON_ENVELOPE_GLSL,
+  BALLOON_FLAME_GLSL,
+  BALLOON_HAZE_GLSL,
+} from './balloon';
 import { NOISE_GLSL } from './noise';
 import { BEAM_GLSL, SAUCER_GLSL } from './ufo';
 
@@ -66,7 +72,7 @@ float outline(float d) {
   return v_q.x > 0.0 ? abs(d) - v_q.x * 0.5 : d;
 }
 
-${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}
+${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${BALLOON_ENVELOPE_GLSL}${BALLOON_BASKET_GLSL}${BALLOON_FLAME_GLSL}${BALLOON_HAZE_GLSL}
 void main() {
   int k = int(v_kind + 0.5);
   vec4 c = v_color; // straight alpha
@@ -161,6 +167,18 @@ void main() {
     return;
   } else if (k == 16) { // plasma beam: p.x half width at the top, p.y at the foot, p.z length, p.w strength; c the colour
     o = beamColor(v_local, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, u_time) * c.a;
+    return;
+  } else if (k >= 30 && k <= 33) { // the hot-air balloon (balloon.ts)
+    if (k == 30) { // envelope: p.x radius, p.yzw and q.x gore colours (packed), q.y skirt, q.z count + 8 * pattern, q.w heat; c the outline
+      o = balloonEnvelopeColor(v_local, v_p.x, v_p.yzw, v_q.x, v_q.y, v_q.z, v_q.w, c.rgb, u_time, u_px);
+    } else if (k == 31) { // ropes and basket: p.x radius, p.y heat
+      o = balloonBasketColor(v_local, v_p.x, v_p.y, u_time, u_px);
+    } else if (k == 32) { // flame: p.x height, p.y half width, p.z burn
+      o = balloonFlameColor(v_local, v_p.x, v_p.y, v_p.z, u_time);
+    } else { // heat: p.x radius, p.y heat; c the warm colour
+      o = balloonHazeColor(v_local, v_p.x, v_p.y, c.rgb, u_time);
+    }
+    o *= c.a;
     return;
   } else if (k == 9) { // holographic sheen: p.x angle, p.y strength
     vec4 t = texture(u_tex, v_uv);

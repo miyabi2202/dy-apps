@@ -20,6 +20,11 @@ export const KIND = {
   flat: 14,
   saucer: 15,
   plasmaBeam: 16,
+  // Balloon
+  balloonEnvelope: 30,
+  balloonBasket: 31,
+  balloonFlame: 32,
+  balloonHaze: 33,
 } as const;
 
 /** What the shader needs to know about the frame. */

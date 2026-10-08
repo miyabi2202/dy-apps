@@ -149,7 +149,7 @@ lets one through every 8 s at most, so asking is always safe. Each remover is dr
 at hand: the helicopter has downwash, a searchlight and a vortex at the nozzle (`helicopter/
 effects.ts`), the saucer a metal hull, a holographic dome (the dome alone, drawn from the same SVG
 with every other fill `NONE` in `svg-art.ts`), a beam of scrolling bands and a streak as it
-leaves; the balloon a burner flame, streamers and dust; the car underglow, headlights, ghosts,
+leaves; the balloon (drawn wholly in GLSL by `Gfx.hotAirBalloon`: silk gores with a pattern per palette, the burner's light glowing through them, a woven basket on ropes and a noise-driven flame) streamers and dust; the car underglow, headlights, ghosts,
 nitro and a landing that shakes the screen; Pac-Man a neon glow, pellets, crumbs and a power
 pellet, and the ghost an ectoplasm trail; the claw a spotlight, a chasing LED rail and
 confetti; the fireworks five burst styles (peony, chrysanthemum, ring, willow, crossette) with a
@@ -226,5 +226,5 @@ free licence, which asks for this link.
 
 ## Credits
 
-The saucer's and beam's shaders use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise)
+The saucer's, beam's and balloon's shaders use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise)
 (Ian McEwan, Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence.
