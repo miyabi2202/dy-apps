@@ -234,6 +234,35 @@ export interface Gfx {
     bottomWidth: number,
     o: { color: Color; intensity?: number },
   ): void;
+  // Hypercar
+  /**
+   * A procedural supercar facing right, `length` long, centred at (x, y) and tipped by `tilt`
+   * (its wheels reach `length * 3/16` below the centre): car paint with flake, a clear coat
+   * and a sweeping highlight, a glass canopy, LED lamps, a wing, neon underglow and spinning
+   * wheels. `body` is the paint, `trim` the wing's carbon, `neon` the glow and accents. `spin`
+   * is how far the wheels have turned (radians), `blur` (0 to 1) how much their spokes smear,
+   * `brake` (0 to 1) how hot the discs glow, `nitro` (0 to 1) the flame from the exhaust,
+   * `lights` (0 to 1) the headlight beam. `ghost` draws only a neon silhouette, additive.
+   */
+  hypercar(
+    x: number,
+    y: number,
+    length: number,
+    o: {
+      body: Color;
+      trim: Color;
+      neon: Color;
+      tilt?: number;
+      spin?: number;
+      blur?: number;
+      brake?: number;
+      nitro?: number;
+      lights?: number;
+      alpha?: number;
+      ghost?: boolean;
+    },
+  ): void;
+
   /** Soft textured quads in one instanced draw (see `ParticleData`); `kit/particles.ts` makes the data. */
   particles(data: ParticleData): void;
   ribbon(

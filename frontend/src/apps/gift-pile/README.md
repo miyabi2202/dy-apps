@@ -118,7 +118,10 @@ SVG art in any colouring (`svg-art.ts`). Two of them are crafts (`Craft` in
 the right just above the pile, taking icons in with its `Intake`, which is the craft's to
 choose: so far a `Vacuum` cleaner towed on a rope (`vacuum.ts`) for both. A craft says how long it takes to
 cross, where the intake fits on, its path, and how to draw it and any scenery: the hot-air
-balloon (`balloon/`) is drawn, and the `hypercar/` runs up one
+balloon (`balloon/`) is drawn, and the `hypercar/` (wholly in GLSL, by `Gfx.hypercar`: car paint
+with flake, clear coat and a sweeping highlight, a glass canopy, LED lamps, a wing, neon underglow
+and wheels whose spokes blur with their speed; its cut-in portrait is `carPortrait` in
+`kit/portraits.ts`) runs up one
 half of a split bridge, jumps the gap in a ballistic arc and comes down onto the other, lower,
 half. The balloon is the
 slowest and the car the quickest, at three seconds. Each craft picks
@@ -149,8 +152,8 @@ lets one through every 8 s at most, so asking is always safe. Each remover is dr
 at hand: the helicopter has downwash, a searchlight and a vortex at the nozzle (`helicopter/
 effects.ts`), the saucer a metal hull, a holographic dome (the dome alone, drawn from the same SVG
 with every other fill `NONE` in `svg-art.ts`), a beam of scrolling bands and a streak as it
-leaves; the balloon a burner flame, streamers and dust; the car underglow, headlights, ghosts,
-nitro and a landing that shakes the screen; Pac-Man a neon glow, pellets, crumbs and a power
+leaves; the balloon a burner flame, streamers and dust; the car underglow, a volumetric headlight beam, ghosts,
+brake discs that glow after the landing, a nitro flame with shock diamonds and a landing that shakes the screen; Pac-Man a neon glow, pellets, crumbs and a power
 pellet, and the ghost an ectoplasm trail; the claw a spotlight, a chasing LED rail and
 confetti; the fireworks five burst styles (peony, chrysanthemum, ring, willow, crossette) with a
 flash, a ring of air and a split of colour for each; and the black hole its lensing, a banded
