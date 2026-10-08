@@ -104,7 +104,7 @@ describe('RemovalDirector', () => {
     sink.inPile = 5000;
     const director = new RemovalDirector(sink, { removers: testRemovers() });
     director.remove(30, 0);
-    expect(sink.scoops).toEqual([{ count: 38, extra: 7 }]);
+    expect(sink.scoops).toEqual([{ count: 38, extra: 8 }]);
     expect(sink.removed).toEqual([]);
     // The second removal waits for the first scoop to come back and its craft to go, and
     // is planned from the pile as it is then.
@@ -112,13 +112,13 @@ describe('RemovalDirector', () => {
     expect(sink.removed).toEqual([]);
     expect(sink.scoops).toHaveLength(1);
     expect(director.queued).toBe(1);
-    director.onScoop(scoopOf(38, 7), world, 0);
+    director.onScoop(scoopOf(38, 8), world, 0);
     const ctx = fakeContext();
     sink.inPile = 30;
     for (let now = 0; now <= 7000; now += 100) director.draw(ctx, now, hooks);
     expect(sink.removed).toEqual([]);
     expect(sink.scoops).toEqual([
-      { count: 38, extra: 7 },
+      { count: 38, extra: 8 },
       { count: 30, extra: 0 },
     ]);
   });

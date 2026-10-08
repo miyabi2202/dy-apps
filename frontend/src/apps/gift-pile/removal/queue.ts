@@ -2,18 +2,17 @@ import type { RemovalSink } from './sink';
 
 /** The most icons one removal carries off; any more asked for go at once, unseen. */
 export const LOAD_CAPACITY = 2000;
-/** A removal takes this many times the number asked for, and drops this share of what it took (a fifth, so a quarter of the number asked for). */
+/** A removal takes this many times the number asked for, and drops back what it took over the number. */
 const TAKE_SHARE = 1.25;
-const DROP_SHARE = 0.2;
 /** The next queued removal begins this long after the one before is over, so two are never under way at once. */
 const QUEUE_GAP_MS = 1000;
 
 /**
  * How a removal of `count` goes with `remaining` icons in the pile: how many it carries
- * off, how many of those it drops back, and how many go at once, over its load. It
- * takes a quarter more than asked for and drops a fifth of what it took (a quarter
- * of the number), so the pile loses at least the number, and more for each dropped icon the bin
- * catches; but with no more in the pile than asked for, it takes everything and keeps it.
+ * off, how many of those it drops back, and how many go at once, over its load. It takes a
+ * quarter more than asked for, or all there is if that is less, and drops back what it took
+ * over the number, so the pile loses just the number, and more for each dropped icon the bin
+ * catches; with no more in the pile than asked for, it takes everything and keeps it.
  */
 export function planRemoval(
   count: number,
@@ -22,7 +21,7 @@ export function planRemoval(
   if (count <= 0 || remaining <= 0) return { carry: 0, drop: 0, instant: 0 };
   const take = count >= remaining ? remaining : Math.min(remaining, Math.round(count * TAKE_SHARE));
   const carry = Math.min(take, LOAD_CAPACITY);
-  const drop = count >= remaining ? 0 : Math.min(carry, Math.floor(take * DROP_SHARE));
+  const drop = Math.min(carry, Math.max(0, take - count));
   return { carry, drop, instant: take - carry };
 }
 

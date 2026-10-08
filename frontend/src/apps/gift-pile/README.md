@@ -30,8 +30,8 @@ renderer repaints only the removed icon's patch of the resting layer.
 
 减少 doesn't delete icons on the spot. When its turn comes (see below), the page works out
 from the pile's count what to take (`planRemoval` in `removal/queue.ts`): a quarter
-more than asked for, a fifth of which (a quarter of the number asked for) will be dropped
-back, or everything if the pile has no more than asked for. It asks the worker to `scoop` that many: the engine picks them roughly
+more than asked for, or all there is if that is less, of which what is over the number will
+be dropped back, so the pile loses just the number. It asks the worker to `scoop` that many: the engine picks them roughly
 from the top of the pile down (each icon's height blurred by a few radii, so the top layer
 thins out unevenly), sets them aside so no later scoop takes them, and reports which in the
 next frame's `scooped`. They stay in the pile as they are. The remover for the removal is
@@ -67,12 +67,13 @@ its colours for the crossing from its palettes when it begins: the balloon's str
 outline, the car's body and trim, and for the helicopter swaps of the art's own fills, each
 colouring turned into an image once when the page loads.
 
-Five removers don't cross. Pac-Man (`pac-man/`), always the same size, eats his way through
-the pile row by row with a ghost on his heels: in from the left along the top of the pile, he
-eats whatever is in front of him, and at the end of a row goes down one and comes back the other
-way, faster the more rows there are, until he has eaten all the board's icons. Then, if some
-are to be dropped back, the ghost catches him and he shrivels away as they burst back out of
-him; if not (the pile had no more than asked for), he runs off. The flying saucer (`ufo/`, also from Fluent Emoji) aims at a
+Five removers don't cross. Pac-Man (`pac-man/`), always the same size and speed, eats his way
+through the pile row by row with a ghost on his heels: in from the left along the top of the
+pile (`pile-top.ts`), he eats whatever is in front of him, and at the end of a row goes down
+one and comes back the other way, until he has eaten all the board's icons (`run.ts`). Then,
+if some are to be dropped back, the ghost, following where he has been (`trail.ts`), catches
+him and he shrivels away as they burst back out of him; if not (the pile had no more than
+asked for), he runs off. His drawing and the ghost's are in `sprites.ts`. The flying saucer (`ufo/`, also from Fluent Emoji) aims at a
 spot, flies in and stops over it, and shines its tractor beam (`ufo/beam.ts`) down on the
 clump: the icons rise up it into its belly, a few falling back out part way, then the beam
 goes off and it zips away. The claw machine (`claw/`) aims at a spot, slides along a rail at
