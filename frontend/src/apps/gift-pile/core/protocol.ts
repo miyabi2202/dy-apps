@@ -1,5 +1,12 @@
 // What the page and the physics worker say to each other.
 
+/**
+ * Which icons a scoop picks: roughly the top of the pile all across (`top`, the default); a
+ * rounded clump off the top at a point across it, as a fraction of the canvas's width
+ * (`clump`); or the pile's outer layer evenly all across, then the next one down (`layers`).
+ */
+export type ScoopShape = { kind: 'top' } | { kind: 'clump'; at: number } | { kind: 'layers' };
+
 export type ToWorker =
   | { type: 'add'; count: number }
   /** Destroy this many icons, roughly from the top of the pile down. */
@@ -8,10 +15,9 @@ export type ToWorker =
    * Set this many icons aside, roughly from the top of the pile down, for the page to carry
    * away: each stays in the pile until the page grabs it, and is then held until released
    * or destroyed. `extra` of them are over the number the user asked to remove, to be
-   * dropped back; it is echoed in the `Scoop`. With `near`, a fraction of the canvas's
-   * width, they are a clump of the pile around there instead.
+   * dropped back; it is echoed in the `Scoop`. `shape` says which to pick, if not the top.
    */
-  | { type: 'scoop'; count: number; extra: number; near?: number }
+  | { type: 'scoop'; count: number; extra: number; shape?: ScoopShape }
   | { type: 'clear' }
   /** A new world with a play area of this size, in pixels; the pile is emptied with it. */
   | { type: 'resize'; width: number; height: number }

@@ -1,5 +1,6 @@
 import type RAPIER from '@dimforge/rapier2d-compat';
 import { canvasSize, PILE, type PileSettings } from './config';
+import type { ScoopShape } from './protocol';
 
 /** The Rapier module, initialised (`await RAPIER.init()`) before it is handed over. */
 export type Rapier = typeof RAPIER;
@@ -271,12 +272,13 @@ export class PileEngine {
   /**
    * Set aside `n` icons from the pile and the air (not one being held or already set
    * aside), roughly from the top down, for the page to `grab` one by one as it carries them
-   * off. With `near`, a fraction of the canvas's width, they are a rounded clump of the pile
-   * there instead, the nearest to the top of the pile at that point. Until then each
+   * off; or as `shape` says: a rounded clump of the pile at a point across it, the nearest to
+   * the top of the pile there, or the pile's outer layer, all across, before the next one
+   * down. Until then each
    * stays in the pile as it is, and no later scoop takes it; a `release` puts it back up for
    * scooping. Returns them, roughly highest first.
    */
-  scoop(n: number, near?: number): number[] {
+  scoop(n: number, shape: ScoopShape = { kind: 'top' }): number[] {
     // Rank every icon that can go by its height, blurred by a few radii of noise so the
     // top layer thins out unevenly instead of being peeled off in a line, and take the
     // highest `n`. Ranking all of them means the count asked for always goes while there
@@ -288,16 +290,43 @@ export class PileEngine {
       if (this.dead[i] || this.held[i] || this.reserved[i]) continue;
       candidates.push(i);
     }
-    const centre = near === undefined ? null : this.surfaceNear(candidates, near * this.width);
-    for (const i of candidates) {
-      // By distance from the clump's centre, or else by height.
-      const by = centre ? Math.hypot(this.x[i]! - centre.x, this.y[i]! - centre.y) : this.y[i]!;
-      rank[i] = by + this.rng() * blur;
+    if (shape.kind === 'layers') {
+      // By how far each is below the top of the pile where it is, with no blur, so the outer
+      // layer goes evenly all across before any of the next.
+      const depth = this.depthBelowTop(candidates);
+      for (const i of candidates) rank[i] = depth.get(i)!;
+    } else {
+      const centre =
+        shape.kind === 'clump' ? this.surfaceNear(candidates, shape.at * this.width) : null;
+      for (const i of candidates) {
+        // By distance from the clump's centre, or else by height.
+        const by = centre ? Math.hypot(this.x[i]! - centre.x, this.y[i]! - centre.y) : this.y[i]!;
+        rank[i] = by + this.rng() * blur;
+      }
     }
     candidates.sort((a, b) => rank[a]! - rank[b]!);
     candidates.length = Math.min(Math.floor(n), candidates.length);
     for (const i of candidates) this.reserved[i] = 1;
     return candidates;
+  }
+
+  /**
+   * How far each of `candidates` is below the top of the pile where it is: below the highest
+   * of them in its column, two radii wide, or the one either side, so a dip between two
+   * icons doesn't count as the top.
+   */
+  private depthBelowTop(candidates: number[]): Map<number, number> {
+    const width = 2 * this.radius;
+    const top = new Float32Array(Math.ceil(this.width / width) + 2).fill(Infinity);
+    const column = (i: number) =>
+      Math.min(top.length - 2, Math.max(1, Math.floor(this.x[i]! / width) + 1));
+    for (const i of candidates) top[column(i)] = Math.min(top[column(i)]!, this.y[i]!);
+    const depth = new Map<number, number>();
+    for (const i of candidates) {
+      const c = column(i);
+      depth.set(i, this.y[i]! - Math.min(top[c - 1]!, top[c]!, top[c + 1]!));
+    }
+    return depth;
   }
 
   /** The top of the pile at `x`: the highest of `candidates` within `NEAR_REACH` radii of it, or the nearest. */

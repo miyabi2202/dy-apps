@@ -35,8 +35,10 @@ be dropped back, so the pile loses just the number. It asks the worker to `scoop
 from the top of the pile down (each icon's height blurred by a few radii, so the top layer
 thins out unevenly), sets them aside so no later scoop takes them, and reports which in the
 next frame's `scooped`. They stay in the pile as they are. The remover for the removal is
-dealt before the scoop is asked for, so it can `aim` it: then the engine takes a rounded clump
-off the top of the pile at that point across it instead, nearest first.
+dealt before the scoop is asked for, so it can say which icons it wants (its `shape`, a
+`ScoopShape` in `core/protocol.ts`): a rounded `clump` off the top of the pile at a point
+across it, nearest first, or the pile's outer `layers`, evenly all across and no blur, one
+before the next.
 
 The `RemovalDirector` (`removal/director.ts`) then deals a `Remover` from a shuffle bag, so
 each comes up as often as the others and never twice running, and has it `begin` a `Removal`
@@ -73,7 +75,8 @@ colouring turned into an image once when the page loads.
 Five removers don't cross. Pac-Man (`pac-man/`), always the same size and speed, eats his way
 through the pile row by row with a ghost on his heels: in from the left along the top of the
 pile (`pile-top.ts`), he eats whatever is in front of him, and at the end of a row goes down
-one and comes back the other way, until he has eaten all the board's icons (`run.ts`). Then,
+one and comes back the other way, until he has eaten all the board's icons (`run.ts`), which are the pile's outer layers, so just
+the ones he meets. Then,
 if some are to be dropped back, the ghost, following where he has been (`trail.ts`), catches
 him and he shrivels away as they burst back out of him; if not (the pile had no more than
 asked for), he runs off. His drawing and the ghost's are in `sprites.ts`. The flying saucer (`ufo/`, also from Fluent Emoji) aims at a

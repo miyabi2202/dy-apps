@@ -1,3 +1,7 @@
+import type { ScoopShape } from '../core/protocol';
+
+export type { ScoopShape };
+
 // The contract between the pile and the removers: what a removal may ask of the pile
 // (`Board`), and what the pile asks of a remover (`Remover`, `Removal`). The pile knows
 // removers only through these; each remover decides for itself how it moves, what it looks
@@ -58,11 +62,8 @@ export interface Remover {
   readonly name: string;
   /** Load its images, once, when the page opens; it may run without them until then. */
   load?(): Promise<void>;
-  /**
-   * Where across the canvas, as a fraction of its width, the icons it takes should be a
-   * clump of the pile; roughly the top of the pile, all across, unless it says.
-   */
-  aim?(rng: () => number): number | undefined;
+  /** Which icons it should be given (see `ScoopShape`); roughly the top of the pile, all across, unless it says. */
+  shape?(rng: () => number): ScoopShape;
   /** Start carrying off the board's icons at wall time `now`. */
   begin(board: Board, now: number, rng: () => number): Removal;
 }

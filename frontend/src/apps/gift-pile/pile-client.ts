@@ -1,4 +1,4 @@
-import type { Frame, FromWorker, ToWorker } from './core/protocol';
+import type { Frame, FromWorker, ScoopShape, ToWorker } from './core/protocol';
 
 /** Where the simulation runs: a real worker, or something a test controls. */
 export interface WorkerLike {
@@ -76,14 +76,16 @@ export class PileClient {
   }
 
   /**
-   * Set `count` icons aside, roughly from the top of the pile down (or in a clump `near` a
-   * fraction of the canvas's width), to carry away: the next frame's `scooped` says which.
+   * Set `count` icons aside, roughly from the top of the pile down (or as `shape` says), to
+   * carry away: the next frame's `scooped` says which.
    * Each stays put until `grab`bed, and is then held until `release`d or `destroy`ed.
    * `extra` of them are over the number to remove, for dropping back.
    */
-  scoop(count: number, extra: number, near?: number): void {
+  scoop(count: number, extra: number, shape?: ScoopShape): void {
     this.send(
-      near === undefined ? { type: 'scoop', count, extra } : { type: 'scoop', count, extra, near },
+      shape === undefined
+        ? { type: 'scoop', count, extra }
+        : { type: 'scoop', count, extra, shape },
     );
   }
 

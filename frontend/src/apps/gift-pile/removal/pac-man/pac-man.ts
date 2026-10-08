@@ -1,4 +1,4 @@
-import { type Board, pick, type Removal, type Remover } from '../board';
+import { type Board, pick, type Removal, type Remover, type ScoopShape } from '../board';
 import { Run } from './run';
 
 /** Pac-Man's yellow and the ghost chasing him. */
@@ -31,6 +31,11 @@ export class PacMan implements Remover {
 
   constructor({ palettes = PAC_MAN_PALETTES }: Options = {}) {
     this.palettes = palettes;
+  }
+
+  /** The pile's outer layer, all across, then the next one down: just what he meets along his rows. */
+  shape(): ScoopShape {
+    return { kind: 'layers' };
   }
 
   begin(board: Board, now: number, rng: () => number): Removal {

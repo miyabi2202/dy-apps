@@ -163,13 +163,34 @@ describe('PileEngine', () => {
     settle(engine);
     const resting = restingIcons(engine);
     const x = 0.25 * engine.width;
-    const ids = engine.scoop(12, 0.25);
+    const ids = engine.scoop(12, { kind: 'clump', at: 0.25 });
     expect(ids).toHaveLength(12);
     // All from around there, and from the top: none lower than the pile's middle.
     const middle = resting.map((i) => engine.y[i]!).sort((a, b) => a - b)[resting.length / 2]!;
     for (const i of ids) {
       expect(Math.abs(engine.x[i]! - x)).toBeLessThan(8 * r);
       expect(engine.y[i]).toBeLessThan(middle);
+    }
+  });
+
+  it('scoops the outer layer all across the pile, rather than just its peak, when asked', async () => {
+    const engine = await createEngine({ world: { width: 400, height: 300 } });
+    engine.add(300);
+    settle(engine);
+    const n = 30;
+    const spread = (ids: number[]) => {
+      const xs = ids.map((i) => engine.x[i]!);
+      return Math.max(...xs) - Math.min(...xs);
+    };
+    const layer = engine.scoop(n, { kind: 'layers' });
+    const restingNow = restingIcons(engine).filter((i) => !layer.includes(i));
+    // From one side of the pile to the other, and none with an icon left above it.
+    expect(spread(layer)).toBeGreaterThan(0.6 * engine.width);
+    for (const i of layer) {
+      const above = restingNow.filter(
+        (j) => Math.abs(engine.x[j]! - engine.x[i]!) < r && engine.y[j]! < engine.y[i]! - r,
+      );
+      expect(above).toHaveLength(0);
     }
   });
 

@@ -35,7 +35,7 @@ async function main() {
         engine.remove(data.count);
         break;
       case 'scoop': {
-        const ids = engine.scoop(data.count, data.near);
+        const ids = engine.scoop(data.count, data.shape);
         const xy = new Float32Array(ids.length * 2);
         ids.forEach((i, k) => {
           xy[2 * k] = engine.x[i]!;

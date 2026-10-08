@@ -114,12 +114,12 @@ export class RemovalDirector implements Overlay, Traffic {
   }
 
   /**
-   * The queue's turn for a removal: deal its remover now, so it can say where its icons
-   * should come from, and ask the engine for them.
+   * The queue's turn for a removal: deal its remover now, so it can say which icons it
+   * wants, and ask the engine for them.
    */
   scoop(count: number, drop: number): void {
     this.next = this.nextRemover();
-    this.sink.scoop(count, drop, this.next.aim?.(this.rng));
+    this.sink.scoop(count, drop, this.next.shape?.(this.rng));
   }
 
   /** The icons the engine set aside for the next removal have arrived: it begins at wall time `now`. */

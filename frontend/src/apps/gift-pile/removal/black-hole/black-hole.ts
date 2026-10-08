@@ -1,4 +1,4 @@
-import { type Board, pick, type Removal, type Remover } from '../board';
+import { type Board, pick, type Removal, type Remover, type ScoopShape } from '../board';
 
 // Timing in ms, geometry in world pixels.
 /** The hole's radius when fully open, and how far above the clump's top its middle is. */
@@ -59,8 +59,9 @@ export class BlackHole implements Remover {
     this.palettes = palettes;
   }
 
-  aim(rng: () => number): number {
-    return AIM_FROM + (AIM_TO - AIM_FROM) * rng();
+  /** A clump of the pile somewhere across it. */
+  shape(rng: () => number): ScoopShape {
+    return { kind: 'clump', at: AIM_FROM + (AIM_TO - AIM_FROM) * rng() };
   }
 
   begin(board: Board, now: number, rng: () => number): Removal {

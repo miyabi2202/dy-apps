@@ -1,7 +1,7 @@
 /** @jest-environment node */
 import type { Scoop } from '../core/protocol';
 import { RemovalDirector } from '../removal/director';
-import type { Board, Remover } from '../removal/board';
+import type { Board, Remover, ScoopShape } from '../removal/board';
 import { climbAway } from '../removal/kit/climb-away';
 import type { Course, Craft } from '../removal/kit/craft';
 import { Crossing } from '../removal/kit/crossing';
@@ -40,7 +40,7 @@ class FakeSink implements RemovalSink {
   /** What the engine would say is in the pile. */
   inPile = 400;
   added: number[] = [];
-  scoops: { count: number; extra: number; near?: number }[] = [];
+  scoops: { count: number; extra: number; shape?: ScoopShape }[] = [];
   removed: number[] = [];
   grabbed: number[] = [];
   released: { id: number; x: number; y: number }[] = [];
@@ -51,8 +51,8 @@ class FakeSink implements RemovalSink {
   add(count: number) {
     this.added.push(count);
   }
-  scoop(count: number, extra: number, near?: number) {
-    this.scoops.push(near === undefined ? { count, extra } : { count, extra, near });
+  scoop(count: number, extra: number, shape?: ScoopShape) {
+    this.scoops.push(shape === undefined ? { count, extra } : { count, extra, shape });
   }
   remove(count: number) {
     this.removed.push(count);
@@ -273,13 +273,13 @@ describe('RemovalDirector', () => {
     expect(sink.destroyed).toHaveLength(0);
   });
 
-  it('deals the remover before asking for its icons, so it can aim them, and runs that one on them', () => {
+  it('deals the remover before asking for its icons, so it can say which it wants, and runs that one on them', () => {
     const sink = new FakeSink();
     const began: { name: string; icons: number }[] = [];
     // Two removers taking turns: one aims, one doesn't; each ends as soon as it begins.
-    const remover = (name: string, aim?: number): Remover => ({
+    const remover = (name: string, at?: number): Remover => ({
       name,
-      ...(aim === undefined ? {} : { aim: () => aim }),
+      ...(at === undefined ? {} : { shape: () => ({ kind: 'clump', at }) as const }),
       begin: (board) => {
         began.push({ name, icons: board.icons.length });
         return { isOver: () => true, draw: () => {} };
@@ -295,7 +295,7 @@ describe('RemovalDirector', () => {
       director.onScoop(scoopOf(12, 2), world, k * 2000);
       director.draw(fakeContext(), k * 2000 + 1, hooks);
       // The one that begins is the one dealt when the scoop was asked for.
-      expect(began[k]!.name).toBe(asked.near === 0.3 ? 'aims' : 'plain');
+      expect(began[k]!.name).toBe(asked.shape ? 'aims' : 'plain');
       expect(began[k]!.icons).toBe(12);
     }
     // The bag deals each once a round, never the same twice running.
