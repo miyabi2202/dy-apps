@@ -26,6 +26,8 @@ export const KIND = {
   fireworkSmoke: 37,
   fireworkRocket: 38,
   fireworkGlitter: 39,
+  // Helicopter
+  chopper: 25,
 } as const;
 
 /** What the shader needs to know about the frame. */

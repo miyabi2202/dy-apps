@@ -234,6 +234,20 @@ export interface Gfx {
     bottomWidth: number,
     o: { color: Color; intensity?: number },
   ): void;
+  // Helicopter
+  /**
+   * A procedural rescue helicopter facing right, its cabin's middle at (x, y), `unit` px to a
+   * unit of its drawing (the cabin is about 22 units long): glossy paint in `body` with a stripe
+   * in `stripe`, tinted cockpit glass (`glass`, default a sky blue), skids, a searchlight, a
+   * main rotor blurred into a disc and a turning tail rotor, and blinking lights with bloom. `time`
+   * (ms) turns the rotors and blinks the lights.
+   */
+  chopper(
+    x: number,
+    y: number,
+    unit: number,
+    o: { body: Color; stripe: Color; glass?: Color; time: number; alpha?: number },
+  ): void;
   /** Soft textured quads in one instanced draw (see `ParticleData`); `kit/particles.ts` makes the data. */
   particles(data: ParticleData): void;
   ribbon(

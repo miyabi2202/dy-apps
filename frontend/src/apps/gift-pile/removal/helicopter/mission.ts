@@ -1,7 +1,7 @@
 import type { Board, Gfx, Point, Removal } from '../board';
 import { PileTop } from '../kit/pile-top';
-import type { Recolour, SvgArt } from '../kit/svg-art';
-import { drawChopper, WINCH } from './chopper';
+import { helicopterPortrait } from '../kit/portraits';
+import { type ChopperScheme, drawChopper, WINCH } from './chopper';
 import {
   HEIGHT,
   drawHose,
@@ -116,8 +116,7 @@ export class Mission implements Removal {
     private readonly board: Board,
     now: number,
     private readonly rng: () => number,
-    private readonly art: SvgArt,
-    private readonly scheme: Recolour,
+    private readonly scheme: ChopperScheme,
   ) {
     const { icons, world, iconRadius } = board;
     this.t0 = now;
@@ -214,7 +213,7 @@ export class Mission implements Removal {
         onRope ? { x: winch.x, y: man.y - HANDS_UP } : { x: winch.x, y: winch.y + this.rope },
       );
     }
-    drawChopper(gfx, this.art, this.scheme, chopper, this.tilt, t);
+    drawChopper(gfx, this.scheme, chopper, this.tilt, t);
     if (!aboard)
       drawWinchman(gfx, man, { facing: this.facing, stride: this.stride, hanging: onRope });
     if (this.phase === 'work') drawSuction(gfx, this.nozzle(), this.facing, t);
@@ -265,7 +264,7 @@ export class Mission implements Removal {
           this.board.fx.cutIn({
             name: 'helicopter',
             color: '#38bdf8',
-            portrait: this.art.sprite(this.scheme),
+            portrait: helicopterPortrait(this.scheme.body, this.scheme.stripe),
           });
           this.next('lower');
         }
