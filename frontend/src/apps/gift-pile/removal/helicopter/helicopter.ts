@@ -1,6 +1,15 @@
-import { type Board, pick, type Removal, type Remover, type ScoopShape } from '../board';
+import {
+  type Board,
+  pick,
+  type Removal,
+  type Remover,
+  type ScoopShape,
+  type SpriteSource,
+} from '../board';
 import type { ChopperScheme } from './chopper';
 import { Mission } from './mission';
+import { helicopterPortrait } from './portrait';
+import { HELICOPTER_SHADERS } from './shader';
 
 /** Paint schemes: the body, then the stripe along it. Rescue orange is the first. */
 export const HELICOPTER_SCHEMES: readonly ChopperScheme[] = [
@@ -28,10 +37,15 @@ interface Options {
  */
 export class Helicopter implements Remover {
   readonly name = 'helicopter';
+  /** Compiled when the page opens. */
+  readonly shaders = HELICOPTER_SHADERS;
+  /** Its cut-in portraits, painted ahead of time. */
+  readonly sprites: readonly SpriteSource[];
   private readonly schemes: readonly ChopperScheme[];
 
   constructor({ schemes = HELICOPTER_SCHEMES }: Options = {}) {
     this.schemes = schemes;
+    this.sprites = schemes.map(({ body, stripe }) => helicopterPortrait(body, stripe));
   }
 
   /** The pile's outer layer, all across, then the next one down: what he walks over and vacuums. */

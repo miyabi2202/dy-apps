@@ -1,10 +1,8 @@
-// Drawing the helicopter: a procedural rescue helicopter from `Gfx.chopper`, facing right, its
+// Drawing the helicopter: a procedural rescue helicopter from a shader (`shader.ts`), facing right, its
 // rotors turning. Geometry in world pixels, times in ms.
 
 import type { Gfx, Point } from '../board';
-
-/** World px per unit of the shader's drawing, which has the cabin about 22 units long. */
-const UNIT = 2.375;
+import { drawChopperShader, UNIT } from './shader';
 
 /** What a helicopter is painted with: its body, the stripe along it, and the tint of its cockpit glass. */
 export interface ChopperScheme {
@@ -29,7 +27,5 @@ export function drawChopper(
   tilt: number,
   t: number,
 ): void {
-  gfx.push(at.x, at.y, tilt);
-  gfx.chopper(0, 0, UNIT, { ...scheme, time: t });
-  gfx.pop();
+  drawChopperShader(gfx, at.x, at.y, tilt, t, scheme);
 }

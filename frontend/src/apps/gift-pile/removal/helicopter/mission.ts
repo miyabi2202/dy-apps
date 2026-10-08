@@ -1,7 +1,7 @@
 import type { Board, Gfx, Point, Removal } from '../board';
 import { PileTop } from '../kit/pile-top';
-import { helicopterPortrait } from '../kit/portraits';
 import { type ChopperScheme, drawChopper, WINCH } from './chopper';
+import { helicopterPortrait } from './portrait';
 import {
   HEIGHT,
   drawHose,
