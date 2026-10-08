@@ -30,8 +30,8 @@ renderer repaints only the removed icon's patch of the resting layer.
 
 减少 doesn't delete icons on the spot. When its turn comes (see below), the page works out
 from the pile's count what to take (`planRemoval` in `removal/queue.ts`): a quarter
-more than asked for, a fifth of which (a quarter of the number asked for) will be dropped back, or everything if the pile has no
-more than asked for. It asks the worker to `scoop` that many: the engine picks them roughly
+more than asked for, a fifth of which (a quarter of the number asked for) will be dropped
+back, or everything if the pile has no more than asked for. It asks the worker to `scoop` that many: the engine picks them roughly
 from the top of the pile down (each icon's height blurred by a few radii, so the top layer
 thins out unevenly), sets them aside so no later scoop takes them, and reports which in the
 next frame's `scooped`. They stay in the pile as they are. The remover for the removal is
@@ -51,23 +51,25 @@ its own images, `load`) and how it carries icons off; they are listed in one pla
 `removal/removers.ts`, which `createPile()` in `create-pile.ts` hands to the director. To add
 one, implement `Remover` in a new folder and list it there.
 
-Removers share what they like from `removal/kit/`. So far all of them are crafts (`Craft` in
+Removers share what they like from `removal/kit/`. Most of them are crafts (`Craft` in
 `kit/craft.ts`) that run a `Crossing` (`kit/crossing.ts`): the craft crosses from the left to
 the right just above the pile, taking icons in with its `Intake`, which is the craft's to
-choose: a `Vacuum` cleaner towed on a rope (`vacuum.ts`), a `TractorBeam` that draws them
-straight up into its belly (`beam.ts`), or its own `Mouth` (`mouth.ts`). A craft says how
-long it takes to cross, where the intake fits on, its path, and how to draw it and any
-scenery: the `helicopter/` and the flying saucer (`ufo/`) are drawn from Microsoft's Fluent
-Emoji SVGs (MIT, credited in each one's `art.ts`, drawn with `kit/svg-art.ts`), the helicopter
-mirrored to face the way it flies with its rotors drawn spinning over the art, and the saucer
-beaming icons up; the hot-air balloon (`balloon/`) is drawn; and the `hypercar/` runs up one
+choose: so far a `Vacuum` cleaner towed on a rope (`vacuum.ts`) for all of them, with a
+`Mouth` (`mouth.ts`) ready for a craft that eats them. A craft says how long it takes to
+cross, where the intake fits on, its path, and how to draw it and any scenery: the
+`helicopter/` is drawn from Microsoft's Fluent Emoji SVG (MIT, credited in its `art.ts`, drawn
+with `kit/svg-art.ts`), mirrored to face the way it flies with its rotors drawn spinning over
+the art; the hot-air balloon (`balloon/`) is drawn; and the `hypercar/` runs up one
 half of a split bridge, jumps the gap in a ballistic arc and comes down onto the other, lower,
 half. The balloon is the slowest and the car the quickest, at three seconds. Each craft picks
 its colours for the crossing from its palettes when it begins: the balloon's stripes, skirt and
-outline, the car's body and trim, and for the SVG crafts swaps of the art's own fills, each
+outline, the car's body and trim, and for the helicopter swaps of the art's own fills, each
 colouring turned into an image once when the page loads.
 
-Two removers don't cross. The claw machine (`claw/`) aims at a spot, slides along a rail at
+Three removers don't cross. The flying saucer (`ufo/`, also from Fluent Emoji) aims at a
+spot, flies in and stops over it, and shines its tractor beam (`ufo/beam.ts`) down on the
+clump: the icons rise up it into its belly, a few falling back out part way, then the beam
+goes off and it zips away. The claw machine (`claw/`) aims at a spot, slides along a rail at
 the top to it, lowers the claw and draws the clump up into a bunch in its grip (shrunk to fit
 if there are many), lets a few slip out on the way up, and carries the rest off. The fireworks
 (`fireworks/`) send the icons up in a handful of rockets, each gathered from its own stretch of
