@@ -37,10 +37,10 @@ export function drawPacMan(
       dying,
     });
   }
-  if (dying > 0.85) {
-    gfx.arcadePop(at.x, at.y, PAC_R * 2.2, {
+  if (dying > 0.7) {
+    gfx.arcadePop(at.x, at.y, PAC_R * 1.8, {
       color: colour,
-      progress: Math.min(1, (dying - 0.85) / 0.15),
+      progress: Math.min(1, (dying - 0.7) / 0.3),
     });
   }
 }

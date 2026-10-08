@@ -38,15 +38,13 @@ vec4 pmPacMan(vec2 p, float R, float mouth, float facing, float glow, vec3 col, 
   body = mix(body, vec3(1.0, 0.98, 0.82), pow(max(diff, 0.0), 3.0) * 0.32);
   vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
   float nh = max(dot(n, H), 0.0);
-  body += vec3(1.0, 0.97, 0.88) * (pow(nh, 70.0) * 1.5 + pow(nh, 14.0) * 0.16);
+  body += vec3(1.0, 0.97, 0.88) * (pow(nh, 70.0) * 0.8 + pow(nh, 14.0) * 0.12);
   float fres = pow(clamp(1.0 - n.z, 0.0, 1.0), 3.0);
-  body += mix(col, vec3(1.0), 0.6) * fres * 0.8 * (0.6 + 0.4 * glow);
+  body += mix(col, vec3(1.0), 0.6) * fres * 0.5 * (0.6 + 0.4 * glow);
   float bounce = pow(clamp(1.0 - n.z, 0.0, 1.0), 1.6) * smoothstep(0.0, 0.8, dot(n.xy, normalize(vec2(0.5, 0.7))));
   body += vec3(1.0, 0.5, 0.18) * bounce * 0.24;
   // A glow from within, breathing a little.
-  body += col * exp(-r * r * 3.0) * 0.16 * glow * (0.85 + 0.15 * sin(t * 0.005));
-  // Faint scanlines, as on a tube.
-  body *= 1.0 - 0.07 * (0.5 + 0.5 * sin(p.y * 2.4));
+  body += col * exp(-r * r * 3.0) * 0.14 * glow;
   // A thin bright seam round the silhouette and along the cut.
   float seam = smoothstep(0.06, 0.0, -dDisc) * step(dDisc, 0.0);
   body = mix(body, lip, seam * 0.5);
@@ -68,8 +66,8 @@ vec4 pmPacMan(vec2 p, float R, float mouth, float facing, float glow, vec3 col, 
   vec3 rgb = body * covBody + vec3(0.02, 0.006, 0.0) * shadow;
   float a = covBody + shadow;
   // The neon halo, outside the sphere only: it must not fill the mouth.
-  float halo = exp(-max(dDisc, 0.0) * 5.0) * (1.0 - smoothstep(0.3, 0.58, dDisc)) * smoothstep(-aa, aa, dDisc);
-  rgb += col * halo * 0.45 * glow * (1.0 - dying);
+  float halo = exp(-max(dDisc, 0.0) * 7.0) * (1.0 - smoothstep(0.3, 0.58, dDisc)) * smoothstep(-aa, aa, dDisc);
+  rgb += col * halo * 0.2 * glow * (1.0 - dying);
   return vec4(rgb, min(a, 1.0));
 }
 `;
@@ -118,8 +116,8 @@ vec4 pmGhost(vec2 p, float R, float scared, vec2 look, vec3 col, float t, float 
   float sa = sin(-0.4);
   hb = vec2(ca * hb.x - sa * hb.y, sa * hb.x + ca * hb.y);
   float brow = 1.0 - smoothstep(0.0, 1.0, length(hb / vec2(0.36, 0.14)));
-  rgb += vec3(1.0) * brow * 0.38 * cov;
-  rgb += vec3(1.0) * (1.0 - smoothstep(0.0, 1.0, length(hb / vec2(0.12, 0.045)))) * 0.45 * cov;
+  rgb += vec3(1.0) * brow * 0.22 * cov;
+  rgb += vec3(1.0) * (1.0 - smoothstep(0.0, 1.0, length(hb / vec2(0.12, 0.045)))) * 0.28 * cov;
 
   // The face.
   vec3 faceRgb = vec3(0.0);
@@ -162,7 +160,7 @@ vec4 pmGhost(vec2 p, float R, float scared, vec2 look, vec3 col, float t, float 
 
   // The glow round it.
   float halo = exp(-max(d, 0.0) * 4.0) * (1.0 - smoothstep(0.25, 0.5, d)) * (1.0 - cov);
-  rgb += col * halo * 0.4;
+  rgb += col * halo * 0.18;
   return vec4(rgb, min(a, 1.0));
 }
 `;
@@ -178,11 +176,11 @@ vec4 pmPellet(vec2 p, float R, float power, float phase, vec3 col, float t) {
   float r = length(u);
   float pulse = 0.72 + 0.28 * sin(t * (0.006 + 0.005 * power) + phase);
   vec3 hot = mix(col, vec3(1.0), 0.85);
-  vec3 rgb = hot * smoothstep(0.42, 0.22, r) * 1.3;
-  rgb += col * smoothstep(0.7, 0.3, r) * 0.8 * pulse;
-  rgb += col * exp(-r * r * 1.6) * 0.7 * pulse * (1.0 - smoothstep(2.4, 3.2, r));
+  vec3 rgb = hot * smoothstep(0.42, 0.22, r) * 0.85;
+  rgb += col * smoothstep(0.7, 0.3, r) * 0.5 * pulse;
+  rgb += col * exp(-r * r * 1.6) * 0.35 * pulse * (1.0 - smoothstep(2.4, 3.2, r));
   float star = exp(-abs(u.y) / 0.07) * exp(-abs(u.x) * 0.55) + exp(-abs(u.x) / 0.07) * exp(-abs(u.y) * 0.55);
-  rgb += hot * star * 0.8 * power * pulse * (1.0 - smoothstep(2.6, 3.2, r));
+  rgb += hot * star * 0.4 * power * pulse * (1.0 - smoothstep(2.6, 3.2, r));
   float pool = 0.7 * exp(-r * r * 0.9) * (1.0 - smoothstep(1.8, 3.0, r));
   return vec4(rgb, pool);
 }
@@ -202,13 +200,13 @@ vec4 pmLane(vec2 p, float ahead, float behind, float hw, float strength, vec3 co
   float d = abs(v - 1.0) * hw;
   float core = exp(-pow(d / (0.055 * hw), 2.0));
   float bloom = exp(-d / (0.16 * hw)) * (v > 1.0 ? 0.8 : 1.0) * (1.0 - smoothstep(1.35, 2.1, v));
-  float chase = 0.65 + 0.35 * sin(s / hw * 2.6 - t * 0.008);
+  float chase = 0.8 + 0.2 * sin(s / hw * 2.6 - t * 0.008);
   vec3 hot = mix(col, vec3(1.0), 0.75);
-  vec3 rgb = hot * core * 1.3 * chase + col * bloom * 0.55 * chase;
+  vec3 rgb = hot * core * 0.75 * chase + col * bloom * 0.3 * chase;
   // The floor: dark, with faint bands along it, like a tube's scanlines.
   float floorM = 1.0 - smoothstep(0.92, 1.0, v);
   float scan = 0.5 + 0.5 * sin(p.y / hw * 16.0);
-  rgb += col * floorM * (0.03 + 0.05 * scan);
+  rgb += col * floorM * (0.03 + 0.015 * scan);
   float dark = floorM * 0.32;
   return vec4(rgb * f * strength, dark * f * strength);
 }
@@ -227,9 +225,9 @@ vec4 pmPop(vec2 p, float R, float u, vec3 col) {
   vec3 hot = mix(col, vec3(1.0), 0.75);
   float ring = exp(-pow((r - rr) / (0.035 + 0.06 * (1.0 - u)), 2.0)) * (1.0 - u);
   float rays = pow(abs(cos(ang * 6.0 + 0.1)), 22.0) * smoothstep(rr * 0.5, rr * 0.68, r) * smoothstep(rr * 1.02, rr * 0.8, r) * (1.0 - u * 0.5);
-  float flash = exp(-r * r * 22.0) * (1.0 - u) * 1.4;
-  float bloom = exp(-r * r * 4.0) * (1.0 - u) * (1.0 - u) * 0.5;
-  vec3 rgb = col * ring * 1.3 + hot * ring * 0.4 + hot * rays * 1.2 + hot * flash + col * bloom;
+  float flash = exp(-r * r * 22.0) * (1.0 - u) * 0.45;
+  float bloom = exp(-r * r * 4.0) * (1.0 - u) * (1.0 - u) * 0.25;
+  vec3 rgb = col * ring * 0.7 + hot * ring * 0.2 + hot * rays * 0.5 + hot * flash + col * bloom;
   return vec4(rgb * (1.0 - smoothstep(0.85, 1.0, r)), 0.0);
 }
 `;
