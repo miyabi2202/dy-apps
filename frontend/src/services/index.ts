@@ -1,4 +1,5 @@
 export * from './demo-source';
+export * from './log';
 export * from './dyhub';
 export * from './dyhub-client';
 export * from './emoji';

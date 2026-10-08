@@ -1,4 +1,4 @@
-import { devLog } from './dev-log';
+import { debugLog } from '@dy-apps/services';
 import { parallelCompile, type Program } from './program';
 
 /** A program waiting to be finished, and what to do when it is (`failure` is null if it linked). */
@@ -15,7 +15,8 @@ export function settle(job: Pending, since: number): void {
   const t0 = performance.now();
   try {
     job.program.resolve();
-    devLog(
+    debugLog(
+      'gl',
       `program ${job.program.name}: ready ${ms(performance.now() - since)} after start, waited ${ms(performance.now() - t0)}`,
     );
     job.settle(null);
@@ -70,6 +71,6 @@ export class WarmUp {
     }
     this.pending = rest;
     if (rest.length === 0)
-      devLog(`all programs ready ${ms(performance.now() - this.started)} after start`);
+      debugLog('gl', `all programs ready ${ms(performance.now() - this.started)} after start`);
   }
 }

@@ -75,13 +75,20 @@ const LIB_CHUNKS = {
 export const stylexPlugin = () => stylex.vite({ useCSSLayers: true, aliases }) as PluginOption;
 
 /** The site: index.html and the router in src/, each app lazily loaded on its route. */
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   root: ROOT,
   plugins: [stylexPlugin(), react()],
   resolve: { alias: viteAliases },
   // Only the site's page; the build, Storybook and test reports have HTML files here too.
   optimizeDeps: { entries: ['index.html'] },
-  define: { __COMMIT_HASH__: JSON.stringify(commitHash()) },
+  // `__LOG_LEVEL__` (see `services/log.ts`): `LOG_LEVEL` from the environment, else `debug`
+  // on the dev server and `warn` in a build.
+  define: {
+    __COMMIT_HASH__: JSON.stringify(commitHash()),
+    __LOG_LEVEL__: JSON.stringify(
+      process.env.LOG_LEVEL ?? (command === 'serve' ? 'debug' : 'warn'),
+    ),
+  },
   build: {
     outDir: 'dist',
     rolldownOptions: {
@@ -92,4 +99,4 @@ export default defineConfig({
   },
   server: { port: 5173 },
   preview: { port: 4173 },
-});
+}));

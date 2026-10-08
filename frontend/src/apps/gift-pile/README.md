@@ -63,7 +63,7 @@ A shader that compiles for the first time in the middle of a removal would stall
 - **The warm-up draw**: once every program has linked, the renderer draws one invisible speck with each program in each blend, so the pipelines are built then, not at the first removal.
 - **`Remover.sprites` and `Pile.warmUp()`**: each remover also lists the Canvas2D art it will paint (its cut-in portraits). After the first frame that could be drawn, `Pile.warmUp()` hands them to the renderer, which paints them and the particles' soft shapes, one piece a frame, once everything is compiled, so Canvas2D's gradients and shadows are awake before the first removal.
 
-Until a source has compiled, `shade` draws nothing for it. One that fails to compile is logged once, with its key and the driver's log, kept as failed and draws nothing from then on: it never takes the renderer, the page or the other removers down. (A dev build also logs how long each program took, through `dev-log.ts`.)
+Until a source has compiled, `shade` draws nothing for it. One that fails to compile is logged once, with its key and the driver's log, kept as failed and draws nothing from then on: it never takes the renderer, the page or the other removers down. (A dev build also logs how long each program took, through `debugLog` from `@dy-apps/services`, tagged `[gl]`.)
 
 ## The camera
 
