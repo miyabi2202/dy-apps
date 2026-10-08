@@ -1,15 +1,14 @@
 import type { PileSettings } from '../../core/config';
 import type { Frame } from '../../core/protocol';
-import { type ChangeJournal, type PileState, REMOVED_STRIDE } from '../pile-state';
+import type { ChangeJournal, PileState } from '../pile-state';
 import { createProgram, type Program } from './program';
+import { HOLE, RestingOrder } from './resting-order';
 import { PILE_FS, PILE_VS } from './shaders/pile';
 
 type Stage = Pick<PileSettings, 'radius' | 'maxItems'>;
 
 /** Bytes in an x, y pair, and in an id. */
 const XY_BYTES = 8;
-/** Where a hole in the resting buffer is: far above any view, so the shader culls it. */
-const HOLE = -1e30;
 
 /** What a draw of the layer needs to know. */
 export interface PileDraw {
@@ -48,27 +47,8 @@ export class PileLayer {
   private movingIdBuffer: WebGLBuffer | null = null;
   private cornerBuffer: WebGLBuffer | null = null;
 
-  /**
-   * The GPU buffer keeps icons in the order they settled and never reorders them: overlapping
-   * icons are drawn in buffer order, so swap-filling a slot (as the state does) would send an
-   * icon behind its neighbours. A removal leaves a hole (`HOLE`, culled by the shader) and the
-   * buffer is compacted, keeping its order, once holes are many.
-   * `gpuOf[stateSlot]` is where a state slot's icon is in the buffer (-1: not sent yet), and
-   * `stateOf[gpuSlot]` the reverse (-1: a hole).
-   */
-  private gpuOf = new Int32Array(1024);
-  private stateOf = new Int32Array(1024);
-  /** Buffer slots in use, holes included: what is drawn. */
-  private gpuEnd = 0;
-  private holes = 0;
-  /** State slots below this have a buffer slot (or are in `pending`). */
-  private uploaded = 0;
-  /** State slots below `uploaded` swap-filled with an icon not yet sent. */
-  private readonly pending = new Set<number>();
-  /** Buffer slots that became holes since the last draw. */
-  private readonly punched: number[] = [];
-  /** The whole buffer to be sent again, in its order (after a compaction or a new context). */
-  private resend = false;
+  /** The order of the icons in the resting buffer. */
+  private readonly order: RestingOrder;
   /** The physics frame the moving buffers hold. */
   private uploadedFrame: Frame | null = null;
   private movingCount = 0;
@@ -79,6 +59,7 @@ export class PileLayer {
 
   constructor(private readonly stage: Stage) {
     this.capacity = stage.maxItems;
+    this.order = new RestingOrder(this.capacity);
     this.prevScratch = new Float32Array(2 * this.capacity);
   }
 
@@ -87,40 +68,14 @@ export class PileLayer {
    * and empty it. The buffer itself is brought up to date by the next draw.
    */
   apply(journal: ChangeJournal): void {
-    if (journal.reset) this.restart();
-    const { removed } = journal;
-    for (let k = 0; k < removed.length; k += REMOVED_STRIDE) {
-      const slot = removed[k]!;
-      const last = removed[k + 1]!;
-      if (slot >= this.uploaded) continue; // never sent: nothing on the GPU to change
-      const g = this.pending.delete(slot) ? -1 : this.gpuOf[slot]!;
-      if (g >= 0) {
-        this.stateOf[g] = -1;
-        this.punched.push(g);
-        this.holes++;
-      }
-      if (slot !== last) {
-        // The last icon moved down into the slot; it keeps its own place in the buffer.
-        if (last < this.uploaded) {
-          const lg = this.pending.delete(last) ? -1 : this.gpuOf[last]!;
-          this.gpuOf[slot] = lg;
-          if (lg >= 0) this.stateOf[lg] = slot;
-          else this.pending.add(slot);
-        } else {
-          this.gpuOf[slot] = -1;
-          this.pending.add(slot);
-        }
-      }
-      this.uploaded = Math.min(this.uploaded, last);
-    }
-    journal.clear();
+    this.order.apply(journal);
   }
 
   /** Make the GPU objects in `gl`, and send everything again on the next draw. */
   attach(gl: WebGL2RenderingContext): void {
     this.gl = gl;
     this.program = createProgram(gl, PILE_VS, PILE_FS, 'pile');
-    this.resend = true;
+    this.order.invalidate();
     this.uploadedFrame = null;
     this.movingCount = 0;
 
@@ -200,7 +155,7 @@ export class PileLayer {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-    const resting = this.gpuEnd;
+    const resting = this.order.length;
     if (resting > 0) {
       gl.uniform1f(program.uniform('u_alpha'), 1);
       gl.uniform1i(program.uniform('u_heldId'), -1);
@@ -221,97 +176,18 @@ export class PileLayer {
     gl.bindVertexArray(null);
   }
 
-  /** Start over with an empty buffer. */
-  private restart(): void {
-    this.uploaded = 0;
-    this.gpuEnd = 0;
-    this.holes = 0;
-    this.pending.clear();
-    this.punched.length = 0;
-    this.resend = false;
-  }
-
-  /**
-   * Send the resting buffer what changed since the last draw: holes where icons left, and the
-   * newly settled (and any swap-filled before they were sent) at the end, so every icon keeps
-   * its place among the rest.
-   */
+  /** Send the resting buffer what its order says changed since the last draw. */
   private uploadResting(gl: WebGL2RenderingContext, state: PileState): void {
-    const xy = state.restingXy;
-    const count = state.restingCount;
-    this.grow(count);
-    // Newly settled, then those swap-filled into a slot before their turn: their buffer slots.
-    const fresh: number[] = [];
-    for (const slot of this.pending) if (slot < count) fresh.push(slot);
-    this.pending.clear();
-    for (let slot = this.uploaded; slot < count; slot++) fresh.push(slot);
-    this.uploaded = count;
-    if (this.gpuEnd + fresh.length > this.capacity || this.holes > Math.max(256, this.gpuEnd / 4)) {
-      this.compact();
-    }
-    const at = this.gpuEnd;
-    for (const slot of fresh) {
-      if (this.gpuEnd >= this.capacity) break;
-      this.gpuOf[slot] = this.gpuEnd;
-      this.stateOf[this.gpuEnd++] = slot;
-    }
+    const { holes, from, to } = this.order.plan(state.restingCount);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.restingBuffer);
-    if (this.resend) {
-      this.resend = false;
-      this.punched.length = 0;
-      this.sendRange(gl, xy, 0, this.gpuEnd);
-      return;
-    }
     const hole = new Float32Array([HOLE, HOLE]);
-    for (const g of this.punched)
-      if (g < this.gpuEnd) gl.bufferSubData(gl.ARRAY_BUFFER, g * XY_BYTES, hole);
-    this.punched.length = 0;
-    this.sendRange(gl, xy, at, this.gpuEnd);
-  }
-
-  /** Send buffer slots [from, to) from the state's positions. */
-  private sendRange(gl: WebGL2RenderingContext, xy: Float32Array, from: number, to: number): void {
-    if (to <= from) return;
-    const out = new Float32Array(2 * (to - from));
-    for (let g = from; g < to; g++) {
-      const slot = this.stateOf[g]!;
-      const o = 2 * (g - from);
-      if (slot < 0) {
-        out[o] = HOLE;
-        out[o + 1] = HOLE;
-      } else {
-        out[o] = xy[2 * slot]!;
-        out[o + 1] = xy[2 * slot + 1]!;
-      }
-    }
-    gl.bufferSubData(gl.ARRAY_BUFFER, from * XY_BYTES, out);
-  }
-
-  /** Close up the holes, keeping every icon's order, and send the whole buffer again. */
-  private compact(): void {
-    let n = 0;
-    for (let g = 0; g < this.gpuEnd; g++) {
-      const slot = this.stateOf[g]!;
-      if (slot < 0) continue;
-      this.stateOf[n] = slot;
-      this.gpuOf[slot] = n++;
-    }
-    this.gpuEnd = n;
-    this.holes = 0;
-    this.resend = true;
-  }
-
-  private grow(count: number): void {
-    const need = Math.max(count, this.gpuEnd) + 1;
-    if (need <= this.gpuOf.length && this.capacity <= this.stateOf.length) return;
-    const size = Math.max(need, this.gpuOf.length * 2);
-    const gpuOf = new Int32Array(size);
-    gpuOf.set(this.gpuOf);
-    this.gpuOf = gpuOf;
-    if (this.stateOf.length < this.capacity) {
-      const stateOf = new Int32Array(this.capacity + 1);
-      stateOf.set(this.stateOf);
-      this.stateOf = stateOf;
+    for (const g of holes) gl.bufferSubData(gl.ARRAY_BUFFER, g * XY_BYTES, hole);
+    if (to > from) {
+      gl.bufferSubData(
+        gl.ARRAY_BUFFER,
+        from * XY_BYTES,
+        this.order.pack(state.restingXy, from, to),
+      );
     }
   }
 
