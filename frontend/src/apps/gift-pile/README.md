@@ -150,7 +150,7 @@ at hand: the helicopter has downwash, a searchlight and a vortex at the nozzle (
 effects.ts`), the saucer a metal hull, a holographic dome (the dome alone, drawn from the same SVG
 with every other fill `NONE` in `svg-art.ts`), a beam of scrolling bands and a streak as it
 leaves; the balloon a burner flame, streamers and dust; the car underglow, headlights, ghosts,
-nitro and a landing that shakes the screen; Pac-Man a neon glow, pellets, crumbs and a power
+nitro and a landing that shakes the screen; Pac-Man a neon lane of pellets along his row, crumbs and a power
 pellet, and the ghost an ectoplasm trail; the claw a spotlight, a chasing LED rail and
 confetti; the fireworks five burst styles (peony, chrysanthemum, ring, willow, crossette) with a
 flash, a ring of air and a split of colour for each; and the black hole its lensing, a banded
@@ -174,7 +174,7 @@ one and comes back the other way, until he has eaten all the board's icons (`run
 the ones he meets. Then,
 if some are to be dropped back, the ghost, following where he has been (`trail.ts`), catches
 him and he shrivels away as they burst back out of him; if not (the pile had no more than
-asked for), he runs off. His drawing and the ghost's are in `sprites.ts`. The flying saucer (`ufo/`, drawn wholly in GLSL by `Gfx.saucer`: a chrome hull, a ring of chasing
+asked for), he runs off. His drawing and the ghost's (`sprites.ts`) are wholly GLSL, in `render/gl/shaders/pac-man.ts` by way of `Gfx.pacMan` and `Gfx.ghost`: he is a glossy sphere with a hot spot, a rim of light and a dark hollow where his mouth is cut; the ghost a translucent ectoplasm body with a noise-wobbling skirt and glossy eyes that look at him (pale dots and a zigzag mouth when frightened); and `Gfx.neonLane`, `Gfx.pellet` and `Gfx.arcadePop` draw the neon corridor and pellets along his row and the pop as he goes. The flying saucer (`ufo/`, drawn wholly in GLSL by `Gfx.saucer`: a chrome hull, a ring of chasing
 lights, a glass dome of swirling energy; its portrait for the cut-in is in `kit/portraits.ts`) aims at a
 spot, flies in and stops over it, and shines its tractor beam (`ufo/beam.ts`, a rippling plasma
 beam from `Gfx.plasmaBeam`) down on the
@@ -226,5 +226,5 @@ free licence, which asks for this link.
 
 ## Credits
 
-The saucer's and beam's shaders use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise)
+The saucer's, beam's and Pac-Man's ghost's shaders use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise)
 (Ian McEwan, Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence.

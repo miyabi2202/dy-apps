@@ -234,6 +234,55 @@ export interface Gfx {
     bottomWidth: number,
     o: { color: Color; intensity?: number },
   ): void;
+  // Pac-Man
+  /**
+   * A procedural Pac-Man, `r` px to his rim: a glossy sphere with a hot spot, rim light and a
+   * neon halo, `mouth` (a half angle) open towards `facing`, a dark hollow inside it, and an
+   * eye. `dying` from 0 to 1 takes the eye and halo away; `glow` (default 1) scales the shine.
+   */
+  pacMan(
+    x: number,
+    y: number,
+    r: number,
+    o: {
+      color: Color;
+      facing: number;
+      mouth: number;
+      glow?: number;
+      dying?: number;
+      alpha?: number;
+    },
+  ): void;
+  /**
+   * A procedural ghost, `r` px to each side of its middle: a translucent glowing body with a
+   * wobbling skirt and glossy eyes looking towards the angle `look`; `scared` gives it pale
+   * dots for eyes and a zigzag mouth.
+   */
+  ghost(
+    x: number,
+    y: number,
+    r: number,
+    o: { color: Color; look: number; scared?: boolean; alpha?: number },
+  ): void;
+  /** A neon pellet `r` px across, on a dark pool so it shows on bright icons, pulsing; a `power` pellet throws a cross of light. `phase` offsets the pulse. */
+  pellet(
+    x: number,
+    y: number,
+    r: number,
+    o: { color: Color; power?: boolean; phase?: number; alpha?: number },
+  ): void;
+  /**
+   * The neon lane something travels along, towards the angle `angle`: a dim scanlined floor
+   * between two glowing tubes `halfWidth` either side of its line, with light chasing along them, fading `ahead` px in front of (x, y) and `behind` px behind.
+   */
+  neonLane(
+    x: number,
+    y: number,
+    angle: number,
+    o: { ahead: number; behind: number; halfWidth: number; color: Color; alpha?: number },
+  ): void;
+  /** A pop of light, additive: a flash, a ring and twelve rays, `progress` from 0 to 1, up to `r` px out. */
+  arcadePop(x: number, y: number, r: number, o: { color: Color; progress: number }): void;
   /** Soft textured quads in one instanced draw (see `ParticleData`); `kit/particles.ts` makes the data. */
   particles(data: ParticleData): void;
   ribbon(

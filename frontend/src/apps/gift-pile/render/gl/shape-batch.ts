@@ -20,6 +20,12 @@ export const KIND = {
   flat: 14,
   saucer: 15,
   plasmaBeam: 16,
+  // Pac-Man
+  pacMan: 40,
+  ghost: 41,
+  pellet: 42,
+  neonLane: 43,
+  arcadePop: 44,
 } as const;
 
 /** What the shader needs to know about the frame. */

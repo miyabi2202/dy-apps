@@ -4,6 +4,13 @@
 // so the fragment shader can work out the signed distance to the edge and cover the edge by it.
 
 import { NOISE_GLSL } from './noise';
+import {
+  PM_GHOST_GLSL,
+  PM_LANE_GLSL,
+  PM_PAC_MAN_GLSL,
+  PM_PELLET_GLSL,
+  PM_POP_GLSL,
+} from './pac-man';
 import { BEAM_GLSL, SAUCER_GLSL } from './ufo';
 
 /** What shape a vertex belongs to; the same numbers as `KIND` in `shape-batch.ts`. */
@@ -66,7 +73,7 @@ float outline(float d) {
   return v_q.x > 0.0 ? abs(d) - v_q.x * 0.5 : d;
 }
 
-${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}
+${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${PM_PAC_MAN_GLSL}${PM_GHOST_GLSL}${PM_PELLET_GLSL}${PM_LANE_GLSL}${PM_POP_GLSL}
 void main() {
   int k = int(v_kind + 0.5);
   vec4 c = v_color; // straight alpha
@@ -161,6 +168,21 @@ void main() {
     return;
   } else if (k == 16) { // plasma beam: p.x half width at the top, p.y at the foot, p.z length, p.w strength; c the colour
     o = beamColor(v_local, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, u_time) * c.a;
+    return;
+  } else if (k == 40) { // Pac-Man: p.x radius, p.y mouth half angle, p.z facing, p.w glow; q.xyz colour, q.w dying; c the lips
+    o = pmPacMan(v_local, v_p.x, v_p.y, v_p.z, v_p.w, v_q.xyz, v_q.w, c.rgb, u_time, u_px) * c.a;
+    return;
+  } else if (k == 41) { // ghost: p.x half width, p.y scared, p.zw where it looks; q.xyz colour
+    o = pmGhost(v_local, v_p.x, v_p.y, v_p.zw, v_q.xyz, u_time, u_px) * c.a;
+    return;
+  } else if (k == 42) { // pellet: p.x radius, p.y power, p.z phase; q.xyz colour
+    o = pmPellet(v_local, v_p.x, v_p.y, v_p.z, v_q.xyz, u_time) * c.a;
+    return;
+  } else if (k == 43) { // neon lane: p.x ahead, p.y behind, p.z half width, p.w strength; q.xyz colour
+    o = pmLane(v_local, v_p.x, v_p.y, v_p.z, v_p.w, v_q.xyz, u_time) * c.a;
+    return;
+  } else if (k == 44) { // pop: p.x radius, p.y progress; q.xyz colour
+    o = pmPop(v_local, v_p.x, v_p.y, v_q.xyz) * c.a;
     return;
   } else if (k == 9) { // holographic sheen: p.x angle, p.y strength
     vec4 t = texture(u_tex, v_uv);
