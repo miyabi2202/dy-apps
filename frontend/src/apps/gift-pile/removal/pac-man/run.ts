@@ -39,6 +39,11 @@ const SCARED_MS = 600;
 /** Dots of pellet lie ahead of him this far apart, this far out. */
 const PELLET_GAP = 14;
 const PELLET_REACH = 120;
+/** His neon lane is this far either side of his line, in the colour of a maze's walls. */
+const LANE_HALF = PAC_R + 5;
+const LANE_COLOUR = '#3b82f6';
+/** The farthest pellet ahead is a power pellet for the last this many icons before the ghost turns blue. */
+const POWER_NEAR = 6;
 /** A pop of light where an icon is eaten lasts this long. */
 const POP_MS = 80;
 
@@ -185,7 +190,7 @@ export class Run implements Removal {
         alphaTo: 0,
         blend: 'add',
       });
-      drawGhost(gfx, g, me, ghostColour, t, scared);
+      drawGhost(gfx, g, me, ghostColour, scared);
       if (this.leaving) {
         this.streak.add(me.x, me.y, t);
         gfx.ribbon(this.streak.points(), (u) => PAC_R * 1.4 * (1 - u), palette.pac, {
@@ -216,22 +221,43 @@ export class Run implements Removal {
         gfx.shockwave(me.x, me.y, 80 * v, 24, 10 * (1 - v));
       }
     }
-    drawGhost(gfx, this.trail.behind(gap), me, ghostColour, t);
+    drawGhost(gfx, this.trail.behind(gap), me, ghostColour);
     const dying = since < CATCH_MS ? 0 : Math.min(1, (since - CATCH_MS) / DIE_MS);
     drawPacMan(gfx, me, this.facing(), palette.pac, t, dying);
     this.sparks.step(dt);
     this.sparks.draw(gfx);
   }
 
-  /** Dots along his row ahead of him, fading with distance. */
+  /**
+   * His neon lane, and the pellets along it ahead of him, on a grid so they come towards him as
+   * he goes, fading with distance; as a power pellet is close, the farthest one is a big one.
+   */
   private drawPellets(gfx: Gfx, me: Point): void {
     if (this.caughtAt !== null) return;
-    const dir = this.heading;
-    for (let d = PELLET_GAP; d <= PELLET_REACH; d += PELLET_GAP) {
-      const alpha = 0.6 - d / 200;
-      const x = dir === 0 ? me.x : me.x + dir * d;
-      const y = dir === 0 ? me.y + d : me.y;
-      gfx.circle(x, y, 2, '#fef3c7', { alpha });
+    const down = this.heading === 0;
+    gfx.neonLane(me.x, me.y, this.facing(), {
+      ahead: PELLET_REACH + PAC_R,
+      behind: PAC_R * 2.5,
+      halfWidth: LANE_HALF,
+      color: LANE_COLOUR,
+      alpha: 0.55,
+    });
+    const sign = down ? 1 : this.heading;
+    const along = down ? me.y : me.x;
+    const first = (Math.floor(along / PELLET_GAP) + (sign > 0 ? 1 : 0)) * PELLET_GAP;
+    const powerClose = this.eatenCount % POWER_EVERY >= POWER_EVERY - POWER_NEAR;
+    for (let k = 0; ; k++) {
+      const at = first + sign * k * PELLET_GAP;
+      const d = (at - along) * sign;
+      if (d > PELLET_REACH) break;
+      if (d < PAC_R * 0.9) continue;
+      const power = powerClose && d > PELLET_REACH - PELLET_GAP;
+      gfx.pellet(down ? me.x : at, down ? at : me.y, power ? 6 : 3.2, {
+        color: power ? '#fde68a' : '#fef3c7',
+        power,
+        phase: at * 0.21,
+        alpha: (1 - d / (PELLET_REACH + PELLET_GAP)) * (power ? 1 : 0.85),
+      });
     }
   }
 

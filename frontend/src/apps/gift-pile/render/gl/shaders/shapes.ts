@@ -11,6 +11,13 @@ import {
 } from './balloon';
 import { NOISE_GLSL } from './noise';
 import { CHOPPER_GLSL } from './chopper';
+import {
+  PM_GHOST_GLSL,
+  PM_LANE_GLSL,
+  PM_PAC_MAN_GLSL,
+  PM_PELLET_GLSL,
+  PM_POP_GLSL,
+} from './pac-man';
 import { BEAM_GLSL, SAUCER_GLSL } from './ufo';
 import {
   FIREWORK_FLASH_GLSL,
@@ -81,7 +88,7 @@ float outline(float d) {
   return v_q.x > 0.0 ? abs(d) - v_q.x * 0.5 : d;
 }
 
-${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${FIREWORK_SPARK_GLSL}${FIREWORK_GLITTER_GLSL}${FIREWORK_FLASH_GLSL}${FIREWORK_SMOKE_GLSL}${FIREWORK_ROCKET_GLSL}${CHOPPER_GLSL}${HYPERCAR_GLSL}${BALLOON_ENVELOPE_GLSL}${BALLOON_BASKET_GLSL}${BALLOON_FLAME_GLSL}${BALLOON_HAZE_GLSL}
+${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${FIREWORK_SPARK_GLSL}${FIREWORK_GLITTER_GLSL}${FIREWORK_FLASH_GLSL}${FIREWORK_SMOKE_GLSL}${FIREWORK_ROCKET_GLSL}${CHOPPER_GLSL}${HYPERCAR_GLSL}${BALLOON_ENVELOPE_GLSL}${BALLOON_BASKET_GLSL}${BALLOON_FLAME_GLSL}${BALLOON_HAZE_GLSL}${PM_PAC_MAN_GLSL}${PM_GHOST_GLSL}${PM_PELLET_GLSL}${PM_LANE_GLSL}${PM_POP_GLSL}
 void main() {
   int k = int(v_kind + 0.5);
   vec4 c = v_color; // straight alpha
@@ -211,6 +218,21 @@ void main() {
       o = balloonHazeColor(v_local, v_p.x, v_p.y, c.rgb, u_time);
     }
     o *= c.a;
+    return;
+  } else if (k == 40) { // Pac-Man: p.x radius, p.y mouth half angle, p.z facing, p.w glow; q.xyz colour, q.w dying; c the lips
+    o = pmPacMan(v_local, v_p.x, v_p.y, v_p.z, v_p.w, v_q.xyz, v_q.w, c.rgb, u_time, u_px) * c.a;
+    return;
+  } else if (k == 41) { // ghost: p.x half width, p.y scared, p.zw where it looks; q.xyz colour
+    o = pmGhost(v_local, v_p.x, v_p.y, v_p.zw, v_q.xyz, u_time, u_px) * c.a;
+    return;
+  } else if (k == 42) { // pellet: p.x radius, p.y power, p.z phase; q.xyz colour
+    o = pmPellet(v_local, v_p.x, v_p.y, v_p.z, v_q.xyz, u_time) * c.a;
+    return;
+  } else if (k == 43) { // neon lane: p.x ahead, p.y behind, p.z half width, p.w strength; q.xyz colour
+    o = pmLane(v_local, v_p.x, v_p.y, v_p.z, v_p.w, v_q.xyz, u_time) * c.a;
+    return;
+  } else if (k == 44) { // pop: p.x radius, p.y progress; q.xyz colour
+    o = pmPop(v_local, v_p.x, v_p.y, v_q.xyz) * c.a;
     return;
   } else if (k == 9) { // holographic sheen: p.x angle, p.y strength
     vec4 t = texture(u_tex, v_uv);

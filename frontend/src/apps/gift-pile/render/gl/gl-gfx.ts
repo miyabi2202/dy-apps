@@ -890,6 +890,106 @@ export class GlGfx implements Gfx {
     const bloom = radius * 1.7;
     this.box(x, y, 1, 0, bloom, bloom, parseColor('#fdba74'), 1);
   }
+  // Pac-Man
+  pacMan(
+    x: number,
+    y: number,
+    r: number,
+    o: {
+      color: Color;
+      facing: number;
+      mouth: number;
+      glow?: number;
+      dying?: number;
+      alpha?: number;
+    },
+  ): void {
+    const s = this.scale;
+    const [cr, cg, cb] = parseColor(o.color);
+    this.batch.use(null, 'normal');
+    this.batch.shape(KIND.pacMan, r * s, o.mouth, o.facing, o.glow ?? 1, cr, cg, cb, o.dying ?? 0);
+    const half = r * 1.6;
+    this.box(x, y, 1, 0, half, half, parseColor('#fef9c3'), o.alpha ?? 1);
+  }
+
+  ghost(
+    x: number,
+    y: number,
+    r: number,
+    o: { color: Color; look: number; scared?: boolean; alpha?: number },
+  ): void {
+    const s = this.scale;
+    const [cr, cg, cb] = parseColor(o.color);
+    this.batch.use(null, 'normal');
+    this.batch.shape(
+      KIND.ghost,
+      r * s,
+      o.scared ? 1 : 0,
+      Math.cos(o.look),
+      Math.sin(o.look),
+      cr,
+      cg,
+      cb,
+    );
+    const half = r * 1.6;
+    this.box(x, y, 1, 0, half, half, parseColor('#ffffff'), o.alpha ?? 1);
+  }
+
+  pellet(
+    x: number,
+    y: number,
+    r: number,
+    o: { color: Color; power?: boolean; phase?: number; alpha?: number },
+  ): void {
+    const s = this.scale;
+    const [cr, cg, cb] = parseColor(o.color);
+    this.batch.use(null, 'normal');
+    this.batch.shape(KIND.pellet, r * s, o.power ? 1 : 0, o.phase ?? 0, 0, cr, cg, cb);
+    const half = r * 3.3;
+    this.box(x, y, 1, 0, half, half, parseColor('#ffffff'), o.alpha ?? 1);
+  }
+
+  neonLane(
+    x: number,
+    y: number,
+    angle: number,
+    o: { ahead: number; behind: number; halfWidth: number; color: Color; alpha?: number },
+  ): void {
+    const s = this.scale;
+    const [cr, cg, cb] = parseColor(o.color);
+    const ex = Math.cos(angle);
+    const ey = Math.sin(angle);
+    const shift = (o.ahead - o.behind) / 2;
+    this.batch.use(null, 'normal');
+    this.batch.shape(
+      KIND.neonLane,
+      o.ahead * s,
+      o.behind * s,
+      o.halfWidth * s,
+      o.alpha ?? 1,
+      cr,
+      cg,
+      cb,
+    );
+    this.box(
+      x + ex * shift,
+      y + ey * shift,
+      ex,
+      ey,
+      (o.ahead + o.behind) / 2,
+      o.halfWidth * 2.2,
+      parseColor('#ffffff'),
+      1,
+    );
+  }
+
+  arcadePop(x: number, y: number, r: number, o: { color: Color; progress: number }): void {
+    const s = this.scale;
+    const [cr, cg, cb] = parseColor(o.color);
+    this.batch.use(null, 'add');
+    this.batch.shape(KIND.arcadePop, r * s, o.progress, 0, 0, cr, cg, cb);
+    this.box(x, y, 1, 0, r, r, parseColor('#ffffff'), 1);
+  }
 
   ribbon(
     points: ArrayLike<number>,
