@@ -27,7 +27,7 @@ export interface Openings {
 
 /**
  * How a craft takes icons in, from the point (`tie`) where it fits on to the craft: the
- * `Vacuum` it tows, say, or its own `Mouth`.
+ * `Vacuum` it tows.
  */
 export interface Intake {
   /** From the tie point down to where icons go in, at rest: the course keeps this clear of the pile. */
@@ -59,8 +59,6 @@ export interface Craft {
   readonly tie: { dx: number; dy: number };
   /** How it takes icons in. */
   readonly intake: Intake;
-  /** How far behind its centre it reaches, in world pixels, if further than `OVERSHOOT`: the crossing lasts until that is out of sight too. */
-  readonly trail?: number;
   /** The least the centre's height can be on this canvas, so the craft still shows. */
   minY(world: World): number;
   /** How far below the course's `altitude` the craft dips while over the pile. */

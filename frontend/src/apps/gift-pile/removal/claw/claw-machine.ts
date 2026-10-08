@@ -1,4 +1,6 @@
 import { type Board, pick, type Removal, type Remover, type ScoopShape } from '../board';
+import { smooth } from '../kit/easing';
+import { clumpOf, clumpSomewhere } from '../kit/clump';
 
 // Timing in ms, geometry in world pixels.
 /** The rail along the top that the carriage runs on, and how long it fades in and out. */
@@ -63,18 +65,13 @@ export class ClawMachine implements Remover {
 
   /** A clump of the pile somewhere across it. */
   shape(rng: () => number): ScoopShape {
-    return { kind: 'clump', at: AIM_FROM + (AIM_TO - AIM_FROM) * rng() };
+    return clumpSomewhere(rng, AIM_FROM, AIM_TO);
   }
 
   begin(board: Board, now: number, rng: () => number): Removal {
     return new Grab(board, now, rng, pick(this.palettes, rng));
   }
 }
-
-const smooth = (u: number) => {
-  const c = Math.min(1, Math.max(0, u));
-  return c * c * (3 - 2 * c);
-};
 
 /** One go of the claw. */
 class Grab implements Removal {
@@ -110,13 +107,8 @@ class Grab implements Removal {
     const { icons, world, iconRadius } = board;
     const n = icons.length;
     this.t0 = now;
-    let sumX = 0;
-    let top = Infinity;
-    for (const { x, y } of icons) {
-      sumX += x;
-      top = Math.min(top, y);
-    }
-    this.targetX = Math.min(world.width - 30, Math.max(30, sumX / n));
+    const { x: targetX, top } = clumpOf(icons, world, 30);
+    this.targetX = targetX;
     this.gripY = Math.max(REST_Y, top - REACH + iconRadius);
     const cableMs = Math.max(CABLE_MIN_MS, (this.gripY - REST_Y) / CABLE_SPEED);
     this.entered = ENTER_MS;

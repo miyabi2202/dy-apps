@@ -56,11 +56,13 @@ one, implement `Remover` in a new folder, list it there, and give it a name to s
 remover; the director deals only the ones ticked (`setEnabled`), and the ones unticked are
 remembered on the browser (`removersOffStore` in `settings.ts`), so one added later starts on.
 
-Removers share what they like from `removal/kit/`. Two of them are crafts (`Craft` in
+Removers share what they like from `removal/kit/`: easing curves (`easing.ts`), aiming at a
+clump of the pile and finding where it is (`clump.ts`), stepping in small fixed steps however
+far apart the frames are (`clock.ts`), the top of the pile to walk along (`pile-top.ts`), and
+SVG art in any colouring (`svg-art.ts`). Two of them are crafts (`Craft` in
 `kit/craft.ts`) that run a `Crossing` (`kit/crossing.ts`): the craft crosses from the left to
 the right just above the pile, taking icons in with its `Intake`, which is the craft's to
-choose: so far a `Vacuum` cleaner towed on a rope (`vacuum.ts`) for all of them, with a
-`Mouth` (`mouth.ts`) ready for one that swallows them as it goes. A craft says how long it takes to
+choose: so far a `Vacuum` cleaner towed on a rope (`vacuum.ts`) for both. A craft says how long it takes to
 cross, where the intake fits on, its path, and how to draw it and any scenery: the hot-air
 balloon (`balloon/`) is drawn, and the `hypercar/` runs up one
 half of a split bridge, jumps the gap in a ballistic arc and comes down onto the other, lower,
@@ -103,7 +105,7 @@ not before, and draws it being drawn in, swinging and shrinking on the way. The 
 come back out over the pile (`release`: out of the vacuum's exhaust, say) and fall as physics
 has them; the stage tells the director where the bin is, and a dropped icon that falls into it
 is destroyed, with the bin lighting up, so moving the bin under the craft catches more. When
-the craft, and anything trailing it, is out of sight the rest are `destroy`ed.
+the craft is out of sight the rest are `destroy`ed.
 
 Presses queue in order (`ActionQueue` in `removal/queue.ts`): each removal begins a second
 after the one before is over, so two are never under way at once, and 添加 waits for any

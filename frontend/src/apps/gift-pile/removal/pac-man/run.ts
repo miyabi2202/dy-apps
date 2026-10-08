@@ -3,6 +3,7 @@ import type { PacManPalette } from './pac-man';
 import { PileTop } from '../kit/pile-top';
 import { drawGhost, drawPacMan, GHOST_R, PAC_R } from './sprites';
 import { Trail } from './trail';
+import { Clock } from '../kit/clock';
 
 // Timing in ms, geometry in world pixels.
 /** How fast he goes, in px per ms, always, and how far outside the canvas he starts. */
@@ -14,8 +15,6 @@ const BITE_BEHIND = PAC_R * 0.3;
 const BITE_SIDE = PAC_R * 0.85;
 /** One row is this far below the last: a little less than his bite is tall, so no icon slips between. */
 const ROW_STEP = BITE_SIDE * 1.8;
-/** He moves in steps of this long, however far apart the frames are. */
-const STEP_MS = 16;
 /** The ghost chases this far behind him along his path. */
 const GHOST_GAP = 78;
 /** Caught: the ghost closes in over this long, then he shrivels away over this long, and it's over this long after. */
@@ -52,7 +51,7 @@ export class Run implements Removal {
   /** Which way he went along the last row, to turn the other way after going down. */
   private lastAcross: 1 | -1 = 1;
   /** The time he has been moved to, in ms after `t0`. */
-  private t = 0;
+  private readonly clock = new Clock();
   private readonly trail: Trail;
   /** Which icons he has eaten, how many, and the ones still in his belly, to burst out. */
   private readonly eaten: Uint8Array;
@@ -102,12 +101,11 @@ export class Run implements Removal {
   draw(ctx: CanvasRenderingContext2D, now: number): void {
     const target = now - this.t0;
     // Move in small steps, so he eats everything in his way however far apart the frames are.
-    while (this.t < target) {
-      const dt = Math.min(STEP_MS, target - this.t);
-      this.t += dt;
+    this.clock.advance(target, (dt) => {
       if (this.caughtAt === null) this.move(dt);
-    }
-    const { t, palette } = this;
+    });
+    const { t } = this.clock;
+    const { palette } = this;
     const me = this.at();
 
     if (this.caughtAt === null) {
@@ -165,7 +163,7 @@ export class Run implements Removal {
       }
     }
     if (this.eatenCount < n) return;
-    if (this.belly.length > 0) this.caughtAt = this.t;
+    if (this.belly.length > 0) this.caughtAt = this.clock.t;
     else {
       // Nothing to drop: off he goes the way he is facing, or back the other way if going down.
       this.leaving = true;

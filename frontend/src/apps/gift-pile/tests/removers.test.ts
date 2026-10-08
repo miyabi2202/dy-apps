@@ -1,17 +1,7 @@
 /** @jest-environment node */
 import type { Board, Point } from '../removal/board';
 import { allRemovers } from '../removal/removers';
-import { mulberry32 } from './helpers';
-
-/** A 2D context where every call is a no-op and every property can be set; gradients take stops. */
-const fakeContext = () =>
-  new Proxy({} as CanvasRenderingContext2D, {
-    get: (_, key) =>
-      key === 'createLinearGradient' || key === 'createRadialGradient'
-        ? () => ({ addColorStop() {} })
-        : () => undefined,
-    set: () => true,
-  });
+import { fakeContext, mulberry32 } from './helpers';
 
 const world = { width: 416, height: 708 };
 

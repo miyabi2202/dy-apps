@@ -2,10 +2,7 @@ import type { Board, Removal } from '../board';
 import { type Course, type Craft, OVERSHOOT } from './craft';
 
 // Timing, in ms, and geometry, in world (CSS) pixels.
-/**
- * After a craft has crossed, it carries on out of sight for this long (and longer for
- * whatever trails behind it), while the last icons are drawn in.
- */
+/** After a craft has crossed, it carries on out of sight for this long, while the last icons are drawn in. */
 const TAIL_MS = 700;
 /** An icon is caught by the intake when it is this far short of it. */
 const REACH = 80;
@@ -85,7 +82,7 @@ export class Crossing implements Removal {
     );
     this.course = { ...world, altitude, crossMs: craft.crossMs };
     this.speed = (world.width + 2 * OVERSHOOT) / craft.crossMs;
-    this.endMs = craft.crossMs + TAIL_MS + (craft.trail ?? 0) / this.speed;
+    this.endMs = craft.crossMs + TAIL_MS;
 
     this.x0 = new Float32Array(n);
     this.y0 = new Float32Array(n);
@@ -122,7 +119,7 @@ export class Crossing implements Removal {
     }
   }
 
-  /** The craft, and anything trailing it, is out of sight. */
+  /** The craft is out of sight. */
   isOver(now: number): boolean {
     return now >= this.t0 + this.endMs;
   }

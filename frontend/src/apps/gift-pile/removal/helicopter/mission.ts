@@ -12,6 +12,8 @@ import {
   NOZZLE,
   tankAt,
 } from './winchman';
+import { easeOut, smooth } from '../kit/easing';
+import { Clock } from '../kit/clock';
 
 // Timing in ms, geometry in world pixels.
 /** It hovers this far above the top of the pile, by the cabin's middle, but no higher than this on the canvas. */
@@ -45,8 +47,6 @@ const RECOVER_MS = 500;
 /** What it throws out flies off this fast, in px per second, from at least the first value plus up to the second. */
 const THROW_VX = [120, 120] as const;
 const THROW_VY = [60, 120] as const;
-/** It moves in steps of this long, however far apart the frames are. */
-const STEP_MS = 16;
 
 /** Where the mission is. */
 type Phase =
@@ -74,7 +74,7 @@ type Phase =
 export class Mission implements Removal {
   private phase: Phase = 'arrive';
   /** How long the mission has gone, and how long into this phase, in ms. */
-  private t = 0;
+  private readonly clock = new Clock();
   private phaseT = 0;
   private readonly t0: number;
   /** The top of the pile as it was, for before the pile's own can be asked, or where there is none. */
@@ -146,13 +146,15 @@ export class Mission implements Removal {
   draw(ctx: CanvasRenderingContext2D, now: number): void {
     const target = now - this.t0;
     // Step it on in small steps, so it vacuums everything in its way however far apart the frames are.
-    while (this.t < target && this.phase !== 'done') {
-      const dt = Math.min(STEP_MS, target - this.t);
-      this.t += dt;
-      this.phaseT += dt;
-      this.step(dt);
-    }
-    const t = this.t;
+    this.clock.advance(
+      target,
+      (dt) => {
+        this.phaseT += dt;
+        this.step(dt);
+      },
+      () => this.phase !== 'done',
+    );
+    const { t } = this.clock;
     const onRope =
       this.phase === 'lower' ||
       this.phase === 'lift' ||
@@ -218,7 +220,7 @@ export class Mission implements Removal {
     switch (this.phase) {
       case 'arrive': {
         const u = Math.min(1, this.phaseT / ARRIVE_MS);
-        const e = 1 - (1 - u) ** 3;
+        const e = easeOut(u);
         this.chopper = {
           x: -90 + (this.hoverX + 90) * e,
           y: this.hoverY - 40 + 40 * e,
@@ -297,7 +299,7 @@ export class Mission implements Removal {
       }
       case 'recover': {
         const u = Math.min(1, this.phaseT / RECOVER_MS);
-        this.chopper = { x: this.hoverX, y: this.hoverY + SINK * (1 - u * u * (3 - 2 * u)) };
+        this.chopper = { x: this.hoverX, y: this.hoverY + SINK * (1 - smooth(u)) };
         this.tilt = 0;
         if (u >= 1) this.next('reel');
         break;
@@ -356,17 +358,17 @@ export class Mission implements Removal {
       this.suckedCount++;
       this.suckedThisWalk++;
       const from = board.take(i) ?? p;
-      this.flying.push({ i, at: this.t, from });
+      this.flying.push({ i, at: this.clock.t, from });
     }
   }
 
   /** Icons that have reached the nozzle go up the hose: gone, or the last few held to throw out. */
   private land(): void {
     const { board } = this;
-    while (this.flying.length > 0 && this.t - this.flying[0]!.at >= SUCK_MS) {
+    while (this.flying.length > 0 && this.clock.t - this.flying[0]!.at >= SUCK_MS) {
       const { i } = this.flying.shift()!;
       this.landedCount++;
-      this.lumps.push(this.t);
+      this.lumps.push(this.clock.t);
       if (this.landedCount > board.icons.length - board.dropCount) this.held.push(i);
       else board.destroy(i);
     }

@@ -40,3 +40,13 @@ export function frame(
     scooped: parts.scooped ?? [],
   };
 }
+
+/** A 2D context where every call is a no-op and every property can be set; gradients take stops. */
+export const fakeContext = () =>
+  new Proxy({} as CanvasRenderingContext2D, {
+    get: (_, key) =>
+      key === 'createLinearGradient' || key === 'createRadialGradient'
+        ? () => ({ addColorStop() {} })
+        : () => undefined,
+    set: () => true,
+  });

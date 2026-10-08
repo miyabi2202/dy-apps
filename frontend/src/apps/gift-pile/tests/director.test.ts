@@ -9,7 +9,7 @@ import { Vacuum } from '../removal/kit/vacuum';
 import { allRemovers } from '../removal/removers';
 import { LOAD_CAPACITY } from '../removal/queue';
 import type { RemovalSink } from '../removal/sink';
-import { mulberry32 } from './helpers';
+import { fakeContext, mulberry32 } from './helpers';
 
 /** A plain craft that tows the vacuum over at a steady 4.8 s, drawing nothing. */
 class TestCraft implements Craft, Remover {
@@ -67,16 +67,6 @@ class FakeSink implements RemovalSink {
     this.destroyed.push(id);
   }
 }
-
-/** A 2D context where every call is a no-op and every property can be set; gradients take stops. */
-const fakeContext = () =>
-  new Proxy({} as CanvasRenderingContext2D, {
-    get: (_, key) =>
-      key === 'createLinearGradient' || key === 'createRadialGradient'
-        ? () => ({ addColorStop() {} })
-        : () => undefined,
-    set: () => true,
-  });
 
 const world = { width: 416, height: 708 };
 const noStamp = () => {};

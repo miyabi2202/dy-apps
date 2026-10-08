@@ -1,4 +1,6 @@
 import { type Board, pick, type Removal, type Remover, type ScoopShape } from '../board';
+import { smooth } from '../kit/easing';
+import { clumpOf, clumpSomewhere } from '../kit/clump';
 
 // Timing in ms, geometry in world pixels.
 /** The hole's radius when fully open, and how far above the clump's top its middle is. */
@@ -61,18 +63,13 @@ export class BlackHole implements Remover {
 
   /** A clump of the pile somewhere across it. */
   shape(rng: () => number): ScoopShape {
-    return { kind: 'clump', at: AIM_FROM + (AIM_TO - AIM_FROM) * rng() };
+    return clumpSomewhere(rng, AIM_FROM, AIM_TO);
   }
 
   begin(board: Board, now: number, rng: () => number): Removal {
     return new Swallow(board, now, rng, pick(this.palettes, rng));
   }
 }
-
-const smooth = (u: number) => {
-  const c = Math.min(1, Math.max(0, u));
-  return c * c * (3 - 2 * c);
-};
 
 /** One swallowing. */
 class Swallow implements Removal {
@@ -101,13 +98,8 @@ class Swallow implements Removal {
     const { icons, world } = board;
     const n = icons.length;
     this.t0 = now;
-    let sumX = 0;
-    let top = Infinity;
-    for (const { x, y } of icons) {
-      sumX += x;
-      top = Math.min(top, y);
-    }
-    this.cx = Math.min(world.width - 50, Math.max(50, sumX / n));
+    const { x: cx, top } = clumpOf(icons, world, 50);
+    this.cx = cx;
     this.cy = Math.max(MIN_Y, top - ABOVE);
     this.startAt = new Float32Array(n);
     this.fallMs = new Float32Array(n);
@@ -138,7 +130,7 @@ class Swallow implements Removal {
 
   /** Where icon `i` is, `u` of the way in, and its velocity there in px per second. */
   private spiral(i: number, u: number): { x: number; y: number; vx: number; vy: number } {
-    const e = u * u * (3 - 2 * u);
+    const e = smooth(u);
     const r = this.r0[i]! * (1 - e);
     // Anticlockwise on screen (y down), so a negative angle.
     const a = this.a0[i]! - this.turns[i]! * Math.PI * 2 * e;

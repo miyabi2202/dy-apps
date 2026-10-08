@@ -1,4 +1,5 @@
 import { type Board, pick, type Removal, type Remover } from '../board';
+import { easeOut } from '../kit/easing';
 
 // Timing in ms, geometry in world pixels.
 /** At most this many rockets, launched over at most this long. */
@@ -58,8 +59,6 @@ export class Fireworks implements Remover {
     return new Show(board, now, rng, pick(this.palettes, rng));
   }
 }
-
-const easeOut = (u: number) => 1 - (1 - u) ** 3;
 
 /** One rocket: its icons, where it goes up from and bursts, and when. */
 interface Rocket {

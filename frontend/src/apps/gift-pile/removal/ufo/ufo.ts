@@ -2,6 +2,8 @@ import { type Board, pick, type Removal, type Remover, type ScoopShape } from '.
 import { type Recolour, SvgArt } from '../kit/svg-art';
 import { UFO_SVG } from './art';
 import { drawBeam } from './beam';
+import { easeOut, smooth } from '../kit/easing';
+import { clumpOf, clumpSomewhere } from '../kit/clump';
 
 // Timing in ms, geometry in world pixels.
 const SIZE = 76;
@@ -77,18 +79,13 @@ export class Ufo implements Remover {
 
   /** A clump of the pile somewhere across it. */
   shape(rng: () => number): ScoopShape {
-    return { kind: 'clump', at: AIM_FROM + (AIM_TO - AIM_FROM) * rng() };
+    return clumpSomewhere(rng, AIM_FROM, AIM_TO);
   }
 
   begin(board: Board, now: number, rng: () => number): Removal {
     return new Abduction(board, now, rng, this.art, pick(this.schemes, rng));
   }
 }
-
-const smooth = (u: number) => {
-  const c = Math.min(1, Math.max(0, u));
-  return c * c * (3 - 2 * c);
-};
 
 /** One visit. */
 class Abduction implements Removal {
@@ -124,20 +121,11 @@ class Abduction implements Removal {
     const { icons, world, iconRadius } = board;
     const n = icons.length;
     this.t0 = now;
-    let sumX = 0;
-    let top = Infinity;
-    let bottom = -Infinity;
-    for (const { x, y } of icons) {
-      sumX += x;
-      top = Math.min(top, y);
-      bottom = Math.max(bottom, y);
-    }
-    this.hoverX = Math.min(world.width - 40, Math.max(40, sumX / n));
+    const { x: hoverX, top, bottom, spread } = clumpOf(icons, world, 40);
+    this.hoverX = hoverX;
     const bellyY = Math.max(HOVER_MIN_Y, top - HOVER_ABOVE);
     this.hoverY = bellyY - BELLY;
     this.beamLength = bottom + iconRadius - bellyY;
-    let spread = 0;
-    for (const { x } of icons) spread = Math.max(spread, Math.abs(x - this.hoverX));
     this.beamHalf = Math.min(80, Math.max(26, spread + iconRadius * 1.5));
 
     this.liftAt = new Float32Array(n);
@@ -237,7 +225,7 @@ class Abduction implements Removal {
     if (t < this.arrived) {
       // In from above the top left, slowing to a stop over the clump, leaning into it.
       const u = t / this.arrived;
-      const e = 1 - (1 - u) ** 3;
+      const e = easeOut(u);
       const x = -60 + (this.hoverX + 60) * e;
       const y = -50 + (this.hoverY + 50) * e + Math.sin(u * Math.PI) * -30;
       return { x, y: y + bob * e, tilt: 0.25 * (1 - e) };
