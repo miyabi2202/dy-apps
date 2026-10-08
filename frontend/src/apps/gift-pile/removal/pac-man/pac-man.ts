@@ -1,4 +1,13 @@
-import { type Board, pick, type Removal, type Remover, type ScoopShape } from '../board';
+import {
+  type Board,
+  pick,
+  type Removal,
+  type Remover,
+  type ScoopShape,
+  type SpriteSource,
+} from '../board';
+import { PAC_MAN_SHADERS } from './shader';
+import { pacManPortrait } from './portrait';
 import { Run } from './run';
 
 /** Pac-Man's yellow and the ghost chasing him. */
@@ -27,10 +36,14 @@ interface Options {
  */
 export class PacMan implements Remover {
   readonly name = 'pac-man';
+  readonly shaders = PAC_MAN_SHADERS;
+  /** The cut-in portraits, one per colour of Pac-Man. */
+  readonly sprites: readonly SpriteSource[];
   private readonly palettes: readonly PacManPalette[];
 
   constructor({ palettes = PAC_MAN_PALETTES }: Options = {}) {
     this.palettes = palettes;
+    this.sprites = [...new Set(palettes.map(({ pac }) => pac))].map(pacManPortrait);
   }
 
   /** The pile's outer layer, all across, then the next one down: just what he meets along his rows. */
