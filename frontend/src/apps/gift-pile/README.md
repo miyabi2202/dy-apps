@@ -54,19 +54,24 @@ one, implement `Remover` in a new folder and list it there.
 Removers share what they like from `removal/kit/`. Most of them are crafts (`Craft` in
 `kit/craft.ts`) that run a `Crossing` (`kit/crossing.ts`): the craft crosses from the left to
 the right just above the pile, taking icons in with its `Intake`, which is the craft's to
-choose: so far a `Vacuum` cleaner towed on a rope (`vacuum.ts`) for all of them, with a
-`Mouth` (`mouth.ts`) ready for a craft that eats them. A craft says how long it takes to
+choose: a `Vacuum` cleaner towed on a rope (`vacuum.ts`), or its own `Mouth` (`mouth.ts`)
+for one that eats them. A craft says how long it takes to
 cross, where the intake fits on, its path, and how to draw it and any scenery: the
 `helicopter/` is drawn from Microsoft's Fluent Emoji SVG (MIT, credited in its `art.ts`, drawn
 with `kit/svg-art.ts`), mirrored to face the way it flies with its rotors drawn spinning over
 the art; the hot-air balloon (`balloon/`) is drawn; and the `hypercar/` runs up one
 half of a split bridge, jumps the gap in a ballistic arc and comes down onto the other, lower,
-half. The balloon is the slowest and the car the quickest, at three seconds. Each craft picks
+half. Two eat what they pass: `pac-man/` chomps straight across with a ghost on his heels, and
+the Chinese dragon (`dragon/`) snakes across on a wave chasing a flaming pearl, its body
+following its head's path. A craft that reaches far behind its middle, like those two, says
+how far (`trail`), and its crossing lasts until that is out of sight too. The balloon is the
+slowest and the car the quickest, at three seconds. Each craft picks
 its colours for the crossing from its palettes when it begins: the balloon's stripes, skirt and
-outline, the car's body and trim, and for the helicopter swaps of the art's own fills, each
+outline, the car's body and trim, Pac-Man's ghost, the dragon's scales and gold, and for the
+helicopter swaps of the art's own fills, each
 colouring turned into an image once when the page loads.
 
-Three removers don't cross. The flying saucer (`ufo/`, also from Fluent Emoji) aims at a
+Four removers don't cross. The flying saucer (`ufo/`, also from Fluent Emoji) aims at a
 spot, flies in and stops over it, and shines its tractor beam (`ufo/beam.ts`) down on the
 clump: the icons rise up it into its belly, a few falling back out part way, then the beam
 goes off and it zips away. The claw machine (`claw/`) aims at a spot, slides along a rail at
@@ -75,6 +80,9 @@ if there are many), lets a few slip out on the way up, and carries the rest off.
 (`fireworks/`) send the icons up in a handful of rockets, each gathered from its own stretch of
 the pile, that burst into sparks; the icons fly apart with the sparks and are `destroy`ed as
 they burn out, so the count goes down burst by burst, and the duds fall back onto the pile.
+The black hole (`black-hole/`) aims at a spot, opens over the clump with a spinning accretion
+disk, and swallows it, the icons spiralling in and shrinking as they go; the duds it flings
+back out on the swing, `drop`ping them moving, and then it collapses with a pop.
 
 As the intake nears each icon the page `grab`s it, so whatever rested on it falls then and
 not before, and draws it being drawn in, swinging and shrinking on the way. The ones to drop
