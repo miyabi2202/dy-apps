@@ -9,6 +9,8 @@ const LAUNCH_MAX_MS = 2600;
 /** A rocket's icons gather at its foot this fast, then it climbs for this long. */
 const GATHER_MS = 280;
 const CLIMB_MS = 950;
+/** The shell the icons gather into is as big as them all together, up to this many icons across. */
+const SHELL_MAX = 3.2;
 /** The burst: how long it lasts, how far it spreads, and how many sparks it throws. */
 const BURST_MS = 1150;
 const BURST_R = 62;
@@ -64,6 +66,8 @@ export class Fireworks implements Remover {
 interface Rocket {
   icons: number[];
   colour: string;
+  /** The shell's size, as a scale of one icon. */
+  shell: number;
   footX: number;
   footY: number;
   apexX: number;
@@ -117,6 +121,8 @@ class Show implements Removal {
         top = Math.min(top, icons[i]!.y);
       }
       const footX = group.length > 0 ? sumX / group.length : world.width / 2;
+      // Its icons' area together, so the shell reads as all of them in one.
+      const shell = Math.max(1, Math.min(SHELL_MAX, Math.sqrt(group.length)));
       const ray = () => {
         const a = rng() * Math.PI * 2;
         return { dx: Math.cos(a), dy: Math.sin(a), reach: 0.55 + 0.45 * rng() };
@@ -124,8 +130,10 @@ class Show implements Removal {
       return {
         icons: group,
         colour: palette[r % palette.length]!,
+        shell,
         footX,
-        footY: Number.isFinite(top) ? top : world.height,
+        // The shell sits on the pile, rather than sunk into it.
+        footY: (Number.isFinite(top) ? top : world.height) - (shell - 1) * board.iconRadius,
         apexX: footX + (rng() - 0.5) * 70,
         apexY:
           board.camera.view.top +
@@ -172,7 +180,7 @@ class Show implements Removal {
     }
   }
 
-  /** The icons drawing together at the rocket's foot, shrinking a little. */
+  /** The icons drawing together at the rocket's foot, into a shell that grows as they come. */
   private drawGather(rocket: Rocket, u: number): void {
     const e = easeOut(u);
     rocket.icons.forEach((_, k) => {
@@ -180,6 +188,7 @@ class Show implements Removal {
       const y = rocket.fromY[k]! + (rocket.footY - rocket.fromY[k]!) * e;
       this.board.stamp(x, y, 1 - 0.3 * e);
     });
+    this.board.stamp(rocket.footX, rocket.footY, rocket.shell * e);
   }
 
   /** Where the rocket is `u` of the way up its climb. */
@@ -203,15 +212,16 @@ class Show implements Removal {
       ctx.fill();
     }
     const at = this.climbAt(rocket, u);
-    const glow = ctx.createRadialGradient(at.x, at.y, 0, at.x, at.y, 14);
+    const glowR = 14 * rocket.shell;
+    const glow = ctx.createRadialGradient(at.x, at.y, 0, at.x, at.y, glowR);
     glow.addColorStop(0, rocket.colour);
     glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(at.x, at.y, 14, 0, Math.PI * 2);
+    ctx.arc(at.x, at.y, glowR, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    this.board.stamp(at.x, at.y, 0.8);
+    this.board.stamp(at.x, at.y, rocket.shell);
   }
 
   /** The burst, `u` of the way through: a flash, the sparks, and the icons flying apart. */
