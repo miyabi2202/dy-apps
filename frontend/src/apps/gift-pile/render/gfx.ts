@@ -260,4 +260,58 @@ export interface Gfx {
 
   /** Canvas2D painting as a sprite, cached by key unless dynamic; the same as `sprite`, to make the intent plain at the call site. */
   raster(src: SpriteSource, o: SpriteOptions): void;
+
+  // Fireworks
+  /**
+   * Stars of a firework, additive, one instanced quad each: a glowing head with a streak behind
+   * it along its velocity, white-hot at birth, then its colour, then an ember; or, per its
+   * `mode`, a drip that falls long and golden, or a little strobing cross of glitter.
+   */
+  fireworkStars(data: FireworkData): void;
+  /** Puffs of smoke (normal blend), eaten into by noise and lit from inside by their colour. */
+  fireworkSmoke(data: FireworkData): void;
+  /**
+   * The flash of a burst going off at (x, y), additive: a white-hot core, jagged rays and a
+   * ring of air reaching `reach` px, by `life` (0 when it goes off, 1 when it has died).
+   */
+  fireworkFlash(
+    x: number,
+    y: number,
+    reach: number,
+    life: number,
+    color: Color,
+    seed: number,
+  ): void;
+  /**
+   * A rocket climbing, additive: a white-hot head at (x, y) in a halo of `color`, with a
+   * sparkling fuse that flickers behind it, as far back as (tailX, tailY).
+   */
+  fireworkRocket(
+    x: number,
+    y: number,
+    tailX: number,
+    tailY: number,
+    radius: number,
+    color: Color,
+    seed: number,
+  ): void;
+}
+
+/** Fireworks' stars or smoke, each a particle; `kit/particles.ts` style, with a few extras (`fireworks/sparks.ts` makes them). */
+export interface FireworkData {
+  count: number;
+  /** 2 per particle, world px. */
+  xy: Float32Array;
+  /** 2 per particle, px/s: which way its streak points, and how long it is. */
+  vel: Float32Array;
+  /** Diameter, px. */
+  size: Float32Array;
+  /** 4 per particle: its colour, and its strength (a star's brightness gain, a puff's light), 0 or more. */
+  rgba: Float32Array;
+  /** How far through its life each is, 0 to 1. */
+  life: Float32Array;
+  /** 0 to 1, to tell each from the next. */
+  seed: Float32Array;
+  /** Stars only: 0 a star, 1 a drip, 2 glitter. */
+  mode: Float32Array;
 }

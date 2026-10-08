@@ -20,6 +20,12 @@ export const KIND = {
   flat: 14,
   saucer: 15,
   plasmaBeam: 16,
+  // Fireworks
+  fireworkStar: 35,
+  fireworkFlash: 36,
+  fireworkSmoke: 37,
+  fireworkRocket: 38,
+  fireworkGlitter: 39,
 } as const;
 
 /** What the shader needs to know about the frame. */

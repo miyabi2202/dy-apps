@@ -4,6 +4,7 @@ import type {
   Color,
   DashOptions,
   FillOptions,
+  FireworkData,
   Gfx,
   ParticleData,
   Quality,
@@ -197,6 +198,113 @@ export class GlGfx implements Gfx {
 
   raster(src: SpriteSource, o: SpriteOptions): void {
     this.sprite(src, o);
+  }
+
+  // Fireworks
+  fireworkStars(data: FireworkData): void {
+    const s = this.scale;
+    const { batch } = this;
+    batch.use(null, 'add');
+    for (let k = 0; k < data.count; k++) {
+      const x = data.xy[2 * k]!;
+      const y = data.xy[2 * k + 1]!;
+      const size = data.size[k]!;
+      const gain = data.rgba[4 * k + 3]!;
+      const colour: Rgba = [data.rgba[4 * k]!, data.rgba[4 * k + 1]!, data.rgba[4 * k + 2]!, 1];
+      if (data.mode[k] === 2) {
+        const reach = size * 0.9;
+        batch.shape(KIND.fireworkGlitter, reach * s, data.life[k], data.seed[k], gain);
+        this.box(x, y, 1, 0, reach, reach, colour, 1);
+        continue;
+      }
+      const drip = data.mode[k] === 1;
+      const vx = data.vel[2 * k]!;
+      const vy = data.vel[2 * k + 1]!;
+      const speed = Math.hypot(vx, vy);
+      const ex = speed > 1e-3 ? vx / speed : 0;
+      const ey = speed > 1e-3 ? vy / speed : 1;
+      const core = size * (drip ? 0.24 : 0.3);
+      const length = Math.min(
+        Math.max(speed * (drip ? 0.2 : 0.13), size * 0.5),
+        size * (drip ? 8 : 6),
+      );
+      const pad = core * 5;
+      batch.shape(
+        KIND.fireworkStar,
+        length * s,
+        core * s,
+        data.life[k],
+        data.seed[k],
+        gain,
+        drip ? 1 : 0,
+      );
+      this.box(
+        x - (ex * length) / 2,
+        y - (ey * length) / 2,
+        ex,
+        ey,
+        length / 2 + pad,
+        pad,
+        colour,
+        1,
+      );
+    }
+  }
+
+  fireworkSmoke(data: FireworkData): void {
+    const s = this.scale;
+    const { batch } = this;
+    batch.use(null, 'normal');
+    for (let k = 0; k < data.count; k++) {
+      const radius = data.size[k]! / 2;
+      const colour: Rgba = [data.rgba[4 * k]!, data.rgba[4 * k + 1]!, data.rgba[4 * k + 2]!, 1];
+      batch.shape(KIND.fireworkSmoke, radius * s, data.life[k], data.seed[k], data.rgba[4 * k + 3]);
+      const half = radius * 1.4;
+      this.box(data.xy[2 * k]!, data.xy[2 * k + 1]!, 1, 0, half, half, colour, 1);
+    }
+  }
+
+  fireworkFlash(
+    x: number,
+    y: number,
+    reach: number,
+    life: number,
+    color: Color,
+    seed: number,
+  ): void {
+    if (life >= 1) return;
+    this.batch.use(null, 'add');
+    this.batch.shape(KIND.fireworkFlash, reach * this.scale, life, seed);
+    this.box(x, y, 1, 0, reach, reach, parseColor(color), 1);
+  }
+
+  fireworkRocket(
+    x: number,
+    y: number,
+    tailX: number,
+    tailY: number,
+    radius: number,
+    color: Color,
+    seed: number,
+  ): void {
+    const dx = x - tailX;
+    const dy = y - tailY;
+    const length = Math.max(Math.hypot(dx, dy), radius);
+    const ex = length > 1e-3 && Math.hypot(dx, dy) > 1e-3 ? dx / Math.hypot(dx, dy) : 0;
+    const ey = Math.hypot(dx, dy) > 1e-3 ? dy / Math.hypot(dx, dy) : -1;
+    const pad = radius * 5;
+    this.batch.use(null, 'add');
+    this.batch.shape(KIND.fireworkRocket, length * this.scale, radius * this.scale, seed);
+    this.box(
+      x - (ex * length) / 2,
+      y - (ey * length) / 2,
+      ex,
+      ey,
+      length / 2 + pad,
+      pad,
+      parseColor(color),
+      1,
+    );
   }
 
   /** A textured box, `width` × `height` unless the options say otherwise, with the options' material. */

@@ -153,7 +153,7 @@ leaves; the balloon a burner flame, streamers and dust; the car underglow, headl
 nitro and a landing that shakes the screen; Pac-Man a neon glow, pellets, crumbs and a power
 pellet, and the ghost an ectoplasm trail; the claw a spotlight, a chasing LED rail and
 confetti; the fireworks five burst styles (peony, chrysanthemum, ring, willow, crossette) with a
-flash, a ring of air and a split of colour for each; and the black hole its lensing, a banded
+flash, a ring of air and a split of colour for each, all drawn in GLSL (see below); and the black hole its lensing, a banded
 disk, icons stretched along their fall and a pop that flashes, rings and shakes. Their particles
 are `Emitter`s stepped by `Frames` (`kit/clock.ts`), the time since the last draw, so they stand
 still in a hit-stop as the rest does.
@@ -183,7 +183,10 @@ goes off and it zips away. The claw machine (`claw/`) aims at a spot, slides alo
 the top to it, lowers the claw and draws the clump up into a bunch in its grip (shrunk to fit
 if there are many), lets a few slip out on the way up, and carries the rest off. The fireworks
 (`fireworks/`) send the icons up in a handful of rockets, each gathered from its own stretch of
-the pile, that burst into sparks; the icons fly apart with the sparks and are `destroy`ed as
+the pile, that burst into sparks (`fireworks/`: a shader rocket with a flickering fuse, white-hot flashes
+with rays, stars with streaks that go from white-hot to ember and crackle as they die, willow
+drips, strobing glitter, and smoke lit by the burst; `Gfx.fireworkRocket`, `fireworkStars`,
+`fireworkFlash` and `fireworkSmoke`, with the stars held in `star-pool.ts`); the icons fly apart with the sparks and are `destroy`ed as
 they burn out, so the count goes down burst by burst, and the duds fall back onto the pile.
 The black hole (`black-hole/`) aims at a spot, opens over the clump with a spinning accretion
 disk, and swallows it, the icons spiralling in and shrinking as they go; the duds it flings
@@ -228,3 +231,4 @@ free licence, which asks for this link.
 
 The saucer's and beam's shaders use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise)
 (Ian McEwan, Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence.
+The fireworks' shaders (`render/gl/shaders/fireworks.ts`) use the same noise.

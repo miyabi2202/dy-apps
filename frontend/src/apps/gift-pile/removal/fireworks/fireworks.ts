@@ -2,7 +2,7 @@ import { type Board, type Gfx, pick, type Removal, type Remover } from '../board
 import { easeOut } from '../kit/easing';
 import { fireworksPortrait } from '../kit/portraits';
 import { Frames } from '../kit/clock';
-import { Emitter } from '../kit/particles';
+import { DRIP, GLITTER, SMOKE, STAR, StarPool, type StarSpawn } from './star-pool';
 
 // Timing in ms, geometry in world pixels.
 /** At most this many rockets, launched over at most this long. */
@@ -28,14 +28,15 @@ const APEX_TO = 0.32;
 /** Duds fall back this long into the burst. */
 const DUD_MS = 160;
 
-/** The colour of a rocket's climbing trail. */
-const TRAIL = '#FEF08A';
 /** The screen's reaction to a burst: its flash, its ring of air, and its split of colour last this long. */
 const FLASH_MS = 180;
 const RING_MS = 350;
 const SPLIT_MS = 120;
 /** The sparks of a burst can live this much longer than the icons' flight: the show waits for them. */
 const AFTERGLOW_MS = 800;
+/** The flash at the heart of a burst: how long it lasts, and how far its rays reach. */
+const FLARE_MS = 520;
+const FLARE_R = 105;
 /** The icons are white-hot for this long as they fly apart. */
 const HOT_MS = 80;
 
@@ -133,15 +134,19 @@ class Show implements Removal {
   private readonly finished = new Set<number>();
   private readonly rng: () => number;
   private readonly frames = new Frames();
-  /** The burst's sparks (and the willow's, which fall harder), the smoke and crackle of the climb, and the icons' sparks. */
-  private readonly sparks: Emitter;
-  private readonly willow: Emitter;
-  private readonly smoke: Emitter;
-  private readonly crackle: Emitter;
+  /** The burst's stars, drips and glitter, and the smoke of the climb and the afterglow. */
+  private readonly sparks: StarPool;
+  private readonly smoke: StarPool;
   private readonly leaders: Leader[] = [];
   /** The bursts that have gone off, for the screen's reaction. */
-  private readonly blasts: { x: number; y: number; at: number; colour: string; pileY: number }[] =
-    [];
+  private readonly blasts: {
+    x: number;
+    y: number;
+    at: number;
+    colour: string;
+    pileY: number;
+    seed: number;
+  }[] = [];
 
   constructor(
     private readonly board: Board,
@@ -153,40 +158,13 @@ class Show implements Removal {
     const n = icons.length;
     this.t0 = now;
     this.rng = rng;
-    const burst = {
-      shape: 'spark' as const,
-      blend: 'add' as const,
-      drag: 0.6,
-      alphaOverLife: (u: number) => 1 - u,
-      twinkle: 0.8,
-      colorFrom: '#ffffff',
-    };
-    this.sparks = new Emitter({ ...burst, capacity: 6000, gravity: 160 }, rng);
-    this.willow = new Emitter(
-      {
-        ...burst,
-        capacity: 1500,
-        gravity: 330,
-        drag: 1,
-        alphaOverLife: (u) => (1 - u) ** 0.7,
-        twinkle: 0.4,
-      },
-      rng,
-    );
-    this.smoke = new Emitter(
-      {
-        capacity: 400,
-        colorFrom: '#94a3b8',
-        blend: 'normal',
-        sizeOverLife: (u) => 0.5 + u * 2,
-        alphaOverLife: (u) => 0.25 * (1 - u),
-      },
-      rng,
-    );
-    this.crackle = new Emitter(
-      { capacity: 600, shape: 'spark', colorFrom: '#fff7d6', colorTo: '#f59e0b' },
-      rng,
-    );
+    // The stars are drawn well over 1: white-hot, for the bloom to take up.
+    this.sparks = new StarPool(9000, rng, { gain: 1.25 });
+    // The smoke is lit by its burst at first, and left to the dark.
+    this.smoke = new StarPool(500, rng, {
+      strength: (u) => 0.12 + 0.9 * Math.exp(-6 * u),
+      sizeOverLife: (u) => 0.6 + 0.9 * u,
+    });
     // Rockets from left to right, each taking the icons in its stretch of the pile.
     const count = Math.max(1, Math.min(n, MAX_ROCKETS, Math.round(Math.sqrt(n) * 1.5)));
     const byX = Array.from({ length: n }, (_, i) => i).sort((a, b) => icons[a]!.x - icons[b]!.x);
@@ -265,9 +243,18 @@ class Show implements Removal {
     }
     this.stepLeaders(dt);
     this.screen(gfx, t);
-    for (const e of [this.smoke, this.crackle, this.sparks, this.willow]) {
-      e.step(dt);
-      e.draw(gfx);
+    this.smoke.step(dt);
+    this.sparks.step(dt);
+    this.smoke.draw(gfx, 'smoke');
+    this.sparks.draw(gfx, 'stars');
+    this.flashes(gfx, t);
+  }
+
+  /** The flash at the heart of each burst, going off. */
+  private flashes(gfx: Gfx, t: number): void {
+    for (const b of this.blasts) {
+      const age = t - b.at;
+      if (age < FLARE_MS) gfx.fireworkFlash(b.x, b.y, FLARE_R, age / FLARE_MS, b.colour, b.seed);
     }
   }
 
@@ -297,18 +284,18 @@ class Show implements Removal {
     rocket.burst = true;
     const { apexX: x, apexY: y, colour } = rocket;
     const { rng } = this;
-    this.blasts.push({ x, y, at: t, colour, pileY: rocket.footY });
+    this.blasts.push({ x, y, at: t, colour, pileY: rocket.footY, seed: rng() });
     this.board.fx.shake(1.5, 150);
     const TAU = Math.PI * 2;
     const spark = (
-      emitter: Emitter,
+      mode: number,
       angle: number,
       speed: number,
       life: number,
-      size = 12,
+      size = 11,
       c: string = colour,
     ) =>
-      emitter.burst(1, () => ({
+      this.sparks.add({
         x,
         y,
         vx: Math.cos(angle) * speed,
@@ -316,16 +303,15 @@ class Show implements Removal {
         life,
         size,
         color: c,
-        rotation: angle,
-      }));
-    const hot = (angle: number, speed: number) =>
-      spark(this.sparks, angle, speed, 160, 8, '#ffffff');
+        mode,
+      });
+    const hot = (angle: number, speed: number) => spark(STAR, angle, speed, 190, 9, '#ffffff');
     switch (rocket.style) {
       case 'peony':
         for (let k = 0; k < 300; k++) {
           const a = rng() * TAU;
           const v = 220 + 200 * rng();
-          spark(this.sparks, a, v, 900 + 400 * rng());
+          spark(STAR, a, v, 900 + 400 * rng());
           if (k % 5 === 0) hot(a, v);
         }
         break;
@@ -334,7 +320,7 @@ class Show implements Removal {
           const a = rng() * TAU;
           const v = 200 + 160 * rng();
           const life = 1100 + 300 * rng();
-          spark(this.sparks, a, v, life);
+          spark(STAR, a, v, life);
           // The brightest leave sub-trails of their own.
           if (k < 40) {
             this.leaders.push({
@@ -361,16 +347,7 @@ class Show implements Removal {
           const py = Math.sin(a) * 300 * tilt;
           const vx = px * Math.cos(turn) - py * Math.sin(turn);
           const vy = px * Math.sin(turn) + py * Math.cos(turn);
-          this.sparks.burst(1, () => ({
-            x,
-            y,
-            vx,
-            vy,
-            life: 1000 + 200 * rng(),
-            size: 12,
-            color: colour,
-            rotation: Math.atan2(vy, vx),
-          }));
+          this.sparks.add({ x, y, vx, vy, life: 1000 + 200 * rng(), size: 11, color: colour });
           if (k % 6 === 0) hot(Math.atan2(vy, vx), Math.hypot(vx, vy));
         }
         break;
@@ -378,7 +355,7 @@ class Show implements Removal {
       case 'willow':
         for (let k = 0; k < 160; k++) {
           const a = rng() * TAU;
-          spark(this.willow, a, 120 + 100 * rng(), 1500 + 600 * rng(), 10, '#fde68a');
+          spark(DRIP, a, 120 + 100 * rng(), 1500 + 600 * rng(), 11, '#fde68a');
           if (k % 4 === 0) hot(a, 200);
         }
         break;
@@ -397,13 +374,26 @@ class Show implements Removal {
             colour,
             splitAt: life * 0.4,
           });
-          spark(this.sparks, a, v, life * 0.4);
+          spark(STAR, a, v, life * 0.4);
           if (k % 4 === 0) hot(a, v);
         }
         break;
     }
-    // The bright middle of it, for a moment.
-    this.sparks.burst(1, () => ({ x, y, life: 140, size: 70, color: '#ffffff' }));
+    // The smoke it leaves, lit by the burst from inside and drifting out.
+    for (let k = 0; k < 4; k++) {
+      const a = rng() * TAU;
+      const v = 18 + 50 * rng();
+      this.smoke.add({
+        x: x + Math.cos(a) * 14,
+        y: y + Math.sin(a) * 14,
+        vx: Math.cos(a) * v,
+        vy: Math.sin(a) * v,
+        life: 1300 + 400 * rng(),
+        size: 90 + 70 * rng(),
+        color: colour,
+        mode: SMOKE,
+      });
+    }
   }
 
   /** Move the sparks that are followed by hand, leaving a trail or splitting in four. */
@@ -422,7 +412,7 @@ class Show implements Removal {
         const turn = this.rng() * Math.PI;
         for (let c = 0; c < 4; c++) {
           const a = turn + (c * Math.PI) / 2;
-          this.sparks.burst(1, () => ({
+          this.sparks.add({
             x: l.x,
             y: l.y,
             vx: l.vx * 0.3 + Math.cos(a) * 140,
@@ -430,21 +420,21 @@ class Show implements Removal {
             life: 700,
             size: 10,
             color: l.colour,
-            rotation: a,
-          }));
+          });
         }
         this.leaders.splice(k, 1);
       } else if (l.age >= l.life) this.leaders.splice(k, 1);
       else if (l.splitAt === 0) {
-        this.crackle.burst(1, () => ({
+        this.sparks.add({
           x: l.x,
           y: l.y,
           vx: (this.rng() - 0.5) * 30,
           vy: (this.rng() - 0.5) * 30,
-          life: 350,
-          size: 4,
+          life: 450,
+          size: 10,
           color: l.colour,
-        }));
+          mode: GLITTER,
+        });
       }
     }
   }
@@ -517,38 +507,40 @@ class Show implements Removal {
   /** The shell climbing, with a trail of light, smoke and crackling sparks behind it. */
   private drawClimb(gfx: Gfx, rocket: Rocket, u: number, dt: number): void {
     const at = this.climbAt(rocket, u);
-    const trail: number[] = [];
-    for (let k = 0; k <= 10; k++) {
-      const back = this.climbAt(rocket, Math.max(0, u - k * 0.03));
-      trail.push(back.x, back.y);
-    }
-    gfx.ribbon(trail, (v) => 6 * (1 - v), rocket.colour, {
-      alphaFrom: 0.7,
-      alphaTo: 0,
-      blend: 'add',
-    });
-    gfx.ribbon(trail, (v) => 2.5 * (1 - v), TRAIL, { alphaFrom: 0.8, alphaTo: 0, blend: 'add' });
+    const tail = this.climbAt(rocket, Math.max(0, u - 0.4));
     const { rng } = this;
-    this.smoke.stream(50, dt, () => ({
+    this.smoke.stream(50, dt, (): StarSpawn => ({
       x: at.x + (rng() - 0.5) * 4,
-      y: at.y + 4,
+      y: at.y + 6,
       vx: (rng() - 0.5) * 16,
-      vy: -8 - 10 * rng(),
+      vy: 10 + 12 * rng(),
       life: 900,
-      size: 10,
+      size: 30,
+      color: rocket.colour,
+      mode: SMOKE,
     }));
-    this.crackle.stream(80, dt, () => ({
-      x: at.x,
-      y: at.y + 3,
+    // Glitter shaken off the fuse.
+    this.sparks.stream(80, dt, (): StarSpawn => ({
+      x: tail.x + (at.x - tail.x) * rng() ** 2,
+      y: tail.y + (at.y - tail.y) * rng() ** 2,
       vx: (rng() - 0.5) * 90,
       vy: 40 + 90 * rng(),
-      life: 300,
-      size: 5,
-      rotation: Math.PI / 2,
+      life: 500,
+      size: 11,
+      color: rocket.colour,
+      mode: GLITTER,
     }));
-    gfx.glow(at.x, at.y, 14 * rocket.shell, rocket.colour);
-    gfx.glow(at.x, at.y, 6, '#ffffff', { intensity: 1.4 });
+    gfx.glow(at.x, at.y, 20 * rocket.shell, rocket.colour, { intensity: 0.7 });
     this.board.stamp(at.x, at.y, rocket.shell);
+    gfx.fireworkRocket(
+      at.x,
+      at.y,
+      tail.x,
+      tail.y,
+      4 + rocket.shell,
+      rocket.colour,
+      (rocket.footX * 0.0137) % 1,
+    );
   }
 
   /** The burst, `u` of the way through: a flash, the sparks, and the icons flying apart. */
@@ -571,15 +563,16 @@ class Show implements Removal {
       else this.board.stamp(ix, iy, 0.7 * (1 - u));
       // Each leaves a few sparks as it goes.
       if (this.rng() < 0.4) {
-        this.crackle.burst(1, () => ({
+        this.sparks.add({
           x: ix,
           y: iy,
           vx: (this.rng() - 0.5) * 60,
           vy: (this.rng() - 0.5) * 60,
-          life: 300,
-          size: 4,
+          life: 400,
+          size: 10,
           color: rocket.colour,
-        }));
+          mode: GLITTER,
+        });
       }
     });
   }
