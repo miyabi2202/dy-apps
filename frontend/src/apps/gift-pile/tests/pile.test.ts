@@ -214,6 +214,29 @@ describe('Pile generations', () => {
   });
 });
 
+describe('Pile framing a removal', () => {
+  it('cuts the view to the pile as it now is before a removal begins, however far it fell in the same tick', () => {
+    const { pile, camera, canvas, boards } = setup();
+    // A tall pile, followed up.
+    pile.onFrame(
+      frame({
+        settled: [
+          [1, 100, -1000],
+          [2, 100, 600],
+        ],
+      }),
+      0,
+    );
+    for (let now = 0; now < 4000; now += 16) pile.frame(canvas, now);
+    expect(camera.view.top).toBeCloseTo(over(-1000), 0);
+    // The top went at once with the scoop (over a load): the removal starts on the pile as it is.
+    pile.onFrame(frame({ woken: [1], scooped: [scoopOf([2])] }), 4000);
+    expect(boards).toHaveLength(1);
+    expect(boards[0]!.camera.view.top).toBe(Math.min(0, over(600)));
+    expect(camera.view.top).toBe(boards[0]!.camera.view.top);
+  });
+});
+
 describe('Pile routing for removals', () => {
   it('answers a removal from the state, takes its icons off the renderer, stamps on the frame, and moves the camera', () => {
     const { pile, renderer, camera, canvas, boards } = setup((board) => {

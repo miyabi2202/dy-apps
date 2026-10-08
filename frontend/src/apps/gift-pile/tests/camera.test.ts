@@ -168,3 +168,21 @@ describe('moveWithView', () => {
     expect(moveWithView(atBottom, -100, 700, 700)).toBe(atBottom);
   });
 });
+
+describe('Camera.frame', () => {
+  it('cuts straight to where following the pile would put the view, telling its watchers once, never below the floor', () => {
+    const camera = new Camera({ radius: 12, headroom: 1 / 3, height: 300 });
+    const seen: number[] = [];
+    camera.subscribe((top) => seen.push(top));
+    camera.frame(-500);
+    expect(camera.view.top).toBe(-500 - 12 - 100);
+    expect(camera.target).toBe(-612);
+    expect(seen).toEqual([-612]);
+    camera.frame(-500);
+    expect(seen).toHaveLength(1);
+    camera.frame(250);
+    expect(camera.view.top).toBe(0);
+    camera.frame(null);
+    expect(camera.view.top).toBe(0);
+  });
+});

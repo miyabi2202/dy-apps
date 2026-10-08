@@ -66,6 +66,7 @@ export interface PileCounts {
  *   because the renderer interpolates by when the latest one arrived. It goes into the state,
  *   and what left the resting set into the renderer's layer; a new generation first resets the
  *   director and the camera; the scoops it brought go to the director.
+ * - As a removal begins, the view is cut to the pile as it is then, before the removal sees it.
  * - Each display frame (`frame`) steps the camera by how high the heap is and whether a
  *   removal is on, then draws the pile, then the removals, then the icon in the user's hand.
  * - The engine is told where to release new icons, just above the camera's target view,
@@ -250,6 +251,13 @@ export class Pile {
     state.apply(frame, now);
     camera.setHeight(state.world.height);
     this.renderer.apply(state.journal);
+    // A removal is about to begin: first cut the view to the pile as it now is, since what went
+    // at once in the same tick (over a load) may have lowered it far, and the removal works out
+    // where it comes and goes from the view it starts with. The cut and the vanishing are the
+    // same frame, so they read as one.
+    if (frame.scooped.some((scoop) => scoop.ids.length > 0) && !director.busy) {
+      camera.frame(state.highestTop(this.dropLine));
+    }
     for (const scoop of frame.scooped) director.onScoop(scoop, state.world, now);
   }
 

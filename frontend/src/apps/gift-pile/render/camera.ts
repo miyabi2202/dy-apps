@@ -80,6 +80,19 @@ export class Camera {
     this.request = Math.min(0, top);
   }
 
+  /**
+   * Cut straight to where following a pile topped at `top` would put the view, rather than
+   * easing there: for a removal about to begin, so it starts with the pile on screen and its
+   * headroom clear, however much the pile has just changed.
+   */
+  frame(top: number | null): void {
+    const target = this.follow(top);
+    this.heading = target;
+    if (target === this.top) return;
+    this.top = target;
+    this.notify();
+  }
+
   /** Back to the floor at once, with nothing asked of it: the pile has been started over. */
   reset(): void {
     this.top = 0;
@@ -129,12 +142,16 @@ export class Camera {
     switch (this.mode) {
       case 'removal':
         return this.request;
-      case 'follow': {
-        if (top === null) return 0;
-        const { radius, headroom } = this.options;
-        return Math.min(0, top - radius - headroom * this.height);
-      }
+      case 'follow':
+        return this.follow(top);
     }
+  }
+
+  /** Where the view's top goes to follow a pile topped at `top`: its headroom clear over it, never below the floor. */
+  private follow(top: number | null): number {
+    if (top === null) return 0;
+    const { radius, headroom } = this.options;
+    return Math.min(0, top - radius - headroom * this.height);
   }
 
   private notify(): void {
