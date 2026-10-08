@@ -1,8 +1,8 @@
 import type { ShaderSource } from '../gfx';
-import { debugLog } from '@dy-apps/services';
 import { createProgram, parallelCompile, type Program } from './program';
 import { SHADE_VS, shadeFragment } from './shaders/shade';
 import { settle, type WarmUp } from './warm-up';
+import { log } from './log';
 
 interface Entry {
   readonly program: Program;
@@ -76,7 +76,7 @@ export class ShaderPrograms {
     console.error(
       `[gl] shader "${src.key}" failed to compile, so it draws nothing:\n${failure.message}`,
     );
-    debugLog('gl', `shader ${src.key} disabled`);
+    log.debug(`shader ${src.key} disabled`);
   }
 }
 

@@ -2,7 +2,6 @@ import type { PileSettings } from '../core/config';
 import { bakeSprite } from './bake';
 import type { View } from './camera';
 import { ContextGuard, getGl } from './gl/context';
-import { debugLog } from '@dy-apps/services';
 import { GlGfx } from './gl/gl-gfx';
 import { ParticleBatch } from './gl/particle-batch';
 import { PileLayer } from './gl/pile-layer';
@@ -15,6 +14,7 @@ import { parallelCompile } from './gl/program';
 import { WarmUp } from './gl/warm-up';
 import type { Gfx, Quality, ShaderSource, SpriteSource } from './gfx';
 import type { ChangeJournal, PileState } from './pile-state';
+import { log } from './gl/log';
 
 type Stage = Pick<PileSettings, 'radius' | 'maxItems'>;
 
@@ -222,10 +222,7 @@ export class GlRenderer {
     this.drawing = true;
     if (!res.logged) {
       res.logged = true;
-      debugLog(
-        'gl',
-        `first frame drawn ${(performance.now() - res.builtAt).toFixed(1)} ms after setup`,
-      );
+      log.debug(`first frame drawn ${(performance.now() - res.builtAt).toFixed(1)} ms after setup`);
     }
     return res.gfx;
   }
@@ -252,8 +249,7 @@ export class GlRenderer {
     res.warmed = true;
     res.batch.warm(res.shaders.linked);
     res.particles.warm(res.sprites.shape('disc'));
-    debugLog(
-      'gl',
+    log.debug(
       `warm-up draw of ${res.shaders.linked.length + 1} programs took (to issue) ${(performance.now() - t0).toFixed(1)} ms`,
     );
   }
@@ -292,7 +288,7 @@ export class GlRenderer {
       const batch = new ShapeBatch(gl, sprites.white);
       const effects = new PostEffects();
       const builtAt = performance.now();
-      debugLog('gl', `parallel shader compile: ${parallelCompile(gl) ? 'yes' : 'no'}`);
+      log.debug(`parallel shader compile: ${parallelCompile(gl) ? 'yes' : 'no'}`);
       const coreWarm = new WarmUp(gl);
       const shaderWarm = new WarmUp(gl);
       const shaders = new ShaderPrograms(gl, shaderWarm);
