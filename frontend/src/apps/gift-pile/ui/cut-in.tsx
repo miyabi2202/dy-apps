@@ -12,6 +12,12 @@ interface Props {
   line: string;
   /** Called once it is gone. */
   onDone: () => void;
+  /**
+   * Play it unseen (nearly transparent, and unannounced) instead. The first banner on a page
+   * makes the browser compile the shaders for its gradients, blurs and rounded clips, which
+   * stalls a slow GPU for over a second, so the stage plays one this way when the page is idle.
+   */
+  primer?: boolean;
 }
 
 /** How long the banner is up, from slamming in to gone, ms. Every animation below runs this long. */
@@ -24,7 +30,7 @@ export const CUT_IN_MS = 1100;
  * renders it only when it comes and goes. Everything is sized from the stage's width, so it
  * looks the same on any size of canvas.
  */
-export function CutIn({ request, title, line, onDone }: Props) {
+export function CutIn({ request, title, line, onDone, primer = false }: Props) {
   const doneRef = useRef(onDone);
   useEffect(() => {
     doneRef.current = onDone;
@@ -35,7 +41,10 @@ export function CutIn({ request, title, line, onDone }: Props) {
   }, []);
 
   return (
-    <div data-testid={testIds.cutIn} role="status" {...stylex.props(styles.root)}>
+    <div
+      {...(primer ? { 'aria-hidden': true } : { 'data-testid': testIds.cutIn, role: 'status' })}
+      {...stylex.props(styles.root, primer && styles.primer)}
+    >
       <div {...stylex.props(styles.dim)} />
       <div {...stylex.props(styles.rays)} />
       <div {...stylex.props(styles.raysFine)} />
@@ -161,6 +170,8 @@ const styles = stylex.create({
     position: 'absolute',
     zIndex: 5,
   },
+  // Still drawn, so the browser does the work, but too faint to see.
+  primer: { opacity: 0.01 },
   dim: {
     inset: 0,
     animationDuration: `${CUT_IN_MS}ms`,
