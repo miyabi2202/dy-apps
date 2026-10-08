@@ -56,25 +56,31 @@ one, implement `Remover` in a new folder, list it there, and give it a name to s
 remover; the director deals only the ones ticked (`setEnabled`), and the ones unticked are
 remembered on the browser (`removersOffStore` in `settings.ts`), so one added later starts on.
 
-Removers share what they like from `removal/kit/`. Most of them are crafts (`Craft` in
+Removers share what they like from `removal/kit/`. Two of them are crafts (`Craft` in
 `kit/craft.ts`) that run a `Crossing` (`kit/crossing.ts`): the craft crosses from the left to
 the right just above the pile, taking icons in with its `Intake`, which is the craft's to
 choose: so far a `Vacuum` cleaner towed on a rope (`vacuum.ts`) for all of them, with a
 `Mouth` (`mouth.ts`) ready for one that swallows them as it goes. A craft says how long it takes to
-cross, where the intake fits on, its path, and how to draw it and any scenery: the
-`helicopter/` is drawn from Microsoft's Fluent Emoji SVG (MIT, credited in its `art.ts`, drawn
-with `kit/svg-art.ts`), mirrored to face the way it flies with its rotors drawn spinning over
-the art; the hot-air balloon (`balloon/`) is drawn; and the `hypercar/` runs up one
+cross, where the intake fits on, its path, and how to draw it and any scenery: the hot-air
+balloon (`balloon/`) is drawn, and the `hypercar/` runs up one
 half of a split bridge, jumps the gap in a ballistic arc and comes down onto the other, lower,
 half. The balloon is the
 slowest and the car the quickest, at three seconds. Each craft picks
 its colours for the crossing from its palettes when it begins: the balloon's stripes, skirt and
-outline, the car's body and trim, and for the helicopter swaps of the art's own fills, each
-colouring turned into an image once when the page loads.
+and outline, and the car's body and trim.
 
-Five removers don't cross. Pac-Man (`pac-man/`), always the same size and speed, eats his way
+Six removers don't cross. The `helicopter/` (drawn from Microsoft's Fluent Emoji SVG, MIT,
+credited in its `art.ts`, with `kit/svg-art.ts`, mirrored to face right with its rotors drawn
+turning over it: `chopper.ts`) flies in from the left and hovers over the middle of the pile
+(`mission.ts`). A winchman (`winchman.ts`) goes down the rope with a vacuum on his back, its hose
+up to the helicopter, lets go onto the pile, and walks it end to end, lower each time, vacuuming
+the icons by his nozzle and down into the pile below it, until he has all the board's icons:
+the pile's outer layers, so they are along his way. He walks back to the rope and is winched
+up; if some are to be dropped, the helicopter sags under the weight and throws them out of the
+door, then rises back, winches him in and flies off to the right. Its paint schemes are swaps
+of the art's own fills, each turned into an image once when the page loads. Pac-Man (`pac-man/`), always the same size and speed, eats his way
 through the pile row by row with a ghost on his heels: in from the left along the top of the
-pile (`pile-top.ts`), he eats whatever is in front of him, and at the end of a row goes down
+pile (`kit/pile-top.ts`), he eats whatever is in front of him, and at the end of a row goes down
 one and comes back the other way, until he has eaten all the board's icons (`run.ts`), which are the pile's outer layers, so just
 the ones he meets. Then,
 if some are to be dropped back, the ghost, following where he has been (`trail.ts`), catches

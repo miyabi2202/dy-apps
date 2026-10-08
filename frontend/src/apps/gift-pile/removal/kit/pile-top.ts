@@ -5,9 +5,9 @@ const SAMPLE = 8;
 const SMOOTH = 3;
 
 /**
- * The rows Pac-Man runs along: row 0 follows the top of the pile, by the icons' middles, and
- * each row below it is `rowStep` lower. The top is the highest of the icons near each point
- * across, carried across gaps and smoothed so he doesn't jolt.
+ * The top of the pile across the canvas, by the icons' middles, for something to follow along
+ * it, like Pac-Man's rows or the helicopter's winchman: the highest of the icons near each
+ * point across, carried across gaps and smoothed so it doesn't jolt.
  */
 export class PileTop {
   private readonly top: Float32Array;

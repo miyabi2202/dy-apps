@@ -1,6 +1,6 @@
 import type { Board, Point, Removal } from '../board';
 import type { PacManPalette } from './pac-man';
-import { PileTop } from './pile-top';
+import { PileTop } from '../kit/pile-top';
 import { drawGhost, drawPacMan, GHOST_R, PAC_R } from './sprites';
 import { Trail } from './trail';
 
