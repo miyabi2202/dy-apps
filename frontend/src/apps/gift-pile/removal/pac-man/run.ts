@@ -6,7 +6,7 @@ import { Trail } from './trail';
 
 // Timing in ms, geometry in world pixels.
 /** How fast he goes, in px per ms, always, and how far outside the canvas he starts. */
-const SPEED = 0.14;
+const SPEED = 0.28;
 const ENTER = 40;
 /** He eats an icon whose middle is up to this far ahead of his, and this far either side of his line. */
 const BITE_AHEAD = PAC_R * 0.7;
