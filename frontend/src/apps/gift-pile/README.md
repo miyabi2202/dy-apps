@@ -54,24 +54,25 @@ one, implement `Remover` in a new folder and list it there.
 Removers share what they like from `removal/kit/`. Most of them are crafts (`Craft` in
 `kit/craft.ts`) that run a `Crossing` (`kit/crossing.ts`): the craft crosses from the left to
 the right just above the pile, taking icons in with its `Intake`, which is the craft's to
-choose: a `Vacuum` cleaner towed on a rope (`vacuum.ts`), or its own `Mouth` (`mouth.ts`)
-for one that eats them. A craft says how long it takes to
+choose: so far a `Vacuum` cleaner towed on a rope (`vacuum.ts`) for all of them, with a
+`Mouth` (`mouth.ts`) ready for one that swallows them as it goes. A craft says how long it takes to
 cross, where the intake fits on, its path, and how to draw it and any scenery: the
 `helicopter/` is drawn from Microsoft's Fluent Emoji SVG (MIT, credited in its `art.ts`, drawn
 with `kit/svg-art.ts`), mirrored to face the way it flies with its rotors drawn spinning over
 the art; the hot-air balloon (`balloon/`) is drawn; and the `hypercar/` runs up one
 half of a split bridge, jumps the gap in a ballistic arc and comes down onto the other, lower,
-half. Two eat what they pass: `pac-man/` chomps straight across with a ghost on his heels, and
-the Chinese dragon (`dragon/`) snakes across on a wave chasing a flaming pearl, its body
-following its head's path. A craft that reaches far behind its middle, like those two, says
-how far (`trail`), and its crossing lasts until that is out of sight too. The balloon is the
+half. The balloon is the
 slowest and the car the quickest, at three seconds. Each craft picks
 its colours for the crossing from its palettes when it begins: the balloon's stripes, skirt and
-outline, the car's body and trim, Pac-Man's ghost, the dragon's scales and gold, and for the
-helicopter swaps of the art's own fills, each
+outline, the car's body and trim, and for the helicopter swaps of the art's own fills, each
 colouring turned into an image once when the page loads.
 
-Four removers don't cross. The flying saucer (`ufo/`, also from Fluent Emoji) aims at a
+Five removers don't cross. Pac-Man (`pac-man/`), always the same size, eats his way through
+the pile row by row with a ghost on his heels: in from the left along the top of the pile, he
+eats whatever is in front of him, and at the end of a row goes down one and comes back the other
+way, faster the more rows there are, until he has eaten all the board's icons. Then, if some
+are to be dropped back, the ghost catches him and he shrivels away as they burst back out of
+him; if not (the pile had no more than asked for), he runs off. The flying saucer (`ufo/`, also from Fluent Emoji) aims at a
 spot, flies in and stops over it, and shines its tractor beam (`ufo/beam.ts`) down on the
 clump: the icons rise up it into its belly, a few falling back out part way, then the beam
 goes off and it zips away. The claw machine (`claw/`) aims at a spot, slides along a rail at

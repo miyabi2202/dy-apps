@@ -84,10 +84,12 @@ describe.each(allRemovers().map((r) => [r.name, r] as const))('remover %s', (_, 
     expect(took).toBeLessThan(15_000);
   });
 
-  it('takes every icon it carries off before the end, rather than leaving them in the pile', () => {
-    const { board, taken, dropped } = recordingBoard(40, 8);
+  it('deals with every icon before the end (takes, drops or destroys it), rather than leaving it in the pile', () => {
+    const { board, taken, dropped, destroyed } = recordingBoard(40, 8);
     runToEnd(remover.begin(board, 0, mulberry32(2)), 16);
-    for (let i = 0; i < 40; i++) if (!dropped.has(i)) expect(taken.has(i)).toBe(true);
+    for (let i = 0; i < 40; i++) {
+      expect(taken.has(i) || dropped.has(i) || destroyed.has(i)).toBe(true);
+    }
   });
 
   it('still drops exactly its share when frames are few and far between (a hidden tab)', () => {
