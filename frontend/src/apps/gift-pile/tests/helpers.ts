@@ -1,6 +1,7 @@
 import { PILE } from '../core/config';
 import type { Rng } from '../core/engine';
 import type { Frame } from '../core/protocol';
+import type { Gfx } from '../render/gfx';
 
 /** A small seeded generator, so a test's pile is the same every run. */
 export function mulberry32(seed: number): Rng {
@@ -41,12 +42,9 @@ export function frame(
   };
 }
 
-/** A 2D context where every call is a no-op and every property can be set; gradients take stops. */
+/** A `Gfx` where every call is a no-op. */
 export const fakeContext = () =>
-  new Proxy({} as CanvasRenderingContext2D, {
-    get: (_, key) =>
-      key === 'createLinearGradient' || key === 'createRadialGradient'
-        ? () => ({ addColorStop() {} })
-        : () => undefined,
+  new Proxy({} as Gfx, {
+    get: () => () => undefined,
     set: () => true,
   });

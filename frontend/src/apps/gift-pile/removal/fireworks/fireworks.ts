@@ -1,5 +1,8 @@
-import { type Board, pick, type Removal, type Remover } from '../board';
+import { type Board, type Gfx, pick, type Removal, type Remover } from '../board';
 import { easeOut } from '../kit/easing';
+import { fireworksPortrait } from '../kit/portraits';
+import { Frames } from '../kit/clock';
+import { Emitter } from '../kit/particles';
 
 // Timing in ms, geometry in world pixels.
 /** At most this many rockets, launched over at most this long. */
@@ -24,6 +27,34 @@ const APEX_FROM = 0.1;
 const APEX_TO = 0.32;
 /** Duds fall back this long into the burst. */
 const DUD_MS = 160;
+
+/** The colour of a rocket's climbing trail. */
+const TRAIL = '#FEF08A';
+/** The screen's reaction to a burst: its flash, its ring of air, and its split of colour last this long. */
+const FLASH_MS = 180;
+const RING_MS = 350;
+const SPLIT_MS = 120;
+/** The sparks of a burst can live this much longer than the icons' flight: the show waits for them. */
+const AFTERGLOW_MS = 800;
+/** The icons are white-hot for this long as they fly apart. */
+const HOT_MS = 80;
+
+/** How a burst looks. */
+type Style = 'peony' | 'chrysanthemum' | 'ring' | 'willow' | 'crossette';
+const STYLES: readonly Style[] = ['peony', 'chrysanthemum', 'ring', 'willow', 'crossette'];
+
+/** A spark followed by hand, to leave a sub-trail or to split in four. */
+interface Leader {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  age: number;
+  life: number;
+  colour: string;
+  /** Splits in four when it has lived this long; 0 if it only leaves a trail. */
+  splitAt: number;
+}
 
 /** A show's colours: each rocket takes the next of them. */
 export type FireworkPalette = readonly string[];
@@ -86,6 +117,9 @@ interface Rocket {
   fromY: number[];
   /** When each icon sets off into the shell, as a share of the gathering: nearest first. */
   setOff: number[];
+  style: Style;
+  /** The burst has gone off. */
+  burst: boolean;
 }
 
 /** One show. */
@@ -94,8 +128,20 @@ class Show implements Removal {
   private readonly rockets: Rocket[];
   private readonly done: number;
   /** The icons that are duds, and which have fallen back or burnt out. */
+  private introduced = false;
   private readonly duds = new Set<number>();
   private readonly finished = new Set<number>();
+  private readonly rng: () => number;
+  private readonly frames = new Frames();
+  /** The burst's sparks (and the willow's, which fall harder), the smoke and crackle of the climb, and the icons' sparks. */
+  private readonly sparks: Emitter;
+  private readonly willow: Emitter;
+  private readonly smoke: Emitter;
+  private readonly crackle: Emitter;
+  private readonly leaders: Leader[] = [];
+  /** The bursts that have gone off, for the screen's reaction. */
+  private readonly blasts: { x: number; y: number; at: number; colour: string; pileY: number }[] =
+    [];
 
   constructor(
     private readonly board: Board,
@@ -106,6 +152,41 @@ class Show implements Removal {
     const { icons, world } = board;
     const n = icons.length;
     this.t0 = now;
+    this.rng = rng;
+    const burst = {
+      shape: 'spark' as const,
+      blend: 'add' as const,
+      drag: 0.6,
+      alphaOverLife: (u: number) => 1 - u,
+      twinkle: 0.8,
+      colorFrom: '#ffffff',
+    };
+    this.sparks = new Emitter({ ...burst, capacity: 6000, gravity: 160 }, rng);
+    this.willow = new Emitter(
+      {
+        ...burst,
+        capacity: 1500,
+        gravity: 330,
+        drag: 1,
+        alphaOverLife: (u) => (1 - u) ** 0.7,
+        twinkle: 0.4,
+      },
+      rng,
+    );
+    this.smoke = new Emitter(
+      {
+        capacity: 400,
+        colorFrom: '#94a3b8',
+        blend: 'normal',
+        sizeOverLife: (u) => 0.5 + u * 2,
+        alphaOverLife: (u) => 0.25 * (1 - u),
+      },
+      rng,
+    );
+    this.crackle = new Emitter(
+      { capacity: 600, shape: 'spark', colorFrom: '#fff7d6', colorTo: '#f59e0b' },
+      rng,
+    );
     // Rockets from left to right, each taking the icons in its stretch of the pile.
     const count = Math.max(1, Math.min(n, MAX_ROCKETS, Math.round(Math.sqrt(n) * 1.5)));
     const byX = Array.from({ length: n }, (_, i) => i).sort((a, b) => icons[a]!.x - icons[b]!.x);
@@ -149,9 +230,12 @@ class Show implements Removal {
         fromX: [],
         fromY: [],
         setOff: [],
+        style: pick(STYLES, rng),
+        burst: false,
       };
     });
-    this.done = Math.max(...this.rockets.map((r) => r.at)) + GATHER_MS + CLIMB_MS + BURST_MS;
+    this.done =
+      Math.max(...this.rockets.map((r) => r.at)) + GATHER_MS + CLIMB_MS + BURST_MS + AFTERGLOW_MS;
     // The duds, spread over the rockets.
     for (let k = 0; k < board.dropCount; k++)
       this.duds.add(byX[Math.floor((k * n) / board.dropCount)]!);
@@ -161,23 +245,224 @@ class Show implements Removal {
     return now - this.t0 >= this.done;
   }
 
-  draw(ctx: CanvasRenderingContext2D, now: number): void {
+  draw(gfx: Gfx, now: number): void {
     const t = now - this.t0;
+    const dt = this.frames.dt(t);
     for (const rocket of this.rockets) {
       const u = t - rocket.at;
       if (u < 0) continue;
       if (!rocket.taken) this.launch(rocket);
       if (u < GATHER_MS) this.drawGather(rocket, u / GATHER_MS);
-      else if (u < GATHER_MS + CLIMB_MS) this.drawClimb(ctx, rocket, (u - GATHER_MS) / CLIMB_MS);
-      else if (u < GATHER_MS + CLIMB_MS + BURST_MS) {
-        this.drawBurst(ctx, rocket, (u - GATHER_MS - CLIMB_MS) / BURST_MS);
-      } else this.burnOut(rocket);
+      else if (u < GATHER_MS + CLIMB_MS) {
+        this.drawClimb(gfx, rocket, (u - GATHER_MS) / CLIMB_MS, dt);
+      } else if (u < GATHER_MS + CLIMB_MS + BURST_MS) {
+        if (!rocket.burst) this.explode(rocket, t);
+        this.drawBurst(gfx, rocket, (u - GATHER_MS - CLIMB_MS) / BURST_MS);
+      } else {
+        if (!rocket.burst) this.explode(rocket, t);
+        this.burnOut(rocket);
+      }
+    }
+    this.stepLeaders(dt);
+    this.screen(gfx, t);
+    for (const e of [this.smoke, this.crackle, this.sparks, this.willow]) {
+      e.step(dt);
+      e.draw(gfx);
+    }
+  }
+
+  /** The screen's reaction to each burst: a flash, a ring of air, a split of colour, and the pile lit. */
+  private screen(gfx: Gfx, t: number): void {
+    let rings = 0;
+    for (let k = this.blasts.length - 1; k >= 0; k--) {
+      const b = this.blasts[k]!;
+      const age = t - b.at;
+      if (age > 1500) {
+        this.blasts.splice(k, 1);
+        continue;
+      }
+      if (age < FLASH_MS) gfx.flash(b.colour, 0.18 * (1 - age / FLASH_MS));
+      if (age < SPLIT_MS) gfx.aberration(0.3);
+      if (age < RING_MS && rings < 4) {
+        rings++;
+        const u = age / RING_MS;
+        gfx.shockwave(b.x, b.y, 140 * easeOut(u), 30, 6 * (1 - u));
+      }
+      if (age < 1000) gfx.glow(b.x, b.pileY, 150, b.colour, { intensity: 0.14 * (1 - age / 1000) });
+    }
+  }
+
+  /** The shell bursts: sparks in its style, and the screen's reaction. */
+  private explode(rocket: Rocket, t: number): void {
+    rocket.burst = true;
+    const { apexX: x, apexY: y, colour } = rocket;
+    const { rng } = this;
+    this.blasts.push({ x, y, at: t, colour, pileY: rocket.footY });
+    this.board.fx.shake(1.5, 150);
+    const TAU = Math.PI * 2;
+    const spark = (
+      emitter: Emitter,
+      angle: number,
+      speed: number,
+      life: number,
+      size = 12,
+      c: string = colour,
+    ) =>
+      emitter.burst(1, () => ({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life,
+        size,
+        color: c,
+        rotation: angle,
+      }));
+    const hot = (angle: number, speed: number) =>
+      spark(this.sparks, angle, speed, 160, 8, '#ffffff');
+    switch (rocket.style) {
+      case 'peony':
+        for (let k = 0; k < 300; k++) {
+          const a = rng() * TAU;
+          const v = 220 + 200 * rng();
+          spark(this.sparks, a, v, 900 + 400 * rng());
+          if (k % 5 === 0) hot(a, v);
+        }
+        break;
+      case 'chrysanthemum':
+        for (let k = 0; k < 200; k++) {
+          const a = rng() * TAU;
+          const v = 200 + 160 * rng();
+          const life = 1100 + 300 * rng();
+          spark(this.sparks, a, v, life);
+          // The brightest leave sub-trails of their own.
+          if (k < 40) {
+            this.leaders.push({
+              x,
+              y,
+              vx: Math.cos(a) * v,
+              vy: Math.sin(a) * v,
+              age: 0,
+              life,
+              colour,
+              splitAt: 0,
+            });
+          }
+          if (k % 4 === 0) hot(a, v);
+        }
+        break;
+      case 'ring': {
+        // A ring seen at a tilt: squashed one way.
+        const tilt = 0.35 + 0.6 * rng();
+        const turn = rng() * Math.PI;
+        for (let k = 0; k < 240; k++) {
+          const a = (k / 240) * TAU;
+          const px = Math.cos(a) * 300;
+          const py = Math.sin(a) * 300 * tilt;
+          const vx = px * Math.cos(turn) - py * Math.sin(turn);
+          const vy = px * Math.sin(turn) + py * Math.cos(turn);
+          this.sparks.burst(1, () => ({
+            x,
+            y,
+            vx,
+            vy,
+            life: 1000 + 200 * rng(),
+            size: 12,
+            color: colour,
+            rotation: Math.atan2(vy, vx),
+          }));
+          if (k % 6 === 0) hot(Math.atan2(vy, vx), Math.hypot(vx, vy));
+        }
+        break;
+      }
+      case 'willow':
+        for (let k = 0; k < 160; k++) {
+          const a = rng() * TAU;
+          spark(this.willow, a, 120 + 100 * rng(), 1500 + 600 * rng(), 10, '#fde68a');
+          if (k % 4 === 0) hot(a, 200);
+        }
+        break;
+      case 'crossette':
+        for (let k = 0; k < 80; k++) {
+          const a = (k / 80) * TAU + rng() * 0.2;
+          const v = 240 + 140 * rng();
+          const life = 650 + 150 * rng();
+          this.leaders.push({
+            x,
+            y,
+            vx: Math.cos(a) * v,
+            vy: Math.sin(a) * v,
+            age: 0,
+            life: life * 0.4,
+            colour,
+            splitAt: life * 0.4,
+          });
+          spark(this.sparks, a, v, life * 0.4);
+          if (k % 4 === 0) hot(a, v);
+        }
+        break;
+    }
+    // The bright middle of it, for a moment.
+    this.sparks.burst(1, () => ({ x, y, life: 140, size: 70, color: '#ffffff' }));
+  }
+
+  /** Move the sparks that are followed by hand, leaving a trail or splitting in four. */
+  private stepLeaders(dt: number): void {
+    const keep = Math.exp(-0.6 * (dt / 1000));
+    for (let k = this.leaders.length - 1; k >= 0; k--) {
+      const l = this.leaders[k]!;
+      l.age += dt;
+      l.vy += 160 * (dt / 1000);
+      l.vx *= keep;
+      l.vy *= keep;
+      l.x += l.vx * (dt / 1000);
+      l.y += l.vy * (dt / 1000);
+      if (l.splitAt > 0 && l.age >= l.splitAt) {
+        // In four, as a cross.
+        const turn = this.rng() * Math.PI;
+        for (let c = 0; c < 4; c++) {
+          const a = turn + (c * Math.PI) / 2;
+          this.sparks.burst(1, () => ({
+            x: l.x,
+            y: l.y,
+            vx: l.vx * 0.3 + Math.cos(a) * 140,
+            vy: l.vy * 0.3 + Math.sin(a) * 140,
+            life: 700,
+            size: 10,
+            color: l.colour,
+            rotation: a,
+          }));
+        }
+        this.leaders.splice(k, 1);
+      } else if (l.age >= l.life) this.leaders.splice(k, 1);
+      else if (l.splitAt === 0) {
+        this.crackle.burst(1, () => ({
+          x: l.x,
+          y: l.y,
+          vx: (this.rng() - 0.5) * 30,
+          vy: (this.rng() - 0.5) * 30,
+          life: 350,
+          size: 4,
+          color: l.colour,
+        }));
+      }
     }
   }
 
   /** The rocket's icons leave the pile. */
   private launch(rocket: Rocket): void {
     rocket.taken = true;
+    // The first to go up brings the cut-in; the show is the point, so no freeze or shake.
+    if (!this.introduced) {
+      this.introduced = true;
+      this.board.fx.cutIn({
+        name: 'fireworks',
+        color: rocket.colour,
+        portrait: fireworksPortrait(rocket.colour),
+        hitStopMs: 0,
+        shake: 0,
+      });
+    }
     for (const i of rocket.icons) {
       const at = this.board.take(i) ?? this.board.icons[i]!;
       rocket.fromX.push(at.x);
@@ -230,55 +515,48 @@ class Show implements Removal {
     };
   }
 
-  /** The shell climbing, with a trail of sparks behind it. */
-  private drawClimb(ctx: CanvasRenderingContext2D, rocket: Rocket, u: number): void {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (let k = 1; k <= 8; k++) {
-      const back = this.climbAt(rocket, Math.max(0, u - k * 0.035));
-      ctx.fillStyle = `rgba(254, 240, 138, ${(0.55 * (1 - k / 9)).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(back.x + Math.sin(k * 7 + u * 40) * 1.5, back.y, 2.2 - k * 0.2, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  /** The shell climbing, with a trail of light, smoke and crackling sparks behind it. */
+  private drawClimb(gfx: Gfx, rocket: Rocket, u: number, dt: number): void {
     const at = this.climbAt(rocket, u);
-    const glowR = 14 * rocket.shell;
-    const glow = ctx.createRadialGradient(at.x, at.y, 0, at.x, at.y, glowR);
-    glow.addColorStop(0, rocket.colour);
-    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(at.x, at.y, glowR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    const trail: number[] = [];
+    for (let k = 0; k <= 10; k++) {
+      const back = this.climbAt(rocket, Math.max(0, u - k * 0.03));
+      trail.push(back.x, back.y);
+    }
+    gfx.ribbon(trail, (v) => 6 * (1 - v), rocket.colour, {
+      alphaFrom: 0.7,
+      alphaTo: 0,
+      blend: 'add',
+    });
+    gfx.ribbon(trail, (v) => 2.5 * (1 - v), TRAIL, { alphaFrom: 0.8, alphaTo: 0, blend: 'add' });
+    const { rng } = this;
+    this.smoke.stream(50, dt, () => ({
+      x: at.x + (rng() - 0.5) * 4,
+      y: at.y + 4,
+      vx: (rng() - 0.5) * 16,
+      vy: -8 - 10 * rng(),
+      life: 900,
+      size: 10,
+    }));
+    this.crackle.stream(80, dt, () => ({
+      x: at.x,
+      y: at.y + 3,
+      vx: (rng() - 0.5) * 90,
+      vy: 40 + 90 * rng(),
+      life: 300,
+      size: 5,
+      rotation: Math.PI / 2,
+    }));
+    gfx.glow(at.x, at.y, 14 * rocket.shell, rocket.colour);
+    gfx.glow(at.x, at.y, 6, '#ffffff', { intensity: 1.4 });
     this.board.stamp(at.x, at.y, rocket.shell);
   }
 
   /** The burst, `u` of the way through: a flash, the sparks, and the icons flying apart. */
-  private drawBurst(ctx: CanvasRenderingContext2D, rocket: Rocket, u: number): void {
+  private drawBurst(gfx: Gfx, rocket: Rocket, u: number): void {
     const { apexX: x, apexY: y } = rocket;
     const spread = easeOut(u) * BURST_R;
     const sink = SINK * u * u;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    if (u < 0.2) {
-      const flash = ctx.createRadialGradient(x, y, 0, x, y, 34);
-      flash.addColorStop(0, `rgba(255, 255, 255, ${(0.8 * (1 - u / 0.2)).toFixed(3)})`);
-      flash.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = flash;
-      ctx.beginPath();
-      ctx.arc(x, y, 34, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1 - u;
-    ctx.fillStyle = rocket.colour;
-    for (const s of rocket.sparks) {
-      ctx.beginPath();
-      ctx.arc(x + s.dx * s.reach * spread, y + s.dy * s.reach * spread + sink, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-
     rocket.icons.forEach((i, k) => {
       if (this.finished.has(i)) return;
       const f = rocket.flight[k]!;
@@ -289,7 +567,21 @@ class Show implements Removal {
         this.board.drop(i, ix, iy);
         return;
       }
-      this.board.stamp(ix, iy, 0.7 * (1 - u));
+      const hot = u * BURST_MS < HOT_MS;
+      if (hot) gfx.icon(ix, iy, 0.7 * (1 - u), { material: { kind: 'solid', color: '#ffffff' } });
+      else this.board.stamp(ix, iy, 0.7 * (1 - u));
+      // Each leaves a few sparks as it goes.
+      if (this.rng() < 0.4) {
+        this.crackle.burst(1, () => ({
+          x: ix,
+          y: iy,
+          vx: (this.rng() - 0.5) * 60,
+          vy: (this.rng() - 0.5) * 60,
+          life: 300,
+          size: 4,
+          color: rocket.colour,
+        }));
+      }
     });
   }
 

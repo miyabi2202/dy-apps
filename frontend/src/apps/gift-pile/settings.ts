@@ -1,5 +1,6 @@
 import { createStore } from '@dy-apps/services';
 import { PILE } from './core/config';
+import type { Quality } from './render/gfx';
 
 /** The world's size in CSS pixels, chosen on the page. */
 export interface WorldSize {
@@ -52,3 +53,57 @@ export const sizeStore = createStore<WorldSize>('gift-pile.size', {
   fallback: PILE.world,
   parse: parseSize,
 });
+
+/** The showy extras, each of which can be turned off, and how much they may cost. */
+export interface EffectSettings {
+  /** The anime banner (and the freeze-frame) as a removal gets going. */
+  cutIns: boolean;
+  /** The screen shake. */
+  shake: boolean;
+  quality: Quality;
+}
+
+/** The effects as first set: everything on, at the quality `detectQuality` found; the store's fallback has `high` for it. */
+const DEFAULT_EFFECTS: EffectSettings = { cutIns: true, shake: true, quality: 'high' };
+
+function parseEffects(raw: unknown): EffectSettings | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const { cutIns, shake, quality } = raw as Record<string, unknown>;
+  if (typeof cutIns !== 'boolean' || typeof shake !== 'boolean') return undefined;
+  if (quality !== 'high' && quality !== 'low') return undefined;
+  return { cutIns, shake, quality };
+}
+
+/** The effects chosen on this browser. */
+export const effectsStore = createStore<EffectSettings>('gift-pile.effects', {
+  fallback: DEFAULT_EFFECTS,
+  parse: parseEffects,
+});
+
+/**
+ * `low` on a touch device or one with four cores or fewer, which have the least to spare for
+ * bloom and the like; `high` otherwise. What it asks of the browser can be given in.
+ */
+export function detectQuality(
+  coarsePointer: boolean = typeof matchMedia === 'function' &&
+    matchMedia('(pointer: coarse)').matches,
+  cores: number | undefined = typeof navigator === 'undefined'
+    ? undefined
+    : navigator.hardwareConcurrency,
+): Quality {
+  return coarsePointer || (cores !== undefined && cores <= 4) ? 'low' : 'high';
+}
+
+/** The effects chosen on this browser, or (before any choice) all on at the detected quality. */
+export function readEffects(
+  store: Pick<typeof effectsStore, 'read'> = effectsStore,
+  detect: () => Quality = detectQuality,
+): EffectSettings {
+  const stored = store.read();
+  return stored === DEFAULT_EFFECTS ? { ...stored, quality: detect() } : stored;
+}
+
+/** Whether the visitor asked their system for less motion: no shake or freeze-frames then. */
+export function prefersReducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}

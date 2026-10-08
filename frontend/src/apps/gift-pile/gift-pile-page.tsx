@@ -6,8 +6,15 @@ import { PILE } from './core/config';
 import { createPile } from './create-pile';
 import { startPileLoop } from './loop';
 import { labels } from './messages';
-import { removersOffStore, sizeStore, type WorldSize } from './settings';
+import {
+  effectsStore,
+  removersOffStore,
+  sizeStore,
+  type EffectSettings,
+  type WorldSize,
+} from './settings';
 import { ControlPanel } from './ui/control-panel';
+import { EffectsPanel } from './ui/effects-panel';
 import { RemoverList } from './ui/remover-list';
 import { SizePanel } from './ui/size-panel';
 import { Stage } from './ui/stage';
@@ -34,9 +41,16 @@ export function GiftPilePage() {
     setEnabled(next);
     removersOffStore.write(removerNames.filter((name) => !next.has(name)));
   };
+  const [effects, setEffects] = useState(() => pile.effectSettings);
+  const changeEffects = (next: EffectSettings) => {
+    setEffects(next);
+    effectsStore.write(next);
+    pile.setEffects(next);
+  };
   const [size, setSize] = useState<WorldSize>(() => sizeStore.read());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stats = useStats(pile);
+  const [cannotDraw, setCannotDraw] = useState(false);
 
   // The worker starts with the default size; tell it the saved one (queued until ready).
   useEffect(() => {
@@ -53,7 +67,15 @@ export function GiftPilePage() {
     sizeStore.write(next);
     pile.resize(next.width, next.height);
   };
-  useEffect(() => startPileLoop(pile, () => canvasRef.current), [pile]);
+  useEffect(
+    () =>
+      startPileLoop(
+        pile,
+        () => canvasRef.current,
+        () => setCannotDraw(true),
+      ),
+    [pile],
+  );
 
   useEffect(() => pile.loadImages(), [pile]);
 
@@ -79,10 +101,12 @@ export function GiftPilePage() {
             onClear={() => pile.clear()}
           >
             <RemoverList names={removerNames} enabled={enabled} onChange={changeEnabled} />
+            <EffectsPanel effects={effects} onChange={changeEffects} />
           </ControlPanel>
         </Grid>
         <Panel xstyle={styles.stage}>
           <Stage canvasRef={canvasRef} pile={pile} size={size} />
+          {cannotDraw && <p {...stylex.props(text.muted)}>{labels.webglMissing}</p>}
           {pile.error && (
             <p {...stylex.props(text.muted)}>
               {labels.engineFailed} {pile.error}

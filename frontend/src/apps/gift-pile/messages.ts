@@ -9,6 +9,9 @@ export const testIds = {
   height: 'height',
   bin: 'bin',
   removers: 'removers',
+  effects: 'effects',
+  quality: 'quality',
+  cutIn: 'cut-in',
 } as const;
 
 export const labels = {
@@ -41,8 +44,30 @@ export const labels = {
       'black-hole': '黑洞',
     } as Record<string, string>,
   },
+  effects: {
+    summary: '炫酷特效',
+    cutIns: '切入画面',
+    shake: '震屏',
+    quality: '画质',
+    high: '高',
+    low: '低',
+    hint: '画质选低会关闭辉光并减少粒子，手机或旧电脑建议选低。系统设置了“减少动态效果”时，震屏和定格不会出现。',
+  },
+  cutIn: {
+    lines: {
+      helicopter: '空中救援！',
+      ufo: '牵引光束启动',
+      balloon: '悠然升空',
+      car: '极速飞跃！',
+      'pac-man': 'WAKA WAKA!',
+      claw: '一击必中！',
+      fireworks: '绽放！',
+      'black-hole': '吞噬一切！',
+    } as Record<string, string>,
+  },
   bin: '垃圾桶',
   stageHint:
     '拖动图标可以移动它，拖到垃圾桶里就销毁。垃圾桶本身也可以拖动：减少时掉下来的图标落进垃圾桶也会被销毁。',
   engineFailed: '物理引擎启动失败：',
+  webglMissing: '浏览器不支持 WebGL2，无法绘制。',
 } as const;

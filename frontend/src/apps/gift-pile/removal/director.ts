@@ -1,5 +1,5 @@
 import type { Scoop } from '../core/protocol';
-import type { Removal, Remover, World } from './board';
+import type { CutInRequest, Fx, Gfx, Removal, Remover, World } from './board';
 import { ActionQueue, type Traffic } from './queue';
 import { type Ground, ScoopBoard } from './scoop-board';
 import type { RemovalSink } from './sink';
@@ -25,6 +25,20 @@ export interface BinTarget {
 /** A dropped icon the pile can't find yet is given this long to show up in a frame before it is forgotten. */
 const FALLING_GRACE_MS = 500;
 
+/** A cut-in is not shown if the last began under this long ago. */
+const CUT_IN_COOLDOWN_MS = 8000;
+/** The freeze-frame and shake of a cut-in, when its request names none. */
+const DEFAULT_HIT_STOP_MS = 90;
+const DEFAULT_CUT_IN_SHAKE = 4;
+const CUT_IN_SHAKE_MS = 300;
+
+/** Which of the showy extras are on (the `Pile` works it out from the settings and the system's wish for less motion). */
+export interface Motion {
+  cutIns: boolean;
+  shake: boolean;
+  hitStop: boolean;
+}
+
 /**
  * Runs the removals: takes the presses of 添加 and 减少 (an `ActionQueue`), deals one of
  * the removers it was given for each removal from a shuffle bag, and keeps its `Removal`
@@ -34,6 +48,11 @@ const FALLING_GRACE_MS = 500;
  * falls into the bin is destroyed too, so the user can move the bin to catch them. The board
  * makes sure every icon of a removal ends up released or destroyed: when it is over, and at
  * once on `reset()`, since the engine has already let go of everything then.
+ *
+ * A removal's clock is the wall time less what it has spent frozen (`hitStop`, from its
+ * board's `fx`): it sees the frozen time while frozen, and `isOver` the same, so a freeze-frame
+ * holds it still and it carries on from there. The queue, the bin and the gaps between
+ * removals keep wall time.
  */
 export class RemovalDirector implements Traffic {
   private readonly queue: ActionQueue;
@@ -56,6 +75,14 @@ export class RemovalDirector implements Traffic {
   private lastRemover: Remover | null = null;
   /** The names of the removers it may deal, or null for all of them. */
   private enabled: ReadonlySet<string> | null = null;
+  private motion: Motion = { cutIns: true, shake: true, hitStop: true };
+  /** The wall time spent frozen in the removal under way, not counting a freeze still going. */
+  private frozenMs = 0;
+  /** The freeze going on now: when it began and when it lets go (wall time); null while there is none. */
+  private freeze: { from: number; until: number } | null = null;
+  /** When the last cut-in began, and whether the removal under way has had its own. */
+  private lastCutIn = -Infinity;
+  private cutInShown = false;
 
   constructor(
     private readonly sink: RemovalSink,
@@ -101,6 +128,11 @@ export class RemovalDirector implements Traffic {
     this.bag = [];
   }
 
+  /** Which extras are on, from now on. */
+  setMotion(motion: Motion): void {
+    this.motion = motion;
+  }
+
   /** Where the bin is, for catching dropped icons; null while there is none. */
   setBin(bin: BinTarget | null): void {
     this.bin = bin;
@@ -112,6 +144,7 @@ export class RemovalDirector implements Traffic {
 
   reset(): void {
     this.run = null;
+    this.startClock();
     this.lastEnded = -Infinity;
     this.falling.clear();
     this.queue.reset();
@@ -132,9 +165,17 @@ export class RemovalDirector implements Traffic {
     const remover = this.next ?? this.nextRemover();
     this.next = null;
     if (scoop.ids.length === 0) return;
-    const board = new ScoopBoard(this.sink, this.ground, scoop, world, (id) =>
-      this.falling.set(id, this.now),
+    const board = new ScoopBoard(
+      this.sink,
+      this.ground,
+      scoop,
+      world,
+      (id) => this.falling.set(id, this.now),
+      this.makeFx(),
     );
+    // The removal begins on wall time; its clock is wall time until it is frozen.
+    this.startClock();
+    this.cutInShown = false;
     this.run = { removal: remover.begin(board, now, this.rng), board };
   }
 
@@ -142,20 +183,70 @@ export class RemovalDirector implements Traffic {
    * Draw the removal as of wall time `now`, ending it once it is over, catch what falls
    * into the bin, and work through the queue when nothing is under way.
    */
-  draw(ctx: CanvasRenderingContext2D, now: number): void {
+  draw(gfx: Gfx, now: number): void {
     this.now = now;
     this.catchFalling(now);
     const { run } = this;
     if (run) {
-      if (run.removal.isOver(now)) {
+      const time = this.removalTime(now);
+      if (run.removal.isOver(time)) {
         run.board.finish();
         this.run = null;
         this.lastEnded = now;
+        this.startClock();
       } else {
-        run.removal.draw(ctx, now);
+        run.removal.draw(gfx, time);
       }
     }
     this.queue.tick(now);
+  }
+
+  /** The removal's clock starts over: no time frozen yet. */
+  private startClock(): void {
+    this.frozenMs = 0;
+    this.freeze = null;
+  }
+
+  /** The time the removal sees at wall time `now`: standing still while frozen, and less what it has been frozen for after. */
+  private removalTime(now: number): number {
+    const { freeze } = this;
+    if (freeze && now >= freeze.until) {
+      this.frozenMs += freeze.until - freeze.from;
+      this.freeze = null;
+    }
+    return (this.freeze ? this.freeze.from : now) - this.frozenMs;
+  }
+
+  /** Freeze the removal for `ms` from the frame being drawn, or longer if it is frozen already. */
+  private hitStop(ms: number): void {
+    if (!this.motion.hitStop || !(ms > 0)) return;
+    const until = this.now + ms;
+    this.freeze = this.freeze
+      ? { from: this.freeze.from, until: Math.max(this.freeze.until, until) }
+      : { from: this.now, until };
+  }
+
+  /** What a removal's board gives it for the showy extras, which hold to the settings at the moment it asks. */
+  private makeFx(): Fx {
+    return {
+      shake: (amplitude, ms) => {
+        if (this.motion.shake) this.ground.fx?.shake(amplitude, ms);
+      },
+      hitStop: (ms) => this.hitStop(ms),
+      cutIn: (request) => this.cutIn(request),
+    };
+  }
+
+  private cutIn(request: CutInRequest): void {
+    const { motion, now } = this;
+    if (!motion.cutIns || this.cutInShown || now - this.lastCutIn < CUT_IN_COOLDOWN_MS) return;
+    this.cutInShown = true;
+    this.lastCutIn = now;
+    this.ground.fx?.cutIn(request);
+    this.hitStop(request.hitStopMs ?? DEFAULT_HIT_STOP_MS);
+    if (motion.shake) {
+      this.ground.fx?.shake(request.shake ?? DEFAULT_CUT_IN_SHAKE, CUT_IN_SHAKE_MS);
+    }
   }
 
   /**

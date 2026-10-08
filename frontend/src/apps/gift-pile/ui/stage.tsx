@@ -6,6 +6,8 @@ import { canvasSize } from '../core/config';
 import { labels, testIds } from '../messages';
 import type { Pile } from '../pile';
 import type { WorldSize } from '../settings';
+import type { CutInRequest } from '../removal/board';
+import { CutIn } from './cut-in';
 import { Bin, BIN_DROP_SIZE, BIN_ICON_SIZE, type BinPlace, moveWithView } from './bin';
 
 interface Props {
@@ -39,6 +41,9 @@ export function Stage({ canvasRef, pile, size }: Props) {
   const [flashing, setFlashing] = useState(false);
   const flashRef = useRef(0);
   const [holding, setHolding] = useState(false);
+  // The cut-in banner on show, if any; the key makes a new one start its animation over.
+  const [cutIn, setCutIn] = useState<{ request: CutInRequest; key: number } | null>(null);
+  const cutInKeyRef = useRef(0);
   const canvas = canvasSize(size);
   const [box, setBox] = useState(canvas);
   const draggingRef = useRef<number | null>(null);
@@ -88,6 +93,12 @@ export function Stage({ canvasRef, pile, size }: Props) {
         );
       }),
     [pile, placeBin, canvas.height],
+  );
+
+  // A removal brings on a banner now and then, not per frame, so it can live in state.
+  useEffect(
+    () => pile.onCutIn((request) => setCutIn({ request, key: ++cutInKeyRef.current })),
+    [pile],
   );
 
   // Where the bin is in world pixels, for the pile; its image's size, scaled to the world.
@@ -189,6 +200,15 @@ export function Stage({ canvasRef, pile, size }: Props) {
           onMove={placeBin}
           hot={hot || flashing}
         />
+        {cutIn && (
+          <CutIn
+            key={cutIn.key}
+            request={cutIn.request}
+            title={labels.removers.names[cutIn.request.name] ?? cutIn.request.name}
+            line={labels.cutIn.lines[cutIn.request.name] ?? ''}
+            onDone={() => setCutIn((now) => (now?.key === cutIn.key ? null : now))}
+          />
+        )}
       </div>
       <p {...stylex.props(text.muted, styles.hint)}>{labels.stageHint}</p>
     </>

@@ -13,23 +13,26 @@ frames in and hands them to the `Pile` (`pile.ts`), the one thing the page and t
 to. The `Pile` owns four others and passes what each needs between them, so none of them knows
 of the rest: a `PileState` (`render/pile-state.ts`), which records where every icon is; a
 `Camera` (`render/camera.ts`), which says what part of the world is on screen; the
-`PileRenderer` (`render/renderer.ts`), which draws at display rate, interpolating moving icons
-between the last two frames and stamping settled ones onto a static layer once; and the
-`RemovalDirector`. `createPile()` (`create-pile.ts`) builds the real ones, once, for the page.
+`GlRenderer` (`render/gl-renderer.ts`, WebGL2 in `render/gl/`), which draws at display rate,
+interpolating moving icons between the last two frames in the vertex shader and keeping the
+resting ones in a GPU buffer that is topped up as icons settle; and the `RemovalDirector`. `createPile()` (`create-pile.ts`) builds the real ones, once, for the page.
 
 A frame is taken in on its message, not at the next display frame, because the renderer
 interpolates by when the latest one arrived: `Pile.onFrame` has the state record it (the first
 frame of a new generation, after a clear or resize, first resets the removals and the camera),
 the renderer take in what left the resting set, and the director take the scoops. Each display
-frame, `Pile.frame` (from the loop in `loop.ts`) steps the camera, draws the pile, then draws
-the removals over it, and last the icon in the user's hand.
+frame, `Pile.frame` (from the loop in `loop.ts`) steps the camera and has the renderer `begin` the
+frame (it draws the pile and hands back a `Gfx`), draws the removals over it with that `Gfx`, and
+then the renderer `end`s it with the icon in the user's hand and puts it on the canvas. If the
+browser has no WebGL2 the renderer can't draw, and the page says so.
 
 `PileState` keeps the resting icons in typed arrays in order of settling, each with its slot,
 the latest two frames, and answers where an icon is (`peek`), takes one out (`take`), finds the
 top of the pile (`topAt`, `profile`, `highestTop`) and the icon under a point (`iconAt`). The
-renderer's resting layer follows the resting set from a journal that the state keeps of what
+renderer's resting buffer follows the resting set from a journal that the state keeps of what
 left it (slot, the last slot then, the icon moved in to fill it, and where it was), so what
-needs repainting is only what left, and the layer is never compared with the set.
+needs sending again is only the slots a removal swap-filled, and the buffer is never compared
+with the set.
 
 Two engine settings matter (`core/config.ts`): the world is handed to Rapier in metres with an
 icon 1 m across (`pxPerMetre`), because Rapier's tolerances and speed cap are in metres and
@@ -54,8 +57,8 @@ from the camera's target (less an icon's radius) and sends the engine a `setDrop
 when it changes; the engine knows nothing of the camera, and releases at the line, or just
 above the canvas's top until it is told.
 
-Everything is drawn in world pixels shifted by the view; the resting layer covers twice the
-view's height, and is repainted where the view now is once the camera leaves it. Pointer
+Everything is drawn in world pixels shifted by the view (a uniform in the shaders), so the
+camera moving costs the GPU nothing to redo. Pointer
 presses are turned into world pixels with the view (`Pile.toWorld`), and the bin moves with
 the world as the camera does, kept on the canvas so it can always be dragged: the stage moves
 it from the camera's subscription directly on its element, not through React state, so a
@@ -72,7 +75,7 @@ The bin (`ui/bin.tsx`) is an HTML element floating over the canvas, so it is out
 physics and always on top; drag it to move it. Pressing on an icon (`ui/stage.tsx`) has the
 `Pile` send the worker a `grab`: the icon leaves the engine entirely while held and the
 renderer draws it at the pointer. Letting go sends `release` (it falls from there) or, over
-the bin, `destroy`. The renderer repaints only the removed icon's patch of the resting layer.
+the bin, `destroy`.
 
 ## Removing: the removers
 
@@ -121,6 +124,37 @@ half. The balloon is the
 slowest and the car the quickest, at three seconds. Each craft picks
 its colours for the crossing from its palettes when it begins: the balloon's stripes, skirt and
 and outline, and the car's body and trim.
+
+Removers get showy effects from `Gfx` (`render/gfx.ts`): glows, particles, ribbons, speed lines,
+materials on sprites (`holo`, `metal`, `rim`, `solid`), a procedural `blackHole`, and ones that
+act on the whole picture once it is drawn (`shockwave`, `lens`, `haze`, `aberration`, `flash`),
+which the renderer's post pass applies (`render/gl/post-pass.ts`). On `high` quality that pass
+also adds bloom and the pile gets a faint sweeping sheen; `low` drops both and gives every
+`Emitter` (`kit/particles.ts`, a pool of particles stepped by time; `kit/fx.ts` has bursts to
+use with it, `Wake` in `kit/trail.ts` the points of a ribbon) 40% of its room. The quality, and
+whether the cut-in banner and the shake are on, are chosen under 炫酷特效 and remembered on the
+browser (`effectsStore`; the quality starts as `low` on a touch screen or a device with four
+cores or fewer). A visitor who asks the system for less motion gets no shake or freeze-frame
+whatever is ticked (`Pile.motion`).
+
+Each remover also has its moment on the screen, through its `Board`'s `fx`: `shake(amplitude,
+ms)`, `hitStop(ms)`, which freezes the removal's own clock (the director gives it the time less
+what it has spent frozen, so what it draws and when it is over stand still together), and
+`cutIn(request)`, the anime banner (`ui/cut-in.tsx`) with the remover's name, its line
+(`labels.cutIn.lines`) and a portrait (`kit/portraits.ts`, or the remover's own art, painted
+once by `render/bake.ts`). A remover asks for it at its best moment, once, and the director
+lets one through every 8 s at most, so asking is always safe. Each remover is dressed with the kit
+at hand: the helicopter has downwash, a searchlight and a vortex at the nozzle (`helicopter/
+effects.ts`), the saucer a metal hull, a holographic dome (the dome alone, drawn from the same SVG
+with every other fill `NONE` in `svg-art.ts`), a beam of scrolling bands and a streak as it
+leaves; the balloon a burner flame, streamers and dust; the car underglow, headlights, ghosts,
+nitro and a landing that shakes the screen; Pac-Man a neon glow, pellets, crumbs and a power
+pellet, and the ghost an ectoplasm trail; the claw a spotlight, a chasing LED rail and
+confetti; the fireworks five burst styles (peony, chrysanthemum, ring, willow, crossette) with a
+flash, a ring of air and a split of colour for each; and the black hole its lensing, a banded
+disk, icons stretched along their fall and a pop that flashes, rings and shakes. Their particles
+are `Emitter`s stepped by `Frames` (`kit/clock.ts`), the time since the last draw, so they stand
+still in a hit-stop as the rest does.
 
 Six removers don't cross. The `helicopter/` (drawn from Microsoft's Fluent Emoji SVG, MIT,
 credited in its `art.ts`, with `kit/svg-art.ts`, mirrored to face right with its rotors drawn

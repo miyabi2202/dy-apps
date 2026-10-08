@@ -1,5 +1,15 @@
 import type { Scoop } from '../core/protocol';
-import { type Board, type Camera, type Point, topKeeping, type View, type World } from './board';
+import {
+  type Board,
+  type Camera,
+  type CutInRequest,
+  type Fx,
+  NO_FX,
+  type Point,
+  topKeeping,
+  type View,
+  type World,
+} from './board';
 import type { RemovalSink } from './sink';
 
 /** Where a removal's icon is. */
@@ -29,6 +39,11 @@ export interface Ground {
   stamp(x: number, y: number, scale?: number): void;
   /** The view onto the pile, and moving it (which holds until the removal is over). */
   readonly camera: { readonly view: View; moveTo(top: number): void };
+  /** The screen's side of the showy extras; a ground without them has none. */
+  readonly fx?: {
+    shake(amplitude: number, ms: number): void;
+    cutIn(request: CutInRequest): void;
+  };
 }
 
 /**
@@ -50,6 +65,8 @@ export class ScoopBoard implements Board {
     readonly world: World,
     /** Called with each icon dropped back. */
     private readonly onDrop: (id: number) => void,
+    /** Shake, freeze-frame and cut-in, as the director sets them up. */
+    readonly fx: Fx = NO_FX,
   ) {
     this.ids = scoop.ids;
     this.state = new Uint8Array(scoop.ids.length);

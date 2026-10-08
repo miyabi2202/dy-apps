@@ -1,4 +1,4 @@
-import type { World } from '../board';
+import type { CutInRequest, Fx, Gfx, World } from '../board';
 
 /** How far outside the canvas a craft starts and finishes, in world pixels. */
 export const OVERSHOOT = 70;
@@ -35,13 +35,7 @@ export interface Intake {
   /** Where icons go in and come out, with the tie at (tieX, tieY), `t` ms into the crossing. */
   openings(tieX: number, tieY: number, t: number): Openings;
   /** Draw it, behind the craft; `fullness` is how much of the load is in, from 0 to 1. */
-  draw(
-    ctx: CanvasRenderingContext2D,
-    tieX: number,
-    tieY: number,
-    t: number,
-    fullness: number,
-  ): void;
+  draw(gfx: Gfx, tieX: number, tieY: number, t: number, fullness: number): void;
 }
 
 /**
@@ -69,7 +63,14 @@ export interface Craft {
    * Anything behind the craft and its intake, like the car's bridge, drawn before them;
    * `remainingMs` is how long the crossing has left, for fading out.
    */
-  drawScene?(ctx: CanvasRenderingContext2D, course: Course, t: number, remainingMs: number): void;
-  /** The craft itself, centred at (x, y) and turned by `tilt`, `t` ms into the crossing. */
-  draw(ctx: CanvasRenderingContext2D, x: number, y: number, tilt: number, t: number): void;
+  drawScene?(gfx: Gfx, course: Course, t: number, remainingMs: number): void;
+  /** The cut-in, if it has one: asked for as the craft's centre reaches this far along (`px`, from the left of the canvas). */
+  cutInAt?(course: Course): number;
+  /** What to ask for then; the paint it has for this crossing can show in it. */
+  cutInRequest?(): CutInRequest;
+  /**
+   * The craft itself, centred at (x, y) and turned by `tilt`, `t` ms into the crossing; `fx`
+   * is for the screen's reaction to what it does (the car's landing).
+   */
+  draw(gfx: Gfx, x: number, y: number, tilt: number, t: number, fx: Fx): void;
 }

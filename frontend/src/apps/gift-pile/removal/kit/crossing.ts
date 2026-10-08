@@ -1,4 +1,4 @@
-import type { Board, Removal } from '../board';
+import type { Board, Gfx, Removal } from '../board';
 import { type Course, type Craft, OVERSHOOT } from './craft';
 
 // Timing, in ms, and geometry, in world (CSS) pixels.
@@ -57,6 +57,8 @@ export class Crossing implements Removal {
   private readonly dropAt: { k: number; at: number }[] = [];
   /** Icons inside, for the intake's gauge. */
   private inside = 0;
+  /** The craft's cut-in has been asked for. */
+  private introduced = false;
 
   /**
    * `craft` sets off at wall time `now`, at the height where its intake just clears the
@@ -128,7 +130,7 @@ export class Crossing implements Removal {
    * Draw the crossing as of wall time `now`: scenery, the craft's intake, the craft, then
    * the icons on their way in.
    */
-  draw(ctx: CanvasRenderingContext2D, now: number): void {
+  draw(gfx: Gfx, now: number): void {
     const { craft, course, board } = this;
     const t = now - this.t0;
     const px = this.startX + this.speed * t;
@@ -136,6 +138,10 @@ export class Crossing implements Removal {
     const tieX = px + craft.tie.dx;
     const tieY = py + craft.tie.dy;
     const { intake } = craft;
+    if (!this.introduced && craft.cutInAt && craft.cutInRequest && px >= craft.cutInAt(course)) {
+      this.introduced = true;
+      board.fx.cutIn(craft.cutInRequest());
+    }
     const openings = intake.openings(tieX, tieY, t);
 
     // Icons whose moment has come are spat out.
@@ -146,9 +152,9 @@ export class Crossing implements Removal {
       board.drop(k, openings.outX, openings.outY);
     }
 
-    craft.drawScene?.(ctx, course, t, this.endMs - t);
-    intake.draw(ctx, tieX, tieY, t, this.inside / board.icons.length);
-    craft.draw(ctx, px, py, tilt, t);
+    craft.drawScene?.(gfx, course, t, this.endMs - t);
+    intake.draw(gfx, tieX, tieY, t, this.inside / board.icons.length);
+    craft.draw(gfx, px, py, tilt, t, board.fx);
 
     // Icons the intake has reached: swinging up into it, or counted inside.
     const { inX, inY } = openings;

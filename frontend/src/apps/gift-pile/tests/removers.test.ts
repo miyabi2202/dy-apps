@@ -39,6 +39,7 @@ function recordingBoard(n: number, dropCount: number, raised = 0) {
       },
     },
     iconRadius: 8,
+    fx: { shake() {}, hitStop() {}, cutIn() {} },
     icons,
     dropCount,
     // The highest of the icons left near x, as the pile's top would be.

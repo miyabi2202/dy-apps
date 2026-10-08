@@ -1,6 +1,16 @@
 import type { ScoopShape } from '../core/protocol';
+import type { Gfx, SpriteSource } from '../render/gfx';
 
 export type { ScoopShape };
+export type {
+  Blend,
+  Color,
+  Gfx,
+  Material,
+  ParticleData,
+  SpriteOptions,
+  SpriteSource,
+} from '../render/gfx';
 
 // The contract between the pile and the removers: what a removal may ask of the pile
 // (`Board`), and what the pile asks of a remover (`Remover`, `Removal`). The pile knows
@@ -49,6 +59,36 @@ export interface Point {
   y: number;
 }
 
+/** A request for the anime cut-in banner: who is coming on, and how the screen should take it. */
+export interface CutInRequest {
+  /** The remover's name, which the page looks its title and line up by (`labels.removers.names`, `labels.cutIn.lines`). */
+  name: string;
+  /** The banner's accent colour. */
+  color: string;
+  /** A small picture to put in the banner; the page paints it. */
+  portrait?: SpriteSource;
+  /** How long to freeze the removal as the banner slams in, in ms; default 90. */
+  hitStopMs?: number;
+  /** How hard to shake the view then, in world px; default 4. */
+  shake?: number;
+}
+
+/** The showy extras a removal may ask the screen for; any of them may be left out by the visitor's settings. */
+export interface Fx {
+  /** Shake the view: `amplitude` world px, dying away over `ms`. */
+  shake(amplitude: number, ms: number): void;
+  /** Freeze the removal for `ms`: what it sees as the time, and when it is over, stands still. */
+  hitStop(ms: number): void;
+  /**
+   * Bring on the anime banner, with a freeze-frame and a shake. At most one a removal, and
+   * none if the last was under 8 s ago, so asking is always safe.
+   */
+  cutIn(request: CutInRequest): void;
+}
+
+/** Fx that do nothing, for a board nobody is watching. */
+export const NO_FX: Fx = { shake() {}, hitStop() {}, cutIn() {} };
+
 /**
  * What a removal may ask of the pile while it runs, for the icons set aside for it. They are
  * numbered `0` to `icons.length - 1`, roughly highest first. Each stays in the pile until
@@ -62,6 +102,8 @@ export interface Board {
   readonly camera: Camera;
   /** An icon's drawn radius, in world pixels. */
   readonly iconRadius: number;
+  /** Shake, freeze-frame and cut-in; the removal's time is the one that freezes. */
+  readonly fx: Fx;
   /** Where each icon was when it was set aside. */
   readonly icons: readonly Point[];
   /** How many of them to drop back: the ones over the number asked for. */
@@ -106,8 +148,8 @@ export interface Remover {
 export interface Removal {
   /** Nothing of it is left to see. */
   isOver(now: number): boolean;
-  /** Draw it as of wall time `now`, using the board to take icons and drop some back. */
-  draw(ctx: CanvasRenderingContext2D, now: number): void;
+  /** Draw it with `gfx` as of wall time `now`, using the board to take icons and drop some back. */
+  draw(gfx: Gfx, now: number): void;
 }
 
 /** One of `items`, picked with `rng` (random numbers in [0, 1)). */

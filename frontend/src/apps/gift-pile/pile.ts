@@ -1,11 +1,14 @@
 import type { Frame } from './core/protocol';
 import type { PileClient } from './pile-client';
-import type { Remover } from './removal/board';
+import type { CutInRequest, Remover } from './removal/board';
 import { type BinTarget, RemovalDirector } from './removal/director';
 import type { Ground } from './removal/scoop-board';
 import type { Camera, View } from './render/camera';
-import type { PileState } from './render/pile-state';
-import type { PileRenderer } from './render/renderer';
+import type { FrameOffset, Held } from './render/gl-renderer';
+import type { Gfx, Quality } from './render/gfx';
+import { Shaker } from './render/shake';
+import type { ChangeJournal, PileState } from './render/pile-state';
+import type { EffectSettings } from './settings';
 
 /** What the pile asks of the worker's client. */
 export type PileLink = Pick<
@@ -27,10 +30,31 @@ export type PileLink = Pick<
 >;
 
 /** What the pile asks of the renderer. */
-export type PileDrawing = Pick<
-  PileRenderer,
-  'apply' | 'draw' | 'drawHeld' | 'hold' | 'stamp' | 'setImage'
->;
+export interface PileDrawing {
+  /** Why it can't draw, if it has found it can't. */
+  readonly error?: string | null;
+  /** Take in what left the resting set, from the state's journal, and empty it. */
+  apply(journal: ChangeJournal): void;
+  /** The user is holding this icon (or, with null, nothing). */
+  hold(held: Held | null): void;
+  setImage(image: HTMLImageElement | null): void;
+  /** What the effects may cost, from the next frame on. */
+  setQuality?(quality: Quality): void;
+  /**
+   * Start a display frame in `canvas`: draw the pile in `state` as of wall time `now` through
+   * `view`, moved by `shake`. Returns what to draw the removals with, or null if there is
+   * nothing to draw on.
+   */
+  begin(
+    canvas: HTMLCanvasElement,
+    now: number,
+    state: PileState,
+    view: View,
+    shake: FrameOffset,
+  ): Gfx | null;
+  /** Draw the held icon on top of everything and put the frame on the canvas. */
+  end(): void;
+}
 
 interface Options {
   client: PileLink;
@@ -45,6 +69,10 @@ interface Options {
   rng?: () => number;
   /** Fetches the gift image; null if it fails, and the drawn stand-in stays. */
   loadGiftImage?: () => Promise<HTMLImageElement | null>;
+  /** Which showy extras are on; all on, at high quality, by default. */
+  effects?: EffectSettings;
+  /** The visitor wants less motion: no screen shake or freeze-frames, whatever the effects say. */
+  reducedMotion?: boolean;
 }
 
 /** What the page shows of the pile's count. */
@@ -68,7 +96,8 @@ export interface PileCounts {
  *   director and the camera; the scoops it brought go to the director.
  * - As a removal begins, the view is cut to the pile as it is then, before the removal sees it.
  * - Each display frame (`frame`) steps the camera by how high the heap is and whether a
- *   removal is on, then draws the pile, then the removals, then the icon in the user's hand.
+ *   removal is on, then draws the pile, then the removals, then the icon in the user's hand
+ *   (the renderer hands over what to draw the removals with, and puts the frame on screen).
  * - The engine is told where to release new icons, just above the camera's target view,
  *   whenever that changes.
  * - A removal's board asks the pile about icons, drawing and the camera through the ground
@@ -86,10 +115,16 @@ export class Pile {
   private readonly removers: readonly Remover[];
   private readonly radius: number;
   private readonly loadGiftImage: () => Promise<HTMLImageElement | null>;
-  /** The canvas's context while a frame is being drawn, for the removals to stamp on. */
-  private ctx: CanvasRenderingContext2D | null = null;
+  /** What a frame is being drawn with, while it is, for the removals to stamp icons on. */
+  private gfx: Gfx | null = null;
   /** The drop line the engine was last told, or null if it has not been since it started over. */
   private dropLine: number | null = null;
+  private effects: EffectSettings;
+  private readonly reducedMotion: boolean;
+  private readonly shaker = new Shaker();
+  private readonly cutInListeners = new Set<(request: CutInRequest) => void>();
+  /** The wall time of the frame being drawn, which the shake counts from. */
+  private frameNow = 0;
 
   constructor({
     client,
@@ -100,6 +135,8 @@ export class Pile {
     radius,
     rng,
     loadGiftImage = () => Promise.resolve(null),
+    effects = { cutIns: true, shake: true, quality: 'high' },
+    reducedMotion = false,
   }: Options) {
     this.client = client;
     this.state = state;
@@ -108,23 +145,31 @@ export class Pile {
     this.removers = removers;
     this.radius = radius;
     this.loadGiftImage = loadGiftImage;
+    this.effects = effects;
+    this.reducedMotion = reducedMotion;
+    renderer.setQuality?.(effects.quality);
     this.removerNames = removers.map((remover) => remover.name);
     const ground: Ground = {
       radius,
       topAt: (x) => state.topAt(x),
       peek: (id) => state.peek(id),
       take: (id) => this.take(id),
-      stamp: (x, y, scale) => {
-        if (this.ctx) renderer.stamp(this.ctx, x, y, scale);
-      },
+      stamp: (x, y, scale) => this.gfx?.icon(x, y, scale),
       camera: {
         get view() {
           return camera.view;
         },
         moveTo: (top) => camera.moveTo(top),
       },
+      fx: {
+        shake: (amplitude, ms) => this.shaker.add(amplitude, ms, this.frameNow),
+        cutIn: (request) => {
+          for (const fn of this.cutInListeners) fn(request);
+        },
+      },
     };
     this.director = new RemovalDirector(client, { ground, removers, ...(rng && { rng }) });
+    this.director.setMotion(this.motion);
   }
 
   /** Start the physics worker, if it isn't running. */
@@ -135,6 +180,33 @@ export class Pile {
   /** Stop the physics worker; the pile is gone with it. */
   stop(): void {
     this.client.stop();
+  }
+
+  /** The effects as chosen, for the page to show. */
+  get effectSettings(): EffectSettings {
+    return this.effects;
+  }
+
+  /** Turn the showy extras on or off, and change what they may cost, from now on. */
+  setEffects(effects: EffectSettings): void {
+    this.effects = effects;
+    this.renderer.setQuality?.(effects.quality);
+    this.director.setMotion(this.motion);
+    if (!this.motion.shake) this.shaker.clear();
+  }
+
+  /**
+   * What the extras may do now: the chosen ones, less the shake and the freeze-frame that
+   * come with a cut-in if the visitor wants less motion.
+   */
+  get motion(): { cutIns: boolean; shake: boolean; hitStop: boolean } {
+    const { cutIns, shake } = this.effects;
+    return { cutIns, shake: shake && !this.reducedMotion, hitStop: cutIns && !this.reducedMotion };
+  }
+
+  /** Set if the renderer can't draw (no WebGL2, say), with its message; the canvas then stays empty. */
+  get rendererError(): string | null {
+    return this.renderer.error ?? null;
   }
 
   /** Set if the worker failed, with its message; the canvas then stays empty. */
@@ -186,6 +258,12 @@ export class Pile {
   /** Call `fn` with the view's new top each time it moves; the function returned stops that. */
   onCamera(fn: (top: number) => void): () => void {
     return this.camera.subscribe(fn);
+  }
+
+  /** Call `fn` with each cut-in a removal brings on (the banner is the page's to show); the function returned stops that. */
+  onCutIn(fn: (request: CutInRequest) => void): () => void {
+    this.cutInListeners.add(fn);
+    return () => void this.cutInListeners.delete(fn);
   }
 
   /** The world position of (x, y) on the canvas, which shows the view: both in world pixels. */
@@ -266,12 +344,13 @@ export class Pile {
     const { state, camera, director, renderer } = this;
     const view = camera.step({ now, top: state.highestTop(this.dropLine), busy: director.busy });
     this.sendDropLine();
-    const ctx = renderer.draw(canvas, now, state, view);
-    if (!ctx) return;
-    this.ctx = ctx;
-    director.draw(ctx, now);
-    renderer.drawHeld(ctx);
-    this.ctx = null;
+    this.frameNow = now;
+    const gfx = renderer.begin(canvas, now, state, view, this.shaker.at(now));
+    if (!gfx) return;
+    this.gfx = gfx;
+    director.draw(gfx, now);
+    renderer.end();
+    this.gfx = null;
   }
 
   /**

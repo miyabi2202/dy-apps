@@ -1,4 +1,4 @@
-import type { Board, Point, Removal } from '../board';
+import type { Board, Gfx, Point, Removal } from '../board';
 import { PileTop } from '../kit/pile-top';
 import type { Recolour, SvgArt } from '../kit/svg-art';
 import { drawChopper, WINCH } from './chopper';
@@ -15,6 +15,7 @@ import {
 } from './winchman';
 import { easeOut, smooth } from '../kit/easing';
 import { Clock } from '../kit/clock';
+import { Effects } from './effects';
 
 // Timing in ms, geometry in world pixels.
 /** It hovers this far above the top of the pile, by the cabin's middle, but no nearer the view's top than this. */
@@ -109,6 +110,7 @@ export class Mission implements Removal {
   private lumps: number[] = [];
   private readonly held: number[] = [];
   private thrown = 0;
+  private readonly effects: Effects;
 
   constructor(
     private readonly board: Board,
@@ -133,6 +135,7 @@ export class Mission implements Removal {
     this.leftEnd = Math.max(END_MARGIN, Math.min(...xs, this.hoverX) - END_MARGIN);
     this.rightEnd = Math.min(world.width - END_MARGIN, Math.max(...xs, this.hoverX) + END_MARGIN);
     this.sucked = new Uint8Array(icons.length);
+    this.effects = new Effects(rng);
   }
 
   /** Where it hovers now: where it first stopped, or lower, to keep in sight as the view goes down after him. */
@@ -154,7 +157,7 @@ export class Mission implements Removal {
     return this.phase === 'done';
   }
 
-  draw(ctx: CanvasRenderingContext2D, now: number): void {
+  draw(gfx: Gfx, now: number): void {
     const target = now - this.t0;
     // Step it on in small steps, so it vacuums everything in its way however far apart the frames are.
     this.clock.advance(
@@ -184,11 +187,21 @@ export class Mission implements Removal {
     const winch = { x: chopper.x + WINCH.x, y: chopper.y + WINCH.y };
     const man = onRope ? { x: winch.x, y: winch.y + this.rope + HANDS_UP } : this.man;
 
+    this.effects.draw(gfx, t, {
+      chopper,
+      tilt: this.tilt,
+      t,
+      man: aboard ? null : man,
+      onPile: this.phase === 'work' || this.phase === 'return',
+      nozzle: this.phase === 'work' ? this.nozzle() : null,
+      groundY: this.groundAt(this.hoverX),
+      hoverX: this.hoverX,
+    });
     if (!aboard) {
       const sucking = this.phase === 'work' || this.flying.length > 0 || this.lumps.length > 0;
       this.lumps = this.lumps.filter((at) => t - at < LUMP_MS);
       drawHose(
-        ctx,
+        gfx,
         { x: winch.x - 6, y: winch.y - 4 },
         tankAt(man, this.facing),
         t,
@@ -196,15 +209,15 @@ export class Mission implements Removal {
         this.lumps.map((at) => (t - at) / LUMP_MS),
       );
       drawRope(
-        ctx,
+        gfx,
         winch,
         onRope ? { x: winch.x, y: man.y - HANDS_UP } : { x: winch.x, y: winch.y + this.rope },
       );
     }
-    drawChopper(ctx, this.art, this.scheme, chopper, this.tilt, t);
+    drawChopper(gfx, this.art, this.scheme, chopper, this.tilt, t);
     if (!aboard)
-      drawWinchman(ctx, man, { facing: this.facing, stride: this.stride, hanging: onRope });
-    if (this.phase === 'work') drawSuction(ctx, this.nozzle(), this.facing, t);
+      drawWinchman(gfx, man, { facing: this.facing, stride: this.stride, hanging: onRope });
+    if (this.phase === 'work') drawSuction(gfx, this.nozzle(), this.facing, t);
 
     // Icons on their way into the nozzle.
     const nozzle = this.nozzle();
@@ -248,7 +261,15 @@ export class Mission implements Removal {
           y: this.hoverY - 40 + 40 * e,
         };
         this.tilt = 0.12 * (1 - e);
-        if (u >= 1) this.next('lower');
+        if (u >= 1) {
+          this.board.fx.cutIn({
+            name: 'helicopter',
+            color: '#38bdf8',
+            portrait: this.art.sprite(this.scheme),
+            hitStopMs: 90,
+          });
+          this.next('lower');
+        }
         break;
       }
       case 'lower': {
@@ -297,6 +318,7 @@ export class Mission implements Removal {
         const u = Math.min(1, this.phaseT / SINK_MS);
         this.chopper = { x: this.hoverX, y: this.hoverAt() + SINK * (1 - (1 - u) ** 2) };
         this.tilt = Math.sin(this.phaseT / 60) * 0.04;
+        if (this.phaseT <= dt) board.fx.shake(3, 200);
         if (u >= 1) this.next('throw');
         break;
       }
@@ -308,6 +330,7 @@ export class Mission implements Removal {
         for (; this.thrown < due; this.thrown++) {
           const door = { x: this.chopper.x + 10, y: this.chopper.y + 4 };
           const side = this.rng() < 0.5 ? -1 : 1;
+          this.effects.thrown(door, this.clock.t);
           board.drop(
             this.held[this.thrown]!,
             door.x,

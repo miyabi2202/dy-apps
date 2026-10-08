@@ -5,6 +5,7 @@ import { Pile, type PileDrawing, type PileLink } from '../pile';
 import type { Board, Remover } from '../removal/board';
 import { Camera } from '../render/camera';
 import { PileState } from '../render/pile-state';
+import type { Gfx } from '../render/gfx';
 import { frame } from './helpers';
 
 /** The worker's client, remembering what it was sent, in `log` with everything else. */
@@ -50,24 +51,26 @@ class FakeRenderer implements PileDrawing {
   readonly removals: number[][] = [];
   readonly stamps: unknown[][] = [];
   readonly holds: unknown[] = [];
-  readonly ctx = {} as CanvasRenderingContext2D;
+  readonly ctx: Gfx = new Proxy({} as Gfx, {
+    get: (_, key) =>
+      key === 'icon'
+        ? (x: number, y: number, scale?: number) => void this.stamps.push([this.ctx, x, y, scale])
+        : () => undefined,
+  });
   constructor(private readonly log: string[]) {}
   apply(journal: Parameters<PileDrawing['apply']>[0]) {
     if (journal.removed.length > 0) this.removals.push([...journal.removed]);
     journal.clear();
   }
-  draw() {
+  begin(): Gfx | null {
     this.log.push('draw');
     return this.ctx;
   }
-  drawHeld() {
+  end() {
     this.log.push('held');
   }
   hold(held: unknown) {
     this.holds.push(held);
-  }
-  stamp(ctx: unknown, x: number, y: number, scale?: number) {
-    this.stamps.push([ctx, x, y, scale]);
   }
   setImage() {}
 }
@@ -130,9 +133,9 @@ describe('Pile frame', () => {
 
   it('draws no removal when the renderer has nothing to draw on', () => {
     const { pile, renderer, canvas, log } = setup();
-    renderer.draw = () => {
+    renderer.begin = () => {
       log.push('draw');
-      return null as never;
+      return null;
     };
     pile.onFrame(frame({ scooped: [scoopOf([1])] }), 0);
     log.length = 0;

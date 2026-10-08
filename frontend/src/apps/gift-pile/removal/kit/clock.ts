@@ -18,3 +18,18 @@ export class Clock {
     }
   }
 }
+
+/** The longest a frame counts for, in ms, so a hidden tab doesn't fling particles across the world. */
+const FRAME_MAX_MS = 100;
+
+/** How long each draw has been since the one before, for stepping particles; it is 0 while time stands still (a hit-stop). */
+export class Frames {
+  private last: number | null = null;
+
+  /** The ms since the last call (at most 100); 0 the first time. */
+  dt(now: number): number {
+    const dt = this.last === null ? 0 : Math.min(FRAME_MAX_MS, Math.max(0, now - this.last));
+    this.last = now;
+    return dt;
+  }
+}

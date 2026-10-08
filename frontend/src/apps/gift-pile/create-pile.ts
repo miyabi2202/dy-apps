@@ -4,8 +4,9 @@ import { PileClient } from './pile-client';
 import { allRemovers } from './removal/removers';
 import { Camera } from './render/camera';
 import { PileState, pileStateOptions } from './render/pile-state';
-import { PileRenderer } from './render/renderer';
-import { createGiftSprite, GIFT_ICON_URL, loadImage } from './render/sprite';
+import { GlRenderer } from './render/gl-renderer';
+import { GIFT_ICON_URL, loadImage } from './render/sprite';
+import { prefersReducedMotion, readEffects } from './settings';
 
 /**
  * Wires the real objects together, once, for the page: the client posts frames to the pile,
@@ -19,7 +20,8 @@ export function createPile(): Pile {
   });
   const state = new PileState(PILE, pileStateOptions(PILE, world));
   const camera = new Camera({ radius: PILE.radius, headroom: PILE.headroom, height: world.height });
-  const renderer = new PileRenderer(PILE, createGiftSprite);
+  const effects = readEffects();
+  const renderer = new GlRenderer(PILE, { quality: effects.quality });
   const pile = new Pile({
     client,
     state,
@@ -28,6 +30,8 @@ export function createPile(): Pile {
     removers: allRemovers(),
     radius: PILE.radius,
     loadGiftImage: () => loadImage(GIFT_ICON_URL),
+    effects,
+    reducedMotion: prefersReducedMotion(),
   });
   return pile;
 }

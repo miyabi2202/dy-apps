@@ -1,9 +1,13 @@
-import { type Board, pick, type Removal, type Remover, type ScoopShape } from '../board';
-import { type Recolour, SvgArt } from '../kit/svg-art';
+import { type Board, type Gfx, pick, type Removal, type Remover, type ScoopShape } from '../board';
+import { NONE, type Recolour, SvgArt } from '../kit/svg-art';
 import { UFO_SVG } from './art';
 import { drawBeam } from './beam';
 import { easeOut, smooth } from '../kit/easing';
 import { clumpOf, clumpSomewhere } from '../kit/clump';
+import { Frames } from '../kit/clock';
+import { Emitter } from '../kit/particles';
+import { Wake } from '../kit/trail';
+import { sparkBurst } from '../kit/fx';
 
 // Timing in ms, geometry in world pixels.
 const SIZE = 76;
@@ -66,15 +70,26 @@ interface Options {
 export class Ufo implements Remover {
   readonly name = 'ufo';
   private readonly art: SvgArt;
+  /** The dome alone, in each scheme, to draw over the saucer with a sheen. */
+  private readonly dome: SvgArt;
+  private readonly domes: readonly Recolour[];
   private readonly schemes: readonly Recolour[];
 
   constructor({ schemes = UFO_SCHEMES }: Options = {}) {
     this.schemes = schemes;
     this.art = new SvgArt(UFO_SVG, schemes);
+    this.domes = schemes.map((scheme) => ({
+      '#D3D3D3': NONE,
+      '#9B9B9B': NONE,
+      '#321B41': NONE,
+      WHITE: NONE,
+      '#26C9FC': scheme['#26C9FC'] ?? '#26C9FC',
+    }));
+    this.dome = new SvgArt(UFO_SVG, this.domes);
   }
 
   load(): Promise<void> {
-    return this.art.load();
+    return Promise.all([this.art.load(), this.dome.load()]).then(() => undefined);
   }
 
   /** A clump of the pile somewhere across it. */
@@ -83,7 +98,9 @@ export class Ufo implements Remover {
   }
 
   begin(board: Board, now: number, rng: () => number): Removal {
-    return new Abduction(board, now, rng, this.art, pick(this.schemes, rng));
+    const scheme = pick(this.schemes, rng);
+    const dome = this.domes[this.schemes.indexOf(scheme)]!;
+    return new Abduction(board, now, rng, this.art, scheme, this.dome, dome);
   }
 }
 
@@ -110,6 +127,15 @@ class Abduction implements Removal {
   private readonly fallAt: Float32Array;
   /** Which icons have gone in or fallen out. */
   private readonly finished: Uint8Array;
+  /** The cut-in has been asked for. */
+  private introduced = false;
+  private readonly dust: Emitter;
+  private readonly sparks: Emitter;
+  private readonly rng: () => number;
+  private readonly frames = new Frames();
+  private readonly wake = new Wake(400);
+  /** The saucer's lights, from its scheme or yellow. */
+  private lights = '#fde047';
 
   constructor(
     private readonly board: Board,
@@ -117,9 +143,26 @@ class Abduction implements Removal {
     rng: () => number,
     private readonly art: SvgArt,
     private readonly scheme: Recolour,
+    private readonly domeArt: SvgArt,
+    private readonly dome: Recolour,
   ) {
     const { icons, world, iconRadius } = board;
     const n = icons.length;
+    this.dust = new Emitter(
+      {
+        capacity: 200,
+        colorFrom: '#fef9c3',
+        sizeOverLife: (u) => 0.6 + 0.6 * u,
+        alphaOverLife: (u) => 0.45 * Math.sin(Math.PI * u),
+      },
+      rng,
+    );
+    this.sparks = new Emitter(
+      { capacity: 80, shape: 'spark', colorFrom: '#ffffff', colorTo: '#fde047', drag: 1 },
+      rng,
+    );
+    this.rng = rng;
+    this.lights = scheme['#321B41'] ?? this.lights;
     this.t0 = now;
     const { x: hoverX, top, bottom, spread } = clumpOf(icons, world, 40);
     this.hoverX = hoverX;
@@ -160,12 +203,35 @@ class Abduction implements Removal {
     return now - this.t0 >= this.done;
   }
 
-  draw(ctx: CanvasRenderingContext2D, now: number): void {
+  draw(gfx: Gfx, now: number): void {
     const t = now - this.t0;
     const { board } = this;
+    const dt = this.frames.dt(now);
     const saucer = this.saucerAt(t);
     const bellyX = saucer.x;
     const bellyY = saucer.y + BELLY;
+    const leave = this.beamOff + PAUSE_MS;
+    this.wake.add(saucer.x, saucer.y, t);
+
+    // As it stops over the clump, the cut-in, and the flash of its arrival.
+    if (!this.introduced && t >= this.arrived) {
+      this.introduced = true;
+      board.fx.cutIn({
+        name: 'ufo',
+        color: '#fde047',
+        portrait: this.art.sprite(this.scheme),
+        hitStopMs: 80,
+      });
+    }
+    if (t >= this.arrived) {
+      const since = t - this.arrived;
+      if (since < 150) gfx.flash('#e0f2fe', 0.25 * (1 - since / 150));
+      if (since < 300) gfx.aberration(0.6 * (1 - since / 300));
+      if (since < 400) {
+        const u = since / 400;
+        gfx.shockwave(saucer.x, saucer.y, 120 * easeOut(u), 24, 10 * (1 - u));
+      }
+    }
 
     // The beam: coming on, on, then going off.
     const strength =
@@ -176,12 +242,24 @@ class Abduction implements Removal {
           : 1 - smooth((t - this.beamOn) / BEAM_OFF_MS);
     const reach = t < this.arrived + BEAM_ON_MS ? smooth((t - this.arrived) / BEAM_ON_MS) : 1;
     drawBeam(
-      ctx,
+      gfx,
       bellyX,
       bellyY,
       { length: this.beamLength * reach, bottomHalf: this.beamHalf, strength },
       t,
     );
+    // Dust drifting up the beam from the pile.
+    if (strength > 0.2) {
+      const bottom = bellyY + this.beamLength;
+      this.dust.stream(40 * strength, dt, () => ({
+        x: bellyX + (this.rng() - 0.5) * this.beamHalf * 1.6,
+        y: bottom - this.rng() * 8,
+        vx: (this.rng() - 0.5) * 12,
+        vy: -(30 + 40 * this.rng()),
+        life: 1100,
+        size: 7,
+      }));
+    }
 
     // The icons on their way up: drawn over the beam, under the saucer they go into.
     const n = board.icons.length;
@@ -206,16 +284,74 @@ class Abduction implements Removal {
       }
       if (u >= 1) {
         this.finished[i] = 1;
+        // Gone into the belly in a spark.
+        sparkBurst(this.sparks, bellyX, bellyY, this.lights, 3, { speed: 140, life: 300, size: 5 });
         continue;
       }
+      // Lit gold by the beam, brighter the nearer the saucer.
+      gfx.glow(x, y, board.iconRadius * 2, '#fde047', { intensity: 0.12 + 0.3 * u });
       board.stamp(x, y, 1 - (1 - IN_SCALE) * Math.max(0, (u - 0.5) / 0.5));
     }
+    this.dust.step(dt);
+    this.dust.draw(gfx);
+    this.sparks.step(dt);
+    this.sparks.draw(gfx);
 
-    ctx.save();
-    ctx.translate(saucer.x, saucer.y);
-    ctx.rotate(saucer.tilt + ART_ANGLE);
-    this.art.draw(ctx, this.scheme, { size: SIZE, cx: CX, cy: CY });
-    ctx.restore();
+    // Zipping away: a streak behind it, speed lines, and a kick as it goes.
+    if (t >= leave) {
+      const u = Math.min(1, (t - leave) / ESCAPE_MS);
+      gfx.ribbon(this.wake.points(), (v) => 30 * (1 - v), this.lights, {
+        blend: 'add',
+        alphaFrom: 0.8,
+        alphaTo: 0,
+      });
+      if (t - leave > ESCAPE_MS - 400) gfx.speedLines(saucer.x, saucer.y, { alpha: 0.35 });
+      const since = t - leave;
+      if (since < 300) {
+        gfx.shockwave(saucer.x, saucer.y, 90 * easeOut(since / 300), 20, 8 * (1 - since / 300));
+        gfx.glow(saucer.x, saucer.y, 60, '#ffffff', { intensity: 1.4 * (1 - since / 300) });
+      }
+      if (u > 0.9) gfx.aberration(0.3);
+    }
+
+    this.drawSaucer(gfx, saucer, t);
+  }
+
+  /** The saucer: metal, with a holographic dome and lights circling its rim. */
+  private drawSaucer(gfx: Gfx, saucer: { x: number; y: number; tilt: number }, t: number): void {
+    const place = {
+      x: saucer.x,
+      y: saucer.y,
+      width: SIZE,
+      height: SIZE,
+      anchorX: CX / 32,
+      anchorY: CY / 32,
+      rotation: saucer.tilt + ART_ANGLE,
+    };
+    gfx.glow(saucer.x, saucer.y + 2, 46, this.lights, { intensity: 0.28 });
+    gfx.sprite(this.art.sprite(this.scheme), {
+      ...place,
+      material: { kind: 'metal', strength: 0.8 },
+    });
+    gfx.sprite(this.domeArt.sprite(this.dome), {
+      ...place,
+      alpha: 0.9,
+      material: { kind: 'holo', strength: 0.9 },
+    });
+    // Lights chasing round its rim.
+    const rim = 25;
+    for (let k = 0; k < 6; k++) {
+      const a = t / 700 + (k * Math.PI * 2) / 6;
+      // Only the front half is seen in front; the back half is hidden by the dome's glow, so dim.
+      const front = Math.sin(a) > 0;
+      const px = Math.cos(a) * rim;
+      const py = 4 + Math.sin(a) * 4;
+      const c = Math.cos(saucer.tilt);
+      const sn = Math.sin(saucer.tilt);
+      gfx.glow(saucer.x + px * c - py * sn, saucer.y + px * sn + py * c, 7, this.lights, {
+        intensity: front ? 1.4 : 0.5,
+      });
+    }
   }
 
   /** Where the saucer's middle is at `t`, and how it is tipped. */

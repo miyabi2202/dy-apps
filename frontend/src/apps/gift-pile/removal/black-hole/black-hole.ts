@@ -1,6 +1,12 @@
-import { type Board, pick, type Removal, type Remover, type ScoopShape } from '../board';
+import { type Board, type Gfx, pick, type Removal, type Remover, type ScoopShape } from '../board';
 import { smooth } from '../kit/easing';
 import { clumpOf, clumpSomewhere } from '../kit/clump';
+import { blackHolePortrait } from '../kit/portraits';
+import { Frames } from '../kit/clock';
+import { sparkBurst } from '../kit/fx';
+import { Emitter } from '../kit/particles';
+import { Wake } from '../kit/trail';
+import { easeOut } from '../kit/easing';
 
 // Timing in ms, geometry in world pixels.
 /** The hole's radius when fully open, how far above the clump's top its middle is, and how near the view's top it can be at most. */
@@ -10,7 +16,7 @@ const MIN_Y = 60;
 /** It opens over this long, and collapses over this long before it pops. */
 const OPEN_MS = 650;
 const COLLAPSE_MS = 420;
-const POP_MS = 380;
+const POP_MS = 450;
 /** Icons start spiralling in over this long, each taking a while to fall all the way in. */
 const STAGGER_MS = 900;
 const FALL_MIN_MS = 900;
@@ -88,6 +94,17 @@ class Swallow implements Removal {
   /** Whether each is a dud, to fling out, and whether it has gone in or been flung. */
   private readonly dud: Uint8Array;
   private readonly finished: Uint8Array;
+  /** Whether the cut-in has been asked for, and whether the pop has shaken the screen. */
+  private introduced = false;
+  private popped = false;
+  private readonly frames = new Frames();
+  private readonly stream: Emitter;
+  private readonly sparks: Emitter;
+  private readonly rng: () => number;
+  /** The tail each icon drags behind it. */
+  private readonly tails = new Map<number, Wake>();
+  /** Flashes where duds were flung out. */
+  private readonly flicks: { x: number; y: number; at: number }[] = [];
 
   constructor(
     private readonly board: Board,
@@ -98,6 +115,28 @@ class Swallow implements Removal {
     const { icons, world } = board;
     const n = icons.length;
     this.t0 = now;
+    this.rng = rng;
+    this.stream = new Emitter(
+      {
+        capacity: 400,
+        shape: 'spark',
+        colorFrom: palette.disk,
+        colorTo: '#ffffff',
+        sizeOverLife: (u) => 1 - 0.7 * u,
+        alphaOverLife: (u) => Math.sin(Math.PI * Math.min(1, u * 1.2)),
+      },
+      rng,
+    );
+    this.sparks = new Emitter(
+      {
+        capacity: 200,
+        shape: 'spark',
+        colorFrom: '#ffffff',
+        colorTo: palette.rim,
+        drag: 1.2,
+      },
+      rng,
+    );
     const { x: cx, top } = clumpOf(icons, world, 50);
     this.cx = cx;
     this.cy = Math.max(board.camera.view.top + MIN_Y, top - ABOVE);
@@ -144,14 +183,33 @@ class Swallow implements Removal {
     return { x, y, vx: (tx + ox * 0.4) * FLING_SPEED, vy: (ty + oy * 0.4) * FLING_SPEED };
   }
 
-  draw(ctx: CanvasRenderingContext2D, now: number): void {
+  draw(gfx: Gfx, now: number): void {
     const t = now - this.t0;
     const { board } = this;
+    const dt = this.frames.dt(t);
     // How open it is: opening, open, then collapsing.
+    if (!this.introduced && t >= OPEN_MS) {
+      this.introduced = true;
+      board.fx.cutIn({
+        name: 'black-hole',
+        color: this.palette.glow,
+        portrait: blackHolePortrait(this.palette.glow, this.palette.disk),
+      });
+    }
+    const popAt = this.collapse + COLLAPSE_MS;
+    if (!this.popped && t >= popAt) {
+      this.popped = true;
+      board.fx.hitStop(100);
+      board.fx.shake(6, 350);
+      sparkBurst(this.sparks, this.cx, this.cy, '#ffffff', 120, {
+        speed: 420,
+        life: 800,
+        size: 11,
+      });
+    }
     const open = t < OPEN_MS ? smooth(t / OPEN_MS) : 1 - smooth((t - this.collapse) / COLLAPSE_MS);
-    if (open > 0) this.drawHole(ctx, open, t);
-    if (t >= this.collapse + COLLAPSE_MS)
-      this.drawPop(ctx, (t - this.collapse - COLLAPSE_MS) / POP_MS);
+    if (open > 0) this.drawHole(gfx, open, t, dt);
+    if (t >= popAt) this.drawPop(gfx, (t - popAt) / POP_MS);
 
     const n = board.icons.length;
     for (let i = 0; i < n; i++) {
@@ -165,73 +223,100 @@ class Swallow implements Removal {
       const p = this.spiral(i, Math.min(u, this.dud[i] ? FLING_AT : 1));
       if (this.dud[i] && u >= FLING_AT) {
         this.finished[i] = 1;
+        this.tails.delete(i);
+        this.flicks.push({ x: p.x, y: p.y, at: t });
         board.drop(i, p.x, p.y, p.vx, p.vy);
         continue;
       }
       if (u >= 1) {
         this.finished[i] = 1;
+        this.tails.delete(i);
         continue;
       }
-      board.stamp(p.x, p.y, 1 - 0.8 * smooth((u - 0.4) / 0.6));
+      this.drawInfall(gfx, i, p, u, t);
+    }
+    // Where duds were flung out: a flick of white.
+    for (let k = this.flicks.length - 1; k >= 0; k--) {
+      const f = this.flicks[k]!;
+      const age = t - f.at;
+      if (age > 140) this.flicks.splice(k, 1);
+      else gfx.glow(f.x, f.y, 20, '#ffffff', { intensity: 1.4 * (1 - age / 140) });
+    }
+    for (const e of [this.stream, this.sparks]) {
+      e.step(dt);
+      e.draw(gfx);
     }
   }
 
-  /** The glow, the spinning disk and the dark horizon, `open` from 0 to 1. */
-  private drawHole(ctx: CanvasRenderingContext2D, open: number, t: number): void {
-    const { cx, cy, palette } = this;
-    const r = HOLE_R * open;
-    ctx.save();
-    const glow = ctx.createRadialGradient(cx, cy, r, cx, cy, r * 4);
-    glow.addColorStop(0, palette.glow);
-    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.globalAlpha = 0.55 * open;
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 4, 0, Math.PI * 2);
-    ctx.fill();
-    // The accretion disk, tilted towards us, with streaks going round.
-    ctx.globalAlpha = open;
-    ctx.strokeStyle = palette.disk;
-    ctx.lineWidth = 3 * open;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, r * 2.4, r * 0.7, -0.2, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([5, 9]);
-    ctx.lineDashOffset = -t / 12;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, r * 1.8, r * 0.52, -0.2, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    // The horizon.
-    ctx.fillStyle = '#000000';
-    ctx.strokeStyle = palette.rim;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+  /** An icon `u` of the way in at `p`: stretched along its path as it is pulled in, with a tail and sparks. */
+  private drawInfall(
+    gfx: Gfx,
+    i: number,
+    p: { x: number; y: number; vx: number; vy: number },
+    u: number,
+    t: number,
+  ): void {
+    const { palette, board } = this;
+    let tail = this.tails.get(i);
+    if (!tail) {
+      tail = new Wake(250);
+      this.tails.set(i, tail);
+    }
+    tail.add(p.x, p.y, t);
+    gfx.ribbon(tail.points(), (v) => board.iconRadius * 1.2 * (1 - v), palette.disk, {
+      alphaFrom: 0.5,
+      alphaTo: 0,
+      blend: 'add',
+    });
+    // Stretched along the way it goes (spaghettification), more as it nears.
+    const e = smooth(u);
+    const scale = 1 - 0.8 * smooth((u - 0.4) / 0.6);
+    gfx.icon(p.x, p.y, scale, {
+      rotation: Math.atan2(p.vy, p.vx),
+      scaleX: 1 + 1.5 * e,
+      scaleY: 1 - 0.3 * e,
+    });
+    this.stream.burst(this.rng() < 0.5 ? 1 : 0, () => ({
+      x: p.x,
+      y: p.y,
+      vx: (this.rng() - 0.5) * 50,
+      vy: (this.rng() - 0.5) * 50,
+      life: 300,
+      size: 6,
+      color: palette.disk,
+    }));
   }
 
-  /** The pop as it goes: a flash and a ring, `u` from 0 to 1. */
-  private drawPop(ctx: CanvasRenderingContext2D, u: number): void {
+  /** The procedural hole, its lensing, and a stream of sparks swirling in, `open` from 0 to 1. */
+  private drawHole(gfx: Gfx, open: number, _t: number, dt: number): void {
+    const { cx, cy, palette, rng } = this;
+    gfx.blackHole(cx, cy, HOLE_R, open, { glow: palette.glow, disk: palette.disk });
+    gfx.lens(cx, cy, HOLE_R * 6, 0.9 * open);
+    gfx.aberration(0.3 * open);
+    // Sparks circling in: tangent, with a little inward.
+    const ring = 4 * HOLE_R * open;
+    this.stream.stream(200 * open, dt, () => {
+      const a = rng() * Math.PI * 2;
+      return {
+        x: cx + Math.cos(a) * ring,
+        y: cy + Math.sin(a) * ring * 0.45,
+        vx: -Math.sin(a) * 160 - Math.cos(a) * 60,
+        vy: (Math.cos(a) * 160 - Math.sin(a) * 60) * 0.45,
+        life: 1100,
+        size: 11,
+        rotation: a + Math.PI / 2,
+      };
+    });
+  }
+
+  /** The pop as it goes: a flash, an air ring and the split of colour, `u` from 0 to 1. */
+  private drawPop(gfx: Gfx, u: number): void {
     if (u >= 1) return;
     const { cx, cy, palette } = this;
-    ctx.save();
-    ctx.globalAlpha = 1 - u;
-    ctx.strokeStyle = palette.rim;
-    ctx.lineWidth = 3 * (1 - u);
-    ctx.beginPath();
-    ctx.arc(cx, cy, 6 + 46 * smooth(u), 0, Math.PI * 2);
-    ctx.stroke();
-    const flash = ctx.createRadialGradient(cx, cy, 0, cx, cy, 18);
-    flash.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-    flash.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = flash;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    gfx.flash('#ffffff', 0.5 * (1 - u) ** 2);
+    gfx.aberration(1 - u);
+    gfx.shockwave(cx, cy, 200 * easeOut(u), 36, 16 * (1 - u));
+    gfx.ring(cx, cy, 6 + 46 * smooth(u), 3 * (1 - u), palette.rim, { alpha: 1 - u });
+    gfx.glow(cx, cy, 30, '#ffffff', { intensity: 1.4 * (1 - u), blend: 'add' });
   }
 }

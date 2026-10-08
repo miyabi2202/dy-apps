@@ -34,10 +34,9 @@ function linkTo(engine: PileEngine): PileLink {
 /** A renderer with nowhere to draw: the pile still steps its camera and sends its drop line. */
 const noDrawing: PileDrawing = {
   apply: (journal) => journal.clear(),
-  draw: () => null,
-  drawHeld: () => {},
+  begin: () => null,
+  end: () => {},
   hold: () => {},
-  stamp: () => {},
   setImage: () => {},
 };
 

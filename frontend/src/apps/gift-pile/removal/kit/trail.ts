@@ -35,3 +35,40 @@ export class Trail {
     return { x: first.x - left, y: first.y };
   }
 }
+
+/**
+ * Where something has been in the last `span` ms, to draw as a ribbon behind it: points are
+ * added as it moves, and the ones that are too old let go.
+ */
+export class Wake {
+  private readonly xy: number[] = [];
+  private readonly times: number[] = [];
+  private readonly out: number[] = [];
+
+  constructor(private readonly span: number) {}
+
+  /** It is at (x, y) at time `now` (ms). */
+  add(x: number, y: number, now: number): void {
+    this.xy.push(x, y);
+    this.times.push(now);
+    let old = 0;
+    while (old < this.times.length && now - this.times[old]! > this.span) old++;
+    if (old > 0) {
+      this.xy.splice(0, 2 * old);
+      this.times.splice(0, old);
+    }
+  }
+
+  /** The points to draw `gfx.ribbon` through: x, y pairs, latest first, so the ribbon fades to its tail. */
+  points(): readonly number[] {
+    const { xy, out } = this;
+    out.length = 0;
+    for (let k = xy.length - 2; k >= 0; k -= 2) out.push(xy[k]!, xy[k + 1]!);
+    return out;
+  }
+
+  clear(): void {
+    this.xy.length = 0;
+    this.times.length = 0;
+  }
+}

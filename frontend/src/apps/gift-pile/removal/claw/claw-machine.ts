@@ -1,6 +1,10 @@
-import { type Board, pick, type Removal, type Remover, type ScoopShape } from '../board';
+import { type Board, type Gfx, pick, type Removal, type Remover, type ScoopShape } from '../board';
 import { smooth } from '../kit/easing';
 import { clumpOf, clumpSomewhere } from '../kit/clump';
+import { clawPortrait } from '../kit/portraits';
+import { Frames } from '../kit/clock';
+import { confetti, sparkBurst } from '../kit/fx';
+import { Emitter } from '../kit/particles';
 
 // Timing in ms, geometry in world pixels.
 /** The rail along the top of the view that the carriage runs on, and how long it fades in and out. */
@@ -100,6 +104,11 @@ class Grab implements Removal {
   /** The icons that slip out, and when, in time order. */
   private readonly slips: { i: number; at: number }[] = [];
   private taken = false;
+  private won = false;
+  private readonly frames = new Frames();
+  private readonly sparks: Emitter;
+  private readonly discs: Emitter;
+  private readonly stars: Emitter;
 
   constructor(
     private readonly board: Board,
@@ -109,6 +118,26 @@ class Grab implements Removal {
   ) {
     const { icons, world, iconRadius } = board;
     const { view } = board.camera;
+    this.sparks = new Emitter(
+      {
+        capacity: 160,
+        shape: 'spark',
+        colorFrom: '#ffffff',
+        colorTo: palette.body,
+        drag: 2,
+        gravity: 200,
+      },
+      rng,
+    );
+    const party = {
+      capacity: 100,
+      gravity: 500,
+      colorFrom: '#ffffff',
+      alphaOverLife: (u: number) => Math.min(1, 3 * (1 - u)),
+      sizeOverLife: () => 1,
+    };
+    this.discs = new Emitter({ ...party, shape: 'disc' }, rng);
+    this.stars = new Emitter({ ...party, shape: 'star' }, rng);
     this.railY = view.top + RAIL_Y;
     this.restY = view.top + REST_Y;
     const n = icons.length;
@@ -152,19 +181,35 @@ class Grab implements Removal {
     return now - this.t0 >= this.done;
   }
 
-  draw(ctx: CanvasRenderingContext2D, now: number): void {
+  draw(gfx: Gfx, now: number): void {
     const t = now - this.t0;
     const { board } = this;
     const { width } = board.world;
     const hub = this.hubAt(t);
+    const dt = this.frames.dt(t);
 
     if (!this.taken && t >= this.lowered) {
       this.taken = true;
+      board.fx.cutIn({
+        name: 'claw',
+        color: this.palette.body,
+        portrait: clawPortrait(this.palette.body, this.palette.metal),
+        hitStopMs: 60,
+        shake: 2,
+      });
       board.icons.forEach((icon, i) => {
         const at = board.take(i) ?? icon;
         this.fromX[i] = at.x;
         this.fromY[i] = at.y;
       });
+      // A shower of sparks off the prongs as they bite.
+      for (const side of [-1, 1]) {
+        sparkBurst(this.sparks, hub.x + side * 12, hub.y + 18, '#ffffff', 10, {
+          speed: 260,
+          life: 450,
+          size: 6,
+        });
+      }
     }
     // The bunch's middle, and how far the icons have been drawn into it.
     const prizeX = hub.x;
@@ -183,35 +228,38 @@ class Grab implements Removal {
       const at = pos(i);
       this.slipped[i] = 1;
       board.drop(i, at.x, at.y);
+      sparkBurst(this.sparks, at.x, at.y, '#ffffff', 6, { speed: 120, life: 500, size: 5 });
     }
 
-    // The rail and carriage, the cable, the prize, then the claw over it.
-    ctx.save();
-    ctx.globalAlpha = Math.max(0, Math.min(1, t / FADE_MS, (this.done - t) / FADE_MS));
-    ctx.strokeStyle = this.palette.rail;
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(0, this.railY);
-    ctx.lineTo(width, this.railY);
-    ctx.stroke();
-    ctx.restore();
+    // The rail, chased by lights, and the carriage, the cable and a spotlight on the prize.
+    const fade = Math.max(0, Math.min(1, t / FADE_MS, (this.done - t) / FADE_MS));
+    gfx.line(0, this.railY, width, this.railY, 4, this.palette.rail, { alpha: fade });
+    gfx.line(0, this.railY, width, this.railY, 2, this.palette.body, {
+      alpha: 0.9 * fade,
+      blend: 'add',
+      cap: 'butt',
+      dash: [8, 10],
+      dashOffset: t / 8,
+    });
+    for (const x of [0, width]) {
+      gfx.glow(x, this.railY, 14, this.palette.body, { intensity: 0.9 * fade });
+    }
+    this.drawSpotlight(gfx, hub, t);
+    gfx.line(hub.cx, this.railY, hub.x, hub.y - 5, 1.5, '#94A3B8', { cap: 'butt' });
+    gfx.rect(hub.cx - 18, this.railY - 7, 36, 14, this.palette.body, {
+      radius: 5,
+      stroke: { width: 1.5, color: this.palette.rail },
+    });
+    gfx.rect(hub.cx - 14, this.railY - 5, 28, 3, '#ffffff', { radius: 1.5, alpha: 0.3 });
+    gfx.glow(hub.cx, this.railY, 22, this.palette.body, { intensity: 0.35 * fade });
 
-    ctx.save();
-    ctx.strokeStyle = '#94A3B8';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(hub.cx, this.railY);
-    ctx.lineTo(hub.x, hub.y - 5);
-    ctx.stroke();
-    ctx.fillStyle = this.palette.body;
-    ctx.strokeStyle = this.palette.rail;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(hub.cx - 18, this.railY - 7, 36, 14, 5);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    // The prize glows under the bunch.
+    if (this.taken && t < this.raised + EXIT_MS) {
+      const pulse = 0.2 + 0.1 * Math.sin(t / 150);
+      gfx.glow(prizeX, prizeY, this.prizeR * 1.6 + 10, this.palette.body, {
+        intensity: pulse * 2 * gather,
+      });
+    }
 
     if (this.taken) {
       const n = board.icons.length;
@@ -223,7 +271,44 @@ class Grab implements Removal {
     }
     // Open on the way down, closing on the icons, then shut on the prize.
     const open = t < this.lowered ? 1 : 1 - smooth((t - this.lowered) / GRIP_MS) * 0.75;
-    this.drawClaw(ctx, hub.x, hub.y, hub.sway, open);
+    this.drawClaw(gfx, hub.x, hub.y, hub.sway, open, t);
+
+    // The win: confetti off the carriage as the prize is lifted clear.
+    if (!this.won && t >= this.raised) {
+      this.won = true;
+      const colours = [this.palette.body, this.palette.metal, '#ffffff'];
+      confetti(this.discs, hub.cx, this.railY + 10, 20, colours, { speed: 380, life: 1400 });
+      confetti(this.stars, hub.cx, this.railY + 10, 20, colours, { speed: 380, life: 1400 });
+    }
+    for (const e of [this.sparks, this.discs, this.stars]) {
+      e.step(dt);
+      e.draw(gfx);
+    }
+  }
+
+  /** A cone of light from the carriage down to the prize, and a pool of it on the pile. */
+  private drawSpotlight(gfx: Gfx, hub: { cx: number; x: number; y: number }, t: number): void {
+    if (t < this.entered * 0.5 || t > this.raised + EXIT_MS * 0.4) return;
+    const on = Math.min(1, (t - this.entered * 0.5) / 300);
+    const bottom = hub.y + 30 + (this.taken ? this.prizeR * 2 : 0);
+    const half = 26 + (this.taken ? this.prizeR : 0);
+    const near = `rgba(255, 255, 255, ${0.25 * on})`;
+    gfx.quad(
+      [
+        hub.cx - 5,
+        this.railY + 7,
+        hub.cx + 5,
+        this.railY + 7,
+        hub.x + half,
+        bottom,
+        hub.x - half,
+        bottom,
+      ],
+      [near, near, 'rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0)'],
+      { blend: 'add' },
+    );
+    if (t >= this.entered)
+      gfx.glow(hub.x, this.gripY + 34, 40, this.palette.body, { intensity: 0.3 * on });
   }
 
   /**
@@ -264,18 +349,8 @@ class Grab implements Removal {
   }
 
   /** The hub at (x, y), turned by `sway`, with its three prongs `open` from 0 (shut) to 1. */
-  private drawClaw(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    sway: number,
-    open: number,
-  ): void {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(sway);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+  private drawClaw(gfx: Gfx, x: number, y: number, sway: number, open: number, t: number): void {
+    gfx.push(x, y, sway);
     // The middle prong first, behind; then the two at the sides.
     for (const side of [0, -1, 1]) {
       const spread = side === 0 ? 0 : side * (0.18 + 0.6 * open);
@@ -284,25 +359,26 @@ class Grab implements Removal {
       const ey = 4 + Math.cos(spread) * upper;
       const tipX = ex - side * (5 + 4 * (1 - open));
       const tipY = ey + 11;
-      ctx.strokeStyle = side === 0 ? 'rgba(148, 163, 184, 0.9)' : this.palette.metal;
-      ctx.lineWidth = side === 0 ? 2.5 : 3.5;
-      ctx.beginPath();
-      ctx.moveTo(0, 4);
-      ctx.lineTo(ex, ey);
-      ctx.lineTo(tipX, tipY);
-      ctx.stroke();
+      gfx.polyline(
+        [0, 4, ex, ey, tipX, tipY],
+        side === 0 ? 2.5 : 3.5,
+        side === 0 ? 'rgba(148, 163, 184, 0.9)' : this.palette.metal,
+      );
+      if (side !== 0) {
+        // A bright edge down each prong.
+        gfx.polyline([0, 4, ex, ey, tipX, tipY], 1, '#ffffff', { alpha: 0.7 });
+        gfx.glow(tipX, tipY, 5, '#ffffff', { intensity: 0.5 });
+      }
     }
-    ctx.fillStyle = this.palette.body;
-    ctx.strokeStyle = this.palette.rail;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(-12, -6, 24, 11, 4);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#FEF08A';
-    ctx.beginPath();
-    ctx.arc(0, -0.5, 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    gfx.rect(-12, -6, 24, 11, this.palette.body, {
+      radius: 4,
+      stroke: { width: 1.5, color: this.palette.rail },
+    });
+    gfx.circle(0, -0.5, 2, '#FEF08A');
+    // The hub's light pulses while it goes down to the pile.
+    const lowering = t > this.entered && t < this.lowered;
+    const pulse = lowering ? 4 + 3 * (0.5 + 0.5 * Math.sin(t / 80)) : 4;
+    gfx.glow(0, -0.5, pulse * 2.2, '#fde047', { intensity: lowering ? 1.4 : 0.8 });
+    gfx.pop();
   }
 }
