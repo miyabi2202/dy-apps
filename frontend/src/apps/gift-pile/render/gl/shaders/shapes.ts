@@ -4,6 +4,7 @@
 // so the fragment shader can work out the signed distance to the edge and cover the edge by it.
 
 import { NOISE_GLSL } from './noise';
+import { CHOPPER_GLSL } from './chopper';
 import { BEAM_GLSL, SAUCER_GLSL } from './ufo';
 
 /** What shape a vertex belongs to; the same numbers as `KIND` in `shape-batch.ts`. */
@@ -66,7 +67,7 @@ float outline(float d) {
   return v_q.x > 0.0 ? abs(d) - v_q.x * 0.5 : d;
 }
 
-${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}
+${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${CHOPPER_GLSL}
 void main() {
   int k = int(v_kind + 0.5);
   vec4 c = v_color; // straight alpha
@@ -161,6 +162,9 @@ void main() {
     return;
   } else if (k == 16) { // plasma beam: p.x half width at the top, p.y at the foot, p.z length, p.w strength; c the colour
     o = beamColor(v_local, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, u_time) * c.a;
+    return;
+  } else if (k == 25) { // helicopter: p.x px per unit, p.yzw body paint, q.xyz stripe, q.w time in ms; c the glass tint
+    o = chopperColor(v_local, v_p.x, v_p.yzw, v_q.xyz, c.rgb, v_q.w, u_px) * c.a;
     return;
   } else if (k == 9) { // holographic sheen: p.x angle, p.y strength
     vec4 t = texture(u_tex, v_uv);

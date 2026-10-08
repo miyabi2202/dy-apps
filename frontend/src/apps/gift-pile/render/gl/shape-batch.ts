@@ -20,6 +20,8 @@ export const KIND = {
   flat: 14,
   saucer: 15,
   plasmaBeam: 16,
+  // Helicopter
+  chopper: 25,
 } as const;
 
 /** What the shader needs to know about the frame. */

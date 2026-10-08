@@ -1,29 +1,25 @@
 import { type Board, pick, type Removal, type Remover, type ScoopShape } from '../board';
-import { type Recolour, SvgArt } from '../kit/svg-art';
-import { HELICOPTER_SVG } from './art';
+import type { ChopperScheme } from './chopper';
 import { Mission } from './mission';
 
-/**
- * Paint schemes, by the art's own fills: the body and skids (`#FF822D`), the tail boom
- * (`#FFB02E`) and the stripe (`#FCD53F`). The art's orange is the first.
- */
-export const HELICOPTER_SCHEMES: readonly Recolour[] = [
-  {},
+/** Paint schemes: the body, then the stripe along it. Rescue orange is the first. */
+export const HELICOPTER_SCHEMES: readonly ChopperScheme[] = [
+  { body: '#ff7a24', stripe: '#fcd53f' },
   // Police blue and white.
-  { '#FF822D': '#2563EB', '#FFB02E': '#3B82F6', '#FCD53F': '#F8FAFC' },
+  { body: '#2563eb', stripe: '#f8fafc' },
   // Rescue red.
-  { '#FF822D': '#DC2626', '#FFB02E': '#EF4444', '#FCD53F': '#FDE68A' },
+  { body: '#dc2626', stripe: '#fde68a' },
   // Army green.
-  { '#FF822D': '#4D7C0F', '#FFB02E': '#65A30D', '#FCD53F': '#FACC15' },
+  { body: '#4d7c0f', stripe: '#facc15' },
   // News-chopper white with a red stripe.
-  { '#FF822D': '#F1F5F9', '#FFB02E': '#CBD5E1', '#FCD53F': '#EF4444' },
+  { body: '#f1f5f9', stripe: '#ef4444' },
   // Pink.
-  { '#FF822D': '#EC4899', '#FFB02E': '#F472B6', '#FCD53F': '#FDF2F8' },
+  { body: '#ec4899', stripe: '#fdf2f8' },
 ];
 
 interface Options {
   /** The schemes to pick from for each trip; the first until the first pick. */
-  schemes?: readonly Recolour[];
+  schemes?: readonly ChopperScheme[];
 }
 
 /**
@@ -32,16 +28,10 @@ interface Options {
  */
 export class Helicopter implements Remover {
   readonly name = 'helicopter';
-  private readonly art: SvgArt;
-  private readonly schemes: readonly Recolour[];
+  private readonly schemes: readonly ChopperScheme[];
 
   constructor({ schemes = HELICOPTER_SCHEMES }: Options = {}) {
     this.schemes = schemes;
-    this.art = new SvgArt(HELICOPTER_SVG, schemes);
-  }
-
-  load(): Promise<void> {
-    return this.art.load();
   }
 
   /** The pile's outer layer, all across, then the next one down: what he walks over and vacuums. */
@@ -50,6 +40,6 @@ export class Helicopter implements Remover {
   }
 
   begin(board: Board, now: number, rng: () => number): Removal {
-    return new Mission(board, now, rng, this.art, pick(this.schemes, rng));
+    return new Mission(board, now, rng, pick(this.schemes, rng));
   }
 }

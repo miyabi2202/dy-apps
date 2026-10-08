@@ -112,8 +112,7 @@ remembered on the browser (`removersOffStore` in `settings.ts`), so one added la
 
 Removers share what they like from `removal/kit/`: easing curves (`easing.ts`), aiming at a
 clump of the pile and finding where it is (`clump.ts`), stepping in small fixed steps however
-far apart the frames are (`clock.ts`), the top of the pile to walk along (`pile-top.ts`), and
-SVG art in any colouring (`svg-art.ts`). Two of them are crafts (`Craft` in
+far apart the frames are (`clock.ts`), the top of the pile to walk along (`pile-top.ts`). Two of them are crafts (`Craft` in
 `kit/craft.ts`) that run a `Crossing` (`kit/crossing.ts`): the craft crosses from the left to
 the right just above the pile, taking icons in with its `Intake`, which is the craft's to
 choose: so far a `Vacuum` cleaner towed on a rope (`vacuum.ts`) for both. A craft says how long it takes to
@@ -147,9 +146,8 @@ once by `render/bake.ts`). The removal is paused for as long as the banner is up
 and carries on once it is gone, even when freeze-frames are off. A remover asks for it at its best moment, once, and the director
 lets one through every 8 s at most, so asking is always safe. Each remover is dressed with the kit
 at hand: the helicopter has downwash, a searchlight and a vortex at the nozzle (`helicopter/
-effects.ts`), the saucer a metal hull, a holographic dome (the dome alone, drawn from the same SVG
-with every other fill `NONE` in `svg-art.ts`), a beam of scrolling bands and a streak as it
-leaves; the balloon a burner flame, streamers and dust; the car underglow, headlights, ghosts,
+effects.ts`), the saucer a chrome hull, a dome of swirling energy, a beam of scrolling bands and a
+streak as it leaves; the balloon a burner flame, streamers and dust; the car underglow, headlights, ghosts,
 nitro and a landing that shakes the screen; Pac-Man a neon glow, pellets, crumbs and a power
 pellet, and the ghost an ectoplasm trail; the claw a spotlight, a chasing LED rail and
 confetti; the fireworks five burst styles (peony, chrysanthemum, ring, willow, crossette) with a
@@ -158,16 +156,16 @@ disk, icons stretched along their fall and a pop that flashes, rings and shakes.
 are `Emitter`s stepped by `Frames` (`kit/clock.ts`), the time since the last draw, so they stand
 still in a hit-stop as the rest does.
 
-Six removers don't cross. The `helicopter/` (drawn from Microsoft's Fluent Emoji SVG, MIT,
-credited in its `art.ts`, with `kit/svg-art.ts`, mirrored to face right with its rotors drawn
-turning over it: `chopper.ts`) flies in from the left and hovers over the middle of the pile
+Six removers don't cross. The `helicopter/` (drawn wholly in GLSL by `Gfx.chopper`, facing right: glossy
+car-paint fuselage with a stripe, tinted cockpit glass with a pilot, a main rotor blurred into a
+shimmering disc with glowing tips, a turning tail rotor and blinking lights; `chopper.ts`; its
+portrait for the cut-in is in `kit/portraits.ts`) flies in from the left and hovers over the middle of the pile
 (`mission.ts`). A winchman (`winchman.ts`) goes down the rope with a vacuum on his back, its hose
 up to the helicopter, lets go onto the pile, and walks it end to end, lower each time, vacuuming
 the icons by his nozzle and down into the pile below it, until he has all the board's icons:
 the pile's outer layers, so they are along his way. He walks back to the rope and is winched
 up; if some are to be dropped, the helicopter sags under the weight and throws them out of the
-door, then rises back, winches him in and flies off to the right. Its paint schemes are swaps
-of the art's own fills, each turned into an image once when the page loads. Pac-Man (`pac-man/`), always the same size and speed, eats his way
+door, then rises back, winches him in and flies off to the right. Its paint schemes are a body colour and a stripe colour. Pac-Man (`pac-man/`), always the same size and speed, eats his way
 through the pile row by row with a ghost on his heels: in from the left along the top of the
 pile (`kit/pile-top.ts`), he eats whatever is in front of him, and at the end of a row goes down
 one and comes back the other way, until he has eaten all the board's icons (`run.ts`), which are the pile's outer layers, so just
@@ -227,4 +225,5 @@ free licence, which asks for this link.
 ## Credits
 
 The saucer's and beam's shaders use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise)
-(Ian McEwan, Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence.
+(Ian McEwan, Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence. The helicopter's shader
+(`render/gl/shaders/chopper.ts`) uses the same noise.

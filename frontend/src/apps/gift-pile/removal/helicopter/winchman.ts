@@ -43,7 +43,8 @@ export function tankAt(at: Point, facing: 1 | -1): Point {
 
 /** The rope from the winch at `from` straight down to `to`. */
 export function drawRope(gfx: Gfx, from: Point, to: Point): void {
-  gfx.line(from.x, from.y, to.x, to.y, 1.5, ROPE, { cap: 'butt' });
+  gfx.line(from.x, from.y, to.x, to.y, 2, 'rgba(100, 116, 139, 0.9)', { cap: 'butt' });
+  gfx.line(from.x - 0.3, from.y, to.x - 0.3, to.y, 1, ROPE, { cap: 'butt' });
 }
 
 /** A lump going up the hose takes this long to get from his end to the helicopter, and at most this many show at once. */
@@ -78,6 +79,14 @@ export function drawHose(
   const curve = bezierPoints(from.x, from.y, c.x, c.y, to.x, to.y, HOSE_SEGMENTS);
   gfx.polyline(curve, 4, '#334155');
   gfx.polyline(curve, 2.4, HOSE);
+  // Ribs along it, and a sheen on its upper side.
+  gfx.polyline(curve, 2.4, '#1e293b', { dash: [1.1, 3], alpha: 0.55 });
+  gfx.polyline(
+    curve.map((v, k) => (k % 2 === 1 ? v - 0.7 : v)),
+    0.8,
+    '#cbd5e1',
+    { alpha: 0.45 },
+  );
   if (sucking) {
     // Light running up it from his end to the helicopter.
     gfx.polyline(curve, 1.4, HOSE_LIGHT, {

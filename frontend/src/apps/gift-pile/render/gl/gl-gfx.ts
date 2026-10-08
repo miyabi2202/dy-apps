@@ -617,6 +617,21 @@ export class GlGfx implements Gfx {
     this.box(topX, topY + length / 2, 1, 0, halfX, length / 2 + pool, parseColor(o.color), 1);
   }
 
+  // Helicopter
+  chopper(
+    x: number,
+    y: number,
+    unit: number,
+    o: { body: Color; stripe: Color; glass?: Color; time: number; alpha?: number },
+  ): void {
+    const [br, bg, bb] = parseColor(o.body);
+    const [sr, sg, sb] = parseColor(o.stripe);
+    this.batch.use(null, 'normal');
+    this.batch.shape(KIND.chopper, unit * this.scale, br, bg, bb, sr, sg, sb, o.time);
+    // Room for the rotor's tips, the tail's lights and the glow round them.
+    this.box(x, y, 1, 0, unit * 20, unit * 16, parseColor(o.glass ?? '#7dd3fc'), o.alpha ?? 1);
+  }
+
   ribbon(
     points: ArrayLike<number>,
     width: number | ((u: number) => number),
