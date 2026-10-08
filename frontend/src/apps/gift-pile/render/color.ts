@@ -41,21 +41,3 @@ export function parseColor(color: Color): Rgba {
   }
   return rgba;
 }
-
-/** `a` and `b` mixed, `u` of the way to `b`. */
-export function mix(a: Color, b: Color, u: number): Rgba {
-  const x = parseColor(a);
-  const y = parseColor(b);
-  return [
-    x[0] + (y[0] - x[0]) * u,
-    x[1] + (y[1] - x[1]) * u,
-    x[2] + (y[2] - x[2]) * u,
-    x[3] + (y[3] - x[3]) * u,
-  ];
-}
-
-/** `color` with its alpha replaced. */
-export function withAlpha(color: Color, alpha: number): Rgba {
-  const [r, g, b] = parseColor(color);
-  return [r, g, b, alpha];
-}

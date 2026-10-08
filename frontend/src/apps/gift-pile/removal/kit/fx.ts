@@ -1,4 +1,4 @@
-import type { Color, SpriteSource } from '../../render/gfx';
+import type { Color } from '../../render/gfx';
 import type { Emitter } from './particles';
 
 // Small presets over an `Emitter`, for the bursts removals share. They take their random
@@ -32,20 +32,6 @@ export function sparkBurst(
   });
 }
 
-/** One puff of smoke at (x, y), drifting up a little. */
-export function smokePuff(emitter: Emitter, x: number, y: number, size = 14, life = 900): void {
-  const { rng } = emitter;
-  emitter.burst(1, () => ({
-    x: x + (rng() - 0.5) * 6,
-    y,
-    vx: (rng() - 0.5) * 30,
-    vy: -20 - 20 * rng(),
-    life: life * (0.7 + 0.3 * rng()),
-    size: size * (0.7 + 0.6 * rng()),
-    rotation: rng() * TAU,
-  }));
-}
-
 /** `n` pieces of confetti thrown up and out from (x, y), in turn from `colors`, spinning as they fall. */
 export function confetti(
   emitter: Emitter,
@@ -73,23 +59,3 @@ export function confetti(
     };
   });
 }
-
-/**
- * Stripes that tile along v, for scrolling over a beam (`sprite(SCANLINES, { uvOffset: [0,
- * -t / 900], … })`): white bands, soft at the edges, eight to the texture.
- */
-export const SCANLINES: SpriteSource = {
-  key: 'fx/scanlines',
-  width: 16,
-  height: 64,
-  paint(ctx) {
-    for (let k = 0; k < 8; k++) {
-      const g = ctx.createLinearGradient(0, k * 8, 0, k * 8 + 8);
-      g.addColorStop(0, 'rgba(255, 255, 255, 0)');
-      g.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
-      g.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, k * 8, 16, 8);
-    }
-  },
-};

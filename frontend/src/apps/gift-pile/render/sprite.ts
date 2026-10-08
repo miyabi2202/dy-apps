@@ -49,28 +49,3 @@ export function paintGiftIcon(ctx: CanvasRenderingContext2D, size: number): void
   ctx.closePath();
   ctx.fill();
 }
-
-/**
- * The icon as an image `size` CSS px across at `pixelRatio` device px per CSS px, to stamp
- * with `drawImage`: the gift image when there is one, otherwise the drawn stand-in.
- */
-export function createGiftSprite(
-  size: number,
-  pixelRatio: number,
-  image: HTMLImageElement | null,
-): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.ceil(size * pixelRatio));
-  canvas.height = canvas.width;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.scale(pixelRatio, pixelRatio);
-    if (image) {
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(image, 0, 0, size, size);
-    } else {
-      paintGiftIcon(ctx, size);
-    }
-  }
-  return canvas;
-}
