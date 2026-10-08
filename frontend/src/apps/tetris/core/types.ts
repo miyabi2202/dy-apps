@@ -58,9 +58,3 @@ export interface GiftBatchResult {
   /** Curses drawn in this batch, per type. */
   effects: Partial<Record<EffectType, number>>;
 }
-
-export interface GiftBatchInput {
-  sender: string;
-  /** Positive integer, 1..maxBatch. */
-  count: number;
-}

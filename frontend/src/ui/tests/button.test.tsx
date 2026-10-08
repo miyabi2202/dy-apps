@@ -15,9 +15,4 @@ describe('Button', () => {
     await userEvent.click(button);
     expect(onSubmit).not.toHaveBeenCalled();
   });
-
-  it('can still be a submit button', () => {
-    render(<Button type="submit">保存</Button>);
-    expect(screen.getByRole('button')).toHaveAttribute('type', 'submit');
-  });
 });

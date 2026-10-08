@@ -42,7 +42,7 @@ export const CAR_PALETTES: readonly CarPalette[] = [
 ];
 
 interface Options {
-  /** The paints to pick from for each pass; the first until the first pick. */
+  /** The paints to pick from for each crossing; the first until the first pick. */
   palettes?: readonly CarPalette[];
 }
 

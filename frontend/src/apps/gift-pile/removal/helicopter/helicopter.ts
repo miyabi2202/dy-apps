@@ -44,7 +44,7 @@ export const HELICOPTER_SCHEMES: readonly Recolour[] = [
 ];
 
 interface Options {
-  /** The schemes to pick from for each pass; the first until the first pick. */
+  /** The schemes to pick from for each crossing; the first until the first pick. */
   schemes?: readonly Recolour[];
 }
 
@@ -104,7 +104,7 @@ export class Helicopter implements Craft, Remover {
 }
 
 /**
- * The rotors `t` ms into the pass, in the art's view box. The main rotor's two blades,
+ * The rotors `t` ms into the crossing, in the art's view box. The main rotor's two blades,
  * seen edge on, sweep out and back as they turn, over the faint disc they blur into; the
  * tail rotor's turn face on.
  */

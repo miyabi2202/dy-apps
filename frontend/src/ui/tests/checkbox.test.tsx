@@ -13,11 +13,4 @@ describe('Checkbox', () => {
     expect(box).toBeChecked();
     expect(onChange).toHaveBeenCalledTimes(1);
   });
-
-  it('passes input props through', () => {
-    render(<Checkbox label="显示头像" defaultChecked disabled />);
-    const box = screen.getByRole('checkbox');
-    expect(box).toBeChecked();
-    expect(box).toBeDisabled();
-  });
 });

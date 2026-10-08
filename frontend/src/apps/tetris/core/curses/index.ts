@@ -1,4 +1,3 @@
-import { CONFIG } from '../config';
 import { fog } from './fog';
 import { garbage } from './garbage';
 import { haste } from './haste';
@@ -23,8 +22,6 @@ const registry = {
 
 export type EffectType = keyof typeof registry;
 
-export type CurseRegistry = Readonly<Record<EffectType, CurseDef<unknown>>>;
-
 /** The registry; the annotation checks each curse's `type` matches its key. */
 export const CURSES: { readonly [K in EffectType]: CurseDef<unknown, K> } = registry;
 
@@ -33,15 +30,6 @@ export const CURSE_LIST: readonly CurseDef<unknown>[] = Object.values(CURSES);
 
 /** Every curse type in registry order. What a game has in play is `engine.curses`. */
 export const EFFECT_POOL: readonly EffectType[] = CURSE_LIST.map((def) => def.type);
-
-/** What one curse does when it fires. */
-export const EFFECT_INFO: Record<EffectType, { name: string; description: string }> =
-  Object.fromEntries(
-    EFFECT_POOL.map((type) => [
-      type,
-      { name: CURSES[type].name, description: CURSES[type].description(CONFIG) },
-    ]),
-  ) as Record<EffectType, { name: string; description: string }>;
 
 export { defineCurse } from './types';
 export type { Command, CurseContext, CurseDef, CurseOutcome, Rarity } from './types';

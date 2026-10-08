@@ -35,7 +35,7 @@ export const BALLOON_PALETTES: readonly BalloonPalette[] = [
 ];
 
 interface Options {
-  /** The colours to pick from for each pass; the first until the first pick. */
+  /** The colours to pick from for each crossing; the first until the first pick. */
   palettes?: readonly BalloonPalette[];
 }
 

@@ -27,7 +27,7 @@ export interface Openings {
 
 /**
  * How a craft takes icons in, from the point (`tie`) where it fits on to the craft: the
- * `Vacuum` it tows, say, or a `TractorBeam`, or its own `Mouth`.
+ * `Vacuum` it tows, say, or its own `Mouth`.
  */
 export interface Intake {
   /** From the tie point down to where icons go in, at rest: the course keeps this clear of the pile. */
@@ -68,7 +68,7 @@ export interface Craft {
   /** Where the craft is at `px`, `t` ms into the crossing. */
   pathAt(course: Course, px: number, t: number): Pose;
   /**
-   * Anything behind the craft and the vacuum, like the car's bridge, drawn before them;
+   * Anything behind the craft and its intake, like the car's bridge, drawn before them;
    * `remainingMs` is how long the crossing has left, for fading out.
    */
   drawScene?(ctx: CanvasRenderingContext2D, course: Course, t: number, remainingMs: number): void;

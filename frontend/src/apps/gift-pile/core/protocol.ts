@@ -15,14 +15,14 @@ export type ToWorker =
   | { type: 'clear' }
   /** A new world with a play area of this size, in pixels; the pile is emptied with it. */
   | { type: 'resize'; width: number; height: number }
-  /** The user picked up this icon: out of the pile and out of the engine until let go. */
+  /** The user or a removal picked up this icon: out of the pile and the engine until let go. */
   | { type: 'grab'; id: number }
   /**
    * A held icon is let go here (in pixels): it falls from there, moving at `vx`, `vy` (in
    * pixels per second) if given.
    */
   | { type: 'release'; id: number; x: number; y: number; vx?: number; vy?: number }
-  /** The user dropped a held icon in the bin: gone for good. */
+  /** A held icon is gone for good: dropped in the bin, or carried off. */
   | { type: 'destroy'; id: number };
 
 /** The icons one `scoop` set aside: their indices and x, y pairs in pixels, roughly highest first. */

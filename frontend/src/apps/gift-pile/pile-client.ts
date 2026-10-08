@@ -111,7 +111,7 @@ export class PileClient {
     );
   }
 
-  /** Drop held icon `id` in the bin. */
+  /** Held icon `id` is gone for good: dropped in the bin, or carried off. */
   destroy(id: number): void {
     this.send({ type: 'destroy', id });
   }

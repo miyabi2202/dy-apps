@@ -16,10 +16,10 @@ const CONE_LENGTH = 110;
 const CONE_HALF_WIDTH = 42;
 
 /** From where the rope ties on down to the nozzle, when the rope hangs straight. */
-export const TIE_TO_NOZZLE = ROPE + BODY_H / 2 + NOZZLE_DROP;
+const TIE_TO_NOZZLE = ROPE + BODY_H / 2 + NOZZLE_DROP;
 
 /** Where the vacuum's parts are: the canister's centre, the nozzle, and the exhaust extras come out of. */
-export interface VacuumPose {
+interface VacuumPose {
   cx: number;
   cy: number;
   nx: number;
@@ -29,7 +29,7 @@ export interface VacuumPose {
 }
 
 /** The vacuum hanging from (tieX, tieY), `t` ms into the crossing: it swings a little on its rope. */
-export function vacuumAt(tieX: number, tieY: number, t: number): VacuumPose {
+function vacuumAt(tieX: number, tieY: number, t: number): VacuumPose {
   const cx = tieX - TRAIL + Math.sin(t / 310) * 3;
   const cy = tieY + ROPE + BODY_H / 2;
   return {
@@ -43,7 +43,7 @@ export function vacuumAt(tieX: number, tieY: number, t: number): VacuumPose {
 }
 
 /** The cone of air drawn into the nozzle, with streaks racing up it. */
-export function drawSuction(ctx: CanvasRenderingContext2D, pose: VacuumPose, now: number): void {
+function drawSuction(ctx: CanvasRenderingContext2D, pose: VacuumPose, now: number): void {
   const { nx, ny } = pose;
   const bottom = ny + CONE_LENGTH;
   const cone = ctx.createLinearGradient(0, ny, 0, bottom);
@@ -76,7 +76,7 @@ export function drawSuction(ctx: CanvasRenderingContext2D, pose: VacuumPose, now
  * The rope from (tieX, tieY), the canister with a window showing how full it is (0 to 1),
  * the hose and the nozzle.
  */
-export function drawVacuum(
+function drawVacuum(
   ctx: CanvasRenderingContext2D,
   tieX: number,
   tieY: number,

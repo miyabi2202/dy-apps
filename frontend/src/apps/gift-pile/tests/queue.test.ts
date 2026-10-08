@@ -17,7 +17,7 @@ describe('planRemoval', () => {
     expect(planRemoval(0, 40)).toEqual({ carry: 0, drop: 0, instant: 0 });
   });
 
-  it('flies what one craft can carry and removes the rest at once', () => {
+  it('carries off what one removal can and removes the rest at once', () => {
     expect(planRemoval(LOAD_CAPACITY + 400, 5000)).toEqual({
       carry: LOAD_CAPACITY,
       drop: 600,

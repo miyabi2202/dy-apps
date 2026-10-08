@@ -62,8 +62,8 @@ export class Crossing implements Removal {
   private inside = 0;
 
   /**
-   * `craft` sets off at wall time `now`, flying just high enough for its intake to clear
-   * the highest of the board's icons.
+   * `craft` sets off at wall time `now`, at the height where its intake just clears the
+   * highest of the board's icons.
    */
   constructor(
     private readonly craft: Craft,

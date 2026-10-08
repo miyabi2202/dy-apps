@@ -35,7 +35,7 @@ class TestCraft implements Craft, Remover {
 
 const testRemovers = () => [new TestCraft()];
 
-/** Remembers what the flights ask of the engine. */
+/** Remembers what the removals ask of the engine. */
 class FakeSink implements RemovalSink {
   /** What the engine would say is in the pile. */
   inPile = 400;
@@ -99,23 +99,23 @@ const scoopOf = (n: number, drop: number, from = 100): Scoop => ({
 });
 
 describe('RemovalDirector', () => {
-  it('asks for a scoop at once from the pile as it is then, and removes anything over a load on the spot', () => {
+  it('asks for a scoop at once, and plans a queued removal from the pile as it is when its turn comes', () => {
     const sink = new FakeSink();
     sink.inPile = 5000;
-    const flights = new RemovalDirector(sink, { removers: testRemovers() });
-    flights.remove(30, 0);
+    const director = new RemovalDirector(sink, { removers: testRemovers() });
+    director.remove(30, 0);
     expect(sink.scoops).toEqual([{ count: 38, extra: 7 }]);
     expect(sink.removed).toEqual([]);
     // The second removal waits for the first scoop to come back and its craft to go, and
     // is planned from the pile as it is then.
-    flights.remove(LOAD_CAPACITY + 10, 0);
+    director.remove(LOAD_CAPACITY + 10, 0);
     expect(sink.removed).toEqual([]);
     expect(sink.scoops).toHaveLength(1);
-    expect(flights.queued).toBe(1);
-    flights.onScoop(scoopOf(38, 7), world, 0);
+    expect(director.queued).toBe(1);
+    director.onScoop(scoopOf(38, 7), world, 0);
     const ctx = fakeContext();
     sink.inPile = 30;
-    for (let now = 0; now <= 7000; now += 100) flights.draw(ctx, now, hooks);
+    for (let now = 0; now <= 7000; now += 100) director.draw(ctx, now, hooks);
     expect(sink.removed).toEqual([]);
     expect(sink.scoops).toEqual([
       { count: 38, extra: 7 },
@@ -125,12 +125,12 @@ describe('RemovalDirector', () => {
 
   it('destroys a dropped icon that falls into the bin, and forgets one that lands', () => {
     const sink = new FakeSink();
-    const flights = new RemovalDirector(sink, { rng: mulberry32(6), removers: testRemovers() });
+    const director = new RemovalDirector(sink, { rng: mulberry32(6), removers: testRemovers() });
     const ctx = fakeContext();
     let caught = 0;
-    flights.setBin({ x: 200, y: 600, half: 25, onCatch: () => caught++ });
+    director.setBin({ x: 200, y: 600, half: 25, onCatch: () => caught++ });
     const n = 10;
-    flights.onScoop(scoopOf(n, 2), world, 0);
+    director.onScoop(scoopOf(n, 2), world, 0);
     // The first icon dropped falls through the bin; the second lands on the pile.
     const peek = (id: number) => {
       const k = sink.released.findIndex((r) => r.id === id);
@@ -138,7 +138,7 @@ describe('RemovalDirector', () => {
       if (k === 1) return { x: 300, y: 500, resting: true };
       return { ...take(id), resting: true };
     };
-    for (let now = 0; now <= 7000; now += 16) flights.draw(ctx, now, { ...hooks, peek });
+    for (let now = 0; now <= 7000; now += 16) director.draw(ctx, now, { ...hooks, peek });
     expect(sink.released).toHaveLength(2);
     const [inBin, onPile] = sink.released.map((r) => r.id);
     expect(sink.destroyed).toContain(inBin);
@@ -149,65 +149,65 @@ describe('RemovalDirector', () => {
 
   it('adds at once when nothing is up, and after the craft is gone when one is', () => {
     const sink = new FakeSink();
-    const flights = new RemovalDirector(sink, { rng: mulberry32(2), removers: testRemovers() });
+    const director = new RemovalDirector(sink, { rng: mulberry32(2), removers: testRemovers() });
     const ctx = fakeContext();
-    flights.add(50, 0);
+    director.add(50, 0);
     expect(sink.added).toEqual([50]);
-    expect(flights.pendingAdds).toBe(0);
+    expect(director.pendingAdds).toBe(0);
 
-    flights.remove(10, 0);
-    flights.onScoop(scoopOf(11, 1), world, 0);
-    flights.add(20, 100);
-    flights.remove(10, 100);
-    flights.add(30, 100);
+    director.remove(10, 0);
+    director.onScoop(scoopOf(11, 1), world, 0);
+    director.add(20, 100);
+    director.remove(10, 100);
+    director.add(30, 100);
     expect(sink.added).toEqual([50]);
-    expect(flights.pendingAdds).toBe(50);
-    expect(flights.queued).toBe(3);
-    flights.draw(ctx, 3000, hooks);
+    expect(director.pendingAdds).toBe(50);
+    expect(director.queued).toBe(3);
+    director.draw(ctx, 3000, hooks);
     expect(sink.added).toEqual([50]);
     // The craft is gone: the first addition goes at once, then the next craft after the gap,
     // and the last addition only once that one is gone too.
-    flights.draw(ctx, 5600, hooks);
+    director.draw(ctx, 5600, hooks);
     expect(sink.added).toEqual([50, 20]);
-    expect(flights.pendingAdds).toBe(30);
+    expect(director.pendingAdds).toBe(30);
     expect(sink.scoops).toHaveLength(1);
-    flights.draw(ctx, 6700, hooks);
+    director.draw(ctx, 6700, hooks);
     expect(sink.scoops).toHaveLength(2);
     expect(sink.added).toEqual([50, 20]);
-    flights.onScoop(scoopOf(11, 1, 200), world, 6700);
-    flights.draw(ctx, 6700 + 5500, hooks);
+    director.onScoop(scoopOf(11, 1, 200), world, 6700);
+    director.draw(ctx, 6700 + 5500, hooks);
     expect(sink.added).toEqual([50, 20, 30]);
-    expect(flights.queued).toBe(0);
+    expect(director.queued).toBe(0);
   });
 
   it('takes icons as the nozzle reaches them, drops the extras over the pile and destroys the rest once gone', () => {
     const sink = new FakeSink();
-    const flights = new RemovalDirector(sink, { rng: mulberry32(3), removers: testRemovers() });
+    const director = new RemovalDirector(sink, { rng: mulberry32(3), removers: testRemovers() });
     const ctx = fakeContext();
     let stamped = 0;
     const n = 30;
     const drop = 4;
 
-    flights.onScoop(scoopOf(n, drop), world, 1000);
-    expect(flights.busy).toBe(true);
+    director.onScoop(scoopOf(n, drop), world, 1000);
+    expect(director.busy).toBe(true);
     // Nothing leaves the pile when the plane appears; the suction takes them one by one.
-    flights.draw(ctx, 1000, hooks);
+    director.draw(ctx, 1000, hooks);
     expect(sink.grabbed).toHaveLength(0);
-    flights.draw(ctx, 1000 + 800, hooks);
+    director.draw(ctx, 1000 + 800, hooks);
     expect(sink.grabbed.length).toBeGreaterThan(0);
     expect(sink.grabbed.length).toBeLessThan(n);
     const back = new Set(sink.released.map((r) => r.id));
-    for (const id of sink.grabbed) expect(flights.holds(id)).toBe(!back.has(id));
+    for (const id of sink.grabbed) expect(director.holds(id)).toBe(!back.has(id));
 
     let destroyedAt: number | null = null;
     for (let now = 1800; now <= 1000 + 6000; now += 16) {
-      flights.draw(ctx, now, { ...hooks, stamp: () => stamped++ });
+      director.draw(ctx, now, { ...hooks, stamp: () => stamped++ });
       if (destroyedAt === null && sink.destroyed.length > 0) destroyedAt = now;
       // Nothing is destroyed while the plane is still crossing the canvas.
       if (now < 1000 + 4800) expect(sink.destroyed).toHaveLength(0);
     }
 
-    expect(flights.busy).toBe(false);
+    expect(director.busy).toBe(false);
     expect(destroyedAt).not.toBeNull();
     expect(new Set(sink.grabbed).size).toBe(n);
     expect(sink.released).toHaveLength(drop);
@@ -215,7 +215,7 @@ describe('RemovalDirector', () => {
     // Every icon went one way or the other, none both ways, and none is still held.
     const gone = new Set([...sink.released.map((r) => r.id), ...sink.destroyed]);
     expect(gone.size).toBe(n);
-    for (const id of gone) expect(flights.holds(id)).toBe(false);
+    for (const id of gone) expect(director.holds(id)).toBe(false);
     // The drops happened over the pile, inside the canvas and above where the icons were.
     for (const { x, y } of sink.released) {
       expect(x).toBeGreaterThan(0);
@@ -228,47 +228,47 @@ describe('RemovalDirector', () => {
 
   it('sends queued crafts one at a time, with a second between them', () => {
     const sink = new FakeSink();
-    const flights = new RemovalDirector(sink, { rng: mulberry32(4), removers: testRemovers() });
+    const director = new RemovalDirector(sink, { rng: mulberry32(4), removers: testRemovers() });
     const ctx = fakeContext();
-    flights.remove(10, 0);
-    flights.remove(10, 0);
-    flights.remove(10, 0);
+    director.remove(10, 0);
+    director.remove(10, 0);
+    director.remove(10, 0);
     expect(sink.scoops).toHaveLength(1);
-    flights.onScoop(scoopOf(11, 1), world, 0);
+    director.onScoop(scoopOf(11, 1), world, 0);
     // Only one craft while the first is up, even once it has crossed.
-    flights.draw(ctx, 500, hooks);
-    flights.draw(ctx, 5000, hooks);
+    director.draw(ctx, 500, hooks);
+    director.draw(ctx, 5000, hooks);
     expect(sink.scoops).toHaveLength(1);
-    expect(flights.busy).toBe(true);
+    expect(director.busy).toBe(true);
     // Gone at 5500; the next is asked for 1 s later, and sets off when its icons arrive.
-    flights.draw(ctx, 5600, hooks);
-    expect(flights.busy).toBe(false);
+    director.draw(ctx, 5600, hooks);
+    expect(director.busy).toBe(false);
     expect(sink.scoops).toHaveLength(1);
-    flights.draw(ctx, 6500, hooks);
+    director.draw(ctx, 6500, hooks);
     expect(sink.scoops).toHaveLength(1);
-    flights.draw(ctx, 6700, hooks);
+    director.draw(ctx, 6700, hooks);
     expect(sink.scoops).toHaveLength(2);
-    flights.onScoop(scoopOf(11, 1, 200), world, 6700);
-    expect(flights.busy).toBe(true);
-    expect(flights.queued).toBe(1);
+    director.onScoop(scoopOf(11, 1, 200), world, 6700);
+    expect(director.busy).toBe(true);
+    expect(director.queued).toBe(1);
     // The gap counts from the draw that finds the craft gone.
-    flights.draw(ctx, 6700 + 5500, hooks);
-    expect(flights.busy).toBe(false);
-    flights.draw(ctx, 6700 + 5500 + 900, hooks);
+    director.draw(ctx, 6700 + 5500, hooks);
+    expect(director.busy).toBe(false);
+    director.draw(ctx, 6700 + 5500 + 900, hooks);
     expect(sink.scoops).toHaveLength(2);
-    flights.draw(ctx, 6700 + 5500 + 1100, hooks);
+    director.draw(ctx, 6700 + 5500 + 1100, hooks);
     expect(sink.scoops).toHaveLength(3);
     // An empty scoop (the pile ran out) frees the queue too.
-    flights.onScoop(scoopOf(0, 1), world, 16_000);
-    expect(flights.queued).toBe(0);
-    expect(flights.busy).toBe(false);
+    director.onScoop(scoopOf(0, 1), world, 16_000);
+    expect(director.queued).toBe(0);
+    expect(director.busy).toBe(false);
   });
 
   it('never drops more than it carries', () => {
     const sink = new FakeSink();
-    const flights = new RemovalDirector(sink, { removers: allRemovers(), rng: mulberry32(5) });
-    flights.onScoop(scoopOf(2, 5), world, 0);
-    for (let now = 0; now <= 8000; now += 16) flights.draw(fakeContext(), now, hooks);
+    const director = new RemovalDirector(sink, { removers: allRemovers(), rng: mulberry32(5) });
+    director.onScoop(scoopOf(2, 5), world, 0);
+    for (let now = 0; now <= 8000; now += 16) director.draw(fakeContext(), now, hooks);
     expect(sink.released).toHaveLength(2);
     expect(sink.destroyed).toHaveLength(0);
   });
@@ -285,15 +285,15 @@ describe('RemovalDirector', () => {
         return { isOver: () => true, draw: () => {} };
       },
     });
-    const flights = new RemovalDirector(sink, {
+    const director = new RemovalDirector(sink, {
       removers: [remover('aims', 0.3), remover('plain')],
       rng: mulberry32(8),
     });
     for (let k = 0; k < 4; k++) {
-      flights.remove(10, k * 2000);
+      director.remove(10, k * 2000);
       const asked = sink.scoops[k]!;
-      flights.onScoop(scoopOf(12, 2), world, k * 2000);
-      flights.draw(fakeContext(), k * 2000 + 1, hooks);
+      director.onScoop(scoopOf(12, 2), world, k * 2000);
+      director.draw(fakeContext(), k * 2000 + 1, hooks);
       // The one that begins is the one dealt when the scoop was asked for.
       expect(began[k]!.name).toBe(asked.near === 0.3 ? 'aims' : 'plain');
       expect(began[k]!.icons).toBe(12);
@@ -302,18 +302,18 @@ describe('RemovalDirector', () => {
     expect(began.map((b) => b.name).filter((name) => name === 'aims')).toHaveLength(2);
   });
 
-  it('forgets its flights and queue on reset without touching the icons, since the engine already has', () => {
+  it('forgets its removal and queue on reset without touching the icons, since the engine already has', () => {
     const sink = new FakeSink();
-    const flights = new RemovalDirector(sink, { removers: allRemovers(), rng: mulberry32(7) });
-    flights.remove(10, 0);
-    flights.remove(10, 0);
-    flights.onScoop(scoopOf(10, 2), world, 0);
-    flights.draw(fakeContext(), 500, hooks);
+    const director = new RemovalDirector(sink, { removers: allRemovers(), rng: mulberry32(7) });
+    director.remove(10, 0);
+    director.remove(10, 0);
+    director.onScoop(scoopOf(10, 2), world, 0);
+    director.draw(fakeContext(), 500, hooks);
     sink.grabbed.length = 0;
-    flights.reset();
-    expect(flights.busy).toBe(false);
-    expect(flights.queued).toBe(0);
-    flights.draw(fakeContext(), 10_000, hooks);
+    director.reset();
+    expect(director.busy).toBe(false);
+    expect(director.queued).toBe(0);
+    director.draw(fakeContext(), 10_000, hooks);
     expect(sink.grabbed).toHaveLength(0);
     expect(sink.released).toHaveLength(0);
     expect(sink.destroyed).toHaveLength(0);
