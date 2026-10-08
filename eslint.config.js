@@ -27,6 +27,8 @@ const SITE_FILES = ['./*.ts', './*.tsx', './*.css'];
 export default tseslint.config(
   {
     ignores: [
+      // Claude Code's agent worktrees: whole copies of the repo.
+      '.claude',
       '**/dist',
       '**/coverage',
       '**/playwright-report',
