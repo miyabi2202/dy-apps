@@ -33,6 +33,20 @@ function parseSize(raw: unknown): WorldSize | undefined {
   return w !== null && h !== null ? { width: w, height: h } : undefined;
 }
 
+/** A list of names, or undefined if it is anything else. */
+function parseNames(raw: unknown): string[] | undefined {
+  return Array.isArray(raw) && raw.every((name) => typeof name === 'string') ? raw : undefined;
+}
+
+/**
+ * The removers turned off on this browser, by name: kept as the ones off, so a remover added
+ * later starts on.
+ */
+export const removersOffStore = createStore<string[]>('gift-pile.removers-off', {
+  fallback: [],
+  parse: parseNames,
+});
+
 /** The size last chosen on this browser, or the default. */
 export const sizeStore = createStore<WorldSize>('gift-pile.size', {
   fallback: PILE.world,

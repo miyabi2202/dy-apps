@@ -8,6 +8,7 @@ export const testIds = {
   width: 'width',
   height: 'height',
   bin: 'bin',
+  removers: 'removers',
 } as const;
 
 export const labels = {
@@ -25,6 +26,20 @@ export const labels = {
     height: '高度',
     apply: '应用尺寸',
     hint: '单位 px，宽 100–900，高 100–2000。应用新尺寸会清空当前的堆。',
+  },
+  removers: {
+    summary: '清除动画',
+    hint: '每次减少从勾选的动画中轮流随机选一种，至少保留一种。',
+    names: {
+      helicopter: '直升机',
+      ufo: '飞碟',
+      balloon: '热气球',
+      car: '超跑',
+      'pac-man': '吃豆人',
+      claw: '娃娃机',
+      fireworks: '烟花',
+      'black-hole': '黑洞',
+    } as Record<string, string>,
   },
   bin: '垃圾桶',
   stageHint:

@@ -49,7 +49,10 @@ and, when the removal is over, every one it didn't drop is `destroy`ed. Each rem
 own folder under `removal/` and decides for itself how it moves, what it looks like (it loads
 its own images, `load`) and how it carries icons off; they are listed in one place,
 `removal/removers.ts`, which `createPile()` in `create-pile.ts` hands to the director. To add
-one, implement `Remover` in a new folder and list it there.
+one, implement `Remover` in a new folder, list it there, and give it a name to show in
+`messages.ts`. Under the 添加嘉年华 panel, 清除动画 (closed until opened) has a checkbox for each
+remover; the director deals only the ones ticked (`setEnabled`), and the ones unticked are
+remembered on the browser (`removersOffStore` in `settings.ts`), so one added later starts on.
 
 Removers share what they like from `removal/kit/`. Most of them are crafts (`Craft` in
 `kit/craft.ts`) that run a `Crossing` (`kit/crossing.ts`): the craft crosses from the left to

@@ -1,4 +1,4 @@
-import { Panel, text } from '@dy-apps/ui';
+import { Disclosure, Panel, text } from '@dy-apps/ui';
 import { colors, fontSize, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { CONFIG } from '../core/config';
@@ -17,8 +17,7 @@ export function LogPanel({ engine }: { engine: GameEngine }) {
           </li>
         ))}
       </ol>
-      <details {...stylex.props(styles.rules)}>
-        <summary {...stylex.props(styles.summary)}>规则说明</summary>
+      <Disclosure summary="规则说明">
         <ul {...stylex.props(styles.ruleList)}>
           <li>
             观众送出的礼物每 1 钻独立判定是否触发；命中后先抽稀有度（common{' '}
@@ -38,7 +37,7 @@ export function LogPanel({ engine }: { engine: GameEngine }) {
           ))}
           <li>持续型诅咒每次触发都是独立的一份，可同时生效。</li>
         </ul>
-      </details>
+      </Disclosure>
     </Panel>
   );
 }
@@ -73,13 +72,6 @@ const styles = stylex.create({
   },
   miss: { color: colors.muted },
   settle: { borderInlineStartColor: colors.warn },
-  rules: {
-    fontSize: fontSize.sm,
-  },
-  summary: {
-    color: colors.accent,
-    cursor: 'pointer',
-  },
   ruleList: {
     marginBlock: space.sm,
     lineHeight: 1.7,

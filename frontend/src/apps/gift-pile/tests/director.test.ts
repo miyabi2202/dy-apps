@@ -302,6 +302,34 @@ describe('RemovalDirector', () => {
     expect(began.map((b) => b.name).filter((name) => name === 'aims')).toHaveLength(2);
   });
 
+  it('deals only the removers turned on, and from all of them if none are', () => {
+    const sink = new FakeSink();
+    const began: string[] = [];
+    const remover = (name: string): Remover => ({
+      name,
+      begin: () => {
+        began.push(name);
+        return { isOver: () => true, draw: () => {} };
+      },
+    });
+    const director = new RemovalDirector(sink, {
+      removers: ['a', 'b', 'c'].map(remover),
+      rng: mulberry32(9),
+    });
+    const removeOnce = (k: number) => {
+      director.remove(10, k * 2000);
+      director.onScoop(scoopOf(12, 2), world, k * 2000);
+      director.draw(fakeContext(), k * 2000 + 1, hooks);
+    };
+    director.setEnabled(new Set(['a', 'c']));
+    for (let k = 0; k < 6; k++) removeOnce(k);
+    expect(new Set(began)).toEqual(new Set(['a', 'c']));
+    began.length = 0;
+    director.setEnabled(new Set());
+    for (let k = 6; k < 9; k++) removeOnce(k);
+    expect(new Set(began)).toEqual(new Set(['a', 'b', 'c']));
+  });
+
   it('forgets its removal and queue on reset without touching the icons, since the engine already has', () => {
     const sink = new FakeSink();
     const director = new RemovalDirector(sink, { removers: allRemovers(), rng: mulberry32(7) });

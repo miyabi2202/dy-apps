@@ -6,21 +6,33 @@ import { PILE } from './core/config';
 import { createPile } from './create-pile';
 import { startPileLoop } from './loop';
 import { labels } from './messages';
-import { sizeStore, type WorldSize } from './settings';
+import { removersOffStore, sizeStore, type WorldSize } from './settings';
 import { ControlPanel } from './ui/control-panel';
+import { RemoverList } from './ui/remover-list';
 import { SizePanel } from './ui/size-panel';
 import { Stage } from './ui/stage';
 import { useStats } from './use-stats';
 
 /**
- * The 嘉年华堆堆乐 route: the canvas-size panel, then the adding panel (always last), above
+ * The 嘉年华堆堆乐 route: the canvas-size panel, then the adding panel (always last, with the
+ * choice of removers, closed until opened, at its foot), above
  * the stage: the canvas with the bin over it. Each 添加 drops that many icons in from the
  * top; they pile up on the floor and on each other, and can be dragged about or into the
  * bin. The physics runs in a worker that starts when the page mounts and stops when it
  * unmounts (so StrictMode's extra mount in development just restarts it).
  */
 export function GiftPilePage() {
-  const [{ client, renderer, director, loadImages }] = useState(createPile);
+  const [{ client, renderer, removerNames, director, loadImages }] = useState(createPile);
+  // The removers on: all but the ones turned off on this browser.
+  const [enabled, setEnabled] = useState<ReadonlySet<string>>(() => {
+    const off = new Set(removersOffStore.read());
+    return new Set(removerNames.filter((name) => !off.has(name)));
+  });
+  useEffect(() => director.setEnabled(enabled), [director, enabled]);
+  const changeEnabled = (next: ReadonlySet<string>) => {
+    setEnabled(next);
+    removersOffStore.write(removerNames.filter((name) => !next.has(name)));
+  };
   const [size, setSize] = useState<WorldSize>(() => sizeStore.read());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stats = useStats(client, director);
@@ -64,7 +76,9 @@ export function GiftPilePage() {
             onAdd={(count) => director.add(count, performance.now())}
             onRemove={(count) => director.remove(count, performance.now())}
             onClear={() => client.clear()}
-          />
+          >
+            <RemoverList names={removerNames} enabled={enabled} onChange={changeEnabled} />
+          </ControlPanel>
         </Grid>
         <Panel xstyle={styles.stage}>
           <Stage

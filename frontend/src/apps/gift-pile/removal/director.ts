@@ -51,6 +51,8 @@ export class RemovalDirector implements Overlay, Traffic {
   /** The removers still to go in this round (see `nextRemover`), and the one that went last. */
   private bag: Remover[] = [];
   private lastRemover: Remover | null = null;
+  /** The names of the removers it may deal, or null for all of them. */
+  private enabled: ReadonlySet<string> | null = null;
 
   constructor(
     private readonly sink: RemovalSink,
@@ -84,6 +86,15 @@ export class RemovalDirector implements Overlay, Traffic {
   /** Remove `count` icons, at wall time `now`, when their turn comes. */
   remove(count: number, now: number): void {
     this.queue.remove(count, now);
+  }
+
+  /**
+   * Deal only the removers named, from the next removal on; with none of them named it goes
+   * on dealing from all, so a removal always has one.
+   */
+  setEnabled(names: ReadonlySet<string>): void {
+    this.enabled = names;
+    this.bag = [];
   }
 
   /** Where the bin is, for catching dropped icons; null while there is none. */
@@ -149,7 +160,8 @@ export class RemovalDirector implements Overlay, Traffic {
    */
   private nextRemover(): Remover {
     if (this.bag.length === 0) {
-      const bag = [...this.removers];
+      const on = this.removers.filter((r) => this.enabled?.has(r.name) ?? true);
+      const bag = on.length > 0 ? on : [...this.removers];
       for (let i = bag.length - 1; i > 0; i--) {
         const j = Math.floor(this.rng() * (i + 1));
         [bag[i], bag[j]] = [bag[j]!, bag[i]!];

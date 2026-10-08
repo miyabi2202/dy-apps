@@ -9,6 +9,8 @@ import { createGiftSprite, GIFT_ICON_URL, loadImage } from './render/sprite';
 export interface Pile {
   client: PileClient;
   renderer: PileRenderer;
+  /** The removers the director deals from, by name, to turn on and off. */
+  removerNames: string[];
   director: RemovalDirector;
   /**
    * Loads the gift image and the removers' art and hands them over; the gift's drawn
@@ -45,5 +47,5 @@ export function createPile(): Pile {
       wanted = false;
     };
   };
-  return { client, renderer, director, loadImages };
+  return { client, renderer, removerNames: removers.map((r) => r.name), director, loadImages };
 }

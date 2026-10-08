@@ -1,7 +1,7 @@
 import { Button, Field, Input, Panel, Row, text } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { labels, testIds } from '../messages';
 
 export interface PileStats {
@@ -20,6 +20,8 @@ interface Props {
   /** Destroy this many icons, roughly from the top of the pile down. */
   onRemove: (count: number) => void;
   onClear: () => void;
+  /** Anything more to show at the bottom, like the choice of removers. */
+  children?: ReactNode;
 }
 
 /** A positive whole number, or null. */
@@ -27,8 +29,11 @@ function parseCount(value: string): number | null {
   return /^\d+$/.test(value) && Number(value) > 0 ? Number(value) : null;
 }
 
-/** The number to add or remove, the 添加, 减少 and 清空 buttons, and how many icons there are. */
-export function ControlPanel({ stats, maxItems, onAdd, onRemove, onClear }: Props) {
+/**
+ * The number to add or remove, the 添加, 减少 and 清空 buttons, how many icons there are, and
+ * whatever `children` add below.
+ */
+export function ControlPanel({ stats, maxItems, onAdd, onRemove, onClear, children }: Props) {
   const [value, setValue] = useState('100');
   const room = maxItems - stats.total - stats.queued;
   const count = parseCount(value);
@@ -81,6 +86,7 @@ export function ControlPanel({ stats, maxItems, onAdd, onRemove, onClear }: Prop
         <Stat label={labels.stats.falling} value={stats.falling} />
         <Stat label={labels.stats.queued} value={stats.queued} />
       </dl>
+      {children}
     </Panel>
   );
 }
