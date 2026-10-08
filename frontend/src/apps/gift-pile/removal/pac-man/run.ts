@@ -23,7 +23,7 @@ const ROW_STEP = BITE_SIDE * 1.8;
 /** The view is kept moved to have him this far from its top and bottom, at least. */
 const CAMERA_MARGIN = PAC_R * 3;
 /** The cut-in comes this long after he sets off, once he is on the canvas. */
-const CUT_IN_MS = 300;
+const CUT_IN_DELAY_MS = 300;
 /** The ghost chases this far behind him along his path. */
 const GHOST_GAP = 78;
 /** Caught: the ghost closes in over this long, then he shrivels away over this long, and it's over this long after. */
@@ -156,7 +156,7 @@ export class Run implements Removal {
     const { palette } = this;
     const me = this.at();
     // Once he is well into the canvas, the cut-in.
-    if (!this.introduced && t >= CUT_IN_MS) {
+    if (!this.introduced && t >= CUT_IN_DELAY_MS) {
       this.introduced = true;
       this.board.fx.cutIn({
         name: 'pac-man',
