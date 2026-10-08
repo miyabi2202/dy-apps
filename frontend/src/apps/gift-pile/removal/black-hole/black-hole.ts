@@ -10,13 +10,15 @@ import { easeOut } from '../kit/easing';
 
 // Timing in ms, geometry in world pixels.
 /** The hole's radius when fully open, how far above the clump's top its middle is, and how near the view's top it can be at most. */
-const HOLE_R = 20;
+const HOLE_R = 24;
 const ABOVE = 90;
 const MIN_Y = 60;
 /** It opens over this long, and collapses over this long before it pops. */
 const OPEN_MS = 650;
 const COLLAPSE_MS = 420;
 const POP_MS = 450;
+/** How far the pop's ring and flare reach. */
+const POP_R = 230;
 /** Icons start spiralling in over this long, each taking a while to fall all the way in. */
 const STAGGER_MS = 900;
 const FALL_MIN_MS = 900;
@@ -263,20 +265,30 @@ class Swallow implements Removal {
       this.tails.set(i, tail);
     }
     tail.add(p.x, p.y, t);
+    // Near the horizon its light is redshifted and dims to nothing.
+    const sink = smooth((u - 0.45) / 0.55);
     gfx.ribbon(tail.points(), (v) => board.iconRadius * 1.2 * (1 - v), palette.disk, {
-      alphaFrom: 0.5,
+      alphaFrom: 0.5 * (1 - sink),
       alphaTo: 0,
       blend: 'add',
     });
     // Stretched along the way it goes (spaghettification), more as it nears.
     const e = smooth(u);
     const scale = 1 - 0.8 * smooth((u - 0.4) / 0.6);
-    gfx.icon(p.x, p.y, scale, {
+    const shape = {
       rotation: Math.atan2(p.vy, p.vx),
-      scaleX: 1 + 1.5 * e,
-      scaleY: 1 - 0.3 * e,
-    });
-    this.stream.burst(this.rng() < 0.5 ? 1 : 0, () => ({
+      scaleX: 1 + 2.4 * e * e,
+      scaleY: 1 - 0.35 * e,
+    };
+    gfx.icon(p.x, p.y, scale, { ...shape, alpha: 1 - 0.85 * sink * sink });
+    if (sink > 0) {
+      gfx.icon(p.x, p.y, scale, {
+        ...shape,
+        alpha: 0.85 * sink,
+        material: { kind: 'solid', color: '#7f1d1d' },
+      });
+    }
+    this.stream.burst(this.rng() < 0.5 && sink < 0.6 ? 1 : 0, () => ({
       x: p.x,
       y: p.y,
       vx: (this.rng() - 0.5) * 50,
@@ -291,7 +303,7 @@ class Swallow implements Removal {
   private drawHole(gfx: Gfx, open: number, _t: number, dt: number): void {
     const { cx, cy, palette, rng } = this;
     gfx.blackHole(cx, cy, HOLE_R, open, { glow: palette.glow, disk: palette.disk });
-    gfx.lens(cx, cy, HOLE_R * 6, 0.9 * open);
+    gfx.lens(cx, cy, HOLE_R * 7, 0.9 * open);
     gfx.aberration(0.3 * open);
     // Sparks circling in: tangent, with a little inward.
     const ring = 4 * HOLE_R * open;
@@ -316,7 +328,6 @@ class Swallow implements Removal {
     gfx.flash('#ffffff', 0.5 * (1 - u) ** 2);
     gfx.aberration(1 - u);
     gfx.shockwave(cx, cy, 200 * easeOut(u), 36, 16 * (1 - u));
-    gfx.ring(cx, cy, 6 + 46 * smooth(u), 3 * (1 - u), palette.rim, { alpha: 1 - u });
-    gfx.glow(cx, cy, 30, '#ffffff', { intensity: 1.4 * (1 - u), blend: 'add' });
+    gfx.blackHolePop(cx, cy, POP_R, u, palette.rim);
   }
 }

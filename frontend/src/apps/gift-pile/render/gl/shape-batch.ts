@@ -45,6 +45,8 @@ export const KIND = {
   pellet: 42,
   neonLane: 43,
   arcadePop: 44,
+  // Black hole
+  blackHolePop: 50,
 } as const;
 
 /** What the shader needs to know about the frame. */

@@ -128,7 +128,7 @@ its colours for the crossing from its palettes when it begins: the balloon's str
 and outline, and the car's body and trim.
 
 Removers get showy effects from `Gfx` (`render/gfx.ts`): glows, particles, ribbons, speed lines,
-materials on sprites (`holo`, `metal`, `rim`, `solid`), a procedural `blackHole`, `saucer` and `plasmaBeam`, and ones that
+materials on sprites (`holo`, `metal`, `rim`, `solid`), a procedural `blackHole` (and its `blackHolePop`), `saucer` and `plasmaBeam`, and ones that
 act on the whole picture once it is drawn (`shockwave`, `lens`, `haze`, `aberration`, `flash`),
 which the renderer's post pass applies (`render/gl/post-pass.ts`). On `high` quality that pass
 also adds bloom and the pile gets a faint sweeping sheen; `low` drops both and gives every
@@ -156,8 +156,10 @@ brake discs that glow after the landing, a nitro flame with shock diamonds and a
 shakes the screen; Pac-Man a neon lane of pellets along his row, crumbs and a power
 pellet, and the ghost an ectoplasm trail; the claw a spotlight, a chasing LED rail and
 confetti; the fireworks five burst styles (peony, chrysanthemum, ring, willow, crossette) with a
-flash, a ring of air and a split of colour for each, all drawn in GLSL (see below); and the black hole its lensing, a banded
-disk, icons stretched along their fall and a pop that flashes, rings and shakes. Their particles
+flash, a ring of air and a split of colour for each, all drawn in GLSL (see below);
+and the black hole (drawn in GLSL after Gargantua) its Einstein-ring lensing, a turbulent
+accretion disk, icons stretched and redshifted as they fall and a pop that flashes, rings with
+split colour and shakes. Their particles
 are `Emitter`s stepped by `Frames` (`kit/clock.ts`), the time since the last draw, so they stand
 still in a hit-stop as the rest does.
 
@@ -191,8 +193,12 @@ with rays, stars with streaks that go from white-hot to ember and crackle as the
 drips, strobing glitter, and smoke lit by the burst; `Gfx.fireworkRocket`, `fireworkStars`,
 `fireworkFlash` and `fireworkSmoke`, with the stars held in `star-pool.ts`); the icons fly apart with the sparks and are `destroy`ed as
 they burn out, so the count goes down burst by burst, and the duds fall back onto the pile.
-The black hole (`black-hole/`) aims at a spot, opens over the clump with a spinning accretion
-disk, and swallows it, the icons spiralling in and shrinking as they go; the duds it flings
+The black hole (`black-hole/`, drawn wholly in GLSL by `Gfx.blackHole` and `Gfx.blackHolePop`
+from `render/gl/shaders/black-hole.ts`: a pure black horizon with a thin photon ring, a
+domain-warped-noise disk in differential rotation, hot white-blue inside and beamed brighter on
+one side, its far side bent over and under the horizon, and faint jets; its lensing is the
+`lens` post effect; the portrait for the cut-in is in `kit/portraits.ts`) aims at a spot, opens
+over the clump with the accretion disk, and swallows it, the icons spiralling in and shrinking as they go; the duds it flings
 back out on the swing, `drop`ping them moving, and then it collapses with a pop.
 
 As the intake nears each icon the page `grab`s it, so whatever rested on it falls then and
@@ -233,6 +239,6 @@ free licence, which asks for this link.
 ## Credits
 
 The remover shaders in `render/gl/shaders/` (the saucer and beam, the fireworks, the helicopter,
-the balloon, Pac-Man's ghost)
+the balloon, Pac-Man's ghost, the black hole's disk)
 use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise) (Ian McEwan,
 Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence.

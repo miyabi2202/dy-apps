@@ -198,9 +198,11 @@ export interface Gfx {
     o?: { intensity?: number; falloff?: number; inner?: number; blend?: Blend },
   ): void;
   /**
-   * A procedural black hole: horizon, photon ring and a banded, Doppler-lit accretion disk.
-   * `r` is the horizon's radius when fully `open` (0 to 1, which also scales it and its light);
-   * the disk reaches about 3.5 times as far. `glow` tints its outer light, `disk` the disk.
+   * A procedural black hole after Gargantua: a pure black horizon with a thin photon ring, a
+   * turbulent accretion disk seen nearly edge on (white-blue hot inside, `disk` and darker out,
+   * one side beamed brighter), its far side bent over the top and under the bottom of the
+   * horizon, and faint jets. `r` is the horizon's radius when fully `open` (0 to 1, which also
+   * scales it and its light); the disk reaches six times as far. `glow` tints its halo.
    */
   blackHole(
     x: number,
@@ -371,6 +373,13 @@ export interface Gfx {
   haze(x: number, y: number, w: number, h: number, strength: number): void;
   /** Post RGB split, 0 to 1 (the largest asked for wins). */
   aberration(strength: number): void;
+
+  // Black hole
+  /**
+   * The black hole's pop, additive, `radius` px to each side and `u` (0 to 1) of the way through:
+   * a white-hot flash with a flare, a shockwave ring with a fringe of split colour, and rays of `color`.
+   */
+  blackHolePop(x: number, y: number, radius: number, u: number, color: Color): void;
 
   /** Canvas2D painting as a sprite, cached by key unless dynamic; the same as `sprite`, to make the intent plain at the call site. */
   raster(src: SpriteSource, o: SpriteOptions): void;
