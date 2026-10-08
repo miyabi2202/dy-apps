@@ -118,14 +118,14 @@ export class ShapeBatch {
   }
 
   /**
-   * Draw one invisible speck with each of `programs` (and the core one) in both blends, so the
-   * driver builds their pipelines now rather than at the first real draw. Draws nothing visible
-   * (zero alpha), into whatever target is bound.
+   * Draw one invisible speck with each of `programs` (and the core one, unless `core` is
+   * false) in both blends, so the driver builds their pipelines now rather than at the first
+   * real draw. Draws nothing visible (zero alpha), into whatever target is bound.
    */
-  warm(programs: readonly Program[]): void {
+  warm(programs: readonly Program[], core = true): void {
     const clear: Rgba = [0, 0, 0, 0];
     this.flush();
-    for (const program of [null, ...programs]) {
+    for (const program of core ? [null, ...programs] : programs) {
       for (const blend of ['normal', 'add'] as const) {
         this.use(null, blend, program);
         this.shape(KIND.flat);

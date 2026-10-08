@@ -28,7 +28,7 @@ export function settle(job: Pending, since: number): void {
  * Finishes the compiles that were started up front without ever freezing the page. Where the
  * browser can compile in parallel (`KHR_parallel_shader_compile`) every program is already
  * compiling and each `step` takes the ones that have finished, never waiting; otherwise a
- * `step` compiles and links one program, so the cost is spread over frames.
+ * `step` compiles and links `limit` programs, so the cost is spread over frames.
  */
 export class WarmUp {
   private pending: Pending[] = [];
@@ -55,11 +55,14 @@ export class WarmUp {
     return this.pending.length === 0;
   }
 
-  /** Finish what can be finished without waiting (without parallel compile, one program). */
-  step(): void {
+  /**
+   * Finish what can be finished without waiting. Without parallel compile that is `limit`
+   * programs (one by default; `Infinity` for all of them, when the caller has few).
+   */
+  step(limit = 1): void {
     if (this.pending.length === 0) return;
     const rest: Pending[] = [];
-    let budget = this.parallel ? Infinity : 1;
+    let budget = this.parallel ? Infinity : limit;
     for (const job of this.pending) {
       if (budget > 0 && (!this.parallel || job.program.ready())) {
         budget--;

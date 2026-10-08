@@ -11,7 +11,7 @@ import { PostPass, type PostSettings } from './gl/post-pass';
 import { ShaderPrograms } from './gl/shader-programs';
 import { ShapeBatch, type ShapeFrame } from './gl/shape-batch';
 import { SpriteCache } from './gl/sprite-cache';
-import { parallelCompile } from './gl/program';
+import { parallelCompile, type Program } from './gl/program';
 import { WarmUp } from './gl/warm-up';
 import type { Gfx, Quality, ShaderSource, SpriteSource } from './gfx';
 import type { ChangeJournal, PileState } from './pile-state';
@@ -39,10 +39,12 @@ interface Options {
   /** What the effects may cost; `high` by default. */
   quality?: Quality;
   /**
-   * Procedural drawings to compile up front, so the first `Gfx.shade` of each is instant. Any
-   * other `ShaderSource` still works, compiled at its first use.
+   * Procedural drawings to compile ahead of use, grouped (a group per remover), so the first
+   * `Gfx.shade` of each is instant. Nothing here starts until the core programs have linked and
+   * the first frame is drawn; then one group is warmed per frame (see `warmStep`). Any other
+   * `ShaderSource` still works, compiled at its first use.
    */
-  shaders?: readonly ShaderSource[];
+  shaders?: readonly (readonly ShaderSource[])[];
 }
 
 /** What each quality costs: `high` smooths edges more, blooms bright light, and sweeps a sheen over the pile. */
@@ -65,10 +67,14 @@ interface Resources {
   shaders: ShaderPrograms;
   /** The programs every frame needs: nothing is drawn until they are linked. */
   coreWarm: WarmUp;
-  /** The removers' programs, which may finish after the first frame. */
+  /** The programs of removers drawn lazily (a source nobody listed), finished as they can be. */
   shaderWarm: WarmUp;
-  /** Every program has been drawn with once (see `warmDraw`). */
+  /** The core programs have been drawn with once (see `warmDraw`). */
   warmed: boolean;
+  /** The groups of removers' shaders still to warm, next first (see `warmStep`). */
+  groups: Array<readonly ShaderSource[]>;
+  /** The group being warmed: its programs, and the compile still to finish. */
+  group: { warm: WarmUp; programs: Program[] } | null;
   /** When this was built (ms), for the dev timings. */
   builtAt: number;
   /** The first frame has been logged. */
@@ -112,7 +118,7 @@ export class GlRenderer {
   private res: Resources | null = null;
   /** The frame being drawn, between `begin` and `end`. */
   private drawing = false;
-  private readonly precompile: readonly ShaderSource[];
+  private readonly precompile: readonly (readonly ShaderSource[])[];
   /** Work to do ahead of use, one step a frame once the programs are drawn (see `warmUp`). */
   private warmQueue: Array<(res: Resources) => void> = [];
 
@@ -198,8 +204,9 @@ export class GlRenderer {
     res.post.begin(pw, ph);
     gl.enable(gl.BLEND);
     gl.disable(gl.DEPTH_TEST);
-    if (!res.warmed && res.shaderWarm.done) this.warmDraw(res);
-    else if (res.warmed) this.warmQueue.shift()?.(res);
+    // The first frame only draws the pile. Then one step of warm-up a frame, never two: the
+    // core programs' first draw, each remover's programs in turn, then the baked art.
+    if (res.logged && !this.warmStep(res)) this.warmQueue.shift()?.(res);
     this.layer.draw(state, {
       view: { top: view.top, width: world.width, height: world.height },
       shake,
@@ -240,17 +247,51 @@ export class GlRenderer {
   }
 
   /**
-   * Draw one invisible speck with every program in each blend, into the scene target, so the
-   * driver builds the pipelines (ANGLE and Metal finish them lazily, at the first draw) now
-   * rather than when the first removal shows.
+   * One step of warming per frame, once the first frame is drawn: first the core programs'
+   * first draw, then each remover's group in turn. A group is started compiling in one frame;
+   * with parallel compile it is polled in later frames (never waited for), without it it is
+   * linked in that frame. Once linked, its programs are drawn (`warmDraw`) and the next group
+   * waits for a later frame. So no frame compiles or first-draws more than one remover's
+   * programs. Returns whether it used this frame; false when every group is done.
    */
-  private warmDraw(res: Resources): void {
+  private warmStep(res: Resources): boolean {
+    if (!res.warmed) {
+      this.warmDraw(res, [], true);
+      res.warmed = true;
+      return true;
+    }
+    if (!res.group) {
+      for (;;) {
+        const sources = res.groups.shift();
+        if (!sources) return false;
+        const warm = new WarmUp(res.gl);
+        // A source already compiled on use is left out: it has been drawn for real.
+        const programs = res.shaders.precompile(sources, warm);
+        if (programs.length === 0) continue;
+        res.group = { warm, programs };
+        break;
+      }
+    }
+    const { warm, programs } = res.group;
+    warm.step(Infinity);
+    if (warm.done) {
+      res.group = null;
+      this.warmDraw(res, res.shaders.linkedAmong(programs), false);
+    }
+    return true;
+  }
+
+  /**
+   * Draw one invisible speck with each of `programs` in each blend into the scene target (and, if
+   * `core`, the core programs too), so the driver builds the pipelines (ANGLE and Metal finish them
+   * lazily, at the first draw) now rather than when the first removal shows.
+   */
+  private warmDraw(res: Resources, programs: readonly Program[], core: boolean): void {
     const t0 = performance.now();
-    res.warmed = true;
-    res.batch.warm(res.shaders.linked);
-    res.particles.warm(res.sprites.shape('disc'));
+    res.batch.warm(programs, core);
+    if (core) res.particles.warm(res.sprites.shape('disc'));
     devLog(
-      `warm-up draw of ${res.shaders.linked.length + 1} programs took (to issue) ${(performance.now() - t0).toFixed(1)} ms`,
+      `warm-up draw of ${core ? 'the core programs' : `${programs.length} remover programs`} took (to issue) ${(performance.now() - t0).toFixed(1)} ms`,
     );
   }
 
@@ -295,7 +336,6 @@ export class GlRenderer {
       const particles = new ParticleBatch(gl);
       const post = new PostPass(gl, postSettings(this.quality));
       this.layer.attach(gl);
-      shaders.precompile(this.precompile);
       const core = [
         ...batch.corePrograms,
         ...particles.programs,
@@ -330,6 +370,8 @@ export class GlRenderer {
         coreWarm,
         shaderWarm,
         warmed: false,
+        groups: [...this.precompile],
+        group: null,
         builtAt,
         logged: false,
       };
