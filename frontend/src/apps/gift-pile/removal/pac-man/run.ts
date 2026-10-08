@@ -12,12 +12,12 @@ const ENTER = 40;
 const BITE_AHEAD = PAC_R * 0.7;
 const BITE_BEHIND = PAC_R * 0.3;
 const BITE_SIDE = PAC_R * 0.85;
-/** One row is this many icon radii below the last. */
-const ROW_RADII = 1.8;
+/** One row is this far below the last: a little less than his bite is tall, so no icon slips between. */
+const ROW_STEP = BITE_SIDE * 1.8;
 /** He moves in steps of this long, however far apart the frames are. */
 const STEP_MS = 16;
 /** The ghost chases this far behind him along his path. */
-const GHOST_GAP = 52;
+const GHOST_GAP = 78;
 /** Caught: the ghost closes in over this long, then he shrivels away over this long, and it's over this long after. */
 const CATCH_MS = 380;
 const DIE_MS = 900;
@@ -69,9 +69,9 @@ export class Run implements Removal {
     private readonly rng: () => number,
     private readonly palette: PacManPalette,
   ) {
-    const { icons, world, iconRadius } = board;
+    const { icons, world } = board;
     this.t0 = now;
-    this.rowStep = iconRadius * ROW_RADII;
+    this.rowStep = ROW_STEP;
     this.rows = new PileTop(icons, world.width, PAC_R, this.rowStep);
     this.lowest = Math.max(0, ...icons.map((p) => p.y));
     this.leftEnd = PAC_R;

@@ -3,12 +3,15 @@
 import type { Point } from '../board';
 
 /** Pac-Man's radius, always the same, and how wide his mouth opens at most, as a half angle. */
-export const PAC_R = 15;
+export const PAC_R = 22.5;
 const MOUTH_MAX = 0.75;
 /** How many times a second his mouth goes wakka. */
 const CHOMPS_PER_S = 7;
 /** The ghost is this wide either side of its middle. */
-export const GHOST_R = 13;
+export const GHOST_R = 19.5;
+/** The drawings below are laid out for a Pac-Man and a ghost this big, and scaled to the sizes above. */
+const PAC_DRAWN = 15;
+const GHOST_DRAWN = 13;
 
 /** Which way Pac-Man faces, as an angle: right is 0, down is a quarter turn. */
 export type Facing = number;
@@ -40,9 +43,10 @@ export function drawPacMan(
     ctx.fill();
     if (dying === 0) {
       // The eye, above his mouth whichever way he faces: turned round facing left, it is below.
+      const k = PAC_R / PAC_DRAWN;
       ctx.fillStyle = '#0F172A';
       ctx.beginPath();
-      ctx.arc(2, Math.cos(facing) < -0.5 ? PAC_R * 0.5 : -PAC_R * 0.5, 2.2, 0, Math.PI * 2);
+      ctx.arc(2 * k, Math.cos(facing) < -0.5 ? PAC_R * 0.5 : -PAC_R * 0.5, 2.2 * k, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
@@ -77,21 +81,23 @@ export function drawGhost(
   colour: string,
   t: number,
 ): void {
-  const { x, y } = at;
-  const r = GHOST_R;
-  const hem = y + r * 0.95;
+  const r = GHOST_DRAWN;
+  const hem = r * 0.95;
   const scallops = 4;
   const ripple = Math.sin(t / 90) * 2;
-  const look = Math.atan2(target.y - y, target.x - x);
+  const look = Math.atan2(target.y - at.y, target.x - at.x);
   ctx.save();
+  // Drawn about its middle at its drawn size, then scaled up to GHOST_R.
+  ctx.translate(at.x, at.y);
+  ctx.scale(GHOST_R / GHOST_DRAWN, GHOST_R / GHOST_DRAWN);
   ctx.fillStyle = colour;
   ctx.beginPath();
-  ctx.arc(x, y - 2, r, Math.PI, 0);
-  ctx.lineTo(x + r, hem);
+  ctx.arc(0, -2, r, Math.PI, 0);
+  ctx.lineTo(r, hem);
   // The wavy hem, right to left.
   for (let k = 0; k < scallops; k++) {
-    const x0 = x + r - (2 * r * k) / scallops;
-    const x1 = x + r - (2 * r * (k + 1)) / scallops;
+    const x0 = r - (2 * r * k) / scallops;
+    const x1 = r - (2 * r * (k + 1)) / scallops;
     ctx.quadraticCurveTo((x0 + x1) / 2, hem - 5 + (k % 2 === 0 ? ripple : -ripple), x1, hem);
   }
   ctx.closePath();
@@ -99,11 +105,11 @@ export function drawGhost(
   for (const ex of [-5, 5]) {
     ctx.fillStyle = '#F8FAFC';
     ctx.beginPath();
-    ctx.ellipse(x + ex, y - 3, 3.4, 4.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(ex, -3, 3.4, 4.2, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#1D4ED8';
     ctx.beginPath();
-    ctx.arc(x + ex + Math.cos(look) * 1.6, y - 3 + Math.sin(look) * 1.8, 1.9, 0, Math.PI * 2);
+    ctx.arc(ex + Math.cos(look) * 1.6, -3 + Math.sin(look) * 1.8, 1.9, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
