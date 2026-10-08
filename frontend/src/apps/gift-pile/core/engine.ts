@@ -85,8 +85,13 @@ export class PileEngine {
   destroyed = 0;
   /** Asked for but not yet released. */
   queued = 0;
-  /** The top of the resting pile: the highest resting icon's centre, or the floor. */
+  /**
+   * The top of the resting pile: the highest resting icon's centre, or the floor. When the one
+   * that held it leaves the rest, it is worked out again the next time icons are released, so
+   * it follows the pile down after removals as well as up.
+   */
   topY: number;
+  private topStale = false;
   /**
    * Where new icons are released, as a y in pixels, as the page last said (`setDropLine`);
    * null until it has, and again after a clear.
@@ -150,6 +155,7 @@ export class PileEngine {
     this.scale = 1 / settings.pxPerMetre;
     this.dt = 1 / settings.stepHz;
     this.topY = this.height;
+    this.topStale = false;
 
     const n = this.maxItems;
     this.x = new Float32Array(n);
@@ -223,6 +229,7 @@ export class PileEngine {
     this.dropLine = null;
     this.stepCount = 0;
     this.topY = this.height;
+    this.topStale = false;
     this.resting.fill(0);
     this.held.fill(0);
     this.dead.fill(0);
@@ -456,6 +463,7 @@ export class PileEngine {
 
     // Never inside the heap, whatever the page last said (it may have stopped drawing): the
     // heap is what rests plus whatever has been in the world for a while.
+    if (this.topStale) this.refreshTop();
     let top = this.topY;
     const heapBorn = this.stepCount - s.heapAge;
     for (let k = 0; k < this.movingLen; k++) {
@@ -658,6 +666,16 @@ export class PileEngine {
   }
 
   /** Resting icon `i` leaves the pile: its fixed circle goes, and the renderer is told. */
+  /** `topY` afresh from the icons at rest: the highest resting one's centre, or the floor. */
+  private refreshTop(): void {
+    let top = this.height;
+    for (let i = 0; i < this.count; i++) {
+      if (this.resting[i] && !this.dead[i] && !this.held[i] && this.y[i]! < top) top = this.y[i]!;
+    }
+    this.topY = top;
+    this.topStale = false;
+  }
+
   private unfix(i: number): void {
     const collider = this.fixed[i];
     if (collider) {
@@ -666,6 +684,7 @@ export class PileEngine {
     }
     this.fixed[i] = null;
     this.resting[i] = 0;
+    if (this.y[i]! <= this.topY) this.topStale = true;
     this.wokenBuf.push(i);
     this.dirty = true;
   }

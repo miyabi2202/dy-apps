@@ -36,6 +36,22 @@ export class ChangeJournal {
   }
 }
 
+/**
+ * The state's options for a pile with `settings` on a canvas `world` big: the heap's age and
+ * the stream's band and speed follow from how the engine releases icons.
+ */
+export function pileStateOptions(
+  settings: Pick<PileSettings, 'heapAge' | 'stepHz' | 'spawnSpeed' | 'radius'>,
+  world: { width: number; height: number },
+): Options {
+  return {
+    world,
+    heapAgeMs: (settings.heapAge * 1000) / settings.stepHz,
+    releaseBand: settings.spawnSpeed / settings.stepHz + 2 * settings.radius,
+    landedSpeed: settings.spawnSpeed / 2,
+  };
+}
+
 interface Options {
   /** The canvas's size until the first frame says otherwise. */
   world: { width: number; height: number };

@@ -234,6 +234,25 @@ describe('PileEngine', () => {
     near(releasedAt(null), -r);
   });
 
+  it('follows the pile back down after a removal, rather than releasing from where its top was', async () => {
+    const engine = await createEngine();
+    const fall = PILE.spawnSpeed / PILE.stepHz;
+    // A pile grown far above the canvas's top.
+    engine.add(900);
+    settle(engine);
+    const tall = Math.min(...restingIcons(engine).map((i) => engine.y[i]!));
+    expect(tall).toBeLessThan(-200);
+    // Most of it goes, and the page has the line just above the canvas again.
+    engine.remove(800);
+    settle(engine);
+    engine.setDropLine(-r);
+    const first = engine.count;
+    engine.add(1);
+    step(engine, 1);
+    // From just above the canvas, where the line says, not from above where the top used to be.
+    expect(Math.abs(engine.y[first]! - -r)).toBeLessThanOrEqual(2 * fall);
+  });
+
   it('never releases inside the heap, even when the drop line has gone stale as the pile grew past it', async () => {
     const engine = await createEngine();
     // The page said where once and then stopped (a hidden tab): the pile grows past the line.

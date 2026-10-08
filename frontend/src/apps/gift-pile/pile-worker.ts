@@ -1,7 +1,8 @@
 import RAPIER from '@dimforge/rapier2d-compat';
 import { PILE } from './core/config';
 import { PileEngine } from './core/engine';
-import type { Frame, FromWorker, Scoop, ToWorker } from './core/protocol';
+import { frameBuffers, frameOf } from './core/frame';
+import type { FromWorker, Scoop, ToWorker } from './core/protocol';
 
 /** The part of the worker's global scope this file uses (the DOM lib types `self` as a Window). */
 interface WorkerScope {
@@ -94,50 +95,10 @@ async function main() {
   tick();
 }
 
-/** The moving icons' positions and the newly settled, woken and scooped ones, in transferred buffers. */
+/** The frame for the tick that ended at `time`, with its buffers transferred rather than copied. */
 function post(engine: PileEngine, time: number, scooped: Scoop[]) {
-  const movingIds = new Int32Array(engine.movingCount);
-  const movingXy = new Float32Array(engine.movingCount * 2);
-  let m = 0;
-  engine.forEachMoving((i) => {
-    movingIds[m] = i;
-    movingXy[2 * m] = engine.x[i]!;
-    movingXy[2 * m + 1] = engine.y[i]!;
-    m++;
-  });
-  const settled: number[] = [];
-  engine.drainSettled((i) => settled.push(i));
-  const settledIds = Int32Array.from(settled);
-  const settledXy = new Float32Array(settled.length * 2);
-  settled.forEach((i, k) => {
-    settledXy[2 * k] = engine.x[i]!;
-    settledXy[2 * k + 1] = engine.y[i]!;
-  });
-  const woken: number[] = [];
-  engine.drainWoken((i) => woken.push(i));
-  const wokenIds = Int32Array.from(woken);
-  const frame: Frame = {
-    time,
-    width: engine.width,
-    height: engine.height,
-    total: engine.alive,
-    queued: engine.queued,
-    generation: engine.generation,
-    movingIds,
-    movingXy,
-    settledIds,
-    settledXy,
-    wokenIds,
-    scooped,
-  };
-  scope.postMessage({ type: 'frame', frame }, [
-    movingIds.buffer,
-    movingXy.buffer,
-    settledIds.buffer,
-    settledXy.buffer,
-    wokenIds.buffer,
-    ...scooped.flatMap((s) => [s.ids.buffer, s.xy.buffer]),
-  ]);
+  const frame = frameOf(engine, time, scooped);
+  scope.postMessage({ type: 'frame', frame }, frameBuffers(frame));
 }
 
 main().catch((error: unknown) => {
