@@ -151,8 +151,8 @@ effects.ts`), the saucer a metal hull, a holographic dome (the dome alone, drawn
 with every other fill `NONE` in `svg-art.ts`), a beam of scrolling bands and a streak as it
 leaves; the balloon a burner flame, streamers and dust; the car underglow, headlights, ghosts,
 nitro and a landing that shakes the screen; Pac-Man a neon glow, pellets, crumbs and a power
-pellet, and the ghost an ectoplasm trail; the claw a spotlight, a chasing LED rail and
-confetti; the fireworks five burst styles (peony, chrysanthemum, ring, willow, crossette) with a
+pellet, and the ghost an ectoplasm trail; the claw a spotlight with dust motes, a rail of chasing LEDs, an electric arc where its prongs bite, an aura round
+the prize and confetti; the fireworks five burst styles (peony, chrysanthemum, ring, willow, crossette) with a
 flash, a ring of air and a split of colour for each; and the black hole its lensing, a banded
 disk, icons stretched along their fall and a pop that flashes, rings and shakes. Their particles
 are `Emitter`s stepped by `Frames` (`kit/clock.ts`), the time since the last draw, so they stand
@@ -179,7 +179,10 @@ lights, a glass dome of swirling energy; its portrait for the cut-in is in `kit/
 spot, flies in and stops over it, and shines its tractor beam (`ufo/beam.ts`, a rippling plasma
 beam from `Gfx.plasmaBeam`) down on the
 clump: the icons rise up it into its belly, a few falling back out part way, then the beam
-goes off and it zips away. The claw machine (`claw/`) aims at a spot, slides along a rail at
+goes off and it zips away. The claw machine (`claw/`, drawn in GLSL by `render/gl/shaders/claw.ts`: a gantry with RGB LEDs and its
+carriage, a chrome ball chain, a three-pronged claw of brushed chrome under a glossy hub with a glowing core
+and LED ring, a spotlight cone and the prize's aura; its portrait for the cut-in is in `kit/portraits.ts`)
+aims at a spot, slides along a rail at
 the top to it, lowers the claw and draws the clump up into a bunch in its grip (shrunk to fit
 if there are many), lets a few slip out on the way up, and carries the rest off. The fireworks
 (`fireworks/`) send the icons up in a handful of rockets, each gathered from its own stretch of
@@ -226,5 +229,5 @@ free licence, which asks for this link.
 
 ## Credits
 
-The saucer's and beam's shaders use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise)
+The saucer's, beam's and claw machine's shaders use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise)
 (Ian McEwan, Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence.
