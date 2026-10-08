@@ -103,15 +103,8 @@ void main() {
   vec4 c = v_color; // straight alpha
   float a = 1.0;
 
-  if (k == 0) { // textured sprite, tinted; q.x set: scrolled by q.yz, wrapping round
-    vec4 t;
-    if (v_q.x > 0.0) {
-      vec2 uv = fract(v_uv + v_q.yz);
-      t = textureGrad(u_tex, uv, dFdx(v_uv), dFdy(v_uv));
-    } else {
-      t = texture(u_tex, v_uv);
-    }
-    o = t * vec4(c.rgb, 1.0) * c.a;
+  if (k == 0) { // textured sprite, tinted
+    o = texture(u_tex, v_uv) * vec4(c.rgb, 1.0) * c.a;
     return;
   } else if (k == 1) { // circle, ring: p.x radius, p.w feather
     a = cover(outline(length(v_local) - v_p.x), v_p.w);
@@ -229,25 +222,6 @@ void main() {
     return;
   } else if (k == 49) { // claw prize aura: p.x radius, p.y strength, p.z scale; c the colour
     o = clawAuraColor(v_local / v_p.z, v_p.x, v_p.y, c.rgb, u_time) * c.a;
-    return;
-  } else if (k == 9) { // holographic sheen: p.x angle, p.y strength
-    vec4 t = texture(u_tex, v_uv);
-    float band = fract(dot(v_uv, vec2(cos(v_p.x), sin(v_p.x))) * 1.5 - u_time * 0.0004);
-    vec3 rainbow = hue(band) * smoothstep(0.35, 0.5, band) * smoothstep(0.65, 0.5, band);
-    o = (t + vec4(rainbow * t.a * v_p.y, 0.0)) * c.a;
-    return;
-  } else if (k == 10) { // metal: p.y strength
-    vec4 t = texture(u_tex, v_uv);
-    float s = fract(v_uv.x - v_uv.y * 0.5 - u_time * 0.0003);
-    float spec = smoothstep(0.42, 0.5, s) * smoothstep(0.58, 0.5, s);
-    float shade = mix(1.0, 0.75, v_uv.y);
-    o = (vec4(t.rgb * shade, t.a) + vec4(vec3(spec * v_p.y * t.a), 0.0)) * c.a;
-    return;
-  } else if (k == 11) { // rim light: p.xy uv offset, p.z strength; colour is the rim's
-    vec4 t = texture(u_tex, v_uv);
-    float a1 = texture(u_tex, v_uv - v_p.xy).a;
-    float rim = clamp(t.a - a1, 0.0, 1.0) * t.a;
-    o = (t + vec4(c.rgb * rim * v_p.z, 0.0)) * v_q.x;
     return;
   } else if (k == 12) { // solid: the sprite's shape in one colour
     o = vec4(c.rgb, 1.0) * (texture(u_tex, v_uv).a * c.a);

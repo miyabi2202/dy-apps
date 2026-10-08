@@ -171,6 +171,11 @@ export class PileLayer {
     gl.bindVertexArray(null);
   }
 
+  /** The programs it draws with (once attached), for the renderer to wait for. */
+  get programs(): Program[] {
+    return this.program ? [this.program] : [];
+  }
+
   /** Let the GPU objects go with the context. */
   detach(): void {
     this.gl = null;

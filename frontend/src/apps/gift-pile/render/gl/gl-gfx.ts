@@ -7,6 +7,10 @@ import type {
   FireworkData,
   Gfx,
   ParticleData,
+  ShadeBox,
+  ShadeInstances,
+  ShadeOptions,
+  ShaderSource,
   Quality,
   SpriteOptions,
   SpriteSource,
@@ -14,6 +18,7 @@ import type {
 } from '../gfx';
 import type { ParticleBatch } from './particle-batch';
 import type { PostEffects } from './post-effects';
+import type { ShaderPrograms } from './shader-programs';
 import { KIND, type ShapeBatch, type ShapeFrame } from './shape-batch';
 import type { SpriteCache } from './sprite-cache';
 
@@ -32,6 +37,8 @@ interface Options {
   particles: ParticleBatch;
   /** Where the post-pass effects asked for are collected, for the post pass to apply. */
   effects: PostEffects;
+  /** The programs of the `ShaderSource`s drawn with `shade`. */
+  shaders: ShaderPrograms;
 }
 
 /** An icon's options: the sprite's, less the source's own size. */
@@ -53,6 +60,7 @@ export class GlGfx implements Gfx {
   private readonly batch: ShapeBatch;
   private readonly particleBatch: ParticleBatch;
   private readonly effects: PostEffects;
+  private readonly shaders: ShaderPrograms;
   private frame: ShapeFrame = { top: 0, width: 1, height: 1, time: 0, px: 1, shakeX: 0, shakeY: 0 };
   // The current transform: x' = a·x + c·y + e, y' = b·x + d·y + f.
   private a = 1;
@@ -63,7 +71,8 @@ export class GlGfx implements Gfx {
   private f = 0;
   private readonly stack: number[] = [];
 
-  constructor({ radius, sprites, batch, particles, effects }: Options) {
+  constructor({ radius, sprites, batch, particles, effects, shaders }: Options) {
+    this.shaders = shaders;
     this.radius = radius;
     this.sprites = sprites;
     this.batch = batch;
@@ -153,7 +162,8 @@ export class GlGfx implements Gfx {
 
   /**
    * A box centred at (cx, cy), `halfU` × `halfV` to each side, its u axis along (ex, ey), for
-   * the current shape: each corner is told where it is in the shape, in px from its middle.
+   * the current shape: each corner is told where it is in the shape, in px from its middle
+   * (`localScale` px to a unit: the transform's scale unless said, 1 for a shader in caller units).
    */
   private box(
     cx: number,
@@ -164,8 +174,8 @@ export class GlGfx implements Gfx {
     halfV: number,
     color: Rgba,
     alpha: number,
+    localScale = this.scale,
   ): void {
-    const s = this.scale;
     const first = this.batch.vertexCount;
     for (const [su, sv] of CORNERS) {
       const lx = su * halfU;
@@ -177,8 +187,8 @@ export class GlGfx implements Gfx {
         0,
         color,
         alpha,
-        lx * s,
-        ly * s,
+        lx * localScale,
+        ly * localScale,
       );
     }
     this.batch.quad(first);
@@ -196,8 +206,66 @@ export class GlGfx implements Gfx {
     if (texture) this.textured(texture, src.width, src.height, o);
   }
 
-  raster(src: SpriteSource, o: SpriteOptions): void {
-    this.sprite(src, o);
+  // --- shaders ---
+
+  shade(src: ShaderSource, b: ShadeBox, o: ShadeOptions = {}): void {
+    const program = this.shaders.get(src);
+    if (!program) return;
+    const { batch } = this;
+    const px = this.frame.px / this.scale;
+    const turn = b.rotation ?? 0;
+    batch.use(null, o.blend ?? 'normal', program);
+    batch.shape(
+      px,
+      o.p?.[0] ?? 0,
+      o.p?.[1] ?? 0,
+      o.p?.[2] ?? 0,
+      o.p?.[3] ?? 0,
+      o.q?.[0] ?? 0,
+      o.q?.[1] ?? 0,
+      o.q?.[2] ?? 0,
+      o.q?.[3] ?? 0,
+    );
+    const color = o.color === undefined ? WHITE : parseColor(o.color);
+    this.box(b.x, b.y, Math.cos(turn), Math.sin(turn), b.halfW, b.halfH, color, o.alpha ?? 1, 1);
+  }
+
+  shadeMany(src: ShaderSource, data: ShadeInstances): void {
+    const program = this.shaders.get(src);
+    if (!program || data.count <= 0) return;
+    const { batch } = this;
+    const px = this.frame.px / this.scale;
+    const { xy, half, axis, p, q, rgba } = data;
+    batch.use(null, data.blend ?? 'normal', program);
+    const color: [number, number, number, number] = [0, 0, 0, 1];
+    for (let k = 0; k < data.count; k++) {
+      batch.shape(
+        px,
+        p[4 * k],
+        p[4 * k + 1],
+        p[4 * k + 2],
+        p[4 * k + 3],
+        q?.[4 * k] ?? 0,
+        q?.[4 * k + 1] ?? 0,
+        q?.[4 * k + 2] ?? 0,
+        q?.[4 * k + 3] ?? 0,
+      );
+      color[0] = rgba[4 * k]!;
+      color[1] = rgba[4 * k + 1]!;
+      color[2] = rgba[4 * k + 2]!;
+      color[3] = 1;
+      this.box(
+        xy[2 * k]!,
+        xy[2 * k + 1]!,
+        axis ? axis[2 * k]! : 1,
+        axis ? axis[2 * k + 1]! : 0,
+        half[2 * k]!,
+        half[2 * k + 1]!,
+        color,
+        rgba[4 * k + 3]!,
+        1,
+      );
+    }
   }
 
   // Fireworks
@@ -318,19 +386,7 @@ export class GlGfx implements Gfx {
     let color: Rgba = o.tint === undefined ? WHITE : parseColor(o.tint);
     const { material } = o;
     if (!material) {
-      const scroll = o.uvOffset;
-      if (scroll) batch.shape(KIND.sprite, 0, 0, 0, 0, 1, scroll[0], scroll[1]);
-      else batch.shape(KIND.sprite);
-    } else if (material.kind === 'holo') {
-      color = WHITE;
-      batch.shape(KIND.holo, material.angle ?? 0.6, material.strength ?? 0.5);
-    } else if (material.kind === 'metal') {
-      color = WHITE;
-      batch.shape(KIND.metal, 0, material.strength ?? 0.8);
-    } else if (material.kind === 'rim') {
-      const w = material.width ?? 2;
-      color = parseColor(material.color);
-      batch.shape(KIND.rim, w / Math.max(1, sw), w / Math.max(1, sh), 1, 0, alpha);
+      batch.shape(KIND.sprite);
     } else {
       color = parseColor(material.color);
       batch.shape(KIND.solid);

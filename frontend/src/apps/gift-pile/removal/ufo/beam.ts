@@ -1,7 +1,8 @@
-// The saucer's tractor beam: a plasma beam drawn in the shader (`Gfx.plasmaBeam`), with rings
+// The saucer's tractor beam: a plasma beam drawn in a shader (`shader.ts`), with rings
 // of light rising up it. Geometry is in world (CSS) pixels.
 
 import type { Gfx } from '../board';
+import { drawBeamShader } from './shader';
 
 /** The beam's half width where it leaves the saucer. */
 const TOP_HALF = 10;
@@ -30,7 +31,7 @@ export function drawBeam(
   const halfAt = (d: number) => TOP_HALF + ((bottomHalf - TOP_HALF) * d) / length;
   // It flickers a little, as a beam does.
   const alpha = Math.min(1, strength) * (0.94 + 0.06 * Math.sin(t / 37));
-  gfx.plasmaBeam(x, y, TOP_HALF * 2, bottom, bottomHalf * 2, { color, intensity: alpha });
+  drawBeamShader(gfx, x, y, TOP_HALF, bottomHalf, length, alpha, color);
   gfx.glow(x, bottom, bottomHalf * 1.2, color, { intensity: 0.22 * alpha });
   // Rings rising from the bottom, brightening and narrowing as they near the saucer.
   for (let i = 0; i < RINGS; i++) {

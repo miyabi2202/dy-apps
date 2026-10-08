@@ -1,6 +1,15 @@
-import { type Board, type Gfx, pick, type Removal, type Remover, type ScoopShape } from '../board';
-import { ufoPortrait } from '../kit/portraits';
+import {
+  type Board,
+  type Gfx,
+  pick,
+  type Removal,
+  type Remover,
+  type ScoopShape,
+  type SpriteSource,
+} from '../board';
 import { drawBeam } from './beam';
+import { ufoPortrait } from './portrait';
+import { drawSaucerShader, UFO_SHADERS } from './shader';
 import { easeOut, smooth } from '../kit/easing';
 import { clumpOf, clumpSomewhere } from '../kit/clump';
 import { Frames } from '../kit/clock';
@@ -69,10 +78,15 @@ interface Options {
  */
 export class Ufo implements Remover {
   readonly name = 'ufo';
+  /** Compiled when the page opens. */
+  readonly shaders = UFO_SHADERS;
+  /** Its cut-in portraits, painted ahead of time. */
+  readonly sprites: readonly SpriteSource[];
   private readonly schemes: readonly UfoScheme[];
 
   constructor({ schemes = UFO_SCHEMES }: Options = {}) {
     this.schemes = schemes;
+    this.sprites = schemes.map(({ hull, dome, lights }) => ufoPortrait(hull, dome, lights));
   }
 
   /** A clump of the pile somewhere across it. */
@@ -303,7 +317,7 @@ class Abduction implements Removal {
   /** The saucer: a chrome hull with lights chasing round its rim, under a dome of swirling energy. */
   private drawSaucer(gfx: Gfx, saucer: { x: number; y: number; tilt: number }): void {
     const { hull, dome, lights } = this.scheme;
-    gfx.saucer(saucer.x, saucer.y, SIZE, { hull, dome, lights, tilt: saucer.tilt });
+    drawSaucerShader(gfx, saucer.x, saucer.y, SIZE, { hull, dome, lights, tilt: saucer.tilt });
   }
 
   /** Where the saucer's middle is at `t`, and how it is tipped. */

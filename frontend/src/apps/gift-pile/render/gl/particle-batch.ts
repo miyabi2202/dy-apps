@@ -40,6 +40,24 @@ export class ParticleBatch {
     gl.bindVertexArray(null);
   }
 
+  /** The programs it draws with, for the renderer to wait for. */
+  get programs(): Program[] {
+    return [this.program];
+  }
+
+  /** Draw one invisible particle in each blend, so the driver builds its pipelines now. */
+  warm(texture: WebGLTexture): void {
+    const one = {
+      count: 1,
+      xy: new Float32Array(2),
+      size: new Float32Array(1),
+      rgba: new Float32Array(4),
+    };
+    for (const blend of ['normal', 'add'] as const) {
+      this.draw({ ...one, shape: 'disc' }, texture, blend);
+    }
+  }
+
   /** Start a frame. */
   begin(frame: ShapeFrame): void {
     this.frame = frame;

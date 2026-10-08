@@ -1,5 +1,5 @@
 import type { ScoopShape } from '../core/protocol';
-import type { Gfx, SpriteSource } from '../render/gfx';
+import type { Gfx, ShaderSource, SpriteSource } from '../render/gfx';
 
 export type { ScoopShape };
 export type {
@@ -8,6 +8,10 @@ export type {
   Gfx,
   Material,
   ParticleData,
+  ShadeBox,
+  ShadeInstances,
+  ShadeOptions,
+  ShaderSource,
   SpriteOptions,
   SpriteSource,
 } from '../render/gfx';
@@ -135,6 +139,16 @@ export interface Board {
 export interface Remover {
   /** A short name, for tests and debugging. */
   readonly name: string;
+  /**
+   * The GLSL it draws with (`Gfx.shade`), listed so they are compiled when the page opens and
+   * its first removal shows instantly. Optional: one left out compiles at its first use.
+   */
+  readonly shaders?: readonly ShaderSource[];
+  /**
+   * Art it paints with Canvas2D (its cut-in portraits, say) that the page may paint once ahead
+   * of time, so its first removal doesn't pay for it. Optional.
+   */
+  readonly sprites?: readonly SpriteSource[];
   /** Load its images, once, when the page opens; it may run without them until then. */
   load?(): Promise<void>;
   /** Which icons it should be given (see `ScoopShape`); roughly the top of the pile, all across, unless it says. */

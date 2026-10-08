@@ -12,9 +12,6 @@ export const KIND = {
   capsule: 5,
   ellipse: 6,
   glow: 8,
-  holo: 9,
-  metal: 10,
-  rim: 11,
   solid: 12,
   blackHole: 13,
   flat: 14,
@@ -88,6 +85,8 @@ export class ShapeBatch {
   private indexCount = 0;
   private texture: WebGLTexture | null = null;
   private blend: Blend = 'normal';
+  /** A `ShaderSource`'s program in use instead of the core one. */
+  private custom: Program | null = null;
   private frame: ShapeFrame = { top: 0, width: 1, height: 1, time: 0, px: 1, shakeX: 0, shakeY: 0 };
 
   // The shape being built.
@@ -133,15 +132,54 @@ export class ShapeBatch {
     this.indexCount = 0;
     this.texture = null;
     this.blend = 'normal';
+    this.custom = null;
   }
 
-  /** Draw what is asked next with `texture` (white if null) and `blend`. */
-  use(texture: WebGLTexture | null, blend: Blend): void {
+  /**
+   * Draw what is asked next with `texture` (white if null), `blend`, and `program` (the core
+   * shapes program if null: a `ShaderSource`'s otherwise). A change of any flushes.
+   */
+  use(texture: WebGLTexture | null, blend: Blend, program: Program | null = null): void {
     const wanted = texture ?? this.white;
-    if (wanted === this.texture && blend === this.blend) return;
+    if (wanted === this.texture && blend === this.blend && program === this.custom) return;
     this.flush();
     this.texture = wanted;
     this.blend = blend;
+    this.custom = program;
+  }
+
+  /** The programs `warm` draws with: the core one, and these. */
+  get corePrograms(): Program[] {
+    return [this.program];
+  }
+
+  /**
+   * Draw one invisible speck with each of `programs` (and the core one) in both blends, so the
+   * driver builds their pipelines now rather than at the first real draw. Draws nothing visible
+   * (zero alpha), into whatever target is bound.
+   */
+  warm(programs: readonly Program[]): void {
+    const clear: Rgba = [0, 0, 0, 0];
+    this.flush();
+    for (const program of [null, ...programs]) {
+      for (const blend of ['normal', 'add'] as const) {
+        this.use(null, blend, program);
+        this.shape(KIND.flat);
+        const first = this.vertices;
+        for (const [x, y] of [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 1],
+        ] as const) {
+          this.vertex(x, y, 0, 0, clear, 1, x, y);
+        }
+        this.quad(first);
+        this.flush();
+      }
+    }
+    this.texture = null;
+    this.custom = null;
   }
 
   /** Set up the shape the next vertices belong to. */
@@ -217,7 +255,8 @@ export class ShapeBatch {
 
   /** Draw what has been built since the last flush. */
   flush(): void {
-    const { gl, program, frame } = this;
+    const { gl, frame } = this;
+    const program = this.custom ?? this.program;
     if (this.indexCount === 0 || !this.texture) {
       this.vertices = 0;
       this.indexCount = 0;
