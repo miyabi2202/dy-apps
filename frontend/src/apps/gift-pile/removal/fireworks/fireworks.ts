@@ -1,6 +1,14 @@
-import { type Board, type Gfx, pick, type Removal, type Remover } from '../board';
+import {
+  type Board,
+  type Gfx,
+  pick,
+  type Removal,
+  type Remover,
+  type SpriteSource,
+} from '../board';
 import { easeOut } from '../kit/easing';
-import { fireworksPortrait } from '../kit/portraits';
+import { fireworksPortrait } from './portrait';
+import { drawFlash, drawRocket, FIREWORKS_SHADERS } from './shader';
 import { Frames } from '../kit/clock';
 import { DRIP, GLITTER, SMOKE, STAR, StarPool, type StarSpawn } from './star-pool';
 
@@ -85,10 +93,14 @@ interface Options {
  */
 export class Fireworks implements Remover {
   readonly name = 'fireworks';
+  readonly shaders = FIREWORKS_SHADERS;
+  /** Its cut-in portraits, painted ahead of time. */
+  readonly sprites: readonly SpriteSource[];
   private readonly palettes: readonly FireworkPalette[];
 
   constructor({ palettes = FIREWORK_PALETTES }: Options = {}) {
     this.palettes = palettes;
+    this.sprites = [...new Set(palettes.flat())].map(fireworksPortrait);
   }
 
   begin(board: Board, now: number, rng: () => number): Removal {
@@ -254,7 +266,7 @@ class Show implements Removal {
   private flashes(gfx: Gfx, t: number): void {
     for (const b of this.blasts) {
       const age = t - b.at;
-      if (age < FLARE_MS) gfx.fireworkFlash(b.x, b.y, FLARE_R, age / FLARE_MS, b.colour, b.seed);
+      if (age < FLARE_MS) drawFlash(gfx, b.x, b.y, FLARE_R, age / FLARE_MS, b.colour, b.seed);
     }
   }
 
@@ -532,7 +544,8 @@ class Show implements Removal {
     }));
     gfx.glow(at.x, at.y, 20 * rocket.shell, rocket.colour, { intensity: 0.7 });
     this.board.stamp(at.x, at.y, rocket.shell);
-    gfx.fireworkRocket(
+    drawRocket(
+      gfx,
       at.x,
       at.y,
       tail.x,
