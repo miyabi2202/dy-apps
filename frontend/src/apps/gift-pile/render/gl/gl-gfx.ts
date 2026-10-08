@@ -830,6 +830,66 @@ export class GlGfx implements Gfx {
       );
     }
   }
+  // Balloon
+  hotAirBalloon(
+    x: number,
+    y: number,
+    radius: number,
+    o: {
+      stripes: readonly Color[];
+      skirt: Color;
+      outline: Color;
+      pattern?: 'plain' | 'bands' | 'chevrons' | 'stars';
+      heat?: number;
+      burn?: number;
+    },
+  ): void {
+    const s = this.scale;
+    const heat = o.heat ?? 0;
+    const burn = o.burn ?? 0;
+    const stripes = o.stripes.slice(0, 4).map(packColor);
+    const [s0 = 0, s1 = 0, s2 = 0, s3 = 0] = stripes;
+    const pattern = BALLOON_PATTERNS.indexOf(o.pattern ?? 'plain');
+    const meta = Math.max(1, stripes.length) + 8 * pattern;
+    const envelope = radius * 1.4;
+    const white: Rgba = [1, 1, 1, 1];
+    // The ropes and basket first, so the skirt's throat covers their tops.
+    const hang = radius * (14 / 30 + 12 / 30);
+    this.batch.use(null, 'normal');
+    this.batch.shape(KIND.balloonBasket, radius * s, heat);
+    this.box(x, y + envelope + hang / 2, 1, 0, radius * 0.5, hang / 2 + 3, white, 1);
+    this.batch.shape(
+      KIND.balloonEnvelope,
+      radius * s,
+      s0,
+      s1,
+      s2,
+      s3,
+      packColor(o.skirt),
+      meta,
+      heat,
+    );
+    const edge = radius + 4;
+    this.box(x, y, 1, 0, edge, envelope + 4, parseColor(o.outline), 1);
+    // The flame rises from the throat, with the heat over it all.
+    this.batch.use(null, 'add');
+    const height = radius * (0.12 + 0.95 * burn);
+    const half = radius * 0.17;
+    this.batch.shape(KIND.balloonFlame, height * s, half * s, 0.3 + 0.7 * burn);
+    this.box(
+      x,
+      y + envelope - radius * 0.05 - height / 2,
+      1,
+      0,
+      half * 3 + 2,
+      height / 2 + 4,
+      white,
+      1,
+    );
+    this.batch.shape(KIND.balloonHaze, radius * s, heat);
+    const bloom = radius * 1.7;
+    this.box(x, y, 1, 0, bloom, bloom, parseColor('#fdba74'), 1);
+  }
 
   ribbon(
     points: ArrayLike<number>,
@@ -935,6 +995,15 @@ export class GlGfx implements Gfx {
   private worldY(x: number, y: number): number {
     return this.b * x + this.d * y + this.f;
   }
+}
+
+/** The balloon patterns, in the order the shader numbers them. */
+const BALLOON_PATTERNS = ['plain', 'bands', 'chevrons', 'stars'] as const;
+
+/** A colour packed into one float the shader can unpack: `r * 65536 + g * 256 + b`. */
+function packColor(color: Color): number {
+  const [r, g, b] = parseColor(color);
+  return Math.round(r * 255) * 65536 + Math.round(g * 255) * 256 + Math.round(b * 255);
 }
 
 /** A repeatable pseudo-random number in [0, 1) from `n`. */

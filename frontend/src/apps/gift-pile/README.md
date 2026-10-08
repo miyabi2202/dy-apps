@@ -150,7 +150,8 @@ and carries on once it is gone, even when freeze-frames are off. A remover asks 
 lets one through every 8 s at most, so asking is always safe. Each remover is dressed with the kit
 at hand: the helicopter has downwash, a searchlight and a vortex at the nozzle (`helicopter/
 effects.ts`), the saucer a chrome hull, a dome of swirling energy, a beam of scrolling bands and a
-streak as it leaves; the balloon a burner flame, streamers and dust; the car underglow, a volumetric headlight beam, ghosts,
+streak as it leaves; the balloon (drawn in GLSL by `Gfx.hotAirBalloon`) silk gores with a pattern per palette,
+the burner's light glowing through them, a woven basket on ropes, a noise-driven flame, streamers and dust; the car underglow, a volumetric headlight beam, ghosts,
 brake discs that glow after the landing, a nitro flame with shock diamonds and a landing that
 shakes the screen; Pac-Man a neon glow, pellets, crumbs and a power
 pellet, and the ghost an ectoplasm trail; the claw a spotlight, a chasing LED rail and
@@ -231,6 +232,7 @@ free licence, which asks for this link.
 
 ## Credits
 
-The remover shaders in `render/gl/shaders/` (the saucer and beam, the fireworks, the helicopter)
+The remover shaders in `render/gl/shaders/` (the saucer and beam, the fireworks, the helicopter,
+the balloon)
 use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise) (Ian McEwan,
 Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence.

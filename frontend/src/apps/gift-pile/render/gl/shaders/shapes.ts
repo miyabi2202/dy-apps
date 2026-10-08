@@ -3,6 +3,12 @@
 // numbers (`a_p`, `a_q`), and where it is in the shape, in px from its centre (`a_local`),
 // so the fragment shader can work out the signed distance to the edge and cover the edge by it.
 
+import {
+  BALLOON_BASKET_GLSL,
+  BALLOON_ENVELOPE_GLSL,
+  BALLOON_FLAME_GLSL,
+  BALLOON_HAZE_GLSL,
+} from './balloon';
 import { NOISE_GLSL } from './noise';
 import { CHOPPER_GLSL } from './chopper';
 import { BEAM_GLSL, SAUCER_GLSL } from './ufo';
@@ -75,7 +81,7 @@ float outline(float d) {
   return v_q.x > 0.0 ? abs(d) - v_q.x * 0.5 : d;
 }
 
-${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${FIREWORK_SPARK_GLSL}${FIREWORK_GLITTER_GLSL}${FIREWORK_FLASH_GLSL}${FIREWORK_SMOKE_GLSL}${FIREWORK_ROCKET_GLSL}${CHOPPER_GLSL}${HYPERCAR_GLSL}
+${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${FIREWORK_SPARK_GLSL}${FIREWORK_GLITTER_GLSL}${FIREWORK_FLASH_GLSL}${FIREWORK_SMOKE_GLSL}${FIREWORK_ROCKET_GLSL}${CHOPPER_GLSL}${HYPERCAR_GLSL}${BALLOON_ENVELOPE_GLSL}${BALLOON_BASKET_GLSL}${BALLOON_FLAME_GLSL}${BALLOON_HAZE_GLSL}
 void main() {
   int k = int(v_kind + 0.5);
   vec4 c = v_color; // straight alpha
@@ -193,6 +199,16 @@ void main() {
       o = hcBeamColor(v_local, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, u_time);
     } else { // nitro flame: p.x length, p.y half width, p.z strength; c the colour
       o = hcFlameColor(v_local, v_p.x, v_p.y, v_p.z, c.rgb, u_time);
+    }
+  } else if (k >= 30 && k <= 33) { // the hot-air balloon (balloon.ts)
+    if (k == 30) { // envelope: p.x radius, p.yzw and q.x gore colours (packed), q.y skirt, q.z count + 8 * pattern, q.w heat; c the outline
+      o = balloonEnvelopeColor(v_local, v_p.x, v_p.yzw, v_q.x, v_q.y, v_q.z, v_q.w, c.rgb, u_time, u_px);
+    } else if (k == 31) { // ropes and basket: p.x radius, p.y heat
+      o = balloonBasketColor(v_local, v_p.x, v_p.y, u_time, u_px);
+    } else if (k == 32) { // flame: p.x height, p.y half width, p.z burn
+      o = balloonFlameColor(v_local, v_p.x, v_p.y, v_p.z, u_time);
+    } else { // heat: p.x radius, p.y heat; c the warm colour
+      o = balloonHazeColor(v_local, v_p.x, v_p.y, c.rgb, u_time);
     }
     o *= c.a;
     return;

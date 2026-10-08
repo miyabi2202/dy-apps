@@ -34,6 +34,11 @@ export const KIND = {
   hypercarGlow: 22,
   hypercarBeam: 23,
   hypercarFlame: 24,
+  // Balloon
+  balloonEnvelope: 30,
+  balloonBasket: 31,
+  balloonFlame: 32,
+  balloonHaze: 33,
 } as const;
 
 /** What the shader needs to know about the frame. */

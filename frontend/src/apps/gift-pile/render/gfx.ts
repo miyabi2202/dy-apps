@@ -277,6 +277,28 @@ export interface Gfx {
     },
   ): void;
 
+  // Balloon
+  /**
+   * A procedural hot-air balloon, its envelope `radius` px to each side and centred at (x, y):
+   * silk gores in `stripes` (up to four, taken in turn) with a `pattern`, a skirt, a woven
+   * basket on ropes below (the skirt's throat is `1.4 radius` under the middle, the basket's
+   * foot `2.27 radius`), and the burner's flame. `heat` (0 to 1) is how much its light glows
+   * through the silk and blooms round it; `burn` (0 to 1) how tall the flame stands. It
+   * animates with the frame's time.
+   */
+  hotAirBalloon(
+    x: number,
+    y: number,
+    radius: number,
+    o: {
+      stripes: readonly Color[];
+      skirt: Color;
+      outline: Color;
+      pattern?: 'plain' | 'bands' | 'chevrons' | 'stars';
+      heat?: number;
+      burn?: number;
+    },
+  ): void;
   /** Soft textured quads in one instanced draw (see `ParticleData`); `kit/particles.ts` makes the data. */
   particles(data: ParticleData): void;
   ribbon(
