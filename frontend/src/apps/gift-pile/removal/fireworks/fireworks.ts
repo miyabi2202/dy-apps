@@ -6,9 +6,11 @@ import { easeOut } from '../kit/easing';
 const MAX_ROCKETS = 14;
 const LAUNCH_EACH_MS = 260;
 const LAUNCH_MAX_MS = 2600;
-/** A rocket's icons gather at its foot this fast, then it climbs for this long. */
-const GATHER_MS = 280;
-const CLIMB_MS = 950;
+/** A rocket's icons gather at its foot over this long, then it climbs for this long. */
+const GATHER_MS = 840;
+const CLIMB_MS = 550;
+/** Each icon's own flight into the shell, as a share of the gathering: they set off one after another. */
+const FLY = 0.35;
 /** The shell the icons gather into is as big as them all together, up to this many icons across. */
 const SHELL_MAX = 3.2;
 /** The burst: how long it lasts, how far it spreads, and how many sparks it throws. */
@@ -82,6 +84,8 @@ interface Rocket {
   /** Where its icons were taken from. */
   fromX: number[];
   fromY: number[];
+  /** When each icon sets off into the shell, as a share of the gathering: nearest first. */
+  setOff: number[];
 }
 
 /** One show. */
@@ -144,6 +148,7 @@ class Show implements Removal {
         taken: false,
         fromX: [],
         fromY: [],
+        setOff: [],
       };
     });
     this.done = Math.max(...this.rockets.map((r) => r.at)) + GATHER_MS + CLIMB_MS + BURST_MS;
@@ -178,17 +183,42 @@ class Show implements Removal {
       rocket.fromX.push(at.x);
       rocket.fromY.push(at.y);
     }
+    const n = rocket.icons.length;
+    const distance = (k: number) =>
+      Math.hypot(rocket.fromX[k]! - rocket.footX, rocket.fromY[k]! - rocket.footY);
+    const nearest = Array.from({ length: n }, (_, k) => k).sort(
+      (a, b) => distance(a) - distance(b),
+    );
+    rocket.setOff = Array.from({ length: n }, () => 0);
+    nearest.forEach((k, rank) => {
+      rocket.setOff[k] = n > 1 ? (rank / (n - 1)) * (1 - FLY) : 0;
+    });
   }
 
-  /** The icons drawing together at the rocket's foot, into a shell that grows as they come. */
+  /**
+   * The icons flying one after another to the rocket's foot, nearest first, each joining a
+   * shell there that grows with every one that arrives.
+   */
   private drawGather(rocket: Rocket, u: number): void {
-    const e = easeOut(u);
-    rocket.icons.forEach((_, k) => {
-      const x = rocket.fromX[k]! + (rocket.footX - rocket.fromX[k]!) * e;
-      const y = rocket.fromY[k]! + (rocket.footY - rocket.fromY[k]!) * e;
-      this.board.stamp(x, y, 1 - 0.3 * e);
-    });
-    this.board.stamp(rocket.footX, rocket.footY, rocket.shell * e);
+    const n = rocket.icons.length;
+    let arrived = 0;
+    const flying: { x: number; y: number }[] = [];
+    for (let k = 0; k < n; k++) {
+      const p = Math.min(1, Math.max(0, (u - rocket.setOff[k]!) / FLY));
+      if (p >= 1) {
+        arrived++;
+        continue;
+      }
+      const e = easeOut(p);
+      flying.push({
+        x: rocket.fromX[k]! + (rocket.footX - rocket.fromX[k]!) * e,
+        y: rocket.fromY[k]! + (rocket.footY - rocket.fromY[k]!) * e,
+      });
+    }
+    // The shell's area is the share of the icons in it so far.
+    if (arrived > 0)
+      this.board.stamp(rocket.footX, rocket.footY, rocket.shell * Math.sqrt(arrived / n));
+    for (const at of flying) this.board.stamp(at.x, at.y);
   }
 
   /** Where the rocket is `u` of the way up its climb. */
