@@ -72,10 +72,12 @@ its colours for the crossing from its palettes when it begins: the balloon's str
 outline, the car's body and trim, and for the helicopter swaps of the art's own fills, each
 colouring turned into an image once when the page loads.
 
-Five removers don't cross. Pac-Man (`pac-man/`), always the same size and speed, eats his way
+Five removers don't cross. Pac-Man (`pac-man/`), always at the same speed, eats his way
 through the pile row by row with a ghost on his heels: in from the left along the top of the
 pile (`pile-top.ts`), he eats whatever is in front of him, and at the end of a row goes down
-one and comes back the other way, until he has eaten all the board's icons (`run.ts`), which are the pile's outer layers, so just
+one and comes back the other way, growing as he eats (his area takes in a share of each icon's, up to a cap), so each row
+eats more than the last and even a big removal takes only a few rows, until he has eaten all
+the board's icons (`run.ts`), which are the pile's outer layers, so just
 the ones he meets. Then,
 if some are to be dropped back, the ghost, following where he has been (`trail.ts`), catches
 him and he shrivels away as they burst back out of him; if not (the pile had no more than
