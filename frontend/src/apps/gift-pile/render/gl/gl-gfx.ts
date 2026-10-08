@@ -990,6 +990,93 @@ export class GlGfx implements Gfx {
     this.batch.shape(KIND.arcadePop, r * s, o.progress, 0, 0, cr, cg, cb);
     this.box(x, y, 1, 0, r, r, parseColor('#ffffff'), 1);
   }
+  // Claw
+  clawHead(
+    x: number,
+    y: number,
+    o: { body: Color; metal: Color; open: number; arc?: number; glow?: number; alpha?: number },
+  ): void {
+    const [br, bg, bb] = parseColor(o.body);
+    this.batch.use(null, 'normal');
+    this.batch.shape(KIND.clawHead, this.scale, o.open, o.arc ?? 0, o.glow ?? 1, br, bg, bb);
+    // The shader works from the hub's middle, which is CLAW_HEAD_DROP above the box's.
+    this.box(x, y + CLAW_HEAD_DROP, 1, 0, 32, 30, parseColor(o.metal), o.alpha ?? 1);
+  }
+
+  clawRail(
+    x0: number,
+    x1: number,
+    y: number,
+    carriageX: number,
+    o: { body: Color; rail: Color; alpha?: number },
+  ): void {
+    const [rr, rg, rb] = parseColor(o.rail);
+    const half = (x1 - x0) / 2;
+    this.batch.use(null, 'normal');
+    this.batch.shape(KIND.clawRail, half, this.scale, carriageX - (x0 + x1) / 2, 0, rr, rg, rb);
+    this.box((x0 + x1) / 2, y, 1, 0, half, 24, parseColor(o.body), o.alpha ?? 1);
+  }
+
+  clawChain(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    o: { metal: Color; neon: Color; alpha?: number },
+  ): void {
+    const length = Math.hypot(x1 - x0, y1 - y0);
+    if (length < 1) return;
+    const [nr, ng, nb] = parseColor(o.neon);
+    this.batch.use(null, 'normal');
+    this.batch.shape(KIND.clawChain, length, this.scale, 0, 0, nr, ng, nb);
+    const ex = (x1 - x0) / length;
+    const ey = (y1 - y0) / length;
+    this.box(
+      (x0 + x1) / 2,
+      (y0 + y1) / 2,
+      ex,
+      ey,
+      length / 2 + 1,
+      6,
+      parseColor(o.metal),
+      o.alpha ?? 1,
+    );
+  }
+
+  clawSpotlight(
+    x0: number,
+    y0: number,
+    topWidth: number,
+    x1: number,
+    y1: number,
+    bottomWidth: number,
+    o: { color: Color; intensity?: number },
+  ): void {
+    const length = Math.hypot(x1 - x0, y1 - y0);
+    if (length < 1) return;
+    this.batch.use(null, 'add');
+    this.batch.shape(KIND.clawSpot, topWidth / 2, bottomWidth / 2, length, 1, this.scale);
+    const ex = (x1 - x0) / length;
+    const ey = (y1 - y0) / length;
+    const wide = Math.max(topWidth, bottomWidth) / 2;
+    this.box(
+      (x0 + x1) / 2,
+      (y0 + y1) / 2,
+      ex,
+      ey,
+      length / 2 + 10,
+      wide + 6,
+      parseColor(o.color),
+      o.intensity ?? 1,
+    );
+  }
+
+  clawAura(x: number, y: number, radius: number, o: { color: Color; intensity?: number }): void {
+    this.batch.use(null, 'add');
+    this.batch.shape(KIND.clawAura, radius, 1, this.scale);
+    const half = radius * 1.4 + 8;
+    this.box(x, y, 1, 0, half, half, parseColor(o.color), o.intensity ?? 1);
+  }
 
   ribbon(
     points: ArrayLike<number>,
@@ -1120,6 +1207,9 @@ function hash(n: number): number {
   const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
   return x - Math.floor(x);
 }
+
+/** How far below the claw's hub its head's box is centred, in px. */
+const CLAW_HEAD_DROP = 14;
 
 const CORNERS = [
   [-1, -1],

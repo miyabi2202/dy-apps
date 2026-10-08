@@ -9,6 +9,14 @@ import {
   BALLOON_FLAME_GLSL,
   BALLOON_HAZE_GLSL,
 } from './balloon';
+import {
+  CLAW_AURA_GLSL,
+  CLAW_CHAIN_GLSL,
+  CLAW_COMMON_GLSL,
+  CLAW_HEAD_GLSL,
+  CLAW_RAIL_GLSL,
+  CLAW_SPOT_GLSL,
+} from './claw';
 import { NOISE_GLSL } from './noise';
 import { CHOPPER_GLSL } from './chopper';
 import {
@@ -89,7 +97,7 @@ float outline(float d) {
   return v_q.x > 0.0 ? abs(d) - v_q.x * 0.5 : d;
 }
 
-${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${FIREWORK_SPARK_GLSL}${FIREWORK_GLITTER_GLSL}${FIREWORK_FLASH_GLSL}${FIREWORK_SMOKE_GLSL}${FIREWORK_ROCKET_GLSL}${CHOPPER_GLSL}${HYPERCAR_GLSL}${BALLOON_ENVELOPE_GLSL}${BALLOON_BASKET_GLSL}${BALLOON_FLAME_GLSL}${BALLOON_HAZE_GLSL}${PM_PAC_MAN_GLSL}${PM_GHOST_GLSL}${PM_PELLET_GLSL}${PM_LANE_GLSL}${PM_POP_GLSL}${BLACK_HOLE_GLSL}${BLACK_HOLE_POP_GLSL}
+${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${FIREWORK_SPARK_GLSL}${FIREWORK_GLITTER_GLSL}${FIREWORK_FLASH_GLSL}${FIREWORK_SMOKE_GLSL}${FIREWORK_ROCKET_GLSL}${CHOPPER_GLSL}${HYPERCAR_GLSL}${BALLOON_ENVELOPE_GLSL}${BALLOON_BASKET_GLSL}${BALLOON_FLAME_GLSL}${BALLOON_HAZE_GLSL}${PM_PAC_MAN_GLSL}${PM_GHOST_GLSL}${PM_PELLET_GLSL}${PM_LANE_GLSL}${PM_POP_GLSL}${BLACK_HOLE_GLSL}${BLACK_HOLE_POP_GLSL}${CLAW_COMMON_GLSL}${CLAW_HEAD_GLSL}${CLAW_RAIL_GLSL}${CLAW_CHAIN_GLSL}${CLAW_SPOT_GLSL}${CLAW_AURA_GLSL}
 void main() {
   int k = int(v_kind + 0.5);
   vec4 c = v_color; // straight alpha
@@ -204,6 +212,21 @@ void main() {
     return;
   } else if (k == 44) { // pop: p.x radius, p.y progress; q.xyz colour
     o = pmPop(v_local, v_p.x, v_p.y, v_q.xyz) * c.a;
+    return;
+  } else if (k == 45) { // claw head: p.x scale, p.y open, p.z arc, p.w glow; q.xyz body colour; c the metal
+    o = clawHeadColor(v_local / v_p.x + vec2(0.0, 14.0), v_q.xyz, c.rgb, v_p.y, v_p.z, v_p.w, u_time, u_px / v_p.x) * c.a;
+    return;
+  } else if (k == 46) { // claw rail and carriage: p.x half width, p.y scale, p.z carriage x; q.xyz rail colour; c the body
+    o = clawRailColor(v_local / v_p.y, v_p.x, v_p.z, c.rgb, v_q.xyz, u_time, u_px / v_p.y) * c.a;
+    return;
+  } else if (k == 47) { // claw chain: p.x length, p.y scale; q.xyz neon; c the metal
+    o = clawChainColor(v_local / v_p.y, v_p.x, c.rgb, v_q.xyz, u_time, u_px / v_p.y) * c.a;
+    return;
+  } else if (k == 48) { // claw spotlight: p.x half width at the top, p.y at the foot, p.z length, p.w strength; q.x scale; c the colour
+    o = clawSpotColor(v_local / v_q.x, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, u_time) * c.a;
+    return;
+  } else if (k == 49) { // claw prize aura: p.x radius, p.y strength, p.z scale; c the colour
+    o = clawAuraColor(v_local / v_p.z, v_p.x, v_p.y, c.rgb, u_time) * c.a;
     return;
   } else if (k == 9) { // holographic sheen: p.x angle, p.y strength
     vec4 t = texture(u_tex, v_uv);

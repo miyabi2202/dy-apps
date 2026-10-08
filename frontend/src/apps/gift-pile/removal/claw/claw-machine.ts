@@ -28,6 +28,10 @@ const PRIZE_MAX_R = 30;
 /** Where the claw can aim, as fractions of the canvas's width. */
 const AIM_FROM = 0.2;
 const AIM_TO = 0.8;
+/** The confetti pieces are this wide, in px. */
+const CONFETTI_SIZE = 16;
+/** The confetti goes off this far below the rail, so that it is all in view. */
+const CONFETTI_DROP = 40;
 
 /** A claw machine's colours: the carriage and hub, the prongs, and the rail. */
 export interface ClawPalette {
@@ -130,10 +134,10 @@ class Grab implements Removal {
       rng,
     );
     const party = {
-      capacity: 100,
-      gravity: 500,
+      capacity: 160,
+      gravity: 420,
       colorFrom: '#ffffff',
-      alphaOverLife: (u: number) => Math.min(1, 3 * (1 - u)),
+      alphaOverLife: (u: number) => Math.min(1, 2.5 * (1 - u)) * 1.35,
       sizeOverLife: () => 1,
     };
     this.discs = new Emitter({ ...party, shape: 'disc' }, rng);
@@ -230,33 +234,26 @@ class Grab implements Removal {
       sparkBurst(this.sparks, at.x, at.y, '#ffffff', 6, { speed: 120, life: 500, size: 5 });
     }
 
-    // The rail, chased by lights, and the carriage, the cable and a spotlight on the prize.
+    // The gantry with its carriage, a spotlight on the prize and the chain the claw hangs on.
     const fade = Math.max(0, Math.min(1, t / FADE_MS, (this.done - t) / FADE_MS));
-    gfx.line(0, this.railY, width, this.railY, 4, this.palette.rail, { alpha: fade });
-    gfx.line(0, this.railY, width, this.railY, 2, this.palette.body, {
-      alpha: 0.9 * fade,
-      blend: 'add',
-      cap: 'butt',
-      dash: [8, 10],
-      dashOffset: t / 8,
+    gfx.clawRail(0, width, this.railY, hub.cx, {
+      body: this.palette.body,
+      rail: this.palette.rail,
+      alpha: fade,
     });
-    for (const x of [0, width]) {
-      gfx.glow(x, this.railY, 14, this.palette.body, { intensity: 0.9 * fade });
-    }
     this.drawSpotlight(gfx, hub, t);
-    gfx.line(hub.cx, this.railY, hub.x, hub.y - 5, 1.5, '#94A3B8', { cap: 'butt' });
-    gfx.rect(hub.cx - 18, this.railY - 7, 36, 14, this.palette.body, {
-      radius: 5,
-      stroke: { width: 1.5, color: this.palette.rail },
+    gfx.clawChain(hub.cx, this.railY + 6, hub.x, hub.y - 9, {
+      metal: this.palette.metal,
+      neon: this.palette.body,
+      alpha: fade,
     });
-    gfx.rect(hub.cx - 14, this.railY - 5, 28, 3, '#ffffff', { radius: 1.5, alpha: 0.3 });
-    gfx.glow(hub.cx, this.railY, 22, this.palette.body, { intensity: 0.35 * fade });
 
-    // The prize glows under the bunch.
+    // The prize glows in an aura of its own.
     if (this.taken && t < this.raised + EXIT_MS) {
-      const pulse = 0.2 + 0.1 * Math.sin(t / 150);
-      gfx.glow(prizeX, prizeY, this.prizeR * 1.6 + 10, this.palette.body, {
-        intensity: pulse * 2 * gather,
+      const pulse = 0.85 + 0.15 * Math.sin(t / 150);
+      gfx.clawAura(prizeX, prizeY, this.prizeR * 1.15 + 8, {
+        color: this.palette.body,
+        intensity: pulse * gather,
       });
     }
 
@@ -275,9 +272,10 @@ class Grab implements Removal {
     // The win: confetti off the carriage as the prize is lifted clear.
     if (!this.won && t >= this.raised) {
       this.won = true;
-      const colours = [this.palette.body, this.palette.metal, '#ffffff'];
-      confetti(this.discs, hub.cx, this.railY + 10, 20, colours, { speed: 380, life: 1400 });
-      confetti(this.stars, hub.cx, this.railY + 10, 20, colours, { speed: 380, life: 1400 });
+      const colours = [this.palette.body, '#ffffff', this.palette.metal, '#FDE047', '#F9A8D4'];
+      const bang = { speed: 440, life: 2000, size: CONFETTI_SIZE };
+      confetti(this.discs, hub.cx, this.railY + CONFETTI_DROP, 36, colours, bang);
+      confetti(this.stars, hub.cx, this.railY + CONFETTI_DROP, 36, colours, bang);
     }
     for (const e of [this.sparks, this.discs, this.stars]) {
       e.step(dt);
@@ -291,21 +289,10 @@ class Grab implements Removal {
     const on = Math.min(1, (t - this.entered * 0.5) / 300);
     const bottom = hub.y + 30 + (this.taken ? this.prizeR * 2 : 0);
     const half = 26 + (this.taken ? this.prizeR : 0);
-    const near = `rgba(255, 255, 255, ${0.25 * on})`;
-    gfx.quad(
-      [
-        hub.cx - 5,
-        this.railY + 7,
-        hub.cx + 5,
-        this.railY + 7,
-        hub.x + half,
-        bottom,
-        hub.x - half,
-        bottom,
-      ],
-      [near, near, 'rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0)'],
-      { blend: 'add' },
-    );
+    gfx.clawSpotlight(hub.cx, this.railY + 8, 12, hub.x, bottom, half * 2, {
+      color: this.palette.body,
+      intensity: 0.9 * on,
+    });
     if (t >= this.entered)
       gfx.glow(hub.x, this.gripY + 34, 40, this.palette.body, { intensity: 0.3 * on });
   }
@@ -350,34 +337,15 @@ class Grab implements Removal {
   /** The hub at (x, y), turned by `sway`, with its three prongs `open` from 0 (shut) to 1. */
   private drawClaw(gfx: Gfx, x: number, y: number, sway: number, open: number, t: number): void {
     gfx.push(x, y, sway);
-    // The middle prong first, behind; then the two at the sides.
-    for (const side of [0, -1, 1]) {
-      const spread = side === 0 ? 0 : side * (0.18 + 0.6 * open);
-      const upper = side === 0 ? 13 : 16;
-      const ex = Math.sin(spread) * upper;
-      const ey = 4 + Math.cos(spread) * upper;
-      const tipX = ex - side * (5 + 4 * (1 - open));
-      const tipY = ey + 11;
-      gfx.polyline(
-        [0, 4, ex, ey, tipX, tipY],
-        side === 0 ? 2.5 : 3.5,
-        side === 0 ? 'rgba(148, 163, 184, 0.9)' : this.palette.metal,
-      );
-      if (side !== 0) {
-        // A bright edge down each prong.
-        gfx.polyline([0, 4, ex, ey, tipX, tipY], 1, '#ffffff', { alpha: 0.7 });
-        gfx.glow(tipX, tipY, 5, '#ffffff', { intensity: 0.5 });
-      }
-    }
-    gfx.rect(-12, -6, 24, 11, this.palette.body, {
-      radius: 4,
-      stroke: { width: 1.5, color: this.palette.rail },
-    });
-    gfx.circle(0, -0.5, 2, '#FEF08A');
-    // The hub's light pulses while it goes down to the pile.
+    // The hub's light pulses while it goes down to the pile, and arcs crackle as the prongs bite.
     const lowering = t > this.entered && t < this.lowered;
-    const pulse = lowering ? 4 + 3 * (0.5 + 0.5 * Math.sin(t / 80)) : 4;
-    gfx.glow(0, -0.5, pulse * 2.2, '#fde047', { intensity: lowering ? 1.4 : 0.8 });
+    const glow = lowering ? 1.5 + 0.5 * Math.sin(t / 80) : 1;
+    const biting = t - this.lowered;
+    const arc =
+      this.taken && t < this.raised
+        ? Math.max(1 - biting / (GRIP_MS * 2), 0.12 * (0.5 + 0.5 * Math.sin(t / 37)))
+        : 0;
+    gfx.clawHead(0, 0, { body: this.palette.body, metal: this.palette.metal, open, arc, glow });
     gfx.pop();
   }
 }

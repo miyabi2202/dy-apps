@@ -350,6 +350,52 @@ export interface Gfx {
   ): void;
   /** A pop of light, additive: a flash, a ring and twelve rays, `progress` from 0 to 1, up to `r` px out. */
   arcadePop(x: number, y: number, r: number, o: { color: Color; progress: number }): void;
+  // Claw
+  /**
+   * The claw machine's head, hanging from (x, y) (its hub's middle): a glossy hub with a glowing
+   * core and a ring of LEDs, three articulated chrome prongs `open` from 0 (shut) to 1, and an
+   * electric arc over the tips while `arc` (0 to 1) is up. `body` colours the hub and its
+   * light, `metal` tints the chrome; it animates with the frame's time.
+   */
+  clawHead(
+    x: number,
+    y: number,
+    o: { body: Color; metal: Color; open: number; arc?: number; glow?: number; alpha?: number },
+  ): void;
+  /**
+   * The claw machine's gantry along y, from x0 to x1: a steel channel with chasing RGB LEDs, neon
+   * underglow, an end bracket each side, and the glossy carriage at `carriageX`.
+   */
+  clawRail(
+    x0: number,
+    x1: number,
+    y: number,
+    carriageX: number,
+    o: { body: Color; rail: Color; alpha?: number },
+  ): void;
+  /** A chrome chain from (x0, y0) to (x1, y1) that catches the light, `neon` for its glints. */
+  clawChain(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    o: { metal: Color; neon: Color; alpha?: number },
+  ): void;
+  /**
+   * A soft cone of light from `topWidth` wide at (x0, y0) down to `bottomWidth` at (x1, y1),
+   * with haze and drifting dust motes. Additive; `intensity` (default 1) fades it.
+   */
+  clawSpotlight(
+    x0: number,
+    y0: number,
+    topWidth: number,
+    x1: number,
+    y1: number,
+    bottomWidth: number,
+    o: { color: Color; intensity?: number },
+  ): void;
+  /** A glowing aura of living energy and orbiting sparkles round a prize `radius` across. Additive. */
+  clawAura(x: number, y: number, radius: number, o: { color: Color; intensity?: number }): void;
   /** Soft textured quads in one instanced draw (see `ParticleData`); `kit/particles.ts` makes the data. */
   particles(data: ParticleData): void;
   ribbon(

@@ -47,6 +47,12 @@ export const KIND = {
   arcadePop: 44,
   // Black hole
   blackHolePop: 50,
+  // Claw
+  clawHead: 45,
+  clawRail: 46,
+  clawChain: 47,
+  clawSpot: 48,
+  clawAura: 49,
 } as const;
 
 /** What the shader needs to know about the frame. */
