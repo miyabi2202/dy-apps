@@ -739,6 +739,97 @@ export class GlGfx implements Gfx {
     // Room for the rotor's tips, the tail's lights and the glow round them.
     this.box(x, y, 1, 0, unit * 20, unit * 16, parseColor(o.glass ?? '#7dd3fc'), o.alpha ?? 1);
   }
+  // Hypercar
+  hypercar(
+    x: number,
+    y: number,
+    length: number,
+    o: {
+      body: Color;
+      trim: Color;
+      neon: Color;
+      tilt?: number;
+      spin?: number;
+      blur?: number;
+      brake?: number;
+      nitro?: number;
+      lights?: number;
+      alpha?: number;
+      ghost?: boolean;
+    },
+  ): void {
+    const s = this.scale;
+    const k = length / 64;
+    const tilt = o.tilt ?? 0;
+    const ex = Math.cos(tilt);
+    const ey = Math.sin(tilt);
+    const alpha = o.alpha ?? 1;
+    const neon = parseColor(o.neon);
+    const [br, bg, bb] = parseColor(o.body);
+    const [tr, tg, tb] = parseColor(o.trim);
+    /** A point of the car, in its own frame (px of a car 64 long), in the world. */
+    const at = (lx: number, ly: number): [number, number] => [
+      x + (lx * ex - ly * ey) * k,
+      y + (lx * ey + ly * ex) * k,
+    ];
+    if (o.ghost) {
+      this.batch.use(null, 'add');
+      this.batch.shape(KIND.hypercar, (length / 2) * s, br, bg, bb, tr, tg, tb, 1);
+      this.box(x, y, ex, ey, 42 * k, 20 * k, neon, alpha);
+      return;
+    }
+    // The neon on the road, and the nitro's flame, behind the car.
+    this.batch.use(null, 'add');
+    this.batch.shape(KIND.hypercarGlow, (length / 2) * s, 1);
+    this.box(x, y, ex, ey, 46 * k, 22 * k, neon, alpha);
+    const nitro = o.nitro ?? 0;
+    if (nitro > 0) {
+      const flame = 74 * k;
+      const [fx, fy] = at(-33.5, 2.6);
+      this.batch.shape(KIND.hypercarFlame, flame * s, 3.2 * k * s, nitro);
+      this.box(
+        fx - ex * flame * 0.5,
+        fy - ey * flame * 0.5,
+        -ex,
+        -ey,
+        flame * 0.5,
+        8 * k,
+        parseColor('#f97316'),
+        alpha,
+      );
+    }
+    // The wheels, then the body over them.
+    this.batch.use(null, 'normal');
+    const radius = 6.2 * k;
+    this.batch.shape(KIND.hypercarWheel, radius * s, o.spin ?? 0, o.blur ?? 0, o.brake ?? 0);
+    for (const wx of [-21.5, 21.5]) {
+      const [cx, cy] = at(wx, 5.5);
+      this.box(cx, cy, ex, ey, radius * 1.3, radius * 1.3, neon, alpha);
+    }
+    this.batch.shape(KIND.hypercar, (length / 2) * s, br, bg, bb, tr, tg, tb, 0);
+    this.box(x, y, ex, ey, 42 * k, 20 * k, neon, alpha);
+    // The headlights' beam, over it.
+    const lights = o.lights ?? 0;
+    if (lights > 0) {
+      const beam = 110 * k;
+      const aim = tilt + 0.13;
+      const [lx, ly] = at(31, -1.4);
+      const bx = Math.cos(aim);
+      const by = Math.sin(aim);
+      this.batch.use(null, 'add');
+      this.batch.shape(KIND.hypercarBeam, beam * s, 1.2 * k * s, 17 * k * s, lights);
+      this.box(
+        lx + bx * beam * 0.5,
+        ly + by * beam * 0.5,
+        bx,
+        by,
+        beam * 0.5,
+        22 * k,
+        parseColor('#fef9c3'),
+        alpha,
+      );
+    }
+  }
 
   ribbon(
     points: ArrayLike<number>,

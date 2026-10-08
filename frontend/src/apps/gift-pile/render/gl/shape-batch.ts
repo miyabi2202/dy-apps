@@ -28,6 +28,12 @@ export const KIND = {
   fireworkGlitter: 39,
   // Helicopter
   chopper: 25,
+  // Hypercar.
+  hypercar: 20,
+  hypercarWheel: 21,
+  hypercarGlow: 22,
+  hypercarBeam: 23,
+  hypercarFlame: 24,
 } as const;
 
 /** What the shader needs to know about the frame. */

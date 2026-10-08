@@ -6,7 +6,6 @@ import {
   pick,
   type Removal,
   type Remover,
-  type SpriteSource,
   type World,
 } from '../board';
 import { Crossing } from '../kit/crossing';
@@ -17,6 +16,7 @@ import { sparkBurst } from '../kit/fx';
 import { Emitter } from '../kit/particles';
 import { Wake } from '../kit/trail';
 import { easeOut } from '../kit/easing';
+import { carPortrait } from '../kit/portraits';
 
 /** The car's length, and how far its centre sits above the road. */
 const CAR_L = 64;
@@ -32,15 +32,12 @@ const RAMP_RISE_SHARE = 0.5;
 const LANDING_DROP_SHARE = 0.6;
 /** The bridge fades in and out over this long. */
 const FADE_MS = 300;
-/** The painted car is this big, its centre at this point of it: room for the wing behind and the wheels below. */
-const ART_W = CAR_L + 12;
-const ART_H = 32;
-const ORIGIN_X = ART_W / 2;
-const ORIGIN_Y = 18;
-
 /** The shock of the landing lasts this long, and the car's ghosts follow it this far back. */
 const LANDING_MS = 320;
 const GHOST_GAP_MS = 55;
+/** The wheels' radius, and how long the discs glow after the landing. */
+const WHEEL_R = 6.2;
+const BRAKE_MS = 900;
 
 /** A car's paint: the body, the trim (its outline and the rear wing), and the neon of its underglow and the bridge's edges (the body's, if none). */
 export interface CarPalette {
@@ -101,8 +98,8 @@ export class Hypercar implements Craft, Remover {
   readonly intake = new Vacuum();
   private readonly palettes: readonly CarPalette[];
   private palette: CarPalette;
-  /** Each paint's painted car. */
-  private readonly sprites = new Map<CarPalette, SpriteSource>();
+  /** How far the wheels have turned, and how fast they are going, for the spin and the blur of their spokes. */
+  private wheels = new Wheels();
   private fx = new CarFx(() => 0.5);
   /** The course of the crossing under way, from the scene, which is drawn first each frame. */
   private course: Course | null = null;
@@ -116,6 +113,7 @@ export class Hypercar implements Craft, Remover {
   begin(board: Board, now: number, rng: () => number): Removal {
     this.palette = pick(this.palettes, rng);
     this.fx = new CarFx(rng);
+    this.wheels = new Wheels();
     this.course = null;
     return new Crossing(this, board, now, rng);
   }
@@ -157,7 +155,16 @@ export class Hypercar implements Craft, Remover {
   }
 
   cutInRequest(): CutInRequest {
-    return { name: this.name, color: '#ef4444', portrait: this.sprite(), shake: 5 };
+    return {
+      name: this.name,
+      color: '#ef4444',
+      portrait: carPortrait(
+        this.palette.body,
+        this.palette.neon ?? this.palette.body,
+        this.palette.trim,
+      ),
+      shake: 5,
+    };
   }
 
   /** The two bridge halves, each a deck with a rail and a torn end at the gap. */
@@ -203,83 +210,49 @@ export class Hypercar implements Craft, Remover {
   draw(gfx: Gfx, x: number, y: number, tilt: number, t: number, fx: Fx): void {
     const { course, palette } = this;
     const neon = palette.neon ?? palette.body;
-    const place = {
-      x,
-      y,
-      rotation: tilt,
-      anchorX: ORIGIN_X / ART_W,
-      anchorY: ORIGIN_Y / ART_H,
-    };
-    this.fx.draw(gfx, { x, y, tilt, t, neon, course, fx, sprite: this.sprite() });
-    gfx.sprite(this.sprite(), { ...place, material: { kind: 'metal', strength: 1 } });
+    const look = { body: palette.body, trim: palette.trim, neon, tilt };
+    const { spin, blur } = this.wheels.at(x, y, t);
+    this.fx.draw(gfx, { x, y, tilt, t, neon, course, fx, look });
+    gfx.hypercar(x, y, CAR_L, {
+      ...look,
+      spin,
+      blur,
+      brake: this.fx.brake(t),
+      nitro: this.fx.nitro,
+      lights: 1,
+    });
     this.fx.drawLights(gfx, x, y, tilt);
-  }
-
-  /** The painted car in this crossing's paint, made once for each. */
-  private sprite(): SpriteSource {
-    let source = this.sprites.get(this.palette);
-    if (!source) {
-      const { palette } = this;
-      source = {
-        key: `car/${palette.body}/${palette.trim}`,
-        width: ART_W,
-        height: ART_H,
-        paint: (ctx) => paintCar(ctx, palette),
-      };
-      this.sprites.set(palette, source);
-    }
-    return source;
   }
 }
 
-/** The car painted with its centre at (`ORIGIN_X`, `ORIGIN_Y`), facing right. */
-function paintCar(ctx: CanvasRenderingContext2D, { body, trim }: CarPalette): void {
-  const l = CAR_L;
-  ctx.translate(ORIGIN_X, ORIGIN_Y);
-  // Body.
-  ctx.fillStyle = body;
-  ctx.strokeStyle = trim;
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(-l / 2, 6);
-  ctx.lineTo(-l / 2 + 2, -4);
-  ctx.lineTo(-l / 4, -5);
-  ctx.lineTo(-l / 8, -14);
-  ctx.lineTo(l / 6, -14);
-  ctx.lineTo(l / 3, -6);
-  ctx.lineTo(l / 2 - 2, -2);
-  ctx.lineTo(l / 2, 6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // Rear wing.
-  ctx.fillStyle = trim;
-  ctx.fillRect(-l / 2 - 4, -11, 12, 2.5);
-  ctx.fillRect(-l / 2 + 2, -9, 2, 5);
-  // Windows.
-  ctx.fillStyle = '#0f172a';
-  ctx.beginPath();
-  ctx.moveTo(-l / 4 + 3, -5);
-  ctx.lineTo(-l / 8 + 2, -12);
-  ctx.lineTo(l / 6 - 2, -12);
-  ctx.lineTo(l / 3 - 4, -6);
-  ctx.closePath();
-  ctx.fill();
-  // Lights.
-  ctx.fillStyle = '#fef08a';
-  ctx.fillRect(l / 2 - 7, -2, 6, 2);
-  ctx.fillStyle = '#ef4444';
-  ctx.fillRect(-l / 2, -3, 3, 2);
-  // Wheels.
-  for (const wx of [-l / 3, l / 3]) {
-    ctx.fillStyle = '#111827';
-    ctx.beginPath();
-    ctx.arc(wx, CAR_LIFT - 6, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#cbd5e1';
-    ctx.beginPath();
-    ctx.arc(wx, CAR_LIFT - 6, 2.5, 0, Math.PI * 2);
-    ctx.fill();
+/** The wheels' turning: how far they have gone round for the road covered, and how fast they go. */
+class Wheels {
+  private x = NaN;
+  private y = 0;
+  private t = 0;
+  private spin = 0;
+  private speed = 0;
+
+  /** The spin (radians) and the blur (0 to 1) of the spokes for the car at (x, y), `t` ms in. */
+  at(x: number, y: number, t: number): { spin: number; blur: number } {
+    const dt = t - this.t;
+    if (!Number.isNaN(this.x) && dt > 0.5) {
+      const turn = Math.hypot(x - this.x, y - this.y) / WHEEL_R;
+      this.spin += turn;
+      this.speed = turn / dt;
+      this.t = t;
+      this.x = x;
+      this.y = y;
+    } else if (Number.isNaN(this.x)) {
+      this.x = x;
+      this.y = y;
+      this.t = t;
+    }
+    // What a spoke gap sweeps in a frame, over the gap itself.
+    return {
+      spin: this.spin % (Math.PI * 2),
+      blur: Math.min(1, (this.speed * 22) / (Math.PI / 5)),
+    };
   }
 }
 
@@ -332,7 +305,7 @@ class CarFx {
       neon: string;
       course: Course | null;
       fx: Fx;
-      sprite: SpriteSource;
+      look: { body: string; trim: string; neon: string; tilt: number };
     },
   ): void {
     const { rng } = this;
@@ -359,12 +332,12 @@ class CarFx {
         size: 7,
       }));
     }
-    // Underglow, on the road beneath it too.
+    // The underglow, on the road beneath it too, is the car's own; this is its bloom.
     const under = at(0, CAR_LIFT + 1);
-    gfx.ellipse(under.x, under.y, 34, 6, tilt, neon, { alpha: 0.35, blend: 'add' });
-    gfx.glow(under.x, under.y, 34, neon, { intensity: 0.35 });
+    gfx.glow(under.x, under.y, 34, neon, { intensity: 0.15 });
 
     // Nitro in the jump: flames out of the exhaust, sparks streaming back; aberration about the apex.
+    this.nitro = leaping ? 0.8 + 0.2 * Math.sin(t / 25) : 0;
     if (leaping) {
       const back = at(-CAR_L / 2 - 2, 1);
       const flick = 0.75 + 0.25 * Math.sin(t / 25);
@@ -422,16 +395,7 @@ class CarFx {
     // Ghosts first, so the car draws over them.
     this.ghosts.forEach((g, k) => {
       const alpha = [0.06, 0.12, 0.18, 0.25][k + 4 - this.ghosts.length]!;
-      gfx.sprite(s.sprite, {
-        x: g.x,
-        y: g.y,
-        rotation: g.tilt,
-        anchorX: ORIGIN_X / ART_W,
-        anchorY: ORIGIN_Y / ART_H,
-        tint: neon,
-        alpha,
-        blend: 'add',
-      });
+      gfx.hypercar(g.x, g.y, CAR_L, { ...s.look, tilt: g.tilt, alpha, ghost: true });
     });
 
     for (const e of [this.smoke, this.flames, this.sparks]) {
@@ -441,23 +405,20 @@ class CarFx {
   }
 
   private sawLeap = false;
+  /** How hard the nitro burns, 0 to 1, as of the last frame. */
+  nitro = 0;
 
-  /** Over the car: the headlight cones and the glow of its lamps. */
+  /** How hot the brake discs glow at `t`: a little always, a lot just after the landing. */
+  brake(t: number): number {
+    const since = this.landedAt ? (t - this.landedAt.t) / BRAKE_MS : Infinity;
+    return 0.04 + 0.96 * Math.max(0, 1 - since);
+  }
+
+  /** Over the car: the bloom of its lamps. */
   drawLights(gfx: Gfx, x: number, y: number, tilt: number): void {
     gfx.push(x, y, tilt);
-    const lamp = { x: CAR_L / 2 - 4, y: -1 };
-    gfx.quad(
-      [lamp.x, lamp.y - 1, lamp.x, lamp.y + 2, lamp.x + 90, lamp.y + 18, lamp.x + 90, lamp.y - 14],
-      [
-        'rgba(254, 249, 195, 0.35)',
-        'rgba(254, 249, 195, 0.35)',
-        'rgba(254, 249, 195, 0)',
-        'rgba(254, 249, 195, 0)',
-      ],
-      { blend: 'add' },
-    );
-    gfx.glow(lamp.x + 2, lamp.y, 10, '#fef9c3', { intensity: 1.4 });
-    gfx.glow(-CAR_L / 2 + 1, -2, 7, '#ef4444', { intensity: 1.2 });
+    gfx.glow(CAR_L / 2 - 2, -2, 8, '#e0f2fe', { intensity: 0.9 });
+    gfx.glow(-CAR_L / 2 + 1.5, -2.2, 7, '#ef4444', { intensity: 1 });
     gfx.pop();
   }
 }
