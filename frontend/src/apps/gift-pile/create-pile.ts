@@ -22,13 +22,17 @@ export function createPile(): Pile {
   const state = new PileState(PILE, pileStateOptions(PILE, world));
   const camera = new Camera({ radius: PILE.radius, headroom: PILE.headroom, height: world.height });
   const effects = readEffects();
-  const renderer = new GlRenderer(PILE, { quality: effects.quality });
+  const removers = allRemovers();
+  const renderer = new GlRenderer(PILE, {
+    quality: effects.quality,
+    shaders: removers.flatMap((remover) => remover.shaders ?? []),
+  });
   const pile = new Pile({
     client,
     state,
     camera,
     renderer,
-    removers: allRemovers(),
+    removers,
     radius: PILE.radius,
     loadGiftImage: () => loadImage(GIFT_ICON_URL),
     effects,

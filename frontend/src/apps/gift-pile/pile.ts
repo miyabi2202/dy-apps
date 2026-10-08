@@ -5,7 +5,7 @@ import { type BinTarget, RemovalDirector } from './removal/director';
 import type { Ground } from './removal/scoop-board';
 import type { Camera, View } from './render/camera';
 import type { FrameOffset, Held } from './render/gl-renderer';
-import type { Gfx, Quality } from './render/gfx';
+import type { Gfx, Quality, SpriteSource } from './render/gfx';
 import { Shaker } from './render/shake';
 import type { ChangeJournal, PileState } from './render/pile-state';
 import type { EffectSettings } from './settings';
@@ -40,6 +40,8 @@ export interface PileDrawing {
   setImage(image: HTMLImageElement | null): void;
   /** What the effects may cost, from the next frame on. */
   setQuality?(quality: Quality): void;
+  /** Get `art` (small Canvas2D paintings) and the like ready ahead of the first removal; called once, after the first frame. */
+  warmUp?(art: readonly SpriteSource[]): void;
   /**
    * Start a display frame in `canvas`: draw the pile in `state` as of wall time `now` through
    * `view`, moved by `shake`. Returns what to draw the removals with, or null if there is
@@ -127,6 +129,7 @@ export class Pile {
   private readonly cutInListeners = new Set<(request: CutInRequest) => void>();
   /** The wall time of the frame being drawn, which the shake counts from. */
   private frameNow = 0;
+  private warmedUp = false;
 
   constructor({
     client,
@@ -359,6 +362,17 @@ export class Pile {
     director.draw(gfx, now);
     renderer.end();
     this.gfx = null;
+    if (!this.warmedUp) this.warmUp();
+  }
+
+  /**
+   * Have the renderer get ready for the first removal: it is handed the art the removers
+   * listed (`Remover.sprites`) to paint ahead of time. Done once, after the first frame that
+   * could be drawn, so the page's first paint is not held up.
+   */
+  warmUp(): void {
+    this.warmedUp = true;
+    this.renderer.warmUp?.(this.removers.flatMap((remover) => remover.sprites ?? []));
   }
 
   /**

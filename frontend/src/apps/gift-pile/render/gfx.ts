@@ -24,15 +24,66 @@ export interface SpriteSource {
   dynamic?: boolean;
 }
 
+/** A procedural drawing in GLSL that its owner hands `Gfx`, compiled once by `key` (see `Gfx.shade`). */
+export interface ShaderSource {
+  /** Unique app-wide, e.g. 'ufo/saucer'; the program is cached by it. */
+  key: string;
+  /**
+   * GLSL ES 3.00 defining `vec4 shade(vec2 p, vec4 P, vec4 Q, vec3 color)`: the premultiplied
+   * colour at `p`, the point's offset from the box's centre in the caller's units (x right, y
+   * down, rotated with the box). `P` and `Q` are the `p` and `q` numbers of the draw, `color`
+   * its colour. In scope: `u_time` (ms), `v_px` (caller units per device pixel, for
+   * anti-aliasing), and the prelude: `TAU`, `hue`, `cover`, `over`, `snoise`, `hash12`,
+   * `sdBox`, `sdEllipse`, `sdSegment`, `smin`, `Sky` and `envSky` (see
+   * `render/gl/shaders/prelude.ts`).
+   */
+  glsl: string;
+}
+
+/** Where a shader draws: a box centred at (x, y), `halfW` × `halfH` to each side, turned by `rotation`. */
+export interface ShadeBox {
+  x: number;
+  y: number;
+  halfW: number;
+  halfH: number;
+  /** Radians clockwise on screen; default 0. */
+  rotation?: number;
+}
+
+export interface ShadeOptions {
+  /** Up to four numbers each, `P` and `Q` in the shader; missing ones are 0. */
+  p?: ArrayLike<number>;
+  q?: ArrayLike<number>;
+  /** `color` in the shader; default white. */
+  color?: Color;
+  /** Multiplies the shader's whole output; default 1. */
+  alpha?: number;
+  /** Default 'normal' (premultiplied over); 'add' adds the output. */
+  blend?: Blend;
+}
+
+/** Many boxes of one shader at once (stars, puffs); the arrays hold `count` entries each. */
+export interface ShadeInstances {
+  count: number;
+  /** 2 per: box centre. */
+  xy: Float32Array;
+  /** 2 per: halfW, halfH. */
+  half: Float32Array;
+  /** 2 per: the unit vector of the box's x axis; default (1, 0) for all. */
+  axis?: Float32Array;
+  /** 4 per: `P`. */
+  p: Float32Array;
+  /** 4 per: `Q`; zeros if left out. */
+  q?: Float32Array;
+  /** 4 per: `color` rgb (straight, 0..1) and the alpha that multiplies the output. */
+  rgba: Float32Array;
+  blend?: Blend;
+}
+
+/** How to draw a sprite other than as it is. */
 export type Material =
-  /** Rainbow sheen band sweeping with time. */
-  | { kind: 'holo'; angle?: number; strength?: number }
-  /** Specular streak and a darker lower half. */
-  | { kind: 'metal'; strength?: number }
-  /** Rim light from the alpha edge. */
-  | { kind: 'rim'; color: Color; width?: number }
   /** The alpha mask filled with one colour (white-hot flash). */
-  | { kind: 'solid'; color: Color };
+  { kind: 'solid'; color: Color };
 
 export interface SpriteOptions {
   x: number;
@@ -51,11 +102,6 @@ export interface SpriteOptions {
   tint?: Color;
   blend?: Blend;
   material?: Material;
-  /**
-   * Scroll the texture by this much of its size, wrapping round (for a texture made to tile,
-   * like the scanlines of a beam). Ignored with a material.
-   */
-  uvOffset?: readonly [number, number];
 }
 
 export interface StrokeOptions {
@@ -396,6 +442,29 @@ export interface Gfx {
   ): void;
   /** A glowing aura of living energy and orbiting sparkles round a prize `radius` across. Additive. */
   clawAura(x: number, y: number, radius: number, o: { color: Color; intensity?: number }): void;
+  // --- shaders ---
+  /**
+   * Draw `src`'s `shade()` over a box. This is how a remover draws its own procedural art: it
+   * hands over GLSL text (a `ShaderSource`) and numbers, and never touches GL.
+   *
+   * - Units: `box`, and the `p` in `shade`, are in the current transform's units (usually world
+   *   px, y down). Size the box to hold everything the shader draws, glow and anti-aliasing
+   *   margin included: nothing outside it is shaded.
+   * - Numbers: `o.p` and `o.q` arrive as `P` and `Q` (four floats each) and `o.color` as
+   *   `color`, all unchanged and in the caller's units, so no pre-scaling is needed. Use
+   *   `v_px` for the width of an anti-aliased edge and `u_time` (ms, the frame's time) to
+   *   animate.
+   * - Output: premultiplied colour (`vec4(rgb * a, a)`; with 'add' blend only rgb matters).
+   * - Order: drawn in call order with everything else, through the transform stack. A
+   *   different `key` is a different program (a state change), so a run of one key is batched.
+   * - A source that fails to compile is logged once and draws nothing. List a remover's
+   *   sources in `Remover.shaders` so they are compiled at startup, not at first use; until
+   *   one has compiled it draws nothing.
+   */
+  shade(src: ShaderSource, box: ShadeBox, o?: ShadeOptions): void;
+  /** `shade` for many boxes of one source in one go (see `ShadeInstances`). */
+  shadeMany(src: ShaderSource, data: ShadeInstances): void;
+
   /** Soft textured quads in one instanced draw (see `ParticleData`); `kit/particles.ts` makes the data. */
   particles(data: ParticleData): void;
   ribbon(
@@ -426,9 +495,6 @@ export interface Gfx {
    * a white-hot flash with a flare, a shockwave ring with a fringe of split colour, and rays of `color`.
    */
   blackHolePop(x: number, y: number, radius: number, u: number, color: Color): void;
-
-  /** Canvas2D painting as a sprite, cached by key unless dynamic; the same as `sprite`, to make the intent plain at the call site. */
-  raster(src: SpriteSource, o: SpriteOptions): void;
 
   // Fireworks
   /**
@@ -466,7 +532,7 @@ export interface Gfx {
   ): void;
 }
 
-/** Fireworks' stars or smoke, each a particle; `kit/particles.ts` style, with a few extras (`fireworks/sparks.ts` makes them). */
+/** Fireworks' stars or smoke, each a particle; `kit/particles.ts` style, with a few extras (`fireworks/star-pool.ts` makes them). */
 export interface FireworkData {
   count: number;
   /** 2 per particle, world px. */

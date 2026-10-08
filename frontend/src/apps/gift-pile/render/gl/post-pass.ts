@@ -63,6 +63,11 @@ export class PostPass {
     this.bloom = settings.bloom;
   }
 
+  /** The programs it draws with, for the renderer to wait for. */
+  get programs(): Program[] {
+    return [this.composite, this.bright, this.blur];
+  }
+
   /** Change the settings from the next frame on. */
   configure(settings: PostSettings): void {
     const samples = Math.max(0, Math.min(settings.samples, this.maxSamples));
