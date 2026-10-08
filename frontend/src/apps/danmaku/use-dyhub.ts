@@ -7,9 +7,11 @@ import {
   likeMessage,
   messageFromEvent,
   type DanmakuMessage,
+  type Logger,
   type LiveRoom,
 } from '@dy-apps/services';
 import { useEffect, useState } from 'react';
+import { log as moduleLog } from './log';
 
 /** DyHub may start after the page (OBS often opens first), so keep trying. */
 const RETRY_MS = 5000;
@@ -32,6 +34,7 @@ export function useDyhub(
   push: (m: DanmakuMessage) => void,
   create: CreateDyhubClient = createDyhubClient,
   likeQuietMs?: number,
+  log: Logger = moduleLog,
 ): DyhubState {
   const [state, setState] = useState<DyhubState>({ status: 'idle' });
   const port = room?.port;
@@ -39,6 +42,7 @@ export function useDyhub(
 
   useEffect(() => {
     if (port === undefined || roomId === undefined) return;
+    log.debug(`dyhub: connecting to ws://localhost:${port}/ws?roomId=${roomId}`);
     const client = create({ port, roomId });
     const likes = new LikeBatcher<DyhubLikeEvent>({
       quietMs: likeQuietMs,
@@ -50,7 +54,13 @@ export function useDyhub(
     const pushEvent = (message: DanmakuMessage | null) => {
       if (message) push(message);
     };
-    client.onStatus((status, detail) => setState({ status, detail }));
+    client.onStatus((status, detail) => {
+      setState({ status, detail });
+      const info = detail ? `${status} (${detail})` : status;
+      if (status === 'error' || status === 'closed') {
+        log.debug(`dyhub: ${info}, retrying in ${RETRY_MS}ms`);
+      } else log.debug(`dyhub: ${info}`);
+    });
     client.onComment((ev) => pushEvent(messageFromEvent(ev, 0)));
     client.onGift((ev, newGifts) => pushEvent(messageFromEvent(ev, newGifts)));
     client.onLike((ev, count) => {
@@ -58,11 +68,12 @@ export function useDyhub(
     });
     client.connect();
     return () => {
+      log.debug('dyhub: closing the connection');
       client.close();
       likes.clear();
       setState({ status: 'idle' });
     };
-  }, [port, roomId, push, create, likeQuietMs]);
+  }, [port, roomId, push, create, likeQuietMs, log]);
 
   return room ? state : { status: 'idle' };
 }
