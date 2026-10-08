@@ -13,8 +13,8 @@ export interface RemovalSink {
   remove(count: number): void;
   /** Take icon `id` out of the pile; it is held from then on. */
   grab(id: number): void;
-  /** Let held icon `id` go at (x, y): it falls from there. */
-  release(id: number, x: number, y: number): void;
+  /** Let held icon `id` go at (x, y): it falls from there, moving at `vx`, `vy` px/s if given. */
+  release(id: number, x: number, y: number, vx?: number, vy?: number): void;
   /** Held icon `id` is gone for good. */
   destroy(id: number): void;
 }

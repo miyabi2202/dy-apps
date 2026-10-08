@@ -1,7 +1,7 @@
 /** @jest-environment node */
 import { PILE } from '../core/config';
 import type { PileEngine } from '../core/engine';
-import { createEngine, neighbours, restingIcons, settle } from './engine-helpers';
+import { createEngine, neighbours, restingIcons, settle, step } from './engine-helpers';
 
 const r = PILE.collisionRadius;
 const m = PILE.margin;
@@ -171,6 +171,21 @@ describe('PileEngine', () => {
       expect(Math.abs(engine.x[i]! - x)).toBeLessThan(8 * r);
       expect(engine.y[i]).toBeLessThan(middle);
     }
+  });
+
+  it('lets a held icon go moving, when given a speed', async () => {
+    const engine = await createEngine();
+    engine.add(2);
+    settle(engine);
+    engine.grab(0);
+    engine.grab(1);
+    // Side by side, one still and one thrown up and to the right.
+    engine.release(0, 40, 60);
+    engine.release(1, 60, 60, 300, -200);
+    step(engine, 6);
+    expect(engine.x[0]).toBeCloseTo(40, 0);
+    expect(engine.x[1]).toBeGreaterThan(60 + 20);
+    expect(engine.y[1]).toBeLessThan(engine.y[0]! - 10);
   });
 
   it('removes from the top of the pile down, loosely', async () => {

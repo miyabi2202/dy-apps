@@ -17,8 +17,11 @@ export type ToWorker =
   | { type: 'resize'; width: number; height: number }
   /** The user picked up this icon: out of the pile and out of the engine until let go. */
   | { type: 'grab'; id: number }
-  /** The user let go of a held icon here (in pixels): it falls from there. */
-  | { type: 'release'; id: number; x: number; y: number }
+  /**
+   * A held icon is let go here (in pixels): it falls from there, moving at `vx`, `vy` (in
+   * pixels per second) if given.
+   */
+  | { type: 'release'; id: number; x: number; y: number; vx?: number; vy?: number }
   /** The user dropped a held icon in the bin: gone for good. */
   | { type: 'destroy'; id: number };
 

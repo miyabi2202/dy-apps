@@ -56,7 +56,7 @@ async function main() {
         engine.grab(data.id);
         break;
       case 'release':
-        engine.release(data.id, data.x, data.y);
+        engine.release(data.id, data.x, data.y, data.vx, data.vy);
         break;
       case 'destroy':
         engine.destroy(data.id);

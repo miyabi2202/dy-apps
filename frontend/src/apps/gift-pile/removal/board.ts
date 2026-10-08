@@ -37,8 +37,11 @@ export interface Board {
    * null if it was taken already (or is dropped or gone).
    */
   take(i: number): Point | null;
-  /** Let icon `i` go at (x, y), taking it first if need be: it falls back onto the pile. */
-  drop(i: number, x: number, y: number): void;
+  /**
+   * Let icon `i` go at (x, y), taking it first if need be: it falls back onto the pile, from
+   * rest or moving at (vx, vy) world pixels per second.
+   */
+  drop(i: number, x: number, y: number, vx?: number, vy?: number): void;
   /** Icon `i` is gone for good, now rather than when the removal is over. */
   destroy(i: number): void;
   /** Draw an icon at (x, y), `scale` times its size. */

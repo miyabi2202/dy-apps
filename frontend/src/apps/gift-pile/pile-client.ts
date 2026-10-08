@@ -102,9 +102,13 @@ export class PileClient {
     this.send({ type: 'grab', id });
   }
 
-  /** Let held icon `id` go at (x, y) in pixels: it falls from there. */
-  release(id: number, x: number, y: number): void {
-    this.send({ type: 'release', id, x, y });
+  /** Let held icon `id` go at (x, y) in pixels: it falls from there, moving at `vx`, `vy` px/s if given. */
+  release(id: number, x: number, y: number, vx?: number, vy?: number): void {
+    this.send(
+      vx === undefined && vy === undefined
+        ? { type: 'release', id, x, y }
+        : { type: 'release', id, x, y, vx: vx ?? 0, vy: vy ?? 0 },
+    );
   }
 
   /** Drop held icon `id` in the bin. */

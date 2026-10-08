@@ -71,12 +71,12 @@ export class ScoopBoard implements Board {
     return at;
   }
 
-  drop(i: number, x: number, y: number): void {
+  drop(i: number, x: number, y: number, vx?: number, vy?: number): void {
     if (this.state[i]! > TAKEN) return;
     this.take(i);
     const id = this.ids[i]!;
     this.state[i] = DROPPED;
-    this.sink.release(id, x, y);
+    this.sink.release(id, x, y, vx, vy);
     this.onDrop(id);
   }
 

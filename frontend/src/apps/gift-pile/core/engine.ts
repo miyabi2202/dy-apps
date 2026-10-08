@@ -241,8 +241,11 @@ export class PileEngine {
     this.held[i] = 1;
   }
 
-  /** The user lets held icon `i` go at (x, y) in pixels: it falls from there. */
-  release(i: number, x: number, y: number): void {
+  /**
+   * Held icon `i` is let go at (x, y) in pixels: it falls from there, moving at (vx, vy)
+   * pixels per second.
+   */
+  release(i: number, x: number, y: number, vx = 0, vy = 0): void {
     if (!this.held[i]) return;
     this.held[i] = 0;
     this.reserved[i] = 0;
@@ -252,7 +255,8 @@ export class PileEngine {
       i,
       Math.min(Math.max(x, m + r), this.width - m - r),
       Math.min(y, this.height - m - r),
-      0,
+      vy,
+      vx,
     );
   }
 
@@ -462,8 +466,8 @@ export class PileEngine {
     this.queued -= released;
   }
 
-  /** Icon `i` starts moving at (px, py) in pixels, falling at `vy` px/s. */
-  private launch(i: number, px: number, py: number, vy: number): void {
+  /** Icon `i` starts moving at (px, py) in pixels, falling at `vy` px/s and going sideways at `vx`. */
+  private launch(i: number, px: number, py: number, vy: number, vx = 0): void {
     const { settings: s, rapier: R, scale } = this;
     this.x[i] = px;
     this.y[i] = py;
@@ -474,7 +478,7 @@ export class PileEngine {
     const body = this.world.createRigidBody(
       R.RigidBodyDesc.dynamic()
         .setTranslation(px * scale, py * scale)
-        .setLinvel(0, vy * scale)
+        .setLinvel(vx * scale, vy * scale)
         .setCcdEnabled(true)
         // Resting is ours to decide: Rapier's sleep would leave an icon hanging off a
         // single neighbour that it should slide down from.
