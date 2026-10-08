@@ -17,6 +17,22 @@ const DRAG_SIZE = 44;
 /** Where a held icon counts as over the bin, in CSS px: a little larger, so drops are forgiving. */
 export const BIN_DROP_SIZE = 56;
 
+/**
+ * Where the bin goes when the view moves by `moved` world pixels (negative: up): with the
+ * world, as if it stood in it, but kept on a stage `stageHeight` CSS px tall, its image all on
+ * it, so it can always be dragged. `canvasHeight` is the canvas's height in world pixels.
+ */
+export function moveWithView(
+  place: BinPlace,
+  moved: number,
+  canvasHeight: number,
+  stageHeight: number,
+): BinPlace {
+  const margin = ICON_SIZE / 2 / stageHeight;
+  const fy = Math.min(1 - margin, Math.max(margin, place.fy - moved / canvasHeight));
+  return fy === place.fy ? place : { ...place, fy };
+}
+
 /** The Windows-style Recycle Bin by Icons8 (see the README for the credit). */
 const BIN_IMAGE = '/bin/recycle-bin.png';
 

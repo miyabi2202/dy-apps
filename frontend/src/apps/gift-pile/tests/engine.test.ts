@@ -209,6 +209,28 @@ describe('PileEngine', () => {
     expect(engine.y[1]).toBeLessThan(engine.y[0]! - 10);
   });
 
+  it('drops new icons in from just above the view once the pile has grown into its headroom', async () => {
+    const engine = await createEngine();
+    // Read after a step, so within a step's fall (and the band they are spread over) of the line.
+    const fall = PILE.spawnSpeed / PILE.stepHz;
+    const near = (y: number, line: number) =>
+      expect(Math.abs(y - line)).toBeLessThanOrEqual(2 * fall);
+    // A low pile: they come in just above the canvas's top.
+    engine.add(1);
+    step(engine, 1);
+    near(engine.y[0]!, -r);
+    // A pile grown into the top third: just above where the view will be, its headroom over the pile.
+    engine.add(450);
+    settle(engine);
+    const top = Math.min(...restingIcons(engine).map((i) => engine.y[i]!));
+    const headroom = engine.height * PILE.headroom;
+    expect(top).toBeLessThan(headroom);
+    const first = engine.count;
+    engine.add(1);
+    step(engine, 1);
+    near(engine.y[first]!, top - headroom - r);
+  });
+
   it('removes from the top of the pile down, loosely', async () => {
     const engine = await createEngine();
     engine.add(120);

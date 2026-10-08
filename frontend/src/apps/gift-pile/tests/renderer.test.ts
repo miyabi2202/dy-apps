@@ -325,3 +325,45 @@ describe('PileRenderer camera, moved by the overlay', () => {
     expect(renderer.view.top).toBe(0);
   });
 });
+
+describe('PileRenderer camera, its watchers and layer', () => {
+  const H = PILE.world.height;
+
+  it('tells its watcher each time it moves, and stops when unwatched', () => {
+    const renderer = new PileRenderer(PILE, () => ({}) as CanvasImageSource);
+    const canvas = document.createElement('canvas');
+    const seen: number[] = [];
+    renderer.watchCamera((top) => seen.push(top));
+    renderer.pushFrame(frame({ settled: [[1, 100, -300]] }), 0);
+    for (let now = 0; now <= 3000; now += 16) renderer.draw(canvas, now);
+    expect(seen.length).toBeGreaterThan(1);
+    // Easing up, never past where it ends.
+    for (let k = 1; k < seen.length; k++) expect(seen[k]!).toBeLessThanOrEqual(seen[k - 1]!);
+    expect(seen[seen.length - 1]).toBe(renderer.view.top);
+    const count = seen.length;
+    renderer.watchCamera(null);
+    renderer.pushFrame(frame({ woken: [1] }), 3000);
+    for (let now = 3000; now <= 6000; now += 16) renderer.draw(canvas, now);
+    expect(seen).toHaveLength(count);
+  });
+
+  it('repaints its layer where the view has gone, and draws nothing out of view', () => {
+    const renderer = new PileRenderer(PILE, () => ({}) as CanvasImageSource);
+    const canvas = document.createElement('canvas');
+    const layer = (renderer as unknown as { layer: HTMLCanvasElement }).layer;
+    const painted = () => contexts.get(layer)?.painted ?? new Set<string>();
+    renderer.pushFrame(frame({ settled: [[1, 100, H - 50]] }), 0);
+    renderer.draw(canvas, 0);
+    expect(painted()).toEqual(new Set([`100,${H - 50}`]));
+
+    // A pile grown far above the canvas: the view goes up and leaves the old layer behind.
+    renderer.pushFrame(frame({ settled: [[2, 100, -2 * H]], moving: [[3, 200, H - 50]] }), 1);
+    for (let now = 0; now <= 4000; now += 16) renderer.draw(canvas, now);
+    const { top } = renderer.view;
+    expect(top).toBeLessThan(-2 * H);
+    // Repainted around the view: the high icon is on it, the one at the floor far below is not.
+    expect(painted()).toEqual(new Set([`100,${-2 * H}`]));
+    // Nor is the moving one at the floor drawn on the canvas: it is out of view.
+    expect(contexts.get(canvas)?.painted.has(`200,${H - 50}`)).toBe(false);
+  });
+});

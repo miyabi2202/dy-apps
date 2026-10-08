@@ -8,7 +8,7 @@ import type { PileClient } from '../pile-client';
 import type { PileRenderer } from '../render/renderer';
 import type { RemovalDirector } from '../removal/director';
 import type { WorldSize } from '../settings';
-import { Bin, BIN_DROP_SIZE, BIN_ICON_SIZE, type BinPlace } from './bin';
+import { Bin, BIN_DROP_SIZE, BIN_ICON_SIZE, type BinPlace, moveWithView } from './bin';
 
 interface Props {
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -67,12 +67,9 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
       const moved = top - cameraRef.current;
       cameraRef.current = top;
       setCamera(top);
-      setBin((place) => {
-        const height = stageRef.current?.clientHeight || canvas.height;
-        const margin = BIN_ICON_SIZE / 2 / height;
-        const fy = Math.min(1 - margin, Math.max(margin, place.fy - moved / canvas.height));
-        return fy === place.fy ? place : { ...place, fy };
-      });
+      setBin((place) =>
+        moveWithView(place, moved, canvas.height, stageRef.current?.clientHeight || canvas.height),
+      );
     });
     return () => renderer.watchCamera(null);
   }, [renderer, canvas.height]);
