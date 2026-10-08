@@ -40,7 +40,7 @@ class FakeSink implements RemovalSink {
   /** What the engine would say is in the pile. */
   inPile = 400;
   added: number[] = [];
-  scoops: { count: number; extra: number }[] = [];
+  scoops: { count: number; extra: number; near?: number }[] = [];
   removed: number[] = [];
   grabbed: number[] = [];
   released: { id: number; x: number; y: number }[] = [];
@@ -51,8 +51,8 @@ class FakeSink implements RemovalSink {
   add(count: number) {
     this.added.push(count);
   }
-  scoop(count: number, extra: number) {
-    this.scoops.push({ count, extra });
+  scoop(count: number, extra: number, near?: number) {
+    this.scoops.push(near === undefined ? { count, extra } : { count, extra, near });
   }
   remove(count: number) {
     this.removed.push(count);
@@ -271,6 +271,35 @@ describe('RemovalDirector', () => {
     for (let now = 0; now <= 8000; now += 16) flights.draw(fakeContext(), now, hooks);
     expect(sink.released).toHaveLength(2);
     expect(sink.destroyed).toHaveLength(0);
+  });
+
+  it('deals the remover before asking for its icons, so it can aim them, and runs that one on them', () => {
+    const sink = new FakeSink();
+    const began: { name: string; icons: number }[] = [];
+    // Two removers taking turns: one aims, one doesn't; each ends as soon as it begins.
+    const remover = (name: string, aim?: number): Remover => ({
+      name,
+      ...(aim === undefined ? {} : { aim: () => aim }),
+      begin: (board) => {
+        began.push({ name, icons: board.icons.length });
+        return { isOver: () => true, draw: () => {} };
+      },
+    });
+    const flights = new RemovalDirector(sink, {
+      removers: [remover('aims', 0.3), remover('plain')],
+      rng: mulberry32(8),
+    });
+    for (let k = 0; k < 4; k++) {
+      flights.remove(10, k * 2000);
+      const asked = sink.scoops[k]!;
+      flights.onScoop(scoopOf(12, 2), world, k * 2000);
+      flights.draw(fakeContext(), k * 2000 + 1, hooks);
+      // The one that begins is the one dealt when the scoop was asked for.
+      expect(began[k]!.name).toBe(asked.near === 0.3 ? 'aims' : 'plain');
+      expect(began[k]!.icons).toBe(12);
+    }
+    // The bag deals each once a round, never the same twice running.
+    expect(began.map((b) => b.name).filter((name) => name === 'aims')).toHaveLength(2);
   });
 
   it('forgets its flights and queue on reset without touching the icons, since the engine already has', () => {

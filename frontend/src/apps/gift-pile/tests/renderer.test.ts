@@ -1,4 +1,5 @@
 import { PILE } from '../core/config';
+import type { Hooks, Overlay } from '../render/overlay';
 import { PileRenderer } from '../render/renderer';
 import { frame, mulberry32 } from './helpers';
 
@@ -168,5 +169,57 @@ describe('PileRenderer resting layer', () => {
     }
     draw();
     expect(painted()).toEqual(expected(resting));
+  });
+});
+
+describe('PileRenderer overlay', () => {
+  it('hands the overlay its scoops, lets it take icons off the layer and see where they are, and keeps its icons from the user', () => {
+    const scoops: number[][] = [];
+    const seen: unknown[] = [];
+    let ask: ((hooks: Hooks) => void) | null = null;
+    const overlay: Overlay = {
+      onScoop: (scoop) => scoops.push([...scoop.ids]),
+      reset: () => {},
+      holds: (id) => id === 1 || id === 3,
+      draw: (_ctx, _now, hooks) => ask?.(hooks),
+    };
+    const renderer = new PileRenderer(PILE, () => ({}) as CanvasImageSource, overlay);
+    const canvas = document.createElement('canvas');
+    const layer = (renderer as unknown as { layer: HTMLCanvasElement }).layer;
+    const painted = () => contexts.get(layer)?.painted ?? new Set<string>();
+    renderer.pushFrame(
+      frame({
+        settled: [
+          [1, 10, 10],
+          [2, 30, 10],
+        ],
+        moving: [[3, 50, 40]],
+        scooped: [
+          { ids: Int32Array.from([1, 3]), xy: Float32Array.from([10, 10, 50, 40]), drop: 0 },
+        ],
+      }),
+      0,
+    );
+    expect(scoops).toEqual([[1, 3]]);
+
+    ask = (hooks) => {
+      seen.push(hooks.peek(1), hooks.peek(3), hooks.peek(9));
+      seen.push(hooks.take(1), hooks.take(3));
+    };
+    renderer.draw(canvas, 0);
+    expect(seen).toEqual([
+      { x: 10, y: 10, resting: true },
+      { x: 50, y: 40, resting: false },
+      null,
+      { x: 10, y: 10, resting: true },
+      { x: 50, y: 40, resting: false },
+    ]);
+    // Taken, the resting one is off the layer at once; the user can't pick up either.
+    ask = null;
+    renderer.draw(canvas, 1);
+    expect(painted()).toEqual(new Set(['30,10']));
+    expect(renderer.iconAt(10, 10)).toBeNull();
+    expect(renderer.iconAt(50, 40)).toBeNull();
+    expect(renderer.iconAt(30, 10)).toBe(2);
   });
 });

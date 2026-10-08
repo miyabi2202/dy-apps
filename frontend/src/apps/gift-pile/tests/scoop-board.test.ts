@@ -10,7 +10,8 @@ const fakeSink = (log: string[]): RemovalSink => ({
   scoop: () => {},
   remove: () => {},
   grab: (id) => log.push(`grab:${id}`),
-  release: (id, x, y) => log.push(`release:${id}@${x},${y}`),
+  release: (id, x, y, vx, vy) =>
+    log.push(`release:${id}@${x},${y}` + (vx === undefined ? '' : ` moving ${vx},${vy}`)),
   destroy: (id) => log.push(`destroy:${id}`),
 });
 
@@ -41,8 +42,19 @@ describe('ScoopBoard', () => {
 
     expect(board.take(0)).toEqual({ x: 10, y: 0 });
     expect(board.take(0)).toBeNull();
-    board.drop(1, 50, 20);
+    // Dropping or destroying one still in the pile grabs it first; doing it again does nothing.
+    board.drop(1, 50, 20, 300, -100);
     board.destroy(2);
+    board.drop(1, 0, 0);
+    board.destroy(1);
+    board.drop(2, 0, 0);
+    expect(log).toEqual([
+      'grab:10',
+      'grab:11',
+      'release:11@50,20 moving 300,-100',
+      'grab:12',
+      'destroy:12',
+    ]);
     expect(dropped).toEqual([11]);
     expect(board.where(1)).toBeNull();
     expect([10, 11, 12, 13].map((id) => board.holds(id))).toEqual([true, false, false, true]);
