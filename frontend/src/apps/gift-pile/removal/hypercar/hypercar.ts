@@ -6,6 +6,7 @@ import {
   pick,
   type Removal,
   type Remover,
+  type SpriteSource,
   type World,
 } from '../board';
 import { Crossing } from '../kit/crossing';
@@ -16,7 +17,8 @@ import { sparkBurst } from '../kit/fx';
 import { Emitter } from '../kit/particles';
 import { Wake } from '../kit/trail';
 import { easeOut } from '../kit/easing';
-import { carPortrait } from '../kit/portraits';
+import { carPortrait } from './portrait';
+import { drawCar, HYPERCAR_SHADERS } from './shader';
 
 /** The car's length, and how far its centre sits above the road. */
 const CAR_L = 64;
@@ -63,6 +65,11 @@ export const CAR_PALETTES: readonly CarPalette[] = [
   { body: '#9333ea', neon: '#e879f9', trim: '#3b0764' },
 ];
 
+/** A paint's cut-in picture. */
+function portraitOf({ body, neon, trim }: CarPalette): SpriteSource {
+  return carPortrait(body, neon ?? body, trim);
+}
+
 interface Options {
   /** The paints to pick from for each crossing; the first until the first pick. */
   palettes?: readonly CarPalette[];
@@ -92,6 +99,10 @@ export function bridge(width: number) {
  */
 export class Hypercar implements Craft, Remover {
   readonly name = 'car';
+  /** Compiled when the page opens. */
+  readonly shaders = HYPERCAR_SHADERS;
+  /** Its cut-in portraits, painted ahead of time. */
+  readonly sprites: readonly SpriteSource[];
   readonly crossMs = 3000;
   /** The rope ties on under the car. */
   readonly tie = { dx: 0, dy: CAR_LIFT };
@@ -106,6 +117,7 @@ export class Hypercar implements Craft, Remover {
 
   constructor({ palettes = CAR_PALETTES }: Options = {}) {
     this.palettes = palettes;
+    this.sprites = palettes.map(portraitOf);
     this.palette = palettes[0]!;
   }
 
@@ -158,11 +170,7 @@ export class Hypercar implements Craft, Remover {
     return {
       name: this.name,
       color: '#ef4444',
-      portrait: carPortrait(
-        this.palette.body,
-        this.palette.neon ?? this.palette.body,
-        this.palette.trim,
-      ),
+      portrait: portraitOf(this.palette),
       shake: 5,
     };
   }
@@ -213,7 +221,7 @@ export class Hypercar implements Craft, Remover {
     const look = { body: palette.body, trim: palette.trim, neon, tilt };
     const { spin, blur } = this.wheels.at(x, y, t);
     this.fx.draw(gfx, { x, y, tilt, t, neon, course, fx, look });
-    gfx.hypercar(x, y, CAR_L, {
+    drawCar(gfx, x, y, CAR_L, {
       ...look,
       spin,
       blur,
@@ -395,7 +403,7 @@ class CarFx {
     // Ghosts first, so the car draws over them.
     this.ghosts.forEach((g, k) => {
       const alpha = [0.06, 0.12, 0.18, 0.25][k + 4 - this.ghosts.length]!;
-      gfx.hypercar(g.x, g.y, CAR_L, { ...s.look, tilt: g.tilt, alpha, ghost: true });
+      drawCar(gfx, g.x, g.y, CAR_L, { ...s.look, tilt: g.tilt, alpha, ghost: true });
     });
 
     for (const e of [this.smoke, this.flames, this.sparks]) {
