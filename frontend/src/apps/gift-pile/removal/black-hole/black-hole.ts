@@ -1,7 +1,16 @@
-import { type Board, type Gfx, pick, type Removal, type Remover, type ScoopShape } from '../board';
+import {
+  type Board,
+  type Gfx,
+  pick,
+  type Removal,
+  type Remover,
+  type ScoopShape,
+  type SpriteSource,
+} from '../board';
 import { smooth } from '../kit/easing';
 import { clumpOf, clumpSomewhere } from '../kit/clump';
-import { blackHolePortrait } from '../kit/portraits';
+import { blackHolePortrait } from './portrait';
+import { BLACK_HOLE_SHADERS, drawBlackHole, drawBlackHolePop } from './shader';
 import { Frames } from '../kit/clock';
 import { sparkBurst } from '../kit/fx';
 import { Emitter } from '../kit/particles';
@@ -63,10 +72,15 @@ interface Options {
  */
 export class BlackHole implements Remover {
   readonly name = 'black-hole';
+  /** Compiled when the page opens. */
+  readonly shaders = BLACK_HOLE_SHADERS;
+  /** Its cut-in portraits, painted ahead of time. */
+  readonly sprites: readonly SpriteSource[];
   private readonly palettes: readonly BlackHolePalette[];
 
   constructor({ palettes = BLACK_HOLE_PALETTES }: Options = {}) {
     this.palettes = palettes;
+    this.sprites = palettes.map(({ glow, disk }) => blackHolePortrait(glow, disk));
   }
 
   /** A clump of the pile somewhere across it. */
@@ -302,7 +316,7 @@ class Swallow implements Removal {
   /** The procedural hole, its lensing, and a stream of sparks swirling in, `open` from 0 to 1. */
   private drawHole(gfx: Gfx, open: number, _t: number, dt: number): void {
     const { cx, cy, palette, rng } = this;
-    gfx.blackHole(cx, cy, HOLE_R, open, { glow: palette.glow, disk: palette.disk });
+    drawBlackHole(gfx, cx, cy, HOLE_R, open, { glow: palette.glow, disk: palette.disk });
     gfx.lens(cx, cy, HOLE_R * 7, 0.9 * open);
     gfx.aberration(0.3 * open);
     // Sparks circling in: tangent, with a little inward.
@@ -328,6 +342,6 @@ class Swallow implements Removal {
     gfx.flash('#ffffff', 0.5 * (1 - u) ** 2);
     gfx.aberration(1 - u);
     gfx.shockwave(cx, cy, 200 * easeOut(u), 36, 16 * (1 - u));
-    gfx.blackHolePop(cx, cy, POP_R, u, palette.rim);
+    drawBlackHolePop(gfx, cx, cy, POP_R, u, palette.rim);
   }
 }
