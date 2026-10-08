@@ -1,9 +1,10 @@
 import type { Board, Gfx, Point, Removal } from '../board';
 import type { PacManPalette } from './pac-man';
 import { PileTop } from '../kit/pile-top';
+import { drawNeonLaneShader, drawPelletsShader, type Pellet } from './shader';
 import { drawGhost, drawPacMan, GHOST_R, PAC_R } from './sprites';
+import { pacManPortrait } from './portrait';
 import { Clock } from '../kit/clock';
-import { pacManPortrait } from '../kit/portraits';
 import { Trail, Wake } from '../kit/trail';
 import { Frames } from '../kit/clock';
 import { sparkBurst } from '../kit/fx';
@@ -229,30 +230,34 @@ export class Run implements Removal {
   private drawPellets(gfx: Gfx, me: Point): void {
     if (this.caughtAt !== null) return;
     const down = this.heading === 0;
-    gfx.neonLane(me.x, me.y, this.facing(), {
+    drawNeonLaneShader(gfx, me.x, me.y, this.facing(), {
       ahead: PELLET_REACH + PAC_R,
       behind: PAC_R * 2.5,
       halfWidth: LANE_HALF,
       color: LANE_COLOUR,
-      alpha: 0.35,
+      strength: 0.35,
     });
     const sign = down ? 1 : this.heading;
     const along = down ? me.y : me.x;
     const first = (Math.floor(along / PELLET_GAP) + (sign > 0 ? 1 : 0)) * PELLET_GAP;
     const powerClose = this.eatenCount % POWER_EVERY >= POWER_EVERY - POWER_NEAR;
+    const pellets: Pellet[] = [];
     for (let k = 0; ; k++) {
       const at = first + sign * k * PELLET_GAP;
       const d = (at - along) * sign;
       if (d > PELLET_REACH) break;
       if (d < PAC_R * 0.9) continue;
       const power = powerClose && d > PELLET_REACH - PELLET_GAP;
-      gfx.pellet(down ? me.x : at, down ? at : me.y, power ? 6 : 3.2, {
+      pellets.push({
+        x: down ? me.x : at,
+        y: down ? at : me.y,
         color: power ? '#fde68a' : '#fef3c7',
         power,
         phase: at * 0.21,
         alpha: (1 - d / (PELLET_REACH + PELLET_GAP)) * (power ? 1 : 0.85),
       });
     }
+    drawPelletsShader(gfx, pellets, 3.2, 6);
   }
 
   /** The bright dots where icons have just been eaten. */
