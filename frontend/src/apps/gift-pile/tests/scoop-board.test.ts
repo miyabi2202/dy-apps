@@ -19,6 +19,7 @@ const fakeSink = (log: string[]): RemovalSink => ({
 const hooks: Hooks = {
   radius: 8,
   top: () => null,
+  camera: { view: { top: 0, height: 100 }, moveTo: () => {} },
   stamp: () => {},
   take: (id) => ({ x: id, y: 0 }),
   peek: (id) => ({ x: id, y: 0, resting: true }),
@@ -66,5 +67,25 @@ describe('ScoopBoard', () => {
     board.finish();
     expect(log).toEqual(['destroy:10', 'grab:13', 'destroy:13']);
     expect(board.holds(13)).toBe(false);
+  });
+
+  it("keeps a point in view by moving the renderer's camera just as far as needed, or not at all", () => {
+    const moves: number[] = [];
+    const board = new ScoopBoard(
+      fakeSink([]),
+      scoop,
+      { width: 100, height: 100 },
+      { top: 0, height: 100 },
+      () => {},
+    );
+    board.frame({
+      ...hooks,
+      camera: { view: { top: -200, height: 100 }, moveTo: (top) => moves.push(top) },
+    });
+    expect(board.camera.view.top).toBe(-200);
+    board.camera.keepInView(-150, 10);
+    board.camera.keepInView(-50, 10);
+    board.camera.keepInView(-205, 10);
+    expect(moves).toEqual([-140, -215]);
   });
 });

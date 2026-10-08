@@ -75,6 +75,7 @@ const take = (id: number) => ({ x: 20 + (id - 100) * 12, y: 500 });
 const hooks = {
   radius: 8,
   top: () => null,
+  camera: { view: { top: 0, height: 708 }, moveTo: () => {} },
   stamp: noStamp,
   take,
   peek: (id: number) => ({ ...take(id), resting: true }),

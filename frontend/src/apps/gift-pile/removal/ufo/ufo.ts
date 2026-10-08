@@ -123,7 +123,7 @@ class Abduction implements Removal {
     this.t0 = now;
     const { x: hoverX, top, bottom, spread } = clumpOf(icons, world, 40);
     this.hoverX = hoverX;
-    const bellyY = Math.max(board.view.top + HOVER_MIN_Y, top - HOVER_ABOVE);
+    const bellyY = Math.max(board.camera.view.top + HOVER_MIN_Y, top - HOVER_ABOVE);
     this.hoverY = bellyY - BELLY;
     this.beamLength = bottom + iconRadius - bellyY;
     this.beamHalf = Math.min(80, Math.max(26, spread + iconRadius * 1.5));
@@ -226,7 +226,7 @@ class Abduction implements Removal {
       // In from above the top left, slowing to a stop over the clump, leaning into it.
       const u = t / this.arrived;
       const e = easeOut(u);
-      const from = this.board.view.top - 50;
+      const from = this.board.camera.view.top - 50;
       const x = -60 + (this.hoverX + 60) * e;
       const y = from + (this.hoverY - from) * e + Math.sin(u * Math.PI) * -30;
       return { x, y: y + bob * e, tilt: 0.25 * (1 - e) };
@@ -240,7 +240,7 @@ class Abduction implements Removal {
     const e = u * u * u;
     return {
       x: this.hoverX + (width + 90 - this.hoverX) * e,
-      y: this.hoverY + bob + (this.board.view.top - 70 - this.hoverY) * e,
+      y: this.hoverY + bob + (this.board.camera.view.top - 70 - this.hoverY) * e,
       tilt: -0.3 * Math.min(1, u * 3),
     };
   }

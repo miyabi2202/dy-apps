@@ -107,7 +107,8 @@ class Grab implements Removal {
     rng: () => number,
     private readonly palette: ClawPalette,
   ) {
-    const { icons, world, iconRadius, view } = board;
+    const { icons, world, iconRadius } = board;
+    const { view } = board.camera;
     this.railY = view.top + RAIL_Y;
     this.restY = view.top + REST_Y;
     const n = icons.length;

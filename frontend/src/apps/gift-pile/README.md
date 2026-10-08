@@ -24,11 +24,15 @@ Once the pile grows into the top third of the canvas (`headroom` in `core/config
 renderer's camera moves the view up with it, easing, so the removals always have open sky to
 work in; the bottom of the pile goes out of sight, and new icons drop in from just above the
 view. It comes back down as the pile does, but never below the floor, and holds still while a
-removal is under way. Everything is drawn in world pixels shifted by the camera; the resting
+removal is under way, unless the removal moves it. Everything is drawn in world pixels shifted by the camera; the resting
 layer covers twice the view's height, and is repainted where the view now is once the camera
 leaves it. Pointer presses and the bin are turned into world pixels with the camera, and the
 bin moves with the world as the camera does, kept on the canvas so it can always be dragged.
-Removals get the `view` on their `Board`, and come, go and hover within it.
+Removals get the camera on their `Board` (`camera.view`, and come, go and hover within it), and
+can move it while they run (`moveTo`, or `keepInView` to move it only as far as something needs):
+Pac-Man and the helicopter's winchman keep themselves in view as they work down into the pile,
+the helicopter coming down with the view if it has to. Once a removal is over, the camera
+follows the pile again.
 
 ## The bin
 

@@ -3,6 +3,7 @@ import { PileTop } from '../kit/pile-top';
 import type { Recolour, SvgArt } from '../kit/svg-art';
 import { drawChopper, WINCH } from './chopper';
 import {
+  HEIGHT,
   drawHose,
   drawRope,
   drawSuction,
@@ -19,6 +20,8 @@ import { Clock } from '../kit/clock';
 /** It hovers this far above the top of the pile, by the cabin's middle, but no nearer the view's top than this. */
 const HOVER_ABOVE = 150;
 const HOVER_MIN_Y = 50;
+/** While he is on the pile the view is kept moved to have his feet this far from its bottom, and his head from its top. */
+const CAMERA_MARGIN = 40;
 /** It flies in over this long, and away over this long. */
 const ARRIVE_MS = 1500;
 const LEAVE_MS = 1600;
@@ -120,13 +123,21 @@ export class Mission implements Removal {
     this.top = new PileTop(icons, world.width, SUCK_R, 0);
     this.lowest = Math.max(0, ...icons.map((p) => p.y));
     this.hoverX = world.width / 2;
-    this.hoverY = Math.max(board.view.top + HOVER_MIN_Y, this.groundAt(this.hoverX) - HOVER_ABOVE);
+    this.hoverY = Math.max(
+      board.camera.view.top + HOVER_MIN_Y,
+      this.groundAt(this.hoverX) - HOVER_ABOVE,
+    );
     this.chopper = { x: -90, y: this.hoverY - 40 };
     this.man = this.winch();
     const xs = icons.map((p) => p.x);
     this.leftEnd = Math.max(END_MARGIN, Math.min(...xs, this.hoverX) - END_MARGIN);
     this.rightEnd = Math.min(world.width - END_MARGIN, Math.max(...xs, this.hoverX) + END_MARGIN);
     this.sucked = new Uint8Array(icons.length);
+  }
+
+  /** Where it hovers now: where it first stopped, or lower, to keep in sight as the view goes down after him. */
+  private hoverAt(): number {
+    return Math.max(this.hoverY, this.board.camera.view.top + HOVER_MIN_Y);
   }
 
   /** The top of the pile at x as it is now, where his feet go. */
@@ -155,6 +166,11 @@ export class Mission implements Removal {
       () => this.phase !== 'done',
     );
     const { t } = this.clock;
+    // While he is on the pile, the view follows him down into it.
+    if (this.phase === 'work' || this.phase === 'return') {
+      this.board.camera.keepInView(this.man.y - HEIGHT, CAMERA_MARGIN);
+      this.board.camera.keepInView(this.man.y, CAMERA_MARGIN);
+    }
     const onRope =
       this.phase === 'lower' ||
       this.phase === 'lift' ||
@@ -217,6 +233,12 @@ export class Mission implements Removal {
   private step(dt: number): void {
     const { board } = this;
     this.land();
+    // Hovering, it comes down with the view if the view has gone down after him, so it
+    // stays in sight; the rope is the shorter for it.
+    if (this.phase !== 'arrive' && this.phase !== 'leave' && this.phase !== 'done') {
+      const sag = this.phase === 'sink' || this.phase === 'throw' || this.phase === 'recover';
+      if (!sag) this.chopper = { x: this.hoverX, y: this.hoverAt() };
+    }
     switch (this.phase) {
       case 'arrive': {
         const u = Math.min(1, this.phaseT / ARRIVE_MS);
@@ -273,7 +295,7 @@ export class Mission implements Removal {
       }
       case 'sink': {
         const u = Math.min(1, this.phaseT / SINK_MS);
-        this.chopper = { x: this.hoverX, y: this.hoverY + SINK * (1 - (1 - u) ** 2) };
+        this.chopper = { x: this.hoverX, y: this.hoverAt() + SINK * (1 - (1 - u) ** 2) };
         this.tilt = Math.sin(this.phaseT / 60) * 0.04;
         if (u >= 1) this.next('throw');
         break;
@@ -299,7 +321,7 @@ export class Mission implements Removal {
       }
       case 'recover': {
         const u = Math.min(1, this.phaseT / RECOVER_MS);
-        this.chopper = { x: this.hoverX, y: this.hoverY + SINK * (1 - smooth(u)) };
+        this.chopper = { x: this.hoverX, y: this.hoverAt() + SINK * (1 - smooth(u)) };
         this.tilt = 0;
         if (u >= 1) this.next('reel');
         break;
@@ -315,7 +337,7 @@ export class Mission implements Removal {
         const { width } = board.world;
         this.chopper = {
           x: this.hoverX + (width + 110 - this.hoverX) * e,
-          y: this.hoverY - 50 * e,
+          y: this.hoverAt() - 50 * e,
         };
         this.tilt = 0.14 * Math.min(1, u * 3);
         if (u >= 1) this.next('done');

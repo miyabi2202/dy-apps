@@ -100,7 +100,7 @@ class Swallow implements Removal {
     this.t0 = now;
     const { x: cx, top } = clumpOf(icons, world, 50);
     this.cx = cx;
-    this.cy = Math.max(board.view.top + MIN_Y, top - ABOVE);
+    this.cy = Math.max(board.camera.view.top + MIN_Y, top - ABOVE);
     this.startAt = new Float32Array(n);
     this.fallMs = new Float32Array(n);
     this.r0 = new Float32Array(n);

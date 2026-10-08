@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import type { Board, Point } from '../removal/board';
+import { type Board, type Point, topKeeping } from '../removal/board';
 import { allRemovers } from '../removal/removers';
 import { fakeContext, mulberry32 } from './helpers';
 
@@ -23,9 +23,21 @@ function recordingBoard(n: number, dropCount: number, raised = 0) {
   const problems = new Set<string>();
   const done = (i: number) => dropped.has(i) || destroyed.has(i);
   const finite = (...values: number[]) => values.every(Number.isFinite);
+  let view = { top: -raised, height: world.height };
   const board: Board = {
     world,
-    view: { top: -raised, height: world.height },
+    camera: {
+      get view() {
+        return view;
+      },
+      // Moves straight there, never below the floor, as the renderer's camera would in time.
+      moveTo(top) {
+        view = { ...view, top: Math.min(0, top) };
+      },
+      keepInView(y, margin) {
+        this.moveTo(topKeeping(view, y, margin));
+      },
+    },
     iconRadius: 8,
     icons,
     dropCount,

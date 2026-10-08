@@ -17,6 +17,8 @@ export interface Hooks {
   radius: number;
   /** The top of the pile at world x, by the middle of the highest icon there; null if there are none. */
   top: (x: number) => number | null;
+  /** The camera: what is on screen, and moving it (which holds until the overlay is no longer busy). */
+  camera: { view: { top: number; height: number }; moveTo: (top: number) => void };
   stamp: Stamp;
   take: Take;
   peek: Peek;

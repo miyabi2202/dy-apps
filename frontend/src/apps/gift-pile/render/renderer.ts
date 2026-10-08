@@ -89,6 +89,8 @@ export class PileRenderer {
   private layerTop = 0;
   /** When the last draw was, for easing the camera; and who to tell when it moves. */
   private lastDraw: number | null = null;
+  /** Where the overlay has asked the view's top to go, while it is busy. */
+  private cameraRequest: number | null = null;
   private onCamera: ((cameraY: number) => void) | null = null;
 
   /** The user is holding this icon here, or (null) nothing. */
@@ -271,12 +273,21 @@ export class PileRenderer {
     return Math.min(0, top - this.stage.radius - this.stage.headroom * this.world.height);
   }
 
-  /** Ease the camera towards where it should be, as of wall time `now`, unless the overlay is busy. */
+  /**
+   * Ease the camera, as of wall time `now`, towards where it should be for the pile; or, while
+   * the overlay is busy, towards where it has asked, holding still if it hasn't.
+   */
   private moveCamera(now: number): void {
     const dt = this.lastDraw === null ? Infinity : now - this.lastDraw;
     this.lastDraw = now;
-    if (this.overlay?.busy) return;
-    const target = this.cameraTarget();
+    let target: number;
+    if (this.overlay?.busy) {
+      if (this.cameraRequest === null) return;
+      target = this.cameraRequest;
+    } else {
+      this.cameraRequest = null;
+      target = this.cameraTarget();
+    }
     if (Math.abs(target - this.cameraY) < 0.25) {
       if (target === this.cameraY) return;
       this.cameraY = target;
@@ -367,6 +378,12 @@ export class PileRenderer {
     this.overlay?.draw(ctx, now, {
       radius: this.stage.radius,
       top: (x) => this.topAt(x),
+      camera: {
+        view: this.view,
+        moveTo: (top) => {
+          this.cameraRequest = Math.min(0, top);
+        },
+      },
       stamp: (x, y, scale) => this.stamp(ctx, x, y, scale),
       take: (id) => this.take(id),
       peek: (id) => this.peek(id),

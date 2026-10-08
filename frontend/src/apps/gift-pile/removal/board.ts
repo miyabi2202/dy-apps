@@ -22,6 +22,27 @@ export interface View {
   height: number;
 }
 
+/**
+ * The view onto the pile while a removal runs. It stays put unless the removal moves it, say
+ * to follow something of its own down into the pile; once the removal is over, it follows
+ * the pile again. It never goes below the floor.
+ */
+export interface Camera {
+  /** What is on screen now. */
+  readonly view: View;
+  /** Ease the view so its top is at `top`. */
+  moveTo(top: number): void;
+  /** Move the view only as far as needed for `y` to be on screen, at least `margin` from its top and bottom. */
+  keepInView(y: number, margin: number): void;
+}
+
+/** Where the top of `view` has to be for `y` to be on screen at least `margin` from its edges: where it is, if it already is. */
+export function topKeeping(view: View, y: number, margin: number): number {
+  if (y > view.top + view.height - margin) return y - (view.height - margin);
+  if (y < view.top + margin) return y - margin;
+  return view.top;
+}
+
 /** A point in world pixels. */
 export interface Point {
   x: number;
@@ -37,8 +58,8 @@ export interface Point {
  */
 export interface Board {
   readonly world: World;
-  /** What is on screen, which stays put while the removal runs: things should come and go, and hover, within it. */
-  readonly view: View;
+  /** The view onto the pile: things should come and go, and hover, within it. */
+  readonly camera: Camera;
   /** An icon's drawn radius, in world pixels. */
   readonly iconRadius: number;
   /** Where each icon was when it was set aside. */

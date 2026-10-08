@@ -294,3 +294,34 @@ describe('PileRenderer camera', () => {
     expect(renderer.view.top).toBeCloseTo(over(-300), 0);
   });
 });
+
+describe('PileRenderer camera, moved by the overlay', () => {
+  it('goes where a busy overlay asks, never below the floor, and back to following the pile after', () => {
+    let busy = true;
+    let ask: number | null = -500;
+    const overlay: Overlay = {
+      onScoop: () => {},
+      reset: () => {},
+      holds: () => false,
+      draw: (_ctx, _now, hooks) => {
+        if (ask !== null) hooks.camera.moveTo(ask);
+      },
+      get busy() {
+        return busy;
+      },
+    };
+    const renderer = new PileRenderer(PILE, () => ({}) as CanvasImageSource, overlay);
+    const canvas = document.createElement('canvas');
+    renderer.pushFrame(frame({ settled: [[1, 100, 600]] }), 0);
+    for (let now = 0; now <= 4000; now += 16) renderer.draw(canvas, now);
+    expect(renderer.view.top).toBeCloseTo(-500, 0);
+    ask = 300;
+    for (let now = 4000; now <= 8000; now += 16) renderer.draw(canvas, now);
+    expect(renderer.view.top).toBe(0);
+    // Done: it follows the pile again, which is low.
+    ask = -500;
+    busy = false;
+    for (let now = 8000; now <= 12000; now += 16) renderer.draw(canvas, now);
+    expect(renderer.view.top).toBe(0);
+  });
+});

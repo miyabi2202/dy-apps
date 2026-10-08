@@ -15,6 +15,8 @@ const BITE_BEHIND = PAC_R * 0.3;
 const BITE_SIDE = PAC_R * 0.85;
 /** One row is this far below the last: a little less than his bite is tall, so no icon slips between. */
 const ROW_STEP = BITE_SIDE * 1.8;
+/** The view is kept moved to have him this far from its top and bottom, at least. */
+const CAMERA_MARGIN = PAC_R * 3;
 /** The ghost chases this far behind him along his path. */
 const GHOST_GAP = 78;
 /** Caught: the ghost closes in over this long, then he shrivels away over this long, and it's over this long after. */
@@ -107,6 +109,8 @@ export class Run implements Removal {
     const { t } = this.clock;
     const { palette } = this;
     const me = this.at();
+    // Down through the rows, the view follows him, so he never goes out of sight.
+    this.board.camera.keepInView(me.y, CAMERA_MARGIN);
 
     if (this.caughtAt === null) {
       const ghost = this.trail.behind(GHOST_GAP);

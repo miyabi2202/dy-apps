@@ -1,6 +1,6 @@
 import type { Scoop } from '../core/protocol';
 import type { Hooks } from '../render/overlay';
-import type { Board, Point, View, World } from './board';
+import { type Board, type Camera, type Point, topKeeping, type View, type World } from './board';
 import type { RemovalSink } from './sink';
 
 /** Where a removal's icon is. */
@@ -29,7 +29,8 @@ export class ScoopBoard implements Board {
     private readonly sink: RemovalSink,
     scoop: Scoop,
     readonly world: World,
-    readonly view: View,
+    /** The view when it began, until the renderer's first frame says. */
+    private readonly startView: View,
     /** Called with each icon dropped back. */
     private readonly onDrop: (id: number) => void,
   ) {
@@ -40,7 +41,24 @@ export class ScoopBoard implements Board {
       this.index.set(id, i);
       return { x: scoop.xy[2 * i]!, y: scoop.xy[2 * i + 1]! };
     });
+    const hooks = () => this.hooks;
+    const start = this.startView;
+    this.camera = {
+      get view() {
+        return hooks()?.camera.view ?? start;
+      },
+      moveTo(top) {
+        hooks()?.camera.moveTo(top);
+      },
+      keepInView(y, margin) {
+        const top = topKeeping(this.view, y, margin);
+        if (top !== this.view.top) this.moveTo(top);
+      },
+    };
   }
+
+  /** The renderer's camera, through the frame's hooks. */
+  readonly camera: Camera;
 
   get iconRadius(): number {
     return this.hooks?.radius ?? DEFAULT_RADIUS;
