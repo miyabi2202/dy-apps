@@ -6,8 +6,8 @@
 
 /**
  * `vec4 pmPacMan(...)`: Pac-Man, `R` px to his rim, a glossy sphere lit from the upper left with
- * a hot spot, a fresnel rim and a bounce of warm light from below, a dark hollow where his
- * mouth is cut (`mouth` is its half angle, `facing` the way it points), one eye, and a neon
+ * a hot spot, a fresnel rim and a bounce of warm light from below, a mouth cut clean through (`mouth` is its half
+ * angle, `facing` the way it points) with only a faint shadow at its point, one eye, and a neon
  * halo. `dying` from 0 to 1 takes the eye and the halo away.
  */
 export const PM_PAC_MAN_GLSL = `
@@ -62,15 +62,13 @@ vec4 pmPacMan(vec2 p, float R, float mouth, float facing, float glow, vec3 col, 
   eyeCol += vec3(1.0) * (1.0 - smoothstep(0.0, 0.32, length(ev - vec2(-0.3, -0.38))));
   body = mix(body, eyeCol, eye);
 
-  // The inside of the sphere through the cut: dark, lit a little at its far rim.
-  vec3 hollow = mix(vec3(0.02, 0.006, 0.0), col * vec3(0.32, 0.13, 0.04), smoothstep(0.25, 1.0, r));
-  hollow += lip * smoothstep(0.85, 1.0, r) * 0.25;
-
-  hollow = mix(hollow, col * 0.8, dying * 0.8);
-  vec3 rgb = body * covBody + hollow * covHollow * 0.92;
-  float a = covBody + covHollow * 0.92;
-  // The neon halo, outside the sphere.
-  float halo = exp(-max(dDisc, 0.0) * 5.0) * (1.0 - smoothstep(0.3, 0.58, dDisc)) * (1.0 - covBody);
+  // The cut is open: the background shows through it. Only a soft shadow gathers near the
+  // wedge's point, where the inside of the sphere would be, and fades before the rim.
+  float shadow = covHollow * 0.5 * (1.0 - smoothstep(0.0, 0.6, r)) * (1.0 - dying);
+  vec3 rgb = body * covBody + vec3(0.02, 0.006, 0.0) * shadow;
+  float a = covBody + shadow;
+  // The neon halo, outside the sphere only: it must not fill the mouth.
+  float halo = exp(-max(dDisc, 0.0) * 5.0) * (1.0 - smoothstep(0.3, 0.58, dDisc)) * smoothstep(-aa, aa, dDisc);
   rgb += col * halo * 0.45 * glow * (1.0 - dying);
   return vec4(rgb, min(a, 1.0));
 }
