@@ -569,7 +569,7 @@ export class GlGfx implements Gfx {
     const [dr, dg, db] = parseColor(colors.disk);
     this.batch.use(null, 'normal');
     this.batch.shape(KIND.blackHole, hole * s, dr, dg, db, Math.min(1, open));
-    const half = hole * 4;
+    const half = hole * 8;
     this.box(x, y, 1, 0, half, half, parseColor(colors.glow), 1);
   }
 
@@ -712,6 +712,15 @@ export class GlGfx implements Gfx {
   flash(color: Color, alpha: number): void {
     const [r, g, b, a] = parseColor(color);
     this.effects.tint(r, g, b, alpha * a);
+  }
+
+  // Black hole
+
+  blackHolePop(x: number, y: number, radius: number, u: number, color: Color): void {
+    if (u >= 1 || radius <= 0) return;
+    this.batch.use(null, 'add');
+    this.batch.shape(KIND.blackHolePop, radius * this.scale, Math.max(0, u));
+    this.box(x, y, 1, 0, radius, radius, parseColor(color), 1);
   }
 
   private worldX(x: number, y: number): number {

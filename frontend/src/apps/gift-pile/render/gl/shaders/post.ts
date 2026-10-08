@@ -46,11 +46,16 @@ void main() {
     at -= d / max(r, 1.0) * exp(-x * x) * u_shockStrength[i];
   }
 
-  // Lens: what is near the centre is pulled in towards it, most at the middle.
+  // Lens: light bent round a mass, so the view round it is pushed outwards and a ring of the
+  // background piles up at the Einstein radius; the pull fades out by the lens's radius.
   if (u_lens.w > 0.0) {
     vec2 d = w - u_lens.xy;
-    float pull = clamp(1.0 - length(d) / max(u_lens.z, 1.0), 0.0, 1.0);
-    at += d * (u_lens.w * pull * pull * 0.6);
+    float e = u_lens.z * 0.085 * u_lens.w;
+    float r = sqrt(dot(d, d) + e * e * 0.12);
+    float reach = 1.0 - smoothstep(0.35, 1.0, length(d) / max(u_lens.z, 1.0));
+    // Inside the Einstein radius it stops, so nothing is smeared or turned over in the hole.
+    float bend = min(e * e / r, length(d) * 0.97) * smoothstep(0.9 * e, 1.7 * e, length(d));
+    at -= d / r * bend * reach;
   }
 
   // Heat haze: a shimmer rising through each rectangle, faded out at its edges.

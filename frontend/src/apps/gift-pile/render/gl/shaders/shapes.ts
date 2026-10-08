@@ -5,6 +5,7 @@
 
 import { NOISE_GLSL } from './noise';
 import { BEAM_GLSL, SAUCER_GLSL } from './ufo';
+import { BLACK_HOLE_GLSL, BLACK_HOLE_POP_GLSL } from './black-hole';
 
 /** What shape a vertex belongs to; the same numbers as `KIND` in `shape-batch.ts`. */
 export const SHAPES_VS = `#version 300 es
@@ -66,7 +67,7 @@ float outline(float d) {
   return v_q.x > 0.0 ? abs(d) - v_q.x * 0.5 : d;
 }
 
-${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}
+${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${BLACK_HOLE_GLSL}${BLACK_HOLE_POP_GLSL}
 void main() {
   int k = int(v_kind + 0.5);
   vec4 c = v_color; // straight alpha
@@ -120,41 +121,11 @@ void main() {
   } else if (k == 8) { // glow: p.x falloff exponent, p.y share kept at full, p.z radius
     float r = length(v_local) / v_p.z;
     a = pow(clamp((1.0 - r) / max(1.0 - v_p.y, 0.001), 0.0, 1.0), v_p.x);
-  } else if (k == 13) { // black hole: p.x horizon radius, p.yzw disk colour, q.x light; c the outer glow
-    vec2 p = v_local / v_p.x;
-    float r = length(p);
-    float horizon = cover((r - 1.0) * v_p.x, 0.0);
-    // The disk lies flat, tilted: its own radius and angle are those of the stretched plane.
-    const float TILT = -0.2;
-    vec2 d = mat2(cos(TILT), -sin(TILT), sin(TILT), cos(TILT)) * p;
-    vec2 e = vec2(d.x, d.y / 0.35);
-    float rd = length(e);
-    float ang = atan(e.y, e.x);
-    float band = 0.6 + 0.4 * sin(8.0 * ang + 4.0 * rd - u_time * 0.004);
-    band *= 0.75 + 0.25 * sin(23.0 * rd - u_time * 0.003);
-    float doppler = 1.0 + 0.6 * sin(ang);
-    float ring = smoothstep(1.35, 1.6, rd) * (1.0 - smoothstep(2.9, 3.6, rd));
-    float heat = ring * band * doppler;
-    vec3 diskColor = mix(vec3(1.0, 0.96, 0.85), v_p.yzw, smoothstep(1.4, 2.3, rd));
-    diskColor = mix(diskColor, c.rgb, smoothstep(2.3, 3.5, rd));
-    float diskA = clamp(heat * v_q.x, 0.0, 1.0);
-    // Light bent round the hole: a thin white-hot ring on the horizon, and a faint halo.
-    float photon = exp(-pow((r - 1.08) / 0.045, 2.0)) * v_q.x;
-    float halo = pow(clamp(1.0 - r / 3.8, 0.0, 1.0), 2.0) * 0.3 * v_q.x;
-    // Premultiplied: the halo, then the disk (behind the hole where it is above it, in front below),
-    // the horizon black, the photon ring over all.
-    vec4 col = vec4(c.rgb * halo, halo * c.a);
-    vec4 disk = vec4(diskColor * diskA, diskA);
-    vec4 hole = vec4(0.0, 0.0, 0.0, horizon * v_q.x);
-    if (d.y > 0.0) {
-      col = col * (1.0 - hole.a) + hole;
-      col = col * (1.0 - disk.a) + disk;
-    } else {
-      col = col * (1.0 - disk.a) + disk;
-      col = col * (1.0 - hole.a) + hole;
-    }
-    col += vec4(vec3(photon), photon);
-    o = col * c.a;
+  } else if (k == 13) { // black hole: p.x horizon radius, p.yzw disk colour, q.x open; c the outer glow
+    o = blackHoleColor(v_local, v_p.x, v_p.yzw, c.rgb, v_q.x, u_time, u_px) * c.a;
+    return;
+  } else if (k == 50) { // black hole's pop: p.x radius, p.y progress 0 to 1; c the colour
+    o = blackHolePopColor(v_local, v_p.x, v_p.y, c.rgb, u_time) * c.a;
     return;
   } else if (k == 15) { // saucer: p.x radius, p.yzw hull tint, q.xyz dome colour, q.w glow; c the lights
     o = saucerColor(v_local, v_p.x, v_p.yzw, v_q.xyz, c.rgb, v_q.w, u_time, u_px) * c.a;
