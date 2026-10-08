@@ -1,6 +1,7 @@
 /**
- * The 嘉年华 gift icon from Douyin, trimmed and scaled to 16×16 with its transparent
- * background (the original is p3-webcast.douyinpic.com/img/webcast/a7d3b86b11df780f084d06723ad70b30.png).
+ * The 嘉年华 gift icon from Douyin as it is, 168×168 with its transparent background, from
+ * p3-webcast.douyinpic.com/img/webcast/a7d3b86b11df780f084d06723ad70b30.png~tplv-obj.png;
+ * the renderer scales it down to an icon's size once, for its sprite.
  */
 export const GIFT_ICON_URL = '/gifts/jianianhua.png';
 

@@ -5,7 +5,7 @@ export interface PileSettings {
    * `margin` buffer on the left, right and bottom (see `canvasSize`).
    */
   world: { width: number; height: number };
-  /** Icons are drawn 2 × this across (16×16). */
+  /** Icons are drawn 2 × this across (24×24). */
   radius: number;
   /** Icons collide as circles of this radius, smaller than drawn, so they visibly overlap in the pile. */
   collisionRadius: number;
@@ -64,7 +64,7 @@ export interface PileSettings {
 
 export const PILE: PileSettings = {
   world: { width: 400, height: 700 },
-  radius: 8,
+  radius: 12,
   collisionRadius: 6,
   grabRadius: 12,
   margin: 8,
