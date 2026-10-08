@@ -209,26 +209,48 @@ describe('PileEngine', () => {
     expect(engine.y[1]).toBeLessThan(engine.y[0]! - 10);
   });
 
-  it('drops new icons in from just above the view once the pile has grown into its headroom', async () => {
+  it('releases new icons at the drop line the page sets, held to just above the canvas, until a clear', async () => {
     const engine = await createEngine();
     // Read after a step, so within a step's fall (and the band they are spread over) of the line.
     const fall = PILE.spawnSpeed / PILE.stepHz;
+    const releasedAt = (line: number | null) => {
+      if (line !== null) engine.setDropLine(line);
+      const i = engine.count;
+      engine.add(1);
+      step(engine, 1);
+      return engine.y[i]!;
+    };
     const near = (y: number, line: number) =>
       expect(Math.abs(y - line)).toBeLessThanOrEqual(2 * fall);
-    // A low pile: they come in just above the canvas's top.
-    engine.add(1);
-    step(engine, 1);
-    near(engine.y[0]!, -r);
-    // A pile grown into the top third: just above where the view will be, its headroom over the pile.
-    engine.add(450);
-    settle(engine);
+    // Not told yet: just above the canvas's top.
+    near(releasedAt(null), -r);
+    // Up where the view has gone to keep clear of a tall pile.
+    near(releasedAt(-500), -500);
+    // A line down on the canvas would drop them in view: they still come in above it.
+    near(releasedAt(200), -r);
+    // A clear starts the pile over, and the line with it.
+    engine.setDropLine(-500);
+    engine.clear();
+    near(releasedAt(null), -r);
+  });
+
+  it('never releases inside the heap, even when the drop line has gone stale as the pile grew past it', async () => {
+    const engine = await createEngine();
+    // The page said where once and then stopped (a hidden tab): the pile grows past the line.
+    engine.setDropLine(-r);
+    engine.add(800);
+    // Not `settle`, which keeps the line up as the page does.
+    for (let n = 0; n < 30 * PILE.stepHz && (engine.queued > 0 || engine.movingCount > 0); n++) {
+      engine.step();
+    }
+    expect(engine.queued).toBe(0);
     const top = Math.min(...restingIcons(engine).map((i) => engine.y[i]!));
-    const headroom = engine.height * PILE.headroom;
-    expect(top).toBeLessThan(headroom);
+    expect(top).toBeLessThan(-100);
     const first = engine.count;
     engine.add(1);
     step(engine, 1);
-    near(engine.y[first]!, top - headroom - r);
+    // Within a step's fall of the line, a diameter above the heap.
+    expect(engine.y[first]).toBeLessThan(top);
   });
 
   it('removes from the top of the pile down, loosely', async () => {

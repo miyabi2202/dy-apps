@@ -34,9 +34,9 @@ const NEAR_REACH = 3;
 
 /**
  * The pile, simulated by Rapier. Every icon is a circle in a world with a floor and two
- * walls. New icons are released on a line above the pile and fall as rigid bodies that
- * don't bounce but do rub against each other, so they slide down the heap until it holds
- * them. Once one has been near enough to still for a while, touching something that can
+ * walls. New icons are released on a line above the view (the page says where) and fall as
+ * rigid bodies that don't bounce but do rub against each other, so they slide down the heap
+ * until it holds them. Once one has been near enough to still for a while, touching something that can
  * hold it, it comes to rest: its body is taken out of the engine and a fixed circle is left
  * in its place for the others to land on. So the engine only ever simulates what is moving,
  * however big the pile.
@@ -87,6 +87,11 @@ export class PileEngine {
   queued = 0;
   /** The top of the resting pile: the highest resting icon's centre, or the floor. */
   topY: number;
+  /**
+   * Where new icons are released, as a y in pixels, as the page last said (`setDropLine`);
+   * null until it has, and again after a clear.
+   */
+  dropLine: number | null = null;
   /** Goes up on every `clear()`, so a renderer knows to start its pile over. */
   generation = 0;
 
@@ -185,6 +190,11 @@ export class PileEngine {
     return added;
   }
 
+  /** New icons are released at world y `line` (pixels), or just above the canvas's top if that is lower. */
+  setDropLine(line: number): void {
+    this.dropLine = line;
+  }
+
   /** A new, empty world with a play area of this size (in pixels). */
   resize(width: number, height: number): void {
     const canvas = canvasSize({ width, height }, this.margin);
@@ -210,6 +220,7 @@ export class PileEngine {
     this.settledLen = 0;
     this.wokenBuf = [];
     this.spawnCredit = 0;
+    this.dropLine = null;
     this.stepCount = 0;
     this.topY = this.height;
     this.resting.fill(0);
@@ -430,9 +441,9 @@ export class PileEngine {
   }
 
   /**
-   * Release what the rate allows on the line above the heap, each clear of every moving
-   * icon near the line. The heap is what rests plus whatever has been in the world for a
-   * while; the fresh stream above it doesn't push the line up.
+   * Release what the rate allows on the drop line the page has set, each clear of every
+   * moving icon near the line. Until the page says, or if it puts the line below the
+   * canvas's top, they come in just above the top; and never lower than just above the heap.
    */
   private spawn(): void {
     const { settings: s, x, y, moving } = this;
@@ -443,15 +454,15 @@ export class PileEngine {
     const d = 2 * r;
     const d2 = d * d;
 
+    // Never inside the heap, whatever the page last said (it may have stopped drawing): the
+    // heap is what rests plus whatever has been in the world for a while.
     let top = this.topY;
     const heapBorn = this.stepCount - s.heapAge;
     for (let k = 0; k < this.movingLen; k++) {
       const i = moving[k]!;
       if (this.born[i]! <= heapBorn && y[i]! < top) top = y[i]!;
     }
-    // Just above the top of the view: the canvas's own top, or, once the view has moved up
-    // to keep its headroom over the pile, the top of that.
-    const line = Math.min(-r, top - this.height * s.headroom - r);
+    const line = Math.min(-r, this.dropLine ?? -r, top - d);
     // Icons are spread over the distance the stream falls in one step, so a step's
     // releases don't form a row.
     const band = s.spawnSpeed * this.dt;

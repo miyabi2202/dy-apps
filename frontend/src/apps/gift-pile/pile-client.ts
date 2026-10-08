@@ -118,6 +118,11 @@ export class PileClient {
     this.send({ type: 'destroy', id });
   }
 
+  /** New icons are released at world y `y` (pixels); it is forgotten when the pile is cleared. */
+  setDropLine(y: number): void {
+    this.send({ type: 'setDropLine', y });
+  }
+
   private send(message: ToWorker): void {
     if (this.ready && this.worker) this.worker.postMessage(message);
     else this.pending.push(message);

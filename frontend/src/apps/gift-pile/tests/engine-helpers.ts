@@ -27,13 +27,41 @@ export function step(engine: PileEngine, n: number): void {
   for (let s = 0; s < n; s++) engine.step();
 }
 
+/** The steps taken so far under `settle`, and the step each icon that is moving began on. */
+const pours = new WeakMap<PileEngine, { steps: number; began: Map<number, number> }>();
+
+/**
+ * What the page does for the engine as a pile grows: keeps the drop line above the heap (what
+ * rests and what has moved a while) by the headroom, so a pour into a tall pile isn't released
+ * into it. Without a line, icons come in at the top of the canvas and a pile past it jams them.
+ */
+function keepDropLineAboveHeap(engine: PileEngine): void {
+  const pour = pours.get(engine) ?? { steps: 0, began: new Map<number, number>() };
+  pours.set(engine, pour);
+  pour.steps++;
+  let top = Infinity;
+  for (const i of restingIcons(engine)) top = Math.min(top, engine.y[i]!);
+  const moving = new Map<number, number>();
+  for (const i of movingIcons(engine)) {
+    const began = pour.began.get(i) ?? pour.steps;
+    moving.set(i, began);
+    if (pour.steps - began >= PILE.heapAge) top = Math.min(top, engine.y[i]!);
+  }
+  pour.began = moving;
+  if (Number.isFinite(top)) {
+    engine.setDropLine(top - 2 * PILE.radius - PILE.headroom * engine.height);
+  }
+}
+
 /**
  * Steps until nothing is queued or moving, and fails if that takes more than `maxSeconds`
- * of simulation: an icon that never rests but never falls is floating too.
+ * of simulation: an icon that never rests but never falls is floating too. The drop line is
+ * kept above the heap, as the page keeps it.
  */
 export function settle(engine: PileEngine, maxSeconds = 30): void {
   const maxSteps = maxSeconds * PILE.stepHz;
   for (let s = 0; s < maxSteps && (engine.queued > 0 || engine.movingCount > 0); s++) {
+    keepDropLineAboveHeap(engine);
     engine.step();
   }
   if (engine.queued > 0 || engine.movingCount > 0) {

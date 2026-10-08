@@ -8,6 +8,7 @@ import { Crossing } from '../removal/kit/crossing';
 import { Vacuum } from '../removal/kit/vacuum';
 import { allRemovers } from '../removal/removers';
 import { LOAD_CAPACITY } from '../removal/queue';
+import type { Ground } from '../removal/scoop-board';
 import type { RemovalSink } from '../removal/sink';
 import { fakeContext, mulberry32 } from './helpers';
 
@@ -69,16 +70,25 @@ class FakeSink implements RemovalSink {
 }
 
 const world = { width: 416, height: 708 };
-const noStamp = () => {};
-/** The renderer knows where every icon is: in a row along the top of a pile. */
+/** The pile knows where every icon is: in a row along the top of a pile. */
 const take = (id: number) => ({ x: 20 + (id - 100) * 12, y: 500 });
-const hooks = {
+/** Where the pile says an icon is, and how many times it was asked to stamp; a test may change either. */
+let peek = (id: number): { x: number; y: number; resting: boolean } | null => ({
+  ...take(id),
+  resting: true,
+});
+let stamped = 0;
+beforeEach(() => {
+  peek = (id) => ({ ...take(id), resting: true });
+  stamped = 0;
+});
+const ground: Ground = {
   radius: 8,
-  top: () => null,
+  topAt: () => null,
   camera: { view: { top: 0, height: 708 }, moveTo: () => {} },
-  stamp: noStamp,
+  stamp: () => stamped++,
   take,
-  peek: (id: number) => ({ ...take(id), resting: true }),
+  peek: (id) => peek(id),
 };
 
 /** `n` icons in a row along the top of a pile, with `drop` of them to come back. */
@@ -94,7 +104,7 @@ describe('RemovalDirector', () => {
   it('asks for a scoop at once, and plans a queued removal from the pile as it is when its turn comes', () => {
     const sink = new FakeSink();
     sink.inPile = 5000;
-    const director = new RemovalDirector(sink, { removers: testRemovers() });
+    const director = new RemovalDirector(sink, { ground, removers: testRemovers() });
     director.remove(30, 0);
     expect(sink.scoops).toEqual([{ count: 38, extra: 8 }]);
     expect(sink.removed).toEqual([]);
@@ -107,7 +117,7 @@ describe('RemovalDirector', () => {
     director.onScoop(scoopOf(38, 8), world, 0);
     const ctx = fakeContext();
     sink.inPile = 30;
-    for (let now = 0; now <= 7000; now += 100) director.draw(ctx, now, hooks);
+    for (let now = 0; now <= 7000; now += 100) director.draw(ctx, now);
     expect(sink.removed).toEqual([]);
     expect(sink.scoops).toEqual([
       { count: 38, extra: 8 },
@@ -117,20 +127,24 @@ describe('RemovalDirector', () => {
 
   it('destroys a dropped icon that falls into the bin, and forgets one that lands', () => {
     const sink = new FakeSink();
-    const director = new RemovalDirector(sink, { rng: mulberry32(6), removers: testRemovers() });
+    const director = new RemovalDirector(sink, {
+      ground,
+      rng: mulberry32(6),
+      removers: testRemovers(),
+    });
     const ctx = fakeContext();
     let caught = 0;
     director.setBin({ x: 200, y: 600, half: 25, onCatch: () => caught++ });
     const n = 10;
     director.onScoop(scoopOf(n, 2), world, 0);
     // The first icon dropped falls through the bin; the second lands on the pile.
-    const peek = (id: number) => {
+    peek = (id: number) => {
       const k = sink.released.findIndex((r) => r.id === id);
       if (k === 0) return { x: 190, y: 610, resting: false };
       if (k === 1) return { x: 300, y: 500, resting: true };
       return { ...take(id), resting: true };
     };
-    for (let now = 0; now <= 7000; now += 16) director.draw(ctx, now, { ...hooks, peek });
+    for (let now = 0; now <= 7000; now += 16) director.draw(ctx, now);
     expect(sink.released).toHaveLength(2);
     const [inBin, onPile] = sink.released.map((r) => r.id);
     expect(sink.destroyed).toContain(inBin);
@@ -141,7 +155,11 @@ describe('RemovalDirector', () => {
 
   it('adds at once when nothing is up, and after the craft is gone when one is', () => {
     const sink = new FakeSink();
-    const director = new RemovalDirector(sink, { rng: mulberry32(2), removers: testRemovers() });
+    const director = new RemovalDirector(sink, {
+      ground,
+      rng: mulberry32(2),
+      removers: testRemovers(),
+    });
     const ctx = fakeContext();
     director.add(50, 0);
     expect(sink.added).toEqual([50]);
@@ -155,37 +173,40 @@ describe('RemovalDirector', () => {
     expect(sink.added).toEqual([50]);
     expect(director.pendingAdds).toBe(50);
     expect(director.queued).toBe(3);
-    director.draw(ctx, 3000, hooks);
+    director.draw(ctx, 3000);
     expect(sink.added).toEqual([50]);
     // The craft is gone: the first addition goes at once, then the next craft after the gap,
     // and the last addition only once that one is gone too.
-    director.draw(ctx, 5600, hooks);
+    director.draw(ctx, 5600);
     expect(sink.added).toEqual([50, 20]);
     expect(director.pendingAdds).toBe(30);
     expect(sink.scoops).toHaveLength(1);
-    director.draw(ctx, 6700, hooks);
+    director.draw(ctx, 6700);
     expect(sink.scoops).toHaveLength(2);
     expect(sink.added).toEqual([50, 20]);
     director.onScoop(scoopOf(11, 1, 200), world, 6700);
-    director.draw(ctx, 6700 + 5500, hooks);
+    director.draw(ctx, 6700 + 5500);
     expect(sink.added).toEqual([50, 20, 30]);
     expect(director.queued).toBe(0);
   });
 
   it('takes icons as the nozzle reaches them, drops the extras over the pile and destroys the rest once gone', () => {
     const sink = new FakeSink();
-    const director = new RemovalDirector(sink, { rng: mulberry32(3), removers: testRemovers() });
+    const director = new RemovalDirector(sink, {
+      ground,
+      rng: mulberry32(3),
+      removers: testRemovers(),
+    });
     const ctx = fakeContext();
-    let stamped = 0;
     const n = 30;
     const drop = 4;
 
     director.onScoop(scoopOf(n, drop), world, 1000);
     expect(director.busy).toBe(true);
     // Nothing leaves the pile when the plane appears; the suction takes them one by one.
-    director.draw(ctx, 1000, hooks);
+    director.draw(ctx, 1000);
     expect(sink.grabbed).toHaveLength(0);
-    director.draw(ctx, 1000 + 800, hooks);
+    director.draw(ctx, 1000 + 800);
     expect(sink.grabbed.length).toBeGreaterThan(0);
     expect(sink.grabbed.length).toBeLessThan(n);
     const back = new Set(sink.released.map((r) => r.id));
@@ -193,7 +214,7 @@ describe('RemovalDirector', () => {
 
     let destroyedAt: number | null = null;
     for (let now = 1800; now <= 1000 + 6000; now += 16) {
-      director.draw(ctx, now, { ...hooks, stamp: () => stamped++ });
+      director.draw(ctx, now);
       if (destroyedAt === null && sink.destroyed.length > 0) destroyedAt = now;
       // Nothing is destroyed while the plane is still crossing the canvas.
       if (now < 1000 + 4800) expect(sink.destroyed).toHaveLength(0);
@@ -220,7 +241,11 @@ describe('RemovalDirector', () => {
 
   it('sends queued crafts one at a time, with a second between them', () => {
     const sink = new FakeSink();
-    const director = new RemovalDirector(sink, { rng: mulberry32(4), removers: testRemovers() });
+    const director = new RemovalDirector(sink, {
+      ground,
+      rng: mulberry32(4),
+      removers: testRemovers(),
+    });
     const ctx = fakeContext();
     director.remove(10, 0);
     director.remove(10, 0);
@@ -228,27 +253,27 @@ describe('RemovalDirector', () => {
     expect(sink.scoops).toHaveLength(1);
     director.onScoop(scoopOf(11, 1), world, 0);
     // Only one craft while the first is up, even once it has crossed.
-    director.draw(ctx, 500, hooks);
-    director.draw(ctx, 5000, hooks);
+    director.draw(ctx, 500);
+    director.draw(ctx, 5000);
     expect(sink.scoops).toHaveLength(1);
     expect(director.busy).toBe(true);
     // Gone at 5500; the next is asked for 1 s later, and sets off when its icons arrive.
-    director.draw(ctx, 5600, hooks);
+    director.draw(ctx, 5600);
     expect(director.busy).toBe(false);
     expect(sink.scoops).toHaveLength(1);
-    director.draw(ctx, 6500, hooks);
+    director.draw(ctx, 6500);
     expect(sink.scoops).toHaveLength(1);
-    director.draw(ctx, 6700, hooks);
+    director.draw(ctx, 6700);
     expect(sink.scoops).toHaveLength(2);
     director.onScoop(scoopOf(11, 1, 200), world, 6700);
     expect(director.busy).toBe(true);
     expect(director.queued).toBe(1);
     // The gap counts from the draw that finds the craft gone.
-    director.draw(ctx, 6700 + 5500, hooks);
+    director.draw(ctx, 6700 + 5500);
     expect(director.busy).toBe(false);
-    director.draw(ctx, 6700 + 5500 + 900, hooks);
+    director.draw(ctx, 6700 + 5500 + 900);
     expect(sink.scoops).toHaveLength(2);
-    director.draw(ctx, 6700 + 5500 + 1100, hooks);
+    director.draw(ctx, 6700 + 5500 + 1100);
     expect(sink.scoops).toHaveLength(3);
     // An empty scoop (the pile ran out) frees the queue too.
     director.onScoop(scoopOf(0, 1), world, 16_000);
@@ -258,9 +283,13 @@ describe('RemovalDirector', () => {
 
   it('never drops more than it carries', () => {
     const sink = new FakeSink();
-    const director = new RemovalDirector(sink, { removers: allRemovers(), rng: mulberry32(5) });
+    const director = new RemovalDirector(sink, {
+      ground,
+      removers: allRemovers(),
+      rng: mulberry32(5),
+    });
     director.onScoop(scoopOf(2, 5), world, 0);
-    for (let now = 0; now <= 8000; now += 16) director.draw(fakeContext(), now, hooks);
+    for (let now = 0; now <= 8000; now += 16) director.draw(fakeContext(), now);
     expect(sink.released).toHaveLength(2);
     expect(sink.destroyed).toHaveLength(0);
   });
@@ -278,6 +307,7 @@ describe('RemovalDirector', () => {
       },
     });
     const director = new RemovalDirector(sink, {
+      ground,
       removers: [remover('aims', 0.3), remover('plain')],
       rng: mulberry32(8),
     });
@@ -285,7 +315,7 @@ describe('RemovalDirector', () => {
       director.remove(10, k * 2000);
       const asked = sink.scoops[k]!;
       director.onScoop(scoopOf(12, 2), world, k * 2000);
-      director.draw(fakeContext(), k * 2000 + 1, hooks);
+      director.draw(fakeContext(), k * 2000 + 1);
       // The one that begins is the one dealt when the scoop was asked for.
       expect(began[k]!.name).toBe(asked.shape ? 'aims' : 'plain');
       expect(began[k]!.icons).toBe(12);
@@ -305,13 +335,14 @@ describe('RemovalDirector', () => {
       },
     });
     const director = new RemovalDirector(sink, {
+      ground,
       removers: ['a', 'b', 'c'].map(remover),
       rng: mulberry32(9),
     });
     const removeOnce = (k: number) => {
       director.remove(10, k * 2000);
       director.onScoop(scoopOf(12, 2), world, k * 2000);
-      director.draw(fakeContext(), k * 2000 + 1, hooks);
+      director.draw(fakeContext(), k * 2000 + 1);
     };
     director.setEnabled(new Set(['a', 'c']));
     for (let k = 0; k < 6; k++) removeOnce(k);
@@ -324,16 +355,20 @@ describe('RemovalDirector', () => {
 
   it('forgets its removal and queue on reset without touching the icons, since the engine already has', () => {
     const sink = new FakeSink();
-    const director = new RemovalDirector(sink, { removers: allRemovers(), rng: mulberry32(7) });
+    const director = new RemovalDirector(sink, {
+      ground,
+      removers: allRemovers(),
+      rng: mulberry32(7),
+    });
     director.remove(10, 0);
     director.remove(10, 0);
     director.onScoop(scoopOf(10, 2), world, 0);
-    director.draw(fakeContext(), 500, hooks);
+    director.draw(fakeContext(), 500);
     sink.grabbed.length = 0;
     director.reset();
     expect(director.busy).toBe(false);
     expect(director.queued).toBe(0);
-    director.draw(fakeContext(), 10_000, hooks);
+    director.draw(fakeContext(), 10_000);
     expect(sink.grabbed).toHaveLength(0);
     expect(sink.released).toHaveLength(0);
     expect(sink.destroyed).toHaveLength(0);

@@ -18,7 +18,8 @@ export interface PileSettings {
   /**
    * The share of the canvas's height kept clear above the pile, for the removals to work in:
    * once the pile grows into it, the view moves up with it (the bottom of the pile goes out
-   * of sight) and new icons drop in from just above the view.
+   * of sight) and new icons drop in from just above the view (the page tells the engine
+   * where, with `setDropLine`).
    */
   headroom: number;
   gravity: number;
@@ -61,8 +62,10 @@ export interface PileSettings {
    */
   settle: { speed: number; steps: number; overlap: number; maxSteps: number };
   /**
-   * Released this many steps ago or more, a moving icon counts as part of the heap rather
-   * than the falling stream, so new icons are released above it. A heavy stream makes the
+   * Moving for this many steps or more, an icon counts as part of the heap rather than the
+   * falling stream, both for the engine's own check that it never releases inside the heap and
+   * for the camera's reckoning of how high the pile is (the stream just released above the
+   * view mustn't push the view, and so the drop line, up after it). A heavy stream makes the
    * heap top rise too fast for anything in it to count as slow.
    */
   heapAge: number;

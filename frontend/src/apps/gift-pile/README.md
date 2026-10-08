@@ -9,8 +9,27 @@ friction, so heaps form. Once a ball has been near enough to still for a while i
 of the engine and a fixed ball is left in its place, so the engine only ever simulates what is
 moving. The worker steps at `stepHz` and posts a `Frame` (`core/protocol.ts`) after each tick:
 the moving icons' positions and the ones that just settled. On the page, `PileClient` takes the
-frames in and `PileRenderer` draws at display rate, interpolating moving icons between the last
-two frames and stamping settled ones onto a static layer once.
+frames in and hands them to the `Pile` (`pile.ts`), the one thing the page and the stage talk
+to. The `Pile` owns four others and passes what each needs between them, so none of them knows
+of the rest: a `PileState` (`render/pile-state.ts`), which records where every icon is; a
+`Camera` (`render/camera.ts`), which says what part of the world is on screen; the
+`PileRenderer` (`render/renderer.ts`), which draws at display rate, interpolating moving icons
+between the last two frames and stamping settled ones onto a static layer once; and the
+`RemovalDirector`. `createPile()` (`create-pile.ts`) builds the real ones, once, for the page.
+
+A frame is taken in on its message, not at the next display frame, because the renderer
+interpolates by when the latest one arrived: `Pile.onFrame` has the state record it (the first
+frame of a new generation, after a clear or resize, first resets the removals and the camera),
+the renderer take in what left the resting set, and the director take the scoops. Each display
+frame, `Pile.frame` (from the loop in `loop.ts`) steps the camera, draws the pile, then draws
+the removals over it, and last the icon in the user's hand.
+
+`PileState` keeps the resting icons in typed arrays in order of settling, each with its slot,
+the latest two frames, and answers where an icon is (`peek`), takes one out (`take`), finds the
+top of the pile (`topAt`, `profile`, `highestTop`) and the icon under a point (`iconAt`). The
+renderer's resting layer follows the resting set from a journal that the state keeps of what
+left it (slot, the last slot then, the icon moved in to fill it, and where it was), so what
+needs repainting is only what left, and the layer is never compared with the set.
 
 Two engine settings matter (`core/config.ts`): the world is handed to Rapier in metres with an
 icon 1 m across (`pxPerMetre`), because Rapier's tolerances and speed cap are in metres and
@@ -21,26 +40,39 @@ radius.
 ## The camera
 
 Once the pile grows into the top third of the canvas (`headroom` in `core/config.ts`), the
-renderer's camera moves the view up with it, easing, so the removals always have open sky to
-work in; the bottom of the pile goes out of sight, and new icons drop in from just above the
-view. It comes back down as the pile does, but never below the floor, and holds still while a
-removal is under way, unless the removal moves it. Everything is drawn in world pixels shifted by the camera; the resting
-layer covers twice the view's height, and is repainted where the view now is once the camera
-leaves it. Pointer presses and the bin are turned into world pixels with the camera, and the
-bin moves with the world as the camera does, kept on the canvas so it can always be dragged.
-Removals get the camera on their `Board` (`camera.view`, and come, go and hover within it), and
-can move it while they run (`moveTo`, or `keepInView` to move it only as far as something needs):
-Pac-Man and the helicopter's winchman keep themselves in view as they work down into the pile,
-the helicopter coming down with the view if it has to. Once a removal is over, the camera
-follows the pile again.
+`Camera` moves the view up with it, easing, so the removals always have open sky to work in;
+the bottom of the pile goes out of sight. It comes back down as the pile does, but never below
+the floor, and holds still while a removal is under way, unless the removal moves it. The
+camera is a pure step: each frame the `Pile` tells it the time, how high the pile's heap is
+(`PileState.highestTop`: what rests, and what has moved a while, but not the stream just let
+in) and whether a removal is on, and it gives back the view; anyone who cares is told when it
+moves (`subscribe`). It is a small machine of modes, a removal over following the pile, so
+that something of higher priority, like the user's own navigation, can be added over them.
+
+New icons drop in from just above where the view is heading: the `Pile` works the line out
+from the camera's target (less an icon's radius) and sends the engine a `setDropLine` command
+when it changes; the engine knows nothing of the camera, and releases at the line, or just
+above the canvas's top until it is told.
+
+Everything is drawn in world pixels shifted by the view; the resting layer covers twice the
+view's height, and is repainted where the view now is once the camera leaves it. Pointer
+presses are turned into world pixels with the view (`Pile.toWorld`), and the bin moves with
+the world as the camera does, kept on the canvas so it can always be dragged: the stage moves
+it from the camera's subscription directly on its element, not through React state, so a
+camera easing for a second doesn't render the stage on every frame. Removals get the camera
+on their `Board` (`camera.view`, and come, go and hover within it), and can move it while they
+run (`moveTo`, or `keepInView` to move it only as far as something needs): Pac-Man and the
+helicopter's winchman keep themselves in view as they work down into the pile, the helicopter
+coming down with the view if it has to. Once a removal is over, the camera follows the pile
+again.
 
 ## The bin
 
 The bin (`ui/bin.tsx`) is an HTML element floating over the canvas, so it is outside the
-physics and always on top; drag it to move it. Pressing on an icon (`ui/stage.tsx`) sends the
-worker a `grab`: the icon leaves the engine entirely while held and the page draws it at the
-pointer. Letting go sends `release` (it falls from there) or, over the bin, `destroy`. The
-renderer repaints only the removed icon's patch of the resting layer.
+physics and always on top; drag it to move it. Pressing on an icon (`ui/stage.tsx`) has the
+`Pile` send the worker a `grab`: the icon leaves the engine entirely while held and the
+renderer draws it at the pointer. Letting go sends `release` (it falls from there) or, over
+the bin, `destroy`. The renderer repaints only the removed icon's patch of the resting layer.
 
 ## Removing: the removers
 
@@ -56,17 +88,20 @@ dealt before the scoop is asked for, so it can say which icons it wants (its `sh
 across it, nearest first, or the pile's outer `layers`, evenly all across and no blur, one
 before the next.
 
-The `RemovalDirector` (`removal/director.ts`) then deals a `Remover` from a shuffle bag, so
-each comes up as often as the others and never twice running, and has it `begin` a `Removal`
-on a `Board`: one at a time, drawn as the renderer's `Overlay` (`render/overlay.ts`). The
+The `RemovalDirector` (`removal/director.ts`), which the `Pile` makes with the client as its
+sink for the engine's commands, then deals a `Remover` from a shuffle bag, so each comes up as
+often as the others and never twice running, and has it `begin` a `Removal` on a `Board`: one
+at a time, drawn over the pile by the `Pile` each frame, after the pile itself. The
 contract is `removal/board.ts`, and it is all the pile knows of removers: the board gives a
 removal the icons set aside for it and lets it look where each is (`where`), `take` one out of
 the pile, `drop` one back, `destroy` one, and `stamp` an icon anywhere. The pile's side of it,
 `ScoopBoard` (`scoop-board.ts`), keeps the books, so each icon is `grab`bed before it moves
-and, when the removal is over, every one it didn't drop is `destroy`ed. Each remover has its
+and, when the removal is over, every one it didn't drop is `destroy`ed. What it needs to know
+of the pile (where icons are, where to stamp, the camera) comes from a `Ground` that the
+`Pile` makes, from its state, its renderer and its camera. Each remover has its
 own folder under `removal/` and decides for itself how it moves, what it looks like (it loads
 its own images, `load`) and how it carries icons off; they are listed in one place,
-`removal/removers.ts`, which `createPile()` in `create-pile.ts` hands to the director. To add
+`removal/removers.ts`, which `createPile()` in `create-pile.ts` hands to the `Pile`. To add
 one, implement `Remover` in a new folder, list it there, and give it a name to show in
 `messages.ts`. Under the 添加嘉年华 panel, 清除动画 (closed until opened) has a checkbox for each
 remover; the director deals only the ones ticked (`setEnabled`), and the ones unticked are
@@ -120,7 +155,8 @@ As the intake nears each icon the page `grab`s it, so whatever rested on it fall
 not before, and draws it being drawn in, swinging and shrinking on the way. The ones to drop
 come back out over the pile (`release`: out of the vacuum's exhaust, say) and fall as physics
 has them; the stage tells the director where the bin is, and a dropped icon that falls into it
-is destroyed, with the bin lighting up, so moving the bin under the craft catches more. When
+is destroyed, with the bin lighting up (the stage tells the `Pile` where the bin is), so
+moving the bin under the craft catches more. When
 the craft is out of sight the rest are `destroy`ed.
 
 Presses queue in order (`ActionQueue` in `removal/queue.ts`): each removal begins a second

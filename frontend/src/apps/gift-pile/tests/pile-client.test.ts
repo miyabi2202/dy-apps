@@ -44,6 +44,8 @@ describe('PileClient', () => {
     ]);
     client.grab(3);
     expect(worker!.sent.at(-1)).toEqual({ type: 'grab', id: 3 });
+    client.setDropLine(-250);
+    expect(worker!.sent.at(-1)).toEqual({ type: 'setDropLine', y: -250 });
   });
 
   it('takes stats from frames and hands each frame on', () => {

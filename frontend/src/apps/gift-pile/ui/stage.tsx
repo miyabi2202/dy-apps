@@ -1,21 +1,17 @@
 import { text } from '@dy-apps/ui';
 import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
 import { canvasSize } from '../core/config';
 import { labels, testIds } from '../messages';
-import type { PileClient } from '../pile-client';
-import type { PileRenderer } from '../render/renderer';
-import type { RemovalDirector } from '../removal/director';
+import type { Pile } from '../pile';
 import type { WorldSize } from '../settings';
 import { Bin, BIN_DROP_SIZE, BIN_ICON_SIZE, type BinPlace, moveWithView } from './bin';
 
 interface Props {
   canvasRef: RefObject<HTMLCanvasElement | null>;
-  renderer: PileRenderer;
-  client: PileClient;
-  /** Told where the bin is, so icons a removal drops into it are destroyed. */
-  director: RemovalDirector;
+  /** What the stage draws and drags icons on; it is told where the bin is, so icons a removal drops into it are destroyed. */
+  pile: Pile;
   /** The play area; the canvas is this plus the margin. */
   size: WorldSize;
 }
@@ -28,12 +24,17 @@ const CATCH_FLASH_MS = 250;
 /**
  * The canvas with the bin floating over it. Press on an icon to pick it up; it follows the
  * pointer, lands where it is let go, and is destroyed if that is in the bin. Icons a removal
- * drops that fall into the bin are destroyed too, and it lights up for each. As the
- * renderer's camera moves up and down the pile, the bin moves with it, kept on the canvas.
+ * drops that fall into the bin are destroyed too, and it lights up for each. As the pile's
+ * camera moves up and down the pile, the bin moves with it, kept on the canvas. That is done
+ * on the bin's element directly, so the camera easing for a second doesn't render this
+ * component sixty times.
  */
-export function Stage({ canvasRef, renderer, client, director, size }: Props) {
+export function Stage({ canvasRef, pile, size }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
-  const [bin, setBin] = useState<BinPlace>(BIN_HOME);
+  const binRef = useRef<HTMLDivElement>(null);
+  // Where the bin is now, as fractions of the stage, and how to tell the pile where that is.
+  const placeRef = useRef<BinPlace>(BIN_HOME);
+  const tellPileRef = useRef(() => {});
   const [hot, setHot] = useState(false);
   const [flashing, setFlashing] = useState(false);
   const flashRef = useRef(0);
@@ -41,9 +42,8 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
   const canvas = canvasSize(size);
   const [box, setBox] = useState(canvas);
   const draggingRef = useRef<number | null>(null);
-  // The world y of the view's top, as the renderer's camera moves.
-  const [camera, setCamera] = useState(() => renderer.view.top);
-  const cameraRef = useRef(camera);
+  // The world y of the view's top as the bin last heard of it.
+  const viewTopRef = useRef(pile.view.top);
   // Where the held icon last was, and whether the bin was lit for it, for finishing a drag
   // from an event that carries no useful position (a lost capture) or one that has already
   // left the bin in the flick of letting go.
@@ -60,36 +60,60 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
     return () => observer.disconnect();
   }, []);
 
+  /** Put the bin at `place`: on its element, and in the pile's reckoning of where it catches icons. */
+  const placeBin = useCallback((place: BinPlace) => {
+    const bin = binRef.current;
+    if (bin && place !== placeRef.current) {
+      bin.style.left = `${place.fx * 100}%`;
+      bin.style.top = `${place.fy * 100}%`;
+    }
+    placeRef.current = place;
+    tellPileRef.current();
+  }, []);
+
   // When the camera moves, the bin moves with the world, as if it were standing in it, but
   // never off the canvas, so it can always be dragged.
-  useEffect(() => {
-    renderer.watchCamera((top) => {
-      const moved = top - cameraRef.current;
-      cameraRef.current = top;
-      setCamera(top);
-      setBin((place) =>
-        moveWithView(place, moved, canvas.height, stageRef.current?.clientHeight || canvas.height),
-      );
-    });
-    return () => renderer.watchCamera(null);
-  }, [renderer, canvas.height]);
+  useEffect(
+    () =>
+      pile.onCamera((top) => {
+        const moved = top - viewTopRef.current;
+        viewTopRef.current = top;
+        placeBin(
+          moveWithView(
+            placeRef.current,
+            moved,
+            canvas.height,
+            stageRef.current?.clientHeight || canvas.height,
+          ),
+        );
+      }),
+    [pile, placeBin, canvas.height],
+  );
 
-  // Where the bin is in world pixels, for the director; its image's size, scaled to the world.
+  // Where the bin is in world pixels, for the pile; its image's size, scaled to the world.
   useEffect(() => {
     if (!box.width) return;
     const scale = canvas.width / box.width;
-    director.setBin({
-      x: bin.fx * canvas.width,
-      y: bin.fy * canvas.height + camera,
-      half: (BIN_ICON_SIZE / 2) * scale,
-      onCatch: () => {
-        setFlashing(true);
-        window.clearTimeout(flashRef.current);
-        flashRef.current = window.setTimeout(() => setFlashing(false), CATCH_FLASH_MS);
-      },
-    });
-    return () => director.setBin(null);
-  }, [director, bin, camera, box.width, canvas.width, canvas.height]);
+    const tell = () => {
+      const place = placeRef.current;
+      pile.setBin({
+        x: place.fx * canvas.width,
+        y: place.fy * canvas.height + pile.view.top,
+        half: (BIN_ICON_SIZE / 2) * scale,
+        onCatch: () => {
+          setFlashing(true);
+          window.clearTimeout(flashRef.current);
+          flashRef.current = window.setTimeout(() => setFlashing(false), CATCH_FLASH_MS);
+        },
+      });
+    };
+    tellPileRef.current = tell;
+    tell();
+    return () => {
+      tellPileRef.current = () => {};
+      pile.setBin(null);
+    };
+  }, [pile, box.width, canvas.width, canvas.height]);
   useEffect(() => () => window.clearTimeout(flashRef.current), []);
 
   /** A pointer event's place in world pixels (the view moved up by the camera), and whether it is over the bin. */
@@ -98,11 +122,11 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
     const cx = event.clientX - rect.left;
     const cy = event.clientY - rect.top;
     const half = BIN_DROP_SIZE / 2;
+    const bin = placeRef.current;
     const overBin =
       Math.abs(cx - bin.fx * rect.width) <= half && Math.abs(cy - bin.fy * rect.height) <= half;
     return {
-      x: (cx / rect.width) * canvas.width,
-      y: (cy / rect.height) * canvas.height + cameraRef.current,
+      ...pile.toWorld((cx / rect.width) * canvas.width, (cy / rect.height) * canvas.height),
       overBin,
     };
   };
@@ -110,22 +134,21 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
   const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     if (event.button !== 0) return;
     const { x, y } = locate(event);
-    const id = renderer.iconAt(x, y);
+    const id = pile.iconAt(x, y);
     if (id === null) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     draggingRef.current = id;
     lastRef.current = { x, y, overBin: false };
     setHolding(true);
-    client.grab(id);
-    renderer.hold({ id, x, y });
+    pile.grab(id, x, y);
   };
   const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
     const id = draggingRef.current;
     if (id === null) return;
     const at = locate(event);
     lastRef.current = at;
-    renderer.hold({ id, x: at.x, y: at.y });
+    pile.move(id, at.x, at.y);
     setHot(at.overBin);
   };
   /** The drag ends: into the bin if it is over it now or was lit a moment ago, else dropped. */
@@ -133,9 +156,8 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
     const id = draggingRef.current;
     if (id === null) return;
     draggingRef.current = null;
-    if (at.overBin || lastRef.current.overBin) client.destroy(id);
-    else client.release(id, at.x, at.y);
-    renderer.hold(null);
+    if (at.overBin || lastRef.current.overBin) pile.destroy(id);
+    else pile.release(id, at.x, at.y);
     setHolding(false);
     setHot(false);
   };
@@ -160,10 +182,11 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
           {...stylex.props(styles.canvas, holding && styles.dragging)}
         />
         <Bin
-          place={bin}
+          ref={binRef}
+          home={BIN_HOME}
           stageWidth={box.width}
           stageHeight={box.height}
-          onMove={setBin}
+          onMove={placeBin}
           hot={hot || flashing}
         />
       </div>

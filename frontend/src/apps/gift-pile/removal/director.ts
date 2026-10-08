@@ -1,11 +1,12 @@
 import type { Scoop } from '../core/protocol';
-import type { Hooks, Overlay, Peek } from '../render/overlay';
-import type { Removal, Remover, View, World } from './board';
+import type { Removal, Remover, World } from './board';
 import { ActionQueue, type Traffic } from './queue';
-import { ScoopBoard } from './scoop-board';
+import { type Ground, ScoopBoard } from './scoop-board';
 import type { RemovalSink } from './sink';
 
 interface Options {
+  /** What the removals' boards ask of the pile: where icons are, drawing, the camera. */
+  ground: Ground;
   /** The removers to deal from, at least one. */
   removers: readonly Remover[];
   /** Random numbers in [0, 1). */
@@ -21,19 +22,20 @@ export interface BinTarget {
   onCatch?: () => void;
 }
 
-/** A dropped icon the renderer can't find yet is given this long to show up in a frame before it is forgotten. */
+/** A dropped icon the pile can't find yet is given this long to show up in a frame before it is forgotten. */
 const FALLING_GRACE_MS = 500;
 
 /**
  * Runs the removals: takes the presses of 添加 and 减少 (an `ActionQueue`), deals one of
  * the removers it was given for each removal from a shuffle bag, and keeps its `Removal`
- * going on a `ScoopBoard`, drawing it over the pile as the renderer's overlay. It knows
- * removers only as `Remover`s. Icons a removal drops back are watched as they fall: one that
+ * going on a `ScoopBoard`, drawing it over the pile. It knows removers only as `Remover`s,
+ * and the pile only through the sink it sends the engine's commands to and the ground its
+ * boards look at. Icons a removal drops back are watched as they fall: one that
  * falls into the bin is destroyed too, so the user can move the bin to catch them. The board
  * makes sure every icon of a removal ends up released or destroyed: when it is over, and at
  * once on `reset()`, since the engine has already let go of everything then.
  */
-export class RemovalDirector implements Overlay, Traffic {
+export class RemovalDirector implements Traffic {
   private readonly queue: ActionQueue;
   /** The remover dealt for the scoop asked for, until its icons come. */
   private next: Remover | null = null;
@@ -47,6 +49,7 @@ export class RemovalDirector implements Overlay, Traffic {
   /** The wall time of the frame being drawn, for when icons are dropped. */
   private now = 0;
   private readonly rng: () => number;
+  private readonly ground: Ground;
   private readonly removers: readonly Remover[];
   /** The removers still to go in this round (see `nextRemover`), and the one that went last. */
   private bag: Remover[] = [];
@@ -56,8 +59,9 @@ export class RemovalDirector implements Overlay, Traffic {
 
   constructor(
     private readonly sink: RemovalSink,
-    { removers, rng = Math.random }: Options,
+    { ground, removers, rng = Math.random }: Options,
   ) {
+    this.ground = ground;
     this.rng = rng;
     this.removers = removers;
     this.queue = new ActionQueue(sink, this);
@@ -123,17 +127,12 @@ export class RemovalDirector implements Overlay, Traffic {
   }
 
   /** The icons the engine set aside for the next removal have arrived: it begins at wall time `now`. */
-  onScoop(
-    scoop: Scoop,
-    world: World,
-    now: number,
-    view: View = { top: 0, height: world.height },
-  ): void {
+  onScoop(scoop: Scoop, world: World, now: number): void {
     this.queue.scooped();
     const remover = this.next ?? this.nextRemover();
     this.next = null;
     if (scoop.ids.length === 0) return;
-    const board = new ScoopBoard(this.sink, scoop, world, view, (id) =>
+    const board = new ScoopBoard(this.sink, this.ground, scoop, world, (id) =>
       this.falling.set(id, this.now),
     );
     this.run = { removal: remover.begin(board, now, this.rng), board };
@@ -143,12 +142,11 @@ export class RemovalDirector implements Overlay, Traffic {
    * Draw the removal as of wall time `now`, ending it once it is over, catch what falls
    * into the bin, and work through the queue when nothing is under way.
    */
-  draw(ctx: CanvasRenderingContext2D, now: number, hooks: Hooks): void {
+  draw(ctx: CanvasRenderingContext2D, now: number): void {
     this.now = now;
-    this.catchFalling(hooks.peek, now);
+    this.catchFalling(now);
     const { run } = this;
     if (run) {
-      run.board.frame(hooks);
       if (run.removal.isOver(now)) {
         run.board.finish();
         this.run = null;
@@ -188,14 +186,14 @@ export class RemovalDirector implements Overlay, Traffic {
 
   /**
    * Dropped icons that fall into the bin are destroyed; ones that land are forgotten, as are
-   * ones the renderer hasn't seen for a while (destroyed some other way). A just-dropped icon
+   * ones the pile hasn't seen for a while (destroyed some other way). A just-dropped icon
    * isn't in a frame until the engine has let it go, so it gets a moment to show up.
    */
-  private catchFalling(peek: Peek, now: number): void {
+  private catchFalling(now: number): void {
     if (this.falling.size === 0) return;
     const { bin } = this;
     for (const [id, since] of this.falling) {
-      const at = peek(id);
+      const at = this.ground.peek(id);
       if (!at || at.resting) {
         if (now - since > FALLING_GRACE_MS) this.falling.delete(id);
         continue;

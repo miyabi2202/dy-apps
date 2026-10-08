@@ -29,7 +29,12 @@ export type ToWorker =
    */
   | { type: 'release'; id: number; x: number; y: number; vx?: number; vy?: number }
   /** A held icon is gone for good: dropped in the bin, or carried off. */
-  | { type: 'destroy'; id: number };
+  | { type: 'destroy'; id: number }
+  /**
+   * New icons are released at this y (in pixels, above the canvas's top when the view has
+   * moved up with a tall pile); until it is sent, just above the canvas. A clear forgets it.
+   */
+  | { type: 'setDropLine'; y: number };
 
 /** The icons one `scoop` set aside: their indices and x, y pairs in pixels, roughly highest first. */
 export interface Scoop {

@@ -1,51 +1,38 @@
 import { canvasSize, PILE } from './core/config';
-import { RemovalDirector } from './removal/director';
-import { allRemovers } from './removal/removers';
+import { Pile } from './pile';
 import { PileClient } from './pile-client';
+import { allRemovers } from './removal/removers';
+import { Camera } from './render/camera';
+import { PileState } from './render/pile-state';
 import { PileRenderer } from './render/renderer';
 import { createGiftSprite, GIFT_ICON_URL, loadImage } from './render/sprite';
 
-/** Everything the page drives: the worker's client, the removals over the pile, and the renderer. */
-export interface Pile {
-  client: PileClient;
-  renderer: PileRenderer;
-  /** The removers the director deals from, by name, to turn on and off. */
-  removerNames: string[];
-  director: RemovalDirector;
-  /**
-   * Loads the gift image and the removers' art and hands them over; the gift's drawn
-   * stand-in shows until then.
-   * Returns a function that stops the hand-over, for when the page goes away first.
-   */
-  loadImages: () => () => void;
-}
-
 /**
- * Wires the real objects together, once, for the page: the client posts frames to the
- * renderer, the director sends the engine its commands through the client and draws its
- * removals as the renderer's overlay, with one of each remover to deal from. The worker itself starts with `client.start()`.
+ * Wires the real objects together, once, for the page: the client posts frames to the pile,
+ * which keeps them in a state, steers a camera, and has the renderer draw them, with one of
+ * each remover to deal from. The worker itself starts with `pile.start()`.
  */
 export function createPile(): Pile {
+  const world = canvasSize(PILE.world);
   const client = new PileClient({
-    onFrame: (frame) => renderer.pushFrame(frame, performance.now()),
+    onFrame: (frame) => pile.onFrame(frame, performance.now()),
   });
-  const removers = allRemovers();
-  const director = new RemovalDirector(client, { removers });
-  const renderer = new PileRenderer(
-    { ...PILE, world: canvasSize(PILE.world) },
-    createGiftSprite,
-    director,
-  );
-  const loadImages = () => {
-    let wanted = true;
-    void loadImage(GIFT_ICON_URL).then((image) => {
-      if (wanted) renderer.setImage(image);
-    });
-    // The removers keep their images whether or not the page is still here.
-    for (const remover of removers) void remover.load?.();
-    return () => {
-      wanted = false;
-    };
-  };
-  return { client, renderer, removerNames: removers.map((r) => r.name), director, loadImages };
+  const state = new PileState(PILE, {
+    world,
+    heapAgeMs: (PILE.heapAge * 1000) / PILE.stepHz,
+    releaseBand: PILE.spawnSpeed / PILE.stepHz + 2 * PILE.radius,
+    landedSpeed: PILE.spawnSpeed / 2,
+  });
+  const camera = new Camera({ radius: PILE.radius, headroom: PILE.headroom, height: world.height });
+  const renderer = new PileRenderer(PILE, createGiftSprite);
+  const pile = new Pile({
+    client,
+    state,
+    camera,
+    renderer,
+    removers: allRemovers(),
+    radius: PILE.radius,
+    loadGiftImage: () => loadImage(GIFT_ICON_URL),
+  });
+  return pile;
 }

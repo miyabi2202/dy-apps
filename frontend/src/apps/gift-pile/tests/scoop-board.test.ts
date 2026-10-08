@@ -1,6 +1,5 @@
 /** @jest-environment node */
-import type { Hooks } from '../render/overlay';
-import { ScoopBoard } from '../removal/scoop-board';
+import { type Ground, ScoopBoard } from '../removal/scoop-board';
 import type { RemovalSink } from '../removal/sink';
 
 /** Logs what the board asks of the engine, as `verb:id`. */
@@ -15,10 +14,10 @@ const fakeSink = (log: string[]): RemovalSink => ({
   destroy: (id) => log.push(`destroy:${id}`),
 });
 
-/** The renderer, with every icon where it was scooped. */
-const hooks: Hooks = {
+/** The pile, with every icon where it was scooped. */
+const ground: Ground = {
   radius: 8,
-  top: () => null,
+  topAt: () => null,
   camera: { view: { top: 0, height: 100 }, moveTo: () => {} },
   stamp: () => {},
   take: (id) => ({ x: id, y: 0 }),
@@ -36,10 +35,7 @@ describe('ScoopBoard', () => {
     const log: string[] = [];
     const dropped: number[] = [];
     const world = { width: 100, height: 100 };
-    const board = new ScoopBoard(fakeSink(log), scoop, world, { top: 0, height: 100 }, (id) =>
-      dropped.push(id),
-    );
-    board.frame(hooks);
+    const board = new ScoopBoard(fakeSink(log), ground, scoop, world, (id) => dropped.push(id));
     expect(board.icons[1]).toEqual({ x: 3, y: 4 });
     expect(board.dropCount).toBe(1);
 
@@ -69,19 +65,18 @@ describe('ScoopBoard', () => {
     expect(board.holds(13)).toBe(false);
   });
 
-  it("keeps a point in view by moving the renderer's camera just as far as needed, or not at all", () => {
+  it("keeps a point in view by moving the pile's camera just as far as needed, or not at all", () => {
     const moves: number[] = [];
     const board = new ScoopBoard(
       fakeSink([]),
+      {
+        ...ground,
+        camera: { view: { top: -200, height: 100 }, moveTo: (top) => moves.push(top) },
+      },
       scoop,
       { width: 100, height: 100 },
-      { top: 0, height: 100 },
       () => {},
     );
-    board.frame({
-      ...hooks,
-      camera: { view: { top: -200, height: 100 }, moveTo: (top) => moves.push(top) },
-    });
     expect(board.camera.view.top).toBe(-200);
     board.camera.keepInView(-150, 10);
     board.camera.keepInView(-50, 10);

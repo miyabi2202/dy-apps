@@ -1,6 +1,6 @@
 import { colors } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import { useRef, type PointerEvent } from 'react';
+import { useRef, type PointerEvent, type Ref } from 'react';
 import { labels, testIds } from '../messages';
 
 /** Where the bin sits, as fractions of the stage's width and height (its centre). */
@@ -37,7 +37,10 @@ export function moveWithView(
 const BIN_IMAGE = '/bin/recycle-bin.png';
 
 interface Props {
-  place: BinPlace;
+  /** The bin's own element, for whoever moves it as the view moves (see `Stage`). */
+  ref?: Ref<HTMLDivElement>;
+  /** Where it starts. After that the stage places it, directly on the element, so a moving view needn't re-render it. */
+  home: BinPlace;
   /** The stage's size on screen, in CSS px, to turn pointer moves into fractions. */
   stageWidth: number;
   stageHeight: number;
@@ -51,7 +54,7 @@ interface Props {
  * Drag it by its middle to move it; it lights up while an icon is held over it. Only the
  * drag handle takes pointer events, so presses just outside the image reach the canvas.
  */
-export function Bin({ place, stageWidth, stageHeight, onMove, hot }: Props) {
+export function Bin({ ref, home, stageWidth, stageHeight, onMove, hot }: Props) {
   const dragRef = useRef<{ dx: number; dy: number } | null>(null);
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -83,11 +86,12 @@ export function Bin({ place, stageWidth, stageHeight, onMove, hot }: Props) {
 
   return (
     <div
+      ref={ref}
       role="img"
       aria-label={labels.bin}
       data-testid={testIds.bin}
       data-hot={hot || undefined}
-      {...stylex.props(styles.bin, hot && styles.hot, styles.at(place.fx * 100, place.fy * 100))}
+      {...stylex.props(styles.bin, hot && styles.hot, styles.at(home.fx * 100, home.fy * 100))}
     >
       <img src={BIN_IMAGE} alt="" draggable={false} {...stylex.props(styles.image)} />
       <div

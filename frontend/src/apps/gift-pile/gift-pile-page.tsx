@@ -22,48 +22,49 @@ import { useStats } from './use-stats';
  * unmounts (so StrictMode's extra mount in development just restarts it).
  */
 export function GiftPilePage() {
-  const [{ client, renderer, removerNames, director, loadImages }] = useState(createPile);
+  const [pile] = useState(createPile);
+  const { removerNames } = pile;
   // The removers on: all but the ones turned off on this browser.
   const [enabled, setEnabled] = useState<ReadonlySet<string>>(() => {
     const off = new Set(removersOffStore.read());
     return new Set(removerNames.filter((name) => !off.has(name)));
   });
-  useEffect(() => director.setEnabled(enabled), [director, enabled]);
+  useEffect(() => pile.setEnabled(enabled), [pile, enabled]);
   const changeEnabled = (next: ReadonlySet<string>) => {
     setEnabled(next);
     removersOffStore.write(removerNames.filter((name) => !next.has(name)));
   };
   const [size, setSize] = useState<WorldSize>(() => sizeStore.read());
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const stats = useStats(client, director);
+  const stats = useStats(pile);
 
   // The worker starts with the default size; tell it the saved one (queued until ready).
   useEffect(() => {
-    client.start();
+    pile.start();
     const saved = sizeStore.read();
     if (saved.width !== PILE.world.width || saved.height !== PILE.world.height) {
-      client.resize(saved.width, saved.height);
+      pile.resize(saved.width, saved.height);
     }
-    return () => client.stop();
-  }, [client]);
+    return () => pile.stop();
+  }, [pile]);
 
   const resize = (next: WorldSize) => {
     setSize(next);
     sizeStore.write(next);
-    client.resize(next.width, next.height);
+    pile.resize(next.width, next.height);
   };
-  useEffect(() => startPileLoop(renderer, () => canvasRef.current), [renderer]);
+  useEffect(() => startPileLoop(pile, () => canvasRef.current), [pile]);
 
-  useEffect(loadImages, [loadImages]);
+  useEffect(() => pile.loadImages(), [pile]);
 
   // Test/debug hook for browser tests and manual inspection.
   useEffect(() => {
     const w = window as unknown as { __giftPile?: unknown };
-    w.__giftPile = { client, renderer };
+    w.__giftPile = { client: pile.client, renderer: pile.renderer, pile };
     return () => {
       delete w.__giftPile;
     };
-  }, [client, renderer]);
+  }, [pile]);
 
   return (
     <Page title={labels.title} subtitle={labels.subtitle} xstyle={styles.page}>
@@ -73,24 +74,18 @@ export function GiftPilePage() {
           <ControlPanel
             stats={stats}
             maxItems={PILE.maxItems}
-            onAdd={(count) => director.add(count, performance.now())}
-            onRemove={(count) => director.remove(count, performance.now())}
-            onClear={() => client.clear()}
+            onAdd={(count) => pile.add(count, performance.now())}
+            onRemove={(count) => pile.remove(count, performance.now())}
+            onClear={() => pile.clear()}
           >
             <RemoverList names={removerNames} enabled={enabled} onChange={changeEnabled} />
           </ControlPanel>
         </Grid>
         <Panel xstyle={styles.stage}>
-          <Stage
-            canvasRef={canvasRef}
-            renderer={renderer}
-            client={client}
-            director={director}
-            size={size}
-          />
-          {client.error && (
+          <Stage canvasRef={canvasRef} pile={pile} size={size} />
+          {pile.error && (
             <p {...stylex.props(text.muted)}>
-              {labels.engineFailed} {client.error}
+              {labels.engineFailed} {pile.error}
             </p>
           )}
         </Panel>

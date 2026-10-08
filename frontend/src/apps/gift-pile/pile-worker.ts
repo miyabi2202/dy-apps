@@ -61,6 +61,9 @@ async function main() {
       case 'destroy':
         engine.destroy(data.id);
         break;
+      case 'setDropLine':
+        engine.setDropLine(data.y);
+        break;
     }
   };
 

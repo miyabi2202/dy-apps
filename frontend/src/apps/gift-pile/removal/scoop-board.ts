@@ -1,5 +1,4 @@
 import type { Scoop } from '../core/protocol';
-import type { Hooks } from '../render/overlay';
 import { type Board, type Camera, type Point, topKeeping, type View, type World } from './board';
 import type { RemovalSink } from './sink';
 
@@ -8,14 +7,34 @@ const IN_PILE = 0; // drawn by the renderer
 const TAKEN = 1; // grabbed, the removal's to draw
 const DROPPED = 2; // let go, the engine's again
 const GONE = 3; // destroyed
-/** An icon's radius until the renderer has said. */
-const DEFAULT_RADIUS = 8;
+
+/**
+ * What a removal's board asks of the pile it works over, besides the engine's commands:
+ * where things are and how to draw them. The `Pile` answers, from its state, its renderer
+ * and its camera.
+ */
+export interface Ground {
+  /** An icon's drawn radius, in world pixels. */
+  readonly radius: number;
+  /** The top of the pile at world x, by the middle of the highest icon there; null if there are none. */
+  topAt(x: number): number | null;
+  /** Where icon `id` is now and whether it is at rest, or null if the pile doesn't have it. */
+  peek(id: number): { x: number; y: number; resting: boolean } | null;
+  /**
+   * Where icon `id` is now, in world pixels, or null if the pile doesn't have it; the pile
+   * stops drawing it from here on, as the removal takes over.
+   */
+  take(id: number): { x: number; y: number } | null;
+  /** Stamp the icon sprite centred at (x, y), in world pixels, at `scale` times its size, on this frame. */
+  stamp(x: number, y: number, scale?: number): void;
+  /** The view onto the pile, and moving it (which holds until the removal is over). */
+  readonly camera: { readonly view: View; moveTo(top: number): void };
+}
 
 /**
  * The pile's side of a `Board`, for the icons of one scoop: it passes the removal's asks on
- * to the engine (through the sink) and the renderer (through the frame's hooks), and keeps
- * the books, so each icon is grabbed before it moves and is in the end released or
- * destroyed. `frame` hands it each frame's hooks before the removal draws.
+ * to the engine (through the sink) and the pile (through its ground), and keeps the books,
+ * so each icon is grabbed before it moves and is in the end released or destroyed.
  */
 export class ScoopBoard implements Board {
   readonly icons: readonly Point[];
@@ -23,14 +42,12 @@ export class ScoopBoard implements Board {
   private readonly ids: Int32Array;
   private readonly index = new Map<number, number>();
   private readonly state: Uint8Array;
-  private hooks: Hooks | null = null;
 
   constructor(
     private readonly sink: RemovalSink,
+    private readonly ground: Ground,
     scoop: Scoop,
     readonly world: World,
-    /** The view when it began, until the renderer's first frame says. */
-    private readonly startView: View,
     /** Called with each icon dropped back. */
     private readonly onDrop: (id: number) => void,
   ) {
@@ -41,14 +58,13 @@ export class ScoopBoard implements Board {
       this.index.set(id, i);
       return { x: scoop.xy[2 * i]!, y: scoop.xy[2 * i + 1]! };
     });
-    const hooks = () => this.hooks;
-    const start = this.startView;
+    const { camera } = ground;
     this.camera = {
       get view() {
-        return hooks()?.camera.view ?? start;
+        return camera.view;
       },
       moveTo(top) {
-        hooks()?.camera.moveTo(top);
+        camera.moveTo(top);
       },
       keepInView(y, margin) {
         const top = topKeeping(this.view, y, margin);
@@ -57,16 +73,11 @@ export class ScoopBoard implements Board {
     };
   }
 
-  /** The renderer's camera, through the frame's hooks. */
+  /** The pile's camera. */
   readonly camera: Camera;
 
   get iconRadius(): number {
-    return this.hooks?.radius ?? DEFAULT_RADIUS;
-  }
-
-  /** The renderer's hooks for the frame about to be drawn. */
-  frame(hooks: Hooks): void {
-    this.hooks = hooks;
+    return this.ground.radius;
   }
 
   /** Icon `id` is this board's, taken or about to be, so the user can't pick it up. */
@@ -76,19 +87,19 @@ export class ScoopBoard implements Board {
   }
 
   topAt(x: number): number | null {
-    return this.hooks?.top(x) ?? null;
+    return this.ground.topAt(x);
   }
 
   where(i: number): Point | null {
     if (this.state[i]! > TAKEN) return null;
-    const at = this.hooks?.peek(this.ids[i]!);
+    const at = this.ground.peek(this.ids[i]!);
     return at ? { x: at.x, y: at.y } : null;
   }
 
   take(i: number): Point | null {
     if (this.state[i] !== IN_PILE) return null;
     const id = this.ids[i]!;
-    const at = this.hooks?.take(id) ?? null;
+    const at = this.ground.take(id);
     this.sink.grab(id);
     this.state[i] = TAKEN;
     return at;
@@ -111,7 +122,7 @@ export class ScoopBoard implements Board {
   }
 
   stamp(x: number, y: number, scale?: number): void {
-    this.hooks?.stamp(x, y, scale);
+    this.ground.stamp(x, y, scale);
   }
 
   /** The removal is over: destroy every icon it hasn't dropped or destroyed already. */
