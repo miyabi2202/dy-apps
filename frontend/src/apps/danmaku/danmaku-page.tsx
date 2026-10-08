@@ -12,6 +12,7 @@ import {
   setLiveRoomParams,
   type Connection,
   type DanmakuMessage,
+  type Logger,
 } from '@dy-apps/services';
 import {
   Button,
@@ -26,9 +27,11 @@ import {
   useDemo,
 } from '@dy-apps/ui';
 import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DanmakuConfig } from './config';
 import { connectionStore } from './dyhub';
+import { log as moduleLog } from './log';
+import { createMessageLogger } from './message-log';
 import { loadSettings, saveSettings } from './settings';
 import { Controls } from './ui/controls';
 import { useDyhub, type CreateDyhubClient } from './use-dyhub';
@@ -74,14 +77,17 @@ function optionsFromUrl(): PageOptions {
 interface Props {
   /** Swapped for a fake in tests. */
   createClient?: CreateDyhubClient;
+  /** The debug log (`[danmaku]` in the console); swapped for one with a fake sink in tests. */
+  logger?: Logger;
   /** Where `?logmsg=1` writes each message; the console by default. */
   log?: (...data: unknown[]) => void;
 }
 
 /** The 弹幕墙 route: an editor with live preview, or (`?obs=1`) the bare overlay for OBS. */
-export function DanmakuPage({ createClient, log = console.log }: Props) {
+export function DanmakuPage({ createClient, logger = moduleLog, log = console.log }: Props) {
   const [initial] = useState(optionsFromUrl);
   const { config } = initial;
+  const logMessage = useMemo(() => createMessageLogger(logger), [logger]);
   const [settings, setSettings] = useState(config.style);
   const [messages, setMessages] = useState<readonly DanmakuMessage[]>([]);
   const [demoRunning, setDemoRunning] = useState(initial.autoDemo);
@@ -97,9 +103,10 @@ export function DanmakuPage({ createClient, log = console.log }: Props) {
   const push = useCallback(
     (message: DanmakuMessage) => {
       if (initial.logMessages) log('[弹幕墙]', message);
+      logMessage(message);
       setMessages((prev) => addMessage(prev, message, MAX_MESSAGES));
     },
-    [initial.logMessages, log],
+    [initial.logMessages, log, logMessage],
   );
 
   // `?random=0`: the fake list in order at a fixed interval, so every run looks the same.
@@ -118,7 +125,32 @@ export function DanmakuPage({ createClient, log = console.log }: Props) {
     demoRunning && demoSource === 'live' ? liveRoom : null,
     push,
     createClient,
+    undefined,
+    logger,
   );
+
+  // Once on start: how the page was opened and what it read.
+  useEffect(() => {
+    logger.debug(
+      `start: ${initial.obs ? 'obs view' : 'editor'}, demo ${initial.autoDemo ? 'on' : 'off'} ` +
+        `(source ${config.demo.source}, ${config.demo.intervalMs}ms, random ${config.demo.random !== false}), ` +
+        `room ${config.port || '-'}:${config.roomId || '-'}, style ${cardStyleToParams(config.style).toString()}`,
+    );
+  }, [initial, config, logger]);
+
+  // The demo starting and stopping, from the button or the URL.
+  useEffect(() => {
+    if (demoRunning) {
+      logger.debug(`demo: started, source ${demoSource}, every ${demoIntervalMs}ms`);
+      return () => logger.debug('demo: stopped');
+    }
+  }, [demoRunning, demoSource, demoIntervalMs, logger]);
+
+  // The wall is capped: say when it fills and old messages start to drop.
+  const full = messages.length >= MAX_MESSAGES;
+  useEffect(() => {
+    if (full) logger.debug(`wall: ${MAX_MESSAGES} messages, dropping the oldest`);
+  }, [full, logger]);
   const canStartDemo = demoSource === 'fake' || liveRoom !== null;
 
   // Only the editor saves: an OBS source opened from a link mustn't overwrite the editor's config.
