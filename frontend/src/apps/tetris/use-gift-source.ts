@@ -7,8 +7,9 @@ import {
   type LiveRoom,
 } from '@dy-apps/services';
 import { useDemo } from '@dy-apps/ui';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { GiftFeed } from './gift-feed';
+import { log } from './log';
 import { useLiveGifts, type CreateDyhubClient } from './use-live-gifts';
 
 export interface GiftSourceOptions {
@@ -42,6 +43,15 @@ export function useGiftSource({
     (n: number) => feed.send(random ? fakeGift() : fakeGiftAt(n)),
     [feed, fakeGift, random],
   );
+  useEffect(() => {
+    if (!running) return;
+    log.debug(
+      demo.source === 'fake'
+        ? `gift source: fake gifts about every ${demo.intervalMs} ms${random ? '' : ' in fixed order'}`
+        : `gift source: live room ${room?.roomId ?? '(none)'}`,
+    );
+    return () => log.debug('gift source: stopped');
+  }, [running, demo.source, demo.intervalMs, random, room?.roomId]);
   useDemo(
     running && demo.source === 'fake',
     demo.intervalMs,

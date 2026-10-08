@@ -7,6 +7,7 @@ import {
 } from '@dy-apps/services';
 import { useEffect, useState } from 'react';
 import type { GiftFeed } from './gift-feed';
+import { log } from './log';
 
 /** DyHub may start after the page (OBS often opens first), so keep trying. */
 const RETRY_MS = 5000;
@@ -34,14 +35,21 @@ export function useLiveGifts(
 
   useEffect(() => {
     if (port === undefined || roomId === undefined) return;
+    log.debug(`dyhub: connecting to room ${roomId} on port ${port}`);
     const client = create({ port, roomId });
-    client.onStatus((status, detail) => setState({ status, detail }));
+    client.onStatus((status, detail) => {
+      const text = `dyhub: ${status}${detail ? ` (${detail})` : ''}`;
+      if (status === 'error') log.warn(text);
+      else log.debug(text);
+      setState({ status, detail });
+    });
     client.onGift((ev, newGifts) => {
       const message = messageFromEvent(ev, newGifts);
       if (message) feed.send(message);
     });
     client.connect();
     return () => {
+      log.debug(`dyhub: closing the connection to room ${roomId}`);
       client.close();
       setState({ status: 'idle' });
     };

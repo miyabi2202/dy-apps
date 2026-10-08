@@ -1,11 +1,23 @@
-import { addMessage, type DanmakuMessage, type DetailPart } from '@dy-apps/services';
+import { addMessage, type DanmakuMessage, type DetailPart, type Logger } from '@dy-apps/services';
 import { CONFIG } from './core/config';
 import { CURSES, EFFECT_POOL, type EffectType } from './core/curses';
 import type { GameEngine, GiftResponse } from './core/game';
+import { log as appLog } from './log';
 import { RARITY_COLORS } from './ui/rarity';
 
 /** Cards kept on the gift wall; older ones are dropped. */
 const MAX_CARDS = 200;
+
+/** Gifts logged one by one per second; the rest of a busy second become one summary line. */
+const LOGGED_PER_WINDOW = 5;
+const LOG_WINDOW_MS = 1000;
+
+export interface GiftFeedOptions {
+  /** Where debug messages go; the app's `[tetris]` log by default. */
+  logger?: Logger;
+  /** The clock for the log's rate limit; `performance.now` by default. */
+  now?: () => number;
+}
 
 type Drawn = Partial<Record<EffectType, number>>;
 
@@ -19,7 +31,19 @@ export class GiftFeed {
   private readonly drawn = new Map<string, Drawn>();
   private readonly listeners = new Set<() => void>();
 
-  constructor(private readonly engine: GameEngine) {}
+  private readonly logger: Logger;
+  private readonly now: () => number;
+  private windowStart = -Infinity;
+  private loggedInWindow = 0;
+  private unlisted = { gifts: 0, diamonds: 0 };
+
+  constructor(
+    private readonly engine: GameEngine,
+    { logger = appLog, now = () => performance.now() }: GiftFeedOptions = {},
+  ) {
+    this.logger = logger;
+    this.now = now;
+  }
 
   /**
    * Sends a gift message into the game and adds its card. Each diamond the gifts are worth
@@ -39,6 +63,7 @@ export class GiftFeed {
         if (n) drawn[type] = (drawn[type] ?? 0) + n;
       }
     }
+    this.logGift(message, response);
     if (!response.ok) return response;
 
     this.drawn.set(message.id, drawn);
@@ -52,8 +77,48 @@ export class GiftFeed {
     return response;
   }
 
+  /**
+   * One debug line per gift, at most LOGGED_PER_WINDOW a second: a busy room's other gifts are
+   * counted and summed up in one line when the next second starts.
+   */
+  private logGift(message: DanmakuMessage, response: GiftResponse): void {
+    if (!this.logger.enabled('debug')) return;
+    const { user, gift } = message;
+    const diamonds = diamondsOf(message);
+    const t = this.now();
+    if (t - this.windowStart >= LOG_WINDOW_MS) {
+      this.flushUnlisted();
+      this.windowStart = t;
+      this.loggedInWindow = 0;
+    }
+    if (this.loggedInWindow >= LOGGED_PER_WINDOW) {
+      this.unlisted.gifts += 1;
+      this.unlisted.diamonds += diamonds;
+      return;
+    }
+    this.loggedInWindow += 1;
+    const what = `${user.nickname} ${gift?.name ?? '?'}x${gift?.count ?? 0} (${diamonds} diamonds)`;
+    if (!response.ok) {
+      this.logger.debug(`gift ignored, ${what}: ${response.error}`);
+      return;
+    }
+    const { hits, effects } = response.result;
+    const drew = EFFECT_POOL.filter((type) => effects[type]).map(
+      (type) => `${type}x${effects[type]}`,
+    );
+    this.logger.debug(`gift ${what} -> ${hits} hits${drew.length ? `: ${drew.join(' ')}` : ''}`);
+  }
+
+  private flushUnlisted(): void {
+    const { gifts, diamonds } = this.unlisted;
+    if (gifts === 0) return;
+    this.logger.debug(`${gifts} more gifts (${diamonds} diamonds) in that second, not listed`);
+    this.unlisted = { gifts: 0, diamonds: 0 };
+  }
+
   /** Empties the wall, for a new game. */
   clear(): void {
+    this.flushUnlisted();
     this.messages = [];
     this.drawn.clear();
     this.emit();

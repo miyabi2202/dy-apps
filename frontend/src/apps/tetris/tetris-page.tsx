@@ -3,6 +3,7 @@ import { readConfig, type TetrisConfig } from './config';
 import { GameEngine } from './core/game';
 import { GiftFeed } from './gift-feed';
 import { KeyboardController } from './input/keyboard';
+import { log } from './log';
 import { App } from './ui/app';
 import { ObsView } from './ui/obs-view';
 import type { CreateDyhubClient } from './use-live-gifts';
@@ -41,7 +42,16 @@ interface Props {
  * game and gift wall for OBS. A fresh game starts each time the page mounts.
  */
 export function TetrisPage({ createClient }: Props) {
-  const [{ obs, config }] = useState(optionsFromUrl);
+  const [{ obs, config }] = useState(() => {
+    const options = optionsFromUrl();
+    const { demo, probability, port, roomId } = options.config;
+    log.debug(
+      `page: ${options.obs ? 'OBS view' : 'config page'}, chance=${probability}, ` +
+        `source=${demo.source}${demo.source === 'fake' ? ` every ${demo.intervalMs} ms` : ` room ${roomId} port ${port}`}, ` +
+        `seed=${seedFromUrl() ?? 'random'}`,
+    );
+    return options;
+  });
   const [{ engine, feed, keyboard }] = useState(() => createGame(config));
 
   // Test/debug hook for browser tests and manual inspection.

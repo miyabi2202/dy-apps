@@ -1,6 +1,7 @@
 import { CONFIG } from './core/config';
 import type { GameEngine } from './core/game';
 import type { KeyboardController } from './input/keyboard';
+import { log } from './log';
 import { drawBoard } from './render/board';
 
 /**
@@ -30,6 +31,7 @@ export function startGameLoop(
 
   const onVisibility = () => {
     if (document.visibilityState === 'hidden') {
+      if (engine.phase === 'playing') log.debug('tab hidden, pausing the game');
       engine.pause();
       keyboard.clear();
     } else {

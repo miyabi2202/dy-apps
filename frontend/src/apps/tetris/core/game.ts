@@ -1,3 +1,5 @@
+import type { Logger } from '@dy-apps/services';
+import { log as appLog } from '../log';
 import { clearFullLines, collides, createBoard } from './board';
 import { CONFIG } from './config';
 import {
@@ -82,6 +84,8 @@ export interface EngineOptions {
    * above 0. `lines` also affects gravity and stays a public field.
    */
   gravityMultiplier?: number;
+  /** Where debug messages go; the app's `[tetris]` log by default. */
+  logger?: Logger;
 }
 
 /** An active curse as the panels show it. */
@@ -141,6 +145,7 @@ export class GameEngine {
   /** Bumped on every change the panels care about (not on gravity or movement). */
   version = 0;
 
+  private readonly logger: Logger;
   private readonly pieceRng: Rng;
   private readonly garbageRng: Rng;
   private readonly giftRng: Rng;
@@ -167,6 +172,7 @@ export class GameEngine {
   private readonly listeners: Set<Listener> = new Set();
 
   constructor(options: EngineOptions = {}) {
+    this.logger = options.logger ?? appLog;
     const seed = options.seed ?? Math.floor(Math.random() * 2 ** 32);
     this.pieceRng = options.pieceRng ?? mulberry32(deriveSeed(seed, 0));
     this.garbageRng = options.garbageRng ?? mulberry32(deriveSeed(seed, 1));
@@ -315,18 +321,21 @@ export class GameEngine {
     this.phase = 'playing';
     if (this.initialActivePiece) this.spawn(this.initialActivePiece);
     else this.spawnNext();
+    this.logState('game started');
     this.emit();
   }
 
   pause(): void {
     if (this.phase !== 'playing') return;
     this.phase = 'paused';
+    this.logState('paused');
     this.emit();
   }
 
   resume(): void {
     if (this.phase !== 'paused') return;
     this.phase = 'playing';
+    this.logState('resumed');
     this.emit();
   }
 
@@ -338,6 +347,7 @@ export class GameEngine {
 
   /** Clears everything except the selected trigger probability. */
   restart(): void {
+    this.logState('restart');
     this.phase = 'ready';
     this.board = this.startingBoard();
     this.active = null;
@@ -363,8 +373,12 @@ export class GameEngine {
   }
 
   setProbability(p: number): boolean {
-    if (!isValidProbability(p)) return false;
+    if (!isValidProbability(p)) {
+      this.logger.warn(`ignored invalid trigger chance: ${String(p)}`);
+      return false;
+    }
     this.probability = p;
+    this.logger.debug(`trigger chance set to ${p}`);
     this.emit();
     return true;
   }
@@ -374,6 +388,23 @@ export class GameEngine {
     this.active = null;
     this.gameOverReason = reason;
     this.pushLog('system', `游戏结束：${reason}`);
+    this.logState(`game over (${reason})`);
+  }
+
+  /** `what` and the numbers that say where the game stands, as a debug line. */
+  private logState(what: string): void {
+    if (!this.logger.enabled('debug')) return;
+    this.logger.debug(
+      `${what}: score=${this.score} lines=${this.lines} speed=x${this.speedMultiplier.toFixed(2)} ` +
+        `locks=${this.lockedPieceCount} settlements=${this.settlementCount} gifts=${this.team.giftCount} ` +
+        `pending=${this.pendingText()}`,
+    );
+  }
+
+  /** `fog:1,garbage:2` for the curses waiting to settle, or `none`. */
+  private pendingText(): string {
+    const waiting = this.pool.filter((type) => this.team.pending[type] > 0);
+    return waiting.length ? waiting.map((t) => `${t}:${this.team.pending[t]}`).join(',') : 'none';
   }
 
   // ---------------------------------------------------------------- gifts
@@ -606,6 +637,7 @@ export class GameEngine {
     if (cleared > 0) {
       this.score += CONFIG.score.lineClear[cleared] ?? 0;
       this.lines += cleared;
+      this.logState(`cleared ${cleared} line${cleared > 1 ? 's' : ''}`);
     }
 
     tickTimedEffects(this.effects);
@@ -640,6 +672,10 @@ export class GameEngine {
     }
     this.lastSettlement = report;
     this.logSettlement(report);
+    if (this.logger.enabled('debug')) {
+      const fired = report.executed.map(({ type }) => type).join(',') || 'nothing';
+      this.logState(`settlement #${report.index} fired ${fired}`);
+    }
     if (gameOver) this.endGame(gameOver);
   }
 
