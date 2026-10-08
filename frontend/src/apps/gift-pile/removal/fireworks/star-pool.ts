@@ -1,7 +1,22 @@
 import { parseColor } from '../../render/color';
-import type { Color, FireworkData, Gfx } from '../../render/gfx';
+import type { Color, Gfx } from '../board';
+import {
+  DRIP_CORE,
+  DRIP_STREAK,
+  DRIP_STREAK_MAX,
+  GLITTER_REACH,
+  GLITTER_SHADER,
+  instanceBuffer,
+  type InstanceBuffer,
+  SMOKE_BOX,
+  SMOKE_SHADER,
+  SPARK_SHADER,
+  STAR_CORE,
+  STAR_STREAK,
+  STAR_STREAK_MAX,
+} from './shader';
 
-/** What a star is, as the fireworks shader draws it (`FireworkData.mode`). */
+/** What a star is, as the fireworks shaders draw it. */
 export const STAR = 0;
 export const DRIP = 1;
 export const GLITTER = 2;
@@ -53,7 +68,9 @@ const STRIDE = 12;
 export class StarPool {
   private readonly data: Float32Array;
   private count = 0;
-  private readonly out: FireworkData;
+  private stars?: InstanceBuffer;
+  private glitter?: InstanceBuffer;
+  private puffs?: InstanceBuffer;
   private readonly strength: (u: number) => number;
   private readonly gain: number;
   private readonly capacity: number;
@@ -78,16 +95,6 @@ export class StarPool {
     this.strength = strength;
     this.gain = gain;
     this.sizeOverLife = sizeOverLife;
-    this.out = {
-      count: 0,
-      xy: new Float32Array(this.capacity * 2),
-      vel: new Float32Array(this.capacity * 2),
-      size: new Float32Array(this.capacity),
-      rgba: new Float32Array(this.capacity * 4),
-      life: new Float32Array(this.capacity),
-      seed: new Float32Array(this.capacity),
-      mode: new Float32Array(this.capacity),
-    };
   }
 
   /** How many are alive. */
@@ -149,33 +156,94 @@ export class StarPool {
     }
   }
 
-  /** Draw them all as stars, or as smoke. */
+  /** Draw them all as stars (a star or drip, then glitter, so each shader is one call), or as smoke. */
   draw(gfx: Gfx, as: 'stars' | 'smoke'): void {
+    if (as === 'smoke') {
+      this.puffs ??= instanceBuffer(this.capacity, 'normal');
+      const out = this.puffs;
+      let n = 0;
+      for (let k = 0; k < this.count; k++) {
+        const at = k * STRIDE;
+        const u = this.data[at + AGE]! / this.data[at + LIFE]!;
+        const radius = (this.data[at + SIZE]! * this.sizeOverLife(u)) / 2;
+        const half = radius * SMOKE_BOX;
+        this.put(out, n, at);
+        out.half[2 * n] = half;
+        out.half[2 * n + 1] = half;
+        out.p.set([radius, u, this.data[at + SEED]!, this.gain * this.strength(u)], 4 * n);
+        out.rgba[4 * n + 3] = 1;
+        n++;
+      }
+      out.count = n;
+      if (n > 0) gfx.shadeMany(SMOKE_SHADER, out);
+      return;
+    }
+    this.stars ??= instanceBuffer(this.capacity, 'add');
+    this.glitter ??= instanceBuffer(this.capacity, 'add');
     const low = gfx.quality === 'low';
-    const { data, out } = this;
-    let n = 0;
+    const { data: d } = this;
+    const stars = this.stars;
+    const glitter = this.glitter;
+    let ns = 0;
+    let ng = 0;
     for (let k = 0; k < this.count; k++) {
       // On a cheaper quality it draws some of them, the rest keep to themselves.
-      if (low && as === 'stars' && (k * 0.618034) % 1 > LOW_SHARE) continue;
+      if (low && (k * 0.618034) % 1 > LOW_SHARE) continue;
       const at = k * STRIDE;
-      const u = data[at + AGE]! / data[at + LIFE]!;
-      out.xy[2 * n] = data[at + X]!;
-      out.xy[2 * n + 1] = data[at + Y]!;
-      out.vel[2 * n] = data[at + VX]!;
-      out.vel[2 * n + 1] = data[at + VY]!;
-      out.size[n] = data[at + SIZE]! * this.sizeOverLife(u);
-      out.rgba[4 * n] = data[at + COLOR]!;
-      out.rgba[4 * n + 1] = data[at + COLOR + 1]!;
-      out.rgba[4 * n + 2] = data[at + COLOR + 2]!;
-      out.rgba[4 * n + 3] = this.gain * this.strength(u) * (low && as === 'stars' ? 1.4 : 1);
-      out.life[n] = u;
-      out.seed[n] = data[at + SEED]!;
-      out.mode[n] = data[at + MODE]!;
-      n++;
+      const u = d[at + AGE]! / d[at + LIFE]!;
+      const size = d[at + SIZE]! * this.sizeOverLife(u);
+      const gain = this.gain * this.strength(u) * (low ? 1.4 : 1);
+      const seed = d[at + SEED]!;
+      if (d[at + MODE] === GLITTER) {
+        const reach = size * GLITTER_REACH;
+        this.put(glitter, ng, at);
+        glitter.half[2 * ng] = reach;
+        glitter.half[2 * ng + 1] = reach;
+        glitter.axis[2 * ng] = 1;
+        glitter.axis[2 * ng + 1] = 0;
+        glitter.p.set([reach, u, seed, gain], 4 * ng);
+        ng++;
+        continue;
+      }
+      const drip = d[at + MODE] === DRIP;
+      const vx = d[at + VX]!;
+      const vy = d[at + VY]!;
+      const speed = Math.hypot(vx, vy);
+      const ex = speed > 1e-3 ? vx / speed : 0;
+      const ey = speed > 1e-3 ? vy / speed : 1;
+      const core = size * (drip ? DRIP_CORE : STAR_CORE);
+      const length = Math.min(
+        Math.max(speed * (drip ? DRIP_STREAK : STAR_STREAK), size * 0.5),
+        size * (drip ? DRIP_STREAK_MAX : STAR_STREAK_MAX),
+      );
+      const pad = core * 5;
+      this.put(stars, ns, at);
+      stars.xy[2 * ns] = d[at + X]! - (ex * length) / 2;
+      stars.xy[2 * ns + 1] = d[at + Y]! - (ey * length) / 2;
+      stars.half[2 * ns] = length / 2 + pad;
+      stars.half[2 * ns + 1] = pad;
+      stars.axis[2 * ns] = ex;
+      stars.axis[2 * ns + 1] = ey;
+      stars.p.set([length, core, u, seed], 4 * ns);
+      stars.q.set([gain, drip ? 1 : 0, 0, 0], 4 * ns);
+      ns++;
     }
-    out.count = n;
-    if (n === 0) return;
-    if (as === 'stars') gfx.fireworkStars(out);
-    else gfx.fireworkSmoke(out);
+    stars.count = ns;
+    glitter.count = ng;
+    if (ns > 0) gfx.shadeMany(SPARK_SHADER, stars);
+    if (ng > 0) gfx.shadeMany(GLITTER_SHADER, glitter);
+  }
+
+  /** Slot `n` of `out` gets star `at`'s place and colour, unrotated. */
+  private put(out: InstanceBuffer, n: number, at: number): void {
+    const d = this.data;
+    out.xy[2 * n] = d[at + X]!;
+    out.xy[2 * n + 1] = d[at + Y]!;
+    out.axis[2 * n] = 1;
+    out.axis[2 * n + 1] = 0;
+    out.rgba[4 * n] = d[at + COLOR]!;
+    out.rgba[4 * n + 1] = d[at + COLOR + 1]!;
+    out.rgba[4 * n + 2] = d[at + COLOR + 2]!;
+    out.rgba[4 * n + 3] = 1;
   }
 }
