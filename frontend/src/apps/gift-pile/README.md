@@ -72,11 +72,7 @@ the top to it, lowers the claw and draws the clump up into a bunch in its grip (
 if there are many), lets a few slip out on the way up, and carries the rest off. The fireworks
 (`fireworks/`) send the icons up in a handful of rockets, each gathered from its own stretch of
 the pile, that burst into sparks; the icons fly apart with the sparks and are `destroy`ed as
-they burn out, so the count goes down burst by burst, and the duds fall back onto the pile. The
-cat (`cat/`) walks in from the right along the top of the pile and bats every icon its paw
-reaches up and away to the left, `destroy`ing each as it leaves the canvas; the duds it only
-taps, and `drop`s them moving, so they tumble back onto the pile as physics has them (a dropped
-icon can be given a speed, which the engine's `release` sets on its body).
+they burn out, so the count goes down burst by burst, and the duds fall back onto the pile.
 
 As the intake nears each icon the page `grab`s it, so whatever rested on it falls then and
 not before, and draws it being drawn in, swinging and shrinking on the way. The ones to drop
