@@ -22,6 +22,53 @@ interface Props {
 const BIN_HOME: BinPlace = { fx: 0.86, fy: 0.9 };
 /** How long the bin lights up for when it catches a dropped icon. */
 const CATCH_FLASH_MS = 250;
+/** The unseen banner waits this long after the page opens, and then for this many frames in a row under this long. */
+const PRIME_AFTER_MS = 1000;
+const SMOOTH_FRAMES = 20;
+const SMOOTH_FRAME_MS = 40;
+/** What the unseen banner shows; a painted portrait too, so the canvas it is drawn on is set up. */
+const PRIMER_REQUEST: CutInRequest = {
+  name: '',
+  color: '#ff5d73',
+  portrait: {
+    key: 'cut-in/primer',
+    width: 48,
+    height: 48,
+    paint: (ctx) => {
+      // One of each thing the real portraits use, so the browser sets up its drawing for them.
+      const radial = ctx.createRadialGradient(18, 16, 2, 24, 24, 22);
+      radial.addColorStop(0, '#fff');
+      radial.addColorStop(1, '#8b5cf6');
+      const linear = ctx.createLinearGradient(0, 0, 48, 48);
+      linear.addColorStop(0, '#fcd34d');
+      linear.addColorStop(1, '#fb923c');
+      ctx.save();
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillStyle = radial;
+      ctx.beginPath();
+      ctx.arc(24, 24, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(24, 30, 20, 8, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = linear;
+      ctx.fillRect(0, 0, 48, 48);
+      ctx.restore();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(8, 10);
+      ctx.quadraticCurveTo(24, 2, 40, 10);
+      ctx.stroke();
+      ctx.globalAlpha = 0.5;
+      ctx.fillText('x', 4, 44);
+    },
+  },
+};
 
 /**
  * The canvas with the bin floating over it. Press on an icon to pick it up; it follows the
@@ -44,6 +91,8 @@ export function Stage({ canvasRef, pile, size }: Props) {
   // The cut-in banner on show, if any; the key makes a new one start its animation over.
   const [cutIn, setCutIn] = useState<{ request: CutInRequest; key: number } | null>(null);
   const cutInKeyRef = useRef(0);
+  // Whether the unseen first banner is playing (see `CutIn`'s `primer`).
+  const [priming, setPriming] = useState(false);
   const canvas = canvasSize(size);
   const [box, setBox] = useState(canvas);
   const draggingRef = useRef<number | null>(null);
@@ -97,9 +146,32 @@ export function Stage({ canvasRef, pile, size }: Props) {
 
   // A removal brings on a banner now and then, not per frame, so it can live in state.
   useEffect(
-    () => pile.onCutIn((request) => setCutIn({ request, key: ++cutInKeyRef.current })),
+    () =>
+      pile.onCutIn((request) => {
+        setPriming(false);
+        setCutIn({ request, key: ++cutInKeyRef.current });
+      }),
     [pile],
   );
+
+  // Once the page has settled (the renderer's warm-up has let frames flow again), show a banner
+  // unseen, so the first real one doesn't stall the page.
+  useEffect(() => {
+    let raf = 0;
+    let last = 0;
+    let smooth = 0;
+    const watch = (now: number) => {
+      smooth = now - last < SMOOTH_FRAME_MS ? smooth + 1 : 0;
+      last = now;
+      if (smooth < SMOOTH_FRAMES) raf = requestAnimationFrame(watch);
+      else if (pile.motion.cutIns) setPriming(true);
+    };
+    const timer = window.setTimeout(() => (raf = requestAnimationFrame(watch)), PRIME_AFTER_MS);
+    return () => {
+      window.clearTimeout(timer);
+      cancelAnimationFrame(raf);
+    };
+  }, [pile]);
 
   // Where the bin is in world pixels, for the pile; its image's size, scaled to the world.
   useEffect(() => {
@@ -200,6 +272,15 @@ export function Stage({ canvasRef, pile, size }: Props) {
           onMove={placeBin}
           hot={hot || flashing}
         />
+        {priming && !cutIn && (
+          <CutIn
+            primer
+            request={PRIMER_REQUEST}
+            title={labels.removers.names.ufo ?? ''}
+            line={labels.cutIn.lines.ufo ?? ''}
+            onDone={() => setPriming(false)}
+          />
+        )}
         {cutIn && (
           <CutIn
             key={cutIn.key}
