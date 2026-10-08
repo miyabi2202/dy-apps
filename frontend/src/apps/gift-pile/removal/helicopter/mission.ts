@@ -2,7 +2,16 @@ import type { Board, Point, Removal } from '../board';
 import { PileTop } from '../kit/pile-top';
 import type { Recolour, SvgArt } from '../kit/svg-art';
 import { drawChopper, WINCH } from './chopper';
-import { drawHose, drawRope, drawWinchman, HANDS_UP, NOZZLE, tankAt } from './winchman';
+import {
+  drawHose,
+  drawRope,
+  drawSuction,
+  drawWinchman,
+  HANDS_UP,
+  LUMP_MS,
+  NOZZLE,
+  tankAt,
+} from './winchman';
 
 // Timing in ms, geometry in world pixels.
 /** It hovers this far above the top of the pile, by the cabin's middle, but no higher than this on the canvas. */
@@ -16,7 +25,7 @@ const WINCH_SPEED = 0.25;
 /** He drops this last bit off the rope onto the pile, and grabs it this far up on his way back. */
 const LET_GO = 6;
 /** He walks at this many px per ms, the length of the pile and back, this far in from each end. */
-const WALK_SPEED = 0.12;
+const WALK_SPEED = 0.24;
 const END_MARGIN = 6;
 /**
  * His vacuum takes icons within this far either side of its nozzle and above it, and this
@@ -93,6 +102,8 @@ export class Mission implements Removal {
   private suckedThisWalk = 0;
   private readonly flying: { i: number; at: number; from: Point }[] = [];
   private landedCount = 0;
+  /** When each icon that reached the nozzle went into the hose, for its lump on the way up. */
+  private lumps: number[] = [];
   private readonly held: number[] = [];
   private thrown = 0;
 
@@ -156,8 +167,16 @@ export class Mission implements Removal {
     const man = onRope ? { x: winch.x, y: winch.y + this.rope + HANDS_UP } : this.man;
 
     if (!aboard) {
-      const sucking = this.phase === 'work' || this.flying.length > 0;
-      drawHose(ctx, { x: winch.x - 6, y: winch.y - 4 }, tankAt(man, this.facing), t, sucking);
+      const sucking = this.phase === 'work' || this.flying.length > 0 || this.lumps.length > 0;
+      this.lumps = this.lumps.filter((at) => t - at < LUMP_MS);
+      drawHose(
+        ctx,
+        { x: winch.x - 6, y: winch.y - 4 },
+        tankAt(man, this.facing),
+        t,
+        sucking,
+        this.lumps.map((at) => (t - at) / LUMP_MS),
+      );
       drawRope(
         ctx,
         winch,
@@ -167,6 +186,7 @@ export class Mission implements Removal {
     drawChopper(ctx, this.art, this.scheme, chopper, this.tilt, t);
     if (!aboard)
       drawWinchman(ctx, man, { facing: this.facing, stride: this.stride, hanging: onRope });
+    if (this.phase === 'work') drawSuction(ctx, this.nozzle(), this.facing, t);
 
     // Icons on their way into the nozzle.
     const nozzle = this.nozzle();
@@ -346,6 +366,7 @@ export class Mission implements Removal {
     while (this.flying.length > 0 && this.t - this.flying[0]!.at >= SUCK_MS) {
       const { i } = this.flying.shift()!;
       this.landedCount++;
+      this.lumps.push(this.t);
       if (this.landedCount > board.icons.length - board.dropCount) this.held.push(i);
       else board.destroy(i);
     }
