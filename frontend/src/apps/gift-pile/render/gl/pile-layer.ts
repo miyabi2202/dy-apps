@@ -258,7 +258,8 @@ export class PileLayer {
       return;
     }
     const hole = new Float32Array([HOLE, HOLE]);
-    for (const g of this.punched) if (g < this.gpuEnd) gl.bufferSubData(gl.ARRAY_BUFFER, g * XY_BYTES, hole);
+    for (const g of this.punched)
+      if (g < this.gpuEnd) gl.bufferSubData(gl.ARRAY_BUFFER, g * XY_BYTES, hole);
     this.punched.length = 0;
     this.sendRange(gl, xy, at, this.gpuEnd);
   }
