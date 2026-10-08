@@ -2,13 +2,14 @@
 
 import type { Point } from '../board';
 
-/** How wide Pac-Man's mouth opens at most, as a half angle. */
+/** Pac-Man's radius, always the same, and how wide his mouth opens at most, as a half angle. */
+export const PAC_R = 22.5;
 const MOUTH_MAX = 0.75;
 /** How many times a second his mouth goes wakka. */
 const CHOMPS_PER_S = 7;
 /** The ghost is this wide either side of its middle. */
 export const GHOST_R = 19.5;
-/** The eye and the ghost are laid out for a Pac-Man and a ghost this big, and scaled to their sizes. */
+/** The drawings below are laid out for a Pac-Man and a ghost this big, and scaled to the sizes above. */
 const PAC_DRAWN = 15;
 const GHOST_DRAWN = 13;
 
@@ -16,14 +17,13 @@ const GHOST_DRAWN = 13;
 export type Facing = number;
 
 /**
- * Pac-Man at `at`, `r` in radius, facing `facing`, chomping `t` ms in; `dying` from 0 to 1 shrivels him away,
+ * Pac-Man at `at`, facing `facing`, chomping `t` ms in; `dying` from 0 to 1 shrivels him away,
  * his mouth opening all the way round as he turns to face up, as in the game, and ends in a
  * little pop of lines.
  */
 export function drawPacMan(
   ctx: CanvasRenderingContext2D,
   at: Point,
-  r: number,
   facing: Facing,
   colour: string,
   t: number,
@@ -38,31 +38,24 @@ export function drawPacMan(
     ctx.fillStyle = colour;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.arc(0, 0, r, mouth, Math.PI * 2 - mouth);
+    ctx.arc(0, 0, PAC_R, mouth, Math.PI * 2 - mouth);
     ctx.closePath();
     ctx.fill();
     if (dying === 0) {
       // The eye, above his mouth whichever way he faces: turned round facing left, it is below.
-      const k = r / PAC_DRAWN;
+      const k = PAC_R / PAC_DRAWN;
       ctx.fillStyle = '#0F172A';
       ctx.beginPath();
-      ctx.arc(2 * k, Math.cos(facing) < -0.5 ? r * 0.5 : -r * 0.5, 2.2 * k, 0, Math.PI * 2);
+      ctx.arc(2 * k, Math.cos(facing) < -0.5 ? PAC_R * 0.5 : -PAC_R * 0.5, 2.2 * k, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
   }
-  if (dying > 0.85) drawPop(ctx, at, r, colour, Math.min(1, (dying - 0.85) / 0.15));
+  if (dying > 0.85) drawPop(ctx, at, colour, Math.min(1, (dying - 0.85) / 0.15));
 }
 
-/** The spark of lines as the last of him goes, `u` from 0 to 1, sized for a Pac-Man `r` in radius. */
-function drawPop(
-  ctx: CanvasRenderingContext2D,
-  at: Point,
-  r: number,
-  colour: string,
-  u: number,
-): void {
-  const scale = r / PAC_DRAWN;
+/** The spark of lines as the last of him goes, `u` from 0 to 1. */
+function drawPop(ctx: CanvasRenderingContext2D, at: Point, colour: string, u: number): void {
   ctx.save();
   ctx.strokeStyle = colour;
   ctx.lineWidth = 2;
@@ -71,8 +64,8 @@ function drawPop(
   ctx.beginPath();
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2;
-    const r0 = (4 + 6 * u) * scale;
-    const r1 = r0 + 5 * scale;
+    const r0 = 4 + 6 * u;
+    const r1 = r0 + 5;
     ctx.moveTo(at.x + Math.cos(a) * r0, at.y + Math.sin(a) * r0);
     ctx.lineTo(at.x + Math.cos(a) * r1, at.y + Math.sin(a) * r1);
   }

@@ -5,9 +5,9 @@ const SAMPLE = 8;
 const SMOOTH = 3;
 
 /**
- * The top of the pile across the canvas, by the icons' middles, for Pac-Man's rows to follow:
- * the highest of the icons near each point across, carried across gaps and smoothed so he
- * doesn't jolt.
+ * The rows Pac-Man runs along: row 0 follows the top of the pile, by the icons' middles, and
+ * each row below it is `rowStep` lower. The top is the highest of the icons near each point
+ * across, carried across gaps and smoothed so he doesn't jolt.
  */
 export class PileTop {
   private readonly top: Float32Array;
@@ -17,6 +17,7 @@ export class PileTop {
     width: number,
     /** How near an icon has to be to a point across to count for its height. */
     reach: number,
+    private readonly rowStep: number,
   ) {
     const n = Math.ceil(width / SAMPLE) + 1;
     const raw = new Float32Array(n).fill(NaN);
@@ -47,12 +48,12 @@ export class PileTop {
     });
   }
 
-  /** The top's height at x. */
-  at(x: number): number {
+  /** The height of row `row` at x. */
+  rowAt(x: number, row: number): number {
     const { top } = this;
     const k = Math.min(top.length - 1, Math.max(0, x / SAMPLE));
     const k0 = Math.floor(k);
     const k1 = Math.min(top.length - 1, k0 + 1);
-    return top[k0]! + (top[k1]! - top[k0]!) * (k - k0);
+    return top[k0]! + (top[k1]! - top[k0]!) * (k - k0) + row * this.rowStep;
   }
 }
