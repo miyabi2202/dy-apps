@@ -186,6 +186,8 @@ void main() {
     } else { // nitro flame: p.x length, p.y half width, p.z strength; c the colour
       o = hcFlameColor(v_local, v_p.x, v_p.y, v_p.z, c.rgb, u_time);
     }
+    o *= c.a;
+    return;
   } else if (k >= 30 && k <= 33) { // the hot-air balloon (balloon.ts)
     if (k == 30) { // envelope: p.x radius, p.yzw and q.x gore colours (packed), q.y skirt, q.z count + 8 * pattern, q.w heat; c the outline
       o = balloonEnvelopeColor(v_local, v_p.x, v_p.yzw, v_q.x, v_q.y, v_q.z, v_q.w, c.rgb, u_time, u_px);
