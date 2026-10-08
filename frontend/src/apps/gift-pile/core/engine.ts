@@ -449,7 +449,9 @@ export class PileEngine {
       const i = moving[k]!;
       if (this.born[i]! <= heapBorn && y[i]! < top) top = y[i]!;
     }
-    const line = Math.min(-r, top - d);
+    // Just above the top of the view: the canvas's own top, or, once the view has moved up
+    // to keep its headroom over the pile, the top of that.
+    const line = Math.min(-r, top - this.height * s.headroom - r);
     // Icons are spread over the distance the stream falls in one step, so a step's
     // releases don't form a row.
     const band = s.spawnSpeed * this.dt;

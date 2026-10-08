@@ -13,6 +13,15 @@ export interface World {
   height: number;
 }
 
+/**
+ * The part of the world on screen: the world y of its top, and its height. The view starts at
+ * the canvas's top, and moves up with a pile that has grown into its headroom.
+ */
+export interface View {
+  top: number;
+  height: number;
+}
+
 /** A point in world pixels. */
 export interface Point {
   x: number;
@@ -28,6 +37,8 @@ export interface Point {
  */
 export interface Board {
   readonly world: World;
+  /** What is on screen, which stays put while the removal runs: things should come and go, and hover, within it. */
+  readonly view: View;
   /** An icon's drawn radius, in world pixels. */
   readonly iconRadius: number;
   /** Where each icon was when it was set aside. */

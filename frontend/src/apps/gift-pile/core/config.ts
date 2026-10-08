@@ -15,6 +15,12 @@ export interface PileSettings {
   margin: number;
   /** The most icons the pile holds in total. */
   maxItems: number;
+  /**
+   * The share of the canvas's height kept clear above the pile, for the removals to work in:
+   * once the pile grows into it, the view moves up with it (the bottom of the pile goes out
+   * of sight) and new icons drop in from just above the view.
+   */
+  headroom: number;
   gravity: number;
   /**
    * Icons released per second while some are queued. The top edge only lets so many through:
@@ -69,6 +75,7 @@ export const PILE: PileSettings = {
   grabRadius: 12,
   margin: 8,
   maxItems: 100_000,
+  headroom: 1 / 3,
   gravity: 2400,
   spawnPerSecond: 600,
   spawnSpeed: 600,

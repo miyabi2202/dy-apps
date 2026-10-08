@@ -3,7 +3,7 @@ import { smooth } from '../kit/easing';
 import { clumpOf, clumpSomewhere } from '../kit/clump';
 
 // Timing in ms, geometry in world pixels.
-/** The hole's radius when fully open, and how far above the clump's top its middle is. */
+/** The hole's radius when fully open, how far above the clump's top its middle is, and how near the view's top it can be at most. */
 const HOLE_R = 20;
 const ABOVE = 90;
 const MIN_Y = 60;
@@ -100,7 +100,7 @@ class Swallow implements Removal {
     this.t0 = now;
     const { x: cx, top } = clumpOf(icons, world, 50);
     this.cx = cx;
-    this.cy = Math.max(MIN_Y, top - ABOVE);
+    this.cy = Math.max(board.view.top + MIN_Y, top - ABOVE);
     this.startAt = new Float32Array(n);
     this.fallMs = new Float32Array(n);
     this.r0 = new Float32Array(n);

@@ -9,12 +9,13 @@ const world = { width: 416, height: 708 };
  * A board of `n` icons along the top of a pile, recording what the removal does with each
  * and anything it shouldn't do (`problems`): touch an icon after it is dropped or gone, or
  * draw somewhere that isn't a number. Checking each call with `expect` would be thousands of
- * expects a frame, so they are gathered and checked once.
+ * expects a frame, so they are gathered and checked once. With `raised`, the pile has grown
+ * that far up out of the canvas and the view has moved up with it.
  */
-function recordingBoard(n: number, dropCount: number) {
+function recordingBoard(n: number, dropCount: number, raised = 0) {
   const icons: Point[] = Array.from({ length: n }, (_, i) => ({
     x: 20 + ((i * 37) % 376),
-    y: 500 - ((i * 13) % 60),
+    y: 500 - raised - ((i * 13) % 60),
   }));
   const taken = new Set<number>();
   const dropped = new Set<number>();
@@ -24,6 +25,7 @@ function recordingBoard(n: number, dropCount: number) {
   const finite = (...values: number[]) => values.every(Number.isFinite);
   const board: Board = {
     world,
+    view: { top: -raised, height: world.height },
     iconRadius: 8,
     icons,
     dropCount,
@@ -88,6 +90,13 @@ describe.each(allRemovers().map((r) => [r.name, r] as const))('remover %s', (_, 
     for (let i = 0; i < 40; i++) {
       expect(taken.has(i) || dropped.has(i) || destroyed.has(i)).toBe(true);
     }
+  });
+
+  it('works as well on a pile grown far above the canvas, with the view moved up to it', () => {
+    const { board, dropped, problems } = recordingBoard(40, 8, 1500);
+    runToEnd(remover.begin(board, 0, mulberry32(5)), 16);
+    expect([...problems]).toEqual([]);
+    expect(dropped.size).toBe(8);
   });
 
   it('still drops exactly its share when frames are few and far between (a hidden tab)', () => {

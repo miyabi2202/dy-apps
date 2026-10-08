@@ -78,7 +78,7 @@ export function ControlPanel({ stats, maxItems, onAdd, onRemove, onClear, childr
         </Row>
         <p {...stylex.props(text.muted, styles.hint)}>
           最多 {maxItems.toLocaleString('zh-CN')} 个，还能加 {room.toLocaleString('zh-CN')} 个。
-          画面装满后，继续添加的会堆到画面上方。
+          堆到画面上方三分之一处后，画面会跟着往上移，底下的移出画面。
         </p>
       </form>
       <dl data-testid={testIds.stats} {...stylex.props(styles.stats)}>

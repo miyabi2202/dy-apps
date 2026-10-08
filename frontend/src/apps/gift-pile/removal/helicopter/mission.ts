@@ -16,7 +16,7 @@ import { easeOut, smooth } from '../kit/easing';
 import { Clock } from '../kit/clock';
 
 // Timing in ms, geometry in world pixels.
-/** It hovers this far above the top of the pile, by the cabin's middle, but no higher than this on the canvas. */
+/** It hovers this far above the top of the pile, by the cabin's middle, but no nearer the view's top than this. */
 const HOVER_ABOVE = 150;
 const HOVER_MIN_Y = 50;
 /** It flies in over this long, and away over this long. */
@@ -120,7 +120,7 @@ export class Mission implements Removal {
     this.top = new PileTop(icons, world.width, SUCK_R, 0);
     this.lowest = Math.max(0, ...icons.map((p) => p.y));
     this.hoverX = world.width / 2;
-    this.hoverY = Math.max(HOVER_MIN_Y, this.groundAt(this.hoverX) - HOVER_ABOVE);
+    this.hoverY = Math.max(board.view.top + HOVER_MIN_Y, this.groundAt(this.hoverX) - HOVER_ABOVE);
     this.chopper = { x: -90, y: this.hoverY - 40 };
     this.man = this.winch();
     const xs = icons.map((p) => p.x);

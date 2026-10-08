@@ -10,7 +10,13 @@ export type CreateSprite = (
   image: HTMLImageElement | null,
 ) => CanvasImageSource;
 
-type Stage = Pick<PileSettings, 'world' | 'radius' | 'grabRadius'>;
+type Stage = Pick<PileSettings, 'world' | 'radius' | 'grabRadius' | 'headroom'>;
+
+/** The part of the world on screen: the world y of the view's top, and its height. */
+export interface View {
+  top: number;
+  height: number;
+}
 
 /** An icon the user is holding, and where (pixels). */
 export interface Held {
@@ -21,6 +27,10 @@ export interface Held {
 
 /** A held icon is drawn this much bigger, as if lifted towards the viewer. */
 const HELD_SCALE = 1.2;
+/** The camera eases towards where it should be over about this long. */
+const CAMERA_MS = 400;
+/** The resting layer covers this many views' height, so the camera can move a way before it is repainted. */
+const LAYER_VIEWS = 2;
 
 /**
  * Draws the pile from the frames the physics worker posts, in two layers. Icons at rest are
@@ -36,6 +46,12 @@ const HELD_SCALE = 1.2;
  * The canvas is sized to its CSS box × devicePixelRatio and the world scaled into it, so the
  * icons stay crisp at any page width. The resting layer is repainted when that ratio
  * changes, when the pile is cleared, and when the gift image arrives.
+ *
+ * A camera keeps `headroom` of the view clear above the pile: once the pile grows into it,
+ * the view moves up with it, easing, and the bottom of the pile goes out of sight; it comes
+ * back down as the pile does, but never below the floor. It holds still while the overlay is
+ * busy, so a removal is never scrolled away under it. The resting layer covers more than the
+ * view, and is repainted where the view now is once the camera leaves it.
  */
 export class PileRenderer {
   private readonly layer = document.createElement('canvas');
@@ -68,6 +84,12 @@ export class PileRenderer {
   private held: Held | null = null;
   /** The top of the pile in columns two radii wide (Infinity where there is none), built when asked and dropped when the pile changes. */
   private tops: Float32Array | null = null;
+  /** The world y of the view's top (0, or above it once the pile has grown), and of the resting layer's. */
+  private cameraY = 0;
+  private layerTop = 0;
+  /** When the last draw was, for easing the camera; and who to tell when it moves. */
+  private lastDraw: number | null = null;
+  private onCamera: ((cameraY: number) => void) | null = null;
 
   /** The user is holding this icon here, or (null) nothing. */
   hold(held: Held | null): void {
@@ -84,6 +106,16 @@ export class PileRenderer {
     private readonly overlay: Overlay | null = null,
   ) {
     this.world = stage.world;
+  }
+
+  /** The part of the world on screen now. */
+  get view(): View {
+    return { top: this.cameraY, height: this.world.height };
+  }
+
+  /** Call `fn` with the view's new top each time the camera moves; null to stop. */
+  watchCamera(fn: ((cameraY: number) => void) | null): void {
+    this.onCamera = fn;
   }
 
   /** The gift image to stamp from now on; the next draw rebuilds the sprite and the pile. */
@@ -137,6 +169,8 @@ export class PileRenderer {
       this.stamped = 0;
       this.pixelRatio = 0;
       this.prev = null;
+      this.cameraY = 0;
+      this.onCamera?.(0);
       this.overlay?.reset();
     } else {
       this.prev = this.cur;
@@ -165,7 +199,7 @@ export class PileRenderer {
     this.restingXy.set(frame.settledXy, this.restingCount * 2);
     this.restingCount += frame.settledIds.length;
     frame.wokenIds.forEach((id) => this.removeResting(id));
-    for (const scoop of frame.scooped) this.overlay?.onScoop(scoop, this.world, now);
+    for (const scoop of frame.scooped) this.overlay?.onScoop(scoop, this.world, now, this.view);
   }
 
   /**
@@ -227,8 +261,34 @@ export class PileRenderer {
     return at;
   }
 
+  /** Where the camera should be: high enough to keep `headroom` of the view clear over the pile's highest point, but no lower than the floor's. */
+  private cameraTarget(): number {
+    let top = Infinity;
+    for (let x = 0; x <= this.world.width; x += 2 * this.stage.radius) {
+      top = Math.min(top, this.topAt(x) ?? Infinity);
+    }
+    if (!Number.isFinite(top)) return 0;
+    return Math.min(0, top - this.stage.radius - this.stage.headroom * this.world.height);
+  }
+
+  /** Ease the camera towards where it should be, as of wall time `now`, unless the overlay is busy. */
+  private moveCamera(now: number): void {
+    const dt = this.lastDraw === null ? Infinity : now - this.lastDraw;
+    this.lastDraw = now;
+    if (this.overlay?.busy) return;
+    const target = this.cameraTarget();
+    if (Math.abs(target - this.cameraY) < 0.25) {
+      if (target === this.cameraY) return;
+      this.cameraY = target;
+    } else {
+      this.cameraY += (target - this.cameraY) * Math.min(1, dt / CAMERA_MS);
+    }
+    this.onCamera?.(this.cameraY);
+  }
+
   /** Draw the pile as of wall time `now` (ms) into `canvas`. */
   draw(canvas: HTMLCanvasElement, now: number): void {
+    this.moveCamera(now);
     const { world } = this;
     const { radius } = this.stage;
     const cssWidth = canvas.clientWidth || world.width;
@@ -243,12 +303,20 @@ export class PileRenderer {
     const layerCtx = this.layer.getContext('2d');
     if (!ctx || !layerCtx) return;
 
-    if (pixelRatio !== this.pixelRatio) {
-      this.pixelRatio = pixelRatio;
-      this.sprite = this.createSprite(radius * 2, pixelRatio, this.image);
+    // The layer covers the view and as much again around it; repainted where the view now is
+    // once the camera leaves it, or the pixel ratio changes.
+    const layerHeight = world.height * LAYER_VIEWS;
+    const outOfLayer =
+      this.cameraY < this.layerTop || this.cameraY + world.height > this.layerTop + layerHeight;
+    if (pixelRatio !== this.pixelRatio || outOfLayer) {
+      if (pixelRatio !== this.pixelRatio) {
+        this.pixelRatio = pixelRatio;
+        this.sprite = this.createSprite(radius * 2, pixelRatio, this.image);
+      }
+      this.layerTop = Math.min(0, this.cameraY - (layerHeight - world.height) / 2);
       this.layer.width = pw;
-      this.layer.height = ph;
-      layerCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      this.layer.height = Math.max(1, Math.round(layerHeight * pixelRatio));
+      layerCtx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, -this.layerTop * pixelRatio);
       this.stamped = 0;
       this.holes = [];
       this.unstamped = [];
@@ -272,8 +340,9 @@ export class PileRenderer {
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, pw, ph);
-    ctx.drawImage(this.layer, 0, 0);
-    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.drawImage(this.layer, 0, Math.round((this.layerTop - this.cameraY) * pixelRatio));
+    // Everything else in world pixels, the camera's top at the canvas's.
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, -this.cameraY * pixelRatio);
 
     const { cur, prev, held } = this;
     if (cur) {
@@ -356,8 +425,12 @@ export class PileRenderer {
 
   private stamp(ctx: CanvasRenderingContext2D, x: number, y: number, scale = 1): void {
     const r = this.stage.radius * scale;
-    // Above the top edge: part of the pile, but not on screen.
-    if (!this.sprite || y + r < 0) return;
+    // Off the layer (when stamping it) or out of view: part of the pile, but not on screen.
+    const [from, to] =
+      ctx === this.layer.getContext('2d')
+        ? [this.layerTop, this.layerTop + this.world.height * LAYER_VIEWS]
+        : [this.cameraY, this.cameraY + this.world.height];
+    if (!this.sprite || y + r < from || y - r > to) return;
     ctx.drawImage(this.sprite, x - r, y - r, 2 * r, 2 * r);
   }
 }

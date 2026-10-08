@@ -59,7 +59,7 @@ export interface Craft {
   readonly tie: { dx: number; dy: number };
   /** How it takes icons in. */
   readonly intake: Intake;
-  /** The least the centre's height can be on this canvas, so the craft still shows. */
+  /** How far below the view's top the centre must stay, on this canvas, so the craft still shows. */
   minY(world: World): number;
   /** How far below the course's `altitude` the craft dips while over the pile. */
   sag(world: World): number;

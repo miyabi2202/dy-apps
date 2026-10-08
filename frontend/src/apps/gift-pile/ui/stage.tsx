@@ -28,7 +28,8 @@ const CATCH_FLASH_MS = 250;
 /**
  * The canvas with the bin floating over it. Press on an icon to pick it up; it follows the
  * pointer, lands where it is let go, and is destroyed if that is in the bin. Icons a removal
- * drops that fall into the bin are destroyed too, and it lights up for each.
+ * drops that fall into the bin are destroyed too, and it lights up for each. As the
+ * renderer's camera moves up and down the pile, the bin moves with it, kept on the canvas.
  */
 export function Stage({ canvasRef, renderer, client, director, size }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -40,6 +41,9 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
   const canvas = canvasSize(size);
   const [box, setBox] = useState(canvas);
   const draggingRef = useRef<number | null>(null);
+  // The world y of the view's top, as the renderer's camera moves.
+  const [camera, setCamera] = useState(() => renderer.view.top);
+  const cameraRef = useRef(camera);
   // Where the held icon last was, and whether the bin was lit for it, for finishing a drag
   // from an event that carries no useful position (a lost capture) or one that has already
   // left the bin in the flick of letting go.
@@ -56,13 +60,30 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
     return () => observer.disconnect();
   }, []);
 
+  // When the camera moves, the bin moves with the world, as if it were standing in it, but
+  // never off the canvas, so it can always be dragged.
+  useEffect(() => {
+    renderer.watchCamera((top) => {
+      const moved = top - cameraRef.current;
+      cameraRef.current = top;
+      setCamera(top);
+      setBin((place) => {
+        const height = stageRef.current?.clientHeight || canvas.height;
+        const margin = BIN_ICON_SIZE / 2 / height;
+        const fy = Math.min(1 - margin, Math.max(margin, place.fy - moved / canvas.height));
+        return fy === place.fy ? place : { ...place, fy };
+      });
+    });
+    return () => renderer.watchCamera(null);
+  }, [renderer, canvas.height]);
+
   // Where the bin is in world pixels, for the director; its image's size, scaled to the world.
   useEffect(() => {
     if (!box.width) return;
     const scale = canvas.width / box.width;
     director.setBin({
       x: bin.fx * canvas.width,
-      y: bin.fy * canvas.height,
+      y: bin.fy * canvas.height + camera,
       half: (BIN_ICON_SIZE / 2) * scale,
       onCatch: () => {
         setFlashing(true);
@@ -71,10 +92,10 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
       },
     });
     return () => director.setBin(null);
-  }, [director, bin, box.width, canvas.width, canvas.height]);
+  }, [director, bin, camera, box.width, canvas.width, canvas.height]);
   useEffect(() => () => window.clearTimeout(flashRef.current), []);
 
-  /** A pointer event's place in world pixels, and whether it is over the bin. */
+  /** A pointer event's place in world pixels (the view moved up by the camera), and whether it is over the bin. */
   const locate = (event: PointerEvent) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const cx = event.clientX - rect.left;
@@ -84,7 +105,7 @@ export function Stage({ canvasRef, renderer, client, director, size }: Props) {
       Math.abs(cx - bin.fx * rect.width) <= half && Math.abs(cy - bin.fy * rect.height) <= half;
     return {
       x: (cx / rect.width) * canvas.width,
-      y: (cy / rect.height) * canvas.height,
+      y: (cy / rect.height) * canvas.height + cameraRef.current,
       overBin,
     };
   };

@@ -34,7 +34,8 @@ describe('ScoopBoard', () => {
   it('grabs an icon before anything else happens to it, and destroys all it did not drop when finished', () => {
     const log: string[] = [];
     const dropped: number[] = [];
-    const board = new ScoopBoard(fakeSink(log), scoop, { width: 100, height: 100 }, (id) =>
+    const world = { width: 100, height: 100 };
+    const board = new ScoopBoard(fakeSink(log), scoop, world, { top: 0, height: 100 }, (id) =>
       dropped.push(id),
     );
     board.frame(hooks);

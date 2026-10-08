@@ -3,10 +3,10 @@ import { smooth } from '../kit/easing';
 import { clumpOf, clumpSomewhere } from '../kit/clump';
 
 // Timing in ms, geometry in world pixels.
-/** The rail along the top that the carriage runs on, and how long it fades in and out. */
+/** The rail along the top of the view that the carriage runs on, and how long it fades in and out. */
 const RAIL_Y = 10;
 const FADE_MS = 250;
-/** The claw hangs this far below the rail at rest. */
+/** The claw hangs this far below the view's top at rest. */
 const REST_Y = 54;
 /** The carriage comes in from the right this fast, and carries the prize off to the left. */
 const ENTER_MS = 900;
@@ -76,6 +76,9 @@ export class ClawMachine implements Remover {
 /** One go of the claw. */
 class Grab implements Removal {
   private readonly t0: number;
+  /** Where the rail is and the claw rests, at the view's top. */
+  private readonly railY: number;
+  private readonly restY: number;
   /** Where the clump is, and how low the hub goes to reach it. */
   private readonly targetX: number;
   private readonly gripY: number;
@@ -104,13 +107,15 @@ class Grab implements Removal {
     rng: () => number,
     private readonly palette: ClawPalette,
   ) {
-    const { icons, world, iconRadius } = board;
+    const { icons, world, iconRadius, view } = board;
+    this.railY = view.top + RAIL_Y;
+    this.restY = view.top + REST_Y;
     const n = icons.length;
     this.t0 = now;
     const { x: targetX, top } = clumpOf(icons, world, 30);
     this.targetX = targetX;
-    this.gripY = Math.max(REST_Y, top - REACH + iconRadius);
-    const cableMs = Math.max(CABLE_MIN_MS, (this.gripY - REST_Y) / CABLE_SPEED);
+    this.gripY = Math.max(this.restY, top - REACH + iconRadius);
+    const cableMs = Math.max(CABLE_MIN_MS, (this.gripY - this.restY) / CABLE_SPEED);
     this.entered = ENTER_MS;
     this.lowered = this.entered + cableMs;
     this.gripped = this.lowered + GRIP_MS;
@@ -186,8 +191,8 @@ class Grab implements Removal {
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(0, RAIL_Y);
-    ctx.lineTo(width, RAIL_Y);
+    ctx.moveTo(0, this.railY);
+    ctx.lineTo(width, this.railY);
     ctx.stroke();
     ctx.restore();
 
@@ -195,14 +200,14 @@ class Grab implements Removal {
     ctx.strokeStyle = '#94A3B8';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(hub.cx, RAIL_Y);
+    ctx.moveTo(hub.cx, this.railY);
     ctx.lineTo(hub.x, hub.y - 5);
     ctx.stroke();
     ctx.fillStyle = this.palette.body;
     ctx.strokeStyle = this.palette.rail;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.roundRect(hub.cx - 18, RAIL_Y - 7, 36, 14, 5);
+    ctx.roundRect(hub.cx - 18, this.railY - 7, 36, 14, 5);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -232,12 +237,13 @@ class Grab implements Removal {
     if (t < this.entered) {
       const u = smooth(t / this.entered);
       cx = width + 40 + (this.targetX - width - 40) * u;
-      y = REST_Y;
+      y = this.restY;
       speed = -Math.sin(Math.PI * (t / this.entered));
     } else if (t < this.lowered) {
       cx = this.targetX;
       y =
-        REST_Y + (this.gripY - REST_Y) * smooth((t - this.entered) / (this.lowered - this.entered));
+        this.restY +
+        (this.gripY - this.restY) * smooth((t - this.entered) / (this.lowered - this.entered));
     } else if (t < this.gripped) {
       cx = this.targetX;
       y = this.gripY;
@@ -245,15 +251,15 @@ class Grab implements Removal {
       cx = this.targetX;
       y =
         this.gripY +
-        (REST_Y - this.gripY) * smooth((t - this.gripped) / (this.raised - this.gripped));
+        (this.restY - this.gripY) * smooth((t - this.gripped) / (this.raised - this.gripped));
     } else {
       const u = Math.min(1, (t - this.raised) / EXIT_MS);
       cx = this.targetX + (-80 - this.targetX) * smooth(u);
-      y = REST_Y;
+      y = this.restY;
       speed = -Math.sin(Math.PI * u);
     }
     const sway = speed * 0.25;
-    return { cx, x: cx - Math.sin(sway) * (y - RAIL_Y) * 0.5, y, sway };
+    return { cx, x: cx - Math.sin(sway) * (y - this.railY) * 0.5, y, sway };
   }
 
   /** The hub at (x, y), turned by `sway`, with its three prongs `open` from 0 (shut) to 1. */

@@ -29,8 +29,18 @@ export interface Hooks {
  * has it draw after the moving icons, with hooks into the renderer's own drawing and state.
  */
 export interface Overlay {
-  /** A frame brought a scoop, at wall time `now`: these icons are the overlay's to take. */
-  onScoop(scoop: Scoop, world: { width: number; height: number }, now: number): void;
+  /**
+   * A frame brought a scoop, at wall time `now`, with `view` the part of the world on screen:
+   * these icons are the overlay's to take.
+   */
+  onScoop(
+    scoop: Scoop,
+    world: { width: number; height: number },
+    now: number,
+    view: { top: number; height: number },
+  ): void;
+  /** Something is under way that the camera should hold still for. */
+  readonly busy?: boolean;
   /** The engine let everything go (a clear or resize). */
   reset(): void;
   /** Icon `id` is the overlay's, so the user can't pick it up. */

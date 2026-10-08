@@ -15,7 +15,7 @@ const BURST_R = 62;
 const SPARKS = 30;
 /** How far the sparks sink under gravity by the end of the burst. */
 const SINK = 38;
-/** Where the bursts go off, as fractions of the canvas's height. */
+/** Where the bursts go off, as fractions of the view's height from its top. */
 const APEX_FROM = 0.1;
 const APEX_TO = 0.32;
 /** Duds fall back this long into the burst. */
@@ -127,7 +127,7 @@ class Show implements Removal {
         footX,
         footY: Number.isFinite(top) ? top : world.height,
         apexX: footX + (rng() - 0.5) * 70,
-        apexY: world.height * (APEX_FROM + (APEX_TO - APEX_FROM) * rng()),
+        apexY: board.view.top + board.view.height * (APEX_FROM + (APEX_TO - APEX_FROM) * rng()),
         at: count > 1 ? (span * slot) / (count - 1) + rng() * 120 : 0,
         sparks: Array.from({ length: SPARKS }, ray),
         flight: group.map(ray),

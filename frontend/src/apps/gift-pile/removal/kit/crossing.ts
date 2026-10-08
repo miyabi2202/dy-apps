@@ -77,7 +77,7 @@ export class Crossing implements Removal {
     const toIntake = craft.tie.dy + craft.intake.reach;
     const sag = craft.sag(world);
     const altitude = Math.min(
-      Math.max(craft.minY(world), top - CLEARANCE - toIntake - sag),
+      Math.max(board.view.top + craft.minY(world), top - CLEARANCE - toIntake - sag),
       world.height - toIntake - sag,
     );
     this.course = { ...world, altitude, crossMs: craft.crossMs };

@@ -1,6 +1,6 @@
 import type { Scoop } from '../core/protocol';
 import type { Hooks } from '../render/overlay';
-import type { Board, Point, World } from './board';
+import type { Board, Point, View, World } from './board';
 import type { RemovalSink } from './sink';
 
 /** Where a removal's icon is. */
@@ -29,6 +29,7 @@ export class ScoopBoard implements Board {
     private readonly sink: RemovalSink,
     scoop: Scoop,
     readonly world: World,
+    readonly view: View,
     /** Called with each icon dropped back. */
     private readonly onDrop: (id: number) => void,
   ) {

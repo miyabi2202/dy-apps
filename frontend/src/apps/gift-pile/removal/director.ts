@@ -1,6 +1,6 @@
 import type { Scoop } from '../core/protocol';
 import type { Hooks, Overlay, Peek } from '../render/overlay';
-import type { Removal, Remover, World } from './board';
+import type { Removal, Remover, View, World } from './board';
 import { ActionQueue, type Traffic } from './queue';
 import { ScoopBoard } from './scoop-board';
 import type { RemovalSink } from './sink';
@@ -123,12 +123,19 @@ export class RemovalDirector implements Overlay, Traffic {
   }
 
   /** The icons the engine set aside for the next removal have arrived: it begins at wall time `now`. */
-  onScoop(scoop: Scoop, world: World, now: number): void {
+  onScoop(
+    scoop: Scoop,
+    world: World,
+    now: number,
+    view: View = { top: 0, height: world.height },
+  ): void {
     this.queue.scooped();
     const remover = this.next ?? this.nextRemover();
     this.next = null;
     if (scoop.ids.length === 0) return;
-    const board = new ScoopBoard(this.sink, scoop, world, (id) => this.falling.set(id, this.now));
+    const board = new ScoopBoard(this.sink, scoop, world, view, (id) =>
+      this.falling.set(id, this.now),
+    );
     this.run = { removal: remover.begin(board, now, this.rng), board };
   }
 

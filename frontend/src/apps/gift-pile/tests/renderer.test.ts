@@ -246,3 +246,51 @@ describe('PileRenderer pile top', () => {
     expect(renderer.topAt(300)).toBe(630);
   });
 });
+
+describe('PileRenderer camera', () => {
+  const H = PILE.world.height;
+  /** Draw every 16 ms from `from` to `to`, as the page's loop would. */
+  const drawFor = (renderer: PileRenderer, canvas: HTMLCanvasElement, from: number, to: number) => {
+    for (let now = from; now <= to; now += 16) renderer.draw(canvas, now);
+  };
+  /** Where the view's top should be to keep the headroom clear over a pile topped at `top`. */
+  const over = (top: number) => top - PILE.radius - PILE.headroom * H;
+
+  it('stays at the floor for a low pile, follows one that grows into its headroom up, and back down', () => {
+    const renderer = new PileRenderer(PILE, () => ({}) as CanvasImageSource);
+    const canvas = document.createElement('canvas');
+    renderer.pushFrame(frame({ settled: [[1, 100, 600]] }), 0);
+    drawFor(renderer, canvas, 0, 2000);
+    expect(renderer.view.top).toBe(0);
+
+    renderer.pushFrame(frame({ settled: [[2, 100, -300]] }), 2000);
+    drawFor(renderer, canvas, 2000, 6000);
+    expect(renderer.view.top).toBeCloseTo(over(-300), 0);
+
+    // The high one goes: back down to the floor.
+    renderer.pushFrame(frame({ woken: [2] }), 6000);
+    drawFor(renderer, canvas, 6000, 10000);
+    expect(renderer.view.top).toBe(0);
+  });
+
+  it('holds still while the overlay is busy, and moves on once it is not', () => {
+    let busy = true;
+    const overlay: Overlay = {
+      onScoop: () => {},
+      reset: () => {},
+      holds: () => false,
+      draw: () => {},
+      get busy() {
+        return busy;
+      },
+    };
+    const renderer = new PileRenderer(PILE, () => ({}) as CanvasImageSource, overlay);
+    const canvas = document.createElement('canvas');
+    renderer.pushFrame(frame({ settled: [[1, 100, -300]] }), 0);
+    drawFor(renderer, canvas, 0, 3000);
+    expect(renderer.view.top).toBe(0);
+    busy = false;
+    drawFor(renderer, canvas, 3000, 7000);
+    expect(renderer.view.top).toBeCloseTo(over(-300), 0);
+  });
+});

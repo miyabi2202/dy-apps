@@ -18,6 +18,18 @@ pixel units made every fall crawl; and `contactHz` raises contact stiffness from
 default of 30 to 120, without which a fast stream sank icons into each other by most of a
 radius.
 
+## The camera
+
+Once the pile grows into the top third of the canvas (`headroom` in `core/config.ts`), the
+renderer's camera moves the view up with it, easing, so the removals always have open sky to
+work in; the bottom of the pile goes out of sight, and new icons drop in from just above the
+view. It comes back down as the pile does, but never below the floor, and holds still while a
+removal is under way. Everything is drawn in world pixels shifted by the camera; the resting
+layer covers twice the view's height, and is repainted where the view now is once the camera
+leaves it. Pointer presses and the bin are turned into world pixels with the camera, and the
+bin moves with the world as the camera does, kept on the canvas so it can always be dragged.
+Removals get the `view` on their `Board`, and come, go and hover within it.
+
 ## The bin
 
 The bin (`ui/bin.tsx`) is an HTML element floating over the canvas, so it is outside the
