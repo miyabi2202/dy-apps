@@ -3,41 +3,7 @@
 // numbers (`a_p`, `a_q`), and where it is in the shape, in px from its centre (`a_local`),
 // so the fragment shader can work out the signed distance to the edge and cover the edge by it.
 
-import {
-  BALLOON_BASKET_GLSL,
-  BALLOON_ENVELOPE_GLSL,
-  BALLOON_FLAME_GLSL,
-  BALLOON_HAZE_GLSL,
-} from './balloon';
-import {
-  CLAW_AURA_GLSL,
-  CLAW_CHAIN_GLSL,
-  CLAW_COMMON_GLSL,
-  CLAW_HEAD_GLSL,
-  CLAW_RAIL_GLSL,
-  CLAW_SPOT_GLSL,
-} from './claw';
-import { NOISE_GLSL } from './noise';
-import { CHOPPER_GLSL } from './chopper';
-import {
-  PM_GHOST_GLSL,
-  PM_LANE_GLSL,
-  PM_PAC_MAN_GLSL,
-  PM_PELLET_GLSL,
-  PM_POP_GLSL,
-} from './pac-man';
-import { BEAM_GLSL, SAUCER_GLSL } from './ufo';
-import {
-  FIREWORK_FLASH_GLSL,
-  FIREWORK_GLITTER_GLSL,
-  FIREWORK_ROCKET_GLSL,
-  FIREWORK_SMOKE_GLSL,
-  FIREWORK_SPARK_GLSL,
-} from './fireworks';
-import { HYPERCAR_GLSL } from './hypercar';
-import { BLACK_HOLE_GLSL, BLACK_HOLE_POP_GLSL } from './black-hole';
-
-/** What shape a vertex belongs to; the same numbers as `KIND` in `shape-batch.ts`. */
+/** The vertex shader: world px to clip space, passing the shape's numbers on. */
 export const SHAPES_VS = `#version 300 es
 precision highp float;
 layout(location = 0) in vec2 a_pos;
@@ -67,6 +33,7 @@ void main() {
 }
 `;
 
+/** The fragment shader: what `a_kind` says, the same numbers as `KIND` in `shape-batch.ts`. */
 export const SHAPES_FS = `#version 300 es
 precision highp float;
 in vec2 v_uv;
@@ -76,15 +43,10 @@ flat in float v_kind;
 flat in vec4 v_p;
 flat in vec4 v_q;
 uniform sampler2D u_tex;
-uniform float u_time; // ms
 uniform float u_px;   // world px per device px
 out vec4 o;
 
 const float TAU = 6.2831853;
-
-vec3 hue(float h) {
-  return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-}
 
 // Coverage of an edge at signed distance d (px, negative inside), feathered over at least a device px.
 float cover(float d, float feather) {
@@ -97,7 +59,6 @@ float outline(float d) {
   return v_q.x > 0.0 ? abs(d) - v_q.x * 0.5 : d;
 }
 
-${NOISE_GLSL}${SAUCER_GLSL}${BEAM_GLSL}${FIREWORK_SPARK_GLSL}${FIREWORK_GLITTER_GLSL}${FIREWORK_FLASH_GLSL}${FIREWORK_SMOKE_GLSL}${FIREWORK_ROCKET_GLSL}${CHOPPER_GLSL}${HYPERCAR_GLSL}${BALLOON_ENVELOPE_GLSL}${BALLOON_BASKET_GLSL}${BALLOON_FLAME_GLSL}${BALLOON_HAZE_GLSL}${PM_PAC_MAN_GLSL}${PM_GHOST_GLSL}${PM_PELLET_GLSL}${PM_LANE_GLSL}${PM_POP_GLSL}${BLACK_HOLE_GLSL}${BLACK_HOLE_POP_GLSL}${CLAW_COMMON_GLSL}${CLAW_HEAD_GLSL}${CLAW_RAIL_GLSL}${CLAW_CHAIN_GLSL}${CLAW_SPOT_GLSL}${CLAW_AURA_GLSL}
 void main() {
   int k = int(v_kind + 0.5);
   vec4 c = v_color; // straight alpha
@@ -144,85 +105,6 @@ void main() {
   } else if (k == 8) { // glow: p.x falloff exponent, p.y share kept at full, p.z radius
     float r = length(v_local) / v_p.z;
     a = pow(clamp((1.0 - r) / max(1.0 - v_p.y, 0.001), 0.0, 1.0), v_p.x);
-  } else if (k == 13) { // black hole: p.x horizon radius, p.yzw disk colour, q.x open; c the outer glow
-    o = blackHoleColor(v_local, v_p.x, v_p.yzw, c.rgb, v_q.x, u_time, u_px) * c.a;
-    return;
-  } else if (k == 50) { // black hole's pop: p.x radius, p.y progress 0 to 1; c the colour
-    o = blackHolePopColor(v_local, v_p.x, v_p.y, c.rgb, u_time) * c.a;
-    return;
-  } else if (k == 15) { // saucer: p.x radius, p.yzw hull tint, q.xyz dome colour, q.w glow; c the lights
-    o = saucerColor(v_local, v_p.x, v_p.yzw, v_q.xyz, c.rgb, v_q.w, u_time, u_px) * c.a;
-    return;
-  } else if (k == 16) { // plasma beam: p.x half width at the top, p.y at the foot, p.z length, p.w strength; c the colour
-    o = beamColor(v_local, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, u_time) * c.a;
-    return;
-  } else if (k >= 35 && k <= 39) { // fireworks: 35 star p.xyzw length, core, life, seed; q.x gain, q.y willow
-    if (k == 35) o = sparkColor(v_local, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, v_q.x, v_q.y, u_time);
-    else if (k == 36) o = flashColor(v_local, v_p.x, v_p.y, v_p.z, c.rgb, u_time); // flash: reach, life, seed
-    else if (k == 37) o = smokeColor(v_local, v_p.x, v_p.y, v_p.z, c.rgb, v_p.w); // smoke: radius, life, seed, lit
-    else if (k == 38) o = rocketColor(v_local, v_p.x, v_p.y, v_p.z, c.rgb, u_time); // rocket: length, core, seed
-    else o = glitterColor(v_local, v_p.x, v_p.y, v_p.z, c.rgb, v_p.w, u_time); // glitter: reach, life, seed, gain
-    o *= c.a;
-    return;
-  } else if (k == 25) { // helicopter: p.x px per unit, p.yzw body paint, q.xyz stripe, q.w time in ms; c the glass tint
-    o = chopperColor(v_local, v_p.x, v_p.yzw, v_q.xyz, c.rgb, v_q.w, u_px) * c.a;
-    return;
-  } else if (k >= 20 && k <= 24) { // hypercar (see hypercar.ts)
-    if (k == 20) { // body: p.x half length, p.yzw paint, q.xyz trim, q.w 1 for a ghost; c the neon
-      o = hypercarColor(v_local, v_p.x, v_p.yzw, v_q.xyz, c.rgb, v_q.w, u_time, u_px);
-    } else if (k == 21) { // wheel: p.x radius, p.y spin, p.z blur, p.w brake heat; c the neon
-      o = hcWheelColor(v_local, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, u_time, u_px);
-    } else if (k == 22) { // underglow: p.x half length, p.y strength; c the neon
-      o = hcGlowColor(v_local, v_p.x, v_p.y, c.rgb, u_time);
-    } else if (k == 23) { // headlight beam: p.x length, p.y, p.z half widths, p.w strength; c the colour
-      o = hcBeamColor(v_local, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, u_time);
-    } else { // nitro flame: p.x length, p.y half width, p.z strength; c the colour
-      o = hcFlameColor(v_local, v_p.x, v_p.y, v_p.z, c.rgb, u_time);
-    }
-    o *= c.a;
-    return;
-  } else if (k >= 30 && k <= 33) { // the hot-air balloon (balloon.ts)
-    if (k == 30) { // envelope: p.x radius, p.yzw and q.x gore colours (packed), q.y skirt, q.z count + 8 * pattern, q.w heat; c the outline
-      o = balloonEnvelopeColor(v_local, v_p.x, v_p.yzw, v_q.x, v_q.y, v_q.z, v_q.w, c.rgb, u_time, u_px);
-    } else if (k == 31) { // ropes and basket: p.x radius, p.y heat
-      o = balloonBasketColor(v_local, v_p.x, v_p.y, u_time, u_px);
-    } else if (k == 32) { // flame: p.x height, p.y half width, p.z burn
-      o = balloonFlameColor(v_local, v_p.x, v_p.y, v_p.z, u_time);
-    } else { // heat: p.x radius, p.y heat; c the warm colour
-      o = balloonHazeColor(v_local, v_p.x, v_p.y, c.rgb, u_time);
-    }
-    o *= c.a;
-    return;
-  } else if (k == 40) { // Pac-Man: p.x radius, p.y mouth half angle, p.z facing, p.w glow; q.xyz colour, q.w dying; c the lips
-    o = pmPacMan(v_local, v_p.x, v_p.y, v_p.z, v_p.w, v_q.xyz, v_q.w, c.rgb, u_time, u_px) * c.a;
-    return;
-  } else if (k == 41) { // ghost: p.x half width, p.y scared, p.zw where it looks; q.xyz colour
-    o = pmGhost(v_local, v_p.x, v_p.y, v_p.zw, v_q.xyz, u_time, u_px) * c.a;
-    return;
-  } else if (k == 42) { // pellet: p.x radius, p.y power, p.z phase; q.xyz colour
-    o = pmPellet(v_local, v_p.x, v_p.y, v_p.z, v_q.xyz, u_time) * c.a;
-    return;
-  } else if (k == 43) { // neon lane: p.x ahead, p.y behind, p.z half width, p.w strength; q.xyz colour
-    o = pmLane(v_local, v_p.x, v_p.y, v_p.z, v_p.w, v_q.xyz, u_time) * c.a;
-    return;
-  } else if (k == 44) { // pop: p.x radius, p.y progress; q.xyz colour
-    o = pmPop(v_local, v_p.x, v_p.y, v_q.xyz) * c.a;
-    return;
-  } else if (k == 45) { // claw head: p.x scale, p.y open, p.z arc, p.w glow; q.xyz body colour; c the metal
-    o = clawHeadColor(v_local / v_p.x + vec2(0.0, 14.0), v_q.xyz, c.rgb, v_p.y, v_p.z, v_p.w, u_time, u_px / v_p.x) * c.a;
-    return;
-  } else if (k == 46) { // claw rail and carriage: p.x half width, p.y scale, p.z carriage x; q.xyz rail colour; c the body
-    o = clawRailColor(v_local / v_p.y, v_p.x, v_p.z, c.rgb, v_q.xyz, u_time, u_px / v_p.y) * c.a;
-    return;
-  } else if (k == 47) { // claw chain: p.x length, p.y scale; q.xyz neon; c the metal
-    o = clawChainColor(v_local / v_p.y, v_p.x, c.rgb, v_q.xyz, u_time, u_px / v_p.y) * c.a;
-    return;
-  } else if (k == 48) { // claw spotlight: p.x half width at the top, p.y at the foot, p.z length, p.w strength; q.x scale; c the colour
-    o = clawSpotColor(v_local / v_q.x, v_p.x, v_p.y, v_p.z, v_p.w, c.rgb, u_time) * c.a;
-    return;
-  } else if (k == 49) { // claw prize aura: p.x radius, p.y strength, p.z scale; c the colour
-    o = clawAuraColor(v_local / v_p.z, v_p.x, v_p.y, c.rgb, u_time) * c.a;
-    return;
   } else if (k == 12) { // solid: the sprite's shape in one colour
     o = vec4(c.rgb, 1.0) * (texture(u_tex, v_uv).a * c.a);
     return;

@@ -13,43 +13,7 @@ export const KIND = {
   ellipse: 6,
   glow: 8,
   solid: 12,
-  blackHole: 13,
   flat: 14,
-  saucer: 15,
-  plasmaBeam: 16,
-  // Fireworks
-  fireworkStar: 35,
-  fireworkFlash: 36,
-  fireworkSmoke: 37,
-  fireworkRocket: 38,
-  fireworkGlitter: 39,
-  // Helicopter
-  chopper: 25,
-  // Hypercar.
-  hypercar: 20,
-  hypercarWheel: 21,
-  hypercarGlow: 22,
-  hypercarBeam: 23,
-  hypercarFlame: 24,
-  // Balloon
-  balloonEnvelope: 30,
-  balloonBasket: 31,
-  balloonFlame: 32,
-  balloonHaze: 33,
-  // Pac-Man
-  pacMan: 40,
-  ghost: 41,
-  pellet: 42,
-  neonLane: 43,
-  arcadePop: 44,
-  // Black hole
-  blackHolePop: 50,
-  // Claw
-  clawHead: 45,
-  clawRail: 46,
-  clawChain: 47,
-  clawSpot: 48,
-  clawAura: 49,
 } as const;
 
 /** What the shader needs to know about the frame. */
