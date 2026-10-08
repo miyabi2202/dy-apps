@@ -13,7 +13,8 @@ interface Entry {
 /**
  * The programs of the `ShaderSource`s removers hand `Gfx`, by key: each is compiled once, from
  * the shade vertex shader, the prelude and the source's own GLSL (see `shaders/shade.ts`).
- * `precompile` starts the ones known up front; any other starts on its first `get`. Made again
+ * `precompile` starts the ones known up front (the renderer does one remover's at a time, see
+ * `GlRenderer`); any other starts on its first `get`. Made again
  * with the context, so the cache lives in the per-context resources.
  *
  * A source that fails to compile is logged once (its key and the driver's log), kept as
@@ -30,15 +31,26 @@ export class ShaderPrograms {
     this.parallel = parallelCompile(gl) !== null;
   }
 
-  /** Start every program of `sources`. */
-  precompile(sources: readonly ShaderSource[]): void {
-    for (const src of sources) this.entry(src);
+  /**
+   * Start every program of `sources` that is not already known, to be finished by `warm` (this
+   * cache's own by default). Returns the programs it started: one already compiled, say on use,
+   * is left out.
+   */
+  precompile(sources: readonly ShaderSource[], warm: WarmUp = this.warm): Program[] {
+    const started: Program[] = [];
+    for (const src of sources) {
+      if (this.entries.has(src.key)) continue;
+      started.push(this.entry(src, warm).program);
+    }
+    return started;
   }
 
-  /** The programs that compiled, for the warm-up draw. */
-  get linked(): Program[] {
+  /** Those of `programs` that compiled, for the warm-up draw. */
+  linkedAmong(programs: readonly Program[]): Program[] {
     const out: Program[] = [];
-    for (const e of this.entries.values()) if (e.state === 'ok') out.push(e.program);
+    for (const e of this.entries.values()) {
+      if (e.state === 'ok' && programs.includes(e.program)) out.push(e.program);
+    }
     return out;
   }
 
@@ -56,13 +68,13 @@ export class ShaderPrograms {
     return isState(e, 'ok') ? e.program : null;
   }
 
-  private entry(src: ShaderSource): Entry {
+  private entry(src: ShaderSource, warm: WarmUp = this.warm): Entry {
     const known = this.entries.get(src.key);
     if (known) return known;
     const program = createProgram(this.gl, SHADE_VS, shadeFragment(src.glsl), `shade ${src.key}`);
     const e: Entry = { program, state: 'pending', started: performance.now() };
     this.entries.set(src.key, e);
-    this.warm.add({ program, settle: (failure) => this.finish(src, e, failure) });
+    warm.add({ program, settle: (failure) => this.finish(src, e, failure) });
     return e;
   }
 

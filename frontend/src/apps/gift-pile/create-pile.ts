@@ -25,7 +25,7 @@ export function createPile(): Pile {
   const removers = allRemovers();
   const renderer = new GlRenderer(PILE, {
     quality: effects.quality,
-    shaders: removers.flatMap((remover) => remover.shaders ?? []),
+    shaders: removers.map((remover) => remover.shaders ?? []),
   });
   const pile = new Pile({
     client,
