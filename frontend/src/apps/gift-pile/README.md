@@ -2,237 +2,139 @@
 
 ## How it runs
 
-The physics is [Rapier](https://rapier.rs) (`@dimforge/rapier2d-compat`, WASM inlined) in a
-module Web Worker, `pile-worker.ts`. The worker owns a `PileEngine` (`core/engine.ts`): the
-floor and walls are fixed colliders, each falling icon a dynamic ball with no bounce and some
-friction, so heaps form. Once a ball has been near enough to still for a while it is taken out
-of the engine and a fixed ball is left in its place, so the engine only ever simulates what is
-moving. The worker steps at `stepHz` and posts a `Frame` (`core/protocol.ts`) after each tick:
-the moving icons' positions and the ones that just settled. On the page, `PileClient` takes the
-frames in and hands them to the `Pile` (`pile.ts`), the one thing the page and the stage talk
-to. The `Pile` owns four others and passes what each needs between them, so none of them knows
-of the rest: a `PileState` (`render/pile-state.ts`), which records where every icon is; a
-`Camera` (`render/camera.ts`), which says what part of the world is on screen; the
-`GlRenderer` (`render/gl-renderer.ts`, WebGL2 in `render/gl/`), which draws at display rate,
-interpolating moving icons between the last two frames in the vertex shader and keeping the
-resting ones in a GPU buffer that is topped up as icons settle; and the `RemovalDirector`. `createPile()` (`create-pile.ts`) builds the real ones, once, for the page.
+The physics is [Rapier](https://rapier.rs) (`@dimforge/rapier2d-compat`, WASM inlined) in a module Web Worker, `pile-worker.ts`. The worker owns a `PileEngine` (`core/engine.ts`): the floor and walls are fixed colliders, each falling icon a dynamic ball with no bounce and some friction, so heaps form. Once a ball has been near enough to still for a while it is taken out of the engine and a fixed ball is left in its place, so the engine only ever simulates what is moving. The worker steps at `stepHz` and posts a `Frame` (`core/protocol.ts`) after each tick: the moving icons' positions and the ones that just settled.
 
-A frame is taken in on its message, not at the next display frame, because the renderer
-interpolates by when the latest one arrived: `Pile.onFrame` has the state record it (the first
-frame of a new generation, after a clear or resize, first resets the removals and the camera),
-the renderer take in what left the resting set, and the director take the scoops. Each display
-frame, `Pile.frame` (from the loop in `loop.ts`) steps the camera and has the renderer `begin` the
-frame (it draws the pile and hands back a `Gfx`), draws the removals over it with that `Gfx`, and
-then the renderer `end`s it with the icon in the user's hand and puts it on the canvas. If the
-browser has no WebGL2 the renderer can't draw, and the page says so.
+On the page, `PileClient` takes the frames in and hands them to the `Pile` (`pile.ts`), the one thing the page and the stage talk to. The `Pile` owns four others and passes what each needs between them, so none of them knows of the rest:
 
-`PileState` keeps the resting icons in typed arrays in order of settling, each with its slot,
-the latest two frames, and answers where an icon is (`peek`), takes one out (`take`), finds the
-top of the pile (`topAt`, `profile`, `highestTop`) and the icon under a point (`iconAt`). The
-renderer's resting buffer follows the resting set from a journal that the state keeps of what
-left it (slot, the last slot then, the icon moved in to fill it, and where it was), so what
-needs sending again is only the slots a removal swap-filled, and the buffer is never compared
-with the set.
+- a `PileState` (`render/pile-state.ts`), which records where every icon is;
+- a `Camera` (`render/camera.ts`), which says what part of the world is on screen;
+- the `GlRenderer` (`render/gl-renderer.ts`, WebGL2 in `render/gl/`), which draws at display rate (see "Drawing" below);
+- the `RemovalDirector` (`removal/director.ts`).
 
-Two engine settings matter (`core/config.ts`): the world is handed to Rapier in metres with an
-icon 1 m across (`pxPerMetre`), because Rapier's tolerances and speed cap are in metres and
-pixel units made every fall crawl; and `contactHz` raises contact stiffness from Rapier's
-default of 30 to 120, without which a fast stream sank icons into each other by most of a
-radius.
+`createPile()` (`create-pile.ts`) builds the real ones, once, for the page.
+
+A frame is taken in on its message, not at the next display frame, because the renderer interpolates by when the latest one arrived. `Pile.onFrame` has the state record it (the first frame of a new generation, after a clear or resize, first resets the removals and the camera), the renderer take in what left the resting set, and the director take the scoops. Each display frame, `Pile.frame` (from the loop in `loop.ts`) steps the camera and has the renderer `begin` the frame (it draws the pile and hands back a `Gfx`), draws the removals over it with that `Gfx`, and then the renderer `end`s it with the icon in the user's hand and puts it on the canvas. If the browser has no WebGL2, or a program every frame needs fails to compile, the renderer can't draw: it sets its `error`, the canvas stays empty and the page says so.
+
+`PileState` keeps the resting icons in typed arrays in order of settling, each with its slot, and the latest two frames. It answers where an icon is (`peek`), takes one out (`take`), finds the top of the pile (`topAt`, `profile`, `highestTop`) and the icon under a point (`iconAt`). It also keeps a journal of what left the resting set (the slot, the last slot then, the icon moved in to fill it, and where it was), which is how the renderer's buffer follows the set without ever comparing with it.
+
+Two engine settings matter (`core/config.ts`). The world is handed to Rapier in metres with an icon 1 m across (`pxPerMetre`), because Rapier's tolerances and speed cap are in metres and pixel units made every fall crawl. And `contactHz` raises contact stiffness from Rapier's default of 30 to 120, without which a fast stream sank icons into each other by most of a radius.
+
+## Drawing
+
+Everything is drawn by WebGL2, over a transparent canvas in premultiplied colour, so the page's (or OBS's) background shows through. The renderer owns the context and everything on the GPU; it draws only what the controller hands it each frame (the state, the view, the shake, the icon in the hand). If the context is lost nothing is drawn until it is given back, then every GPU object is rebuilt from what the renderer keeps on the CPU side. The canvas is sized to its CSS box times the device pixel ratio (at most `maxPixelRatio`, 2 by default) and the world scaled into it, so icons stay crisp at any page width.
+
+The scene is drawn into an offscreen target (multisampled where the device can), and one more full-screen pass puts it on the canvas. That is the post pass (`render/gl/post-pass.ts`), and it is where effects that act on the finished picture go, and where bloom is added. The parts:
+
+- **The pile layer** (`render/gl/pile-layer.ts`, `shaders/pile.ts`) draws the pile's icons as two instanced draws of one quad each: those at rest, every frame, from a GPU buffer, and those moving, between where the last two physics frames put them (the interpolation is in the vertex shader, by how long ago the latest frame arrived). A moving icon costs a few bytes once per physics frame, not per display frame. The resting buffer keeps icons in the order they settled and never reorders them, because overlapping icons are drawn in buffer order and the state's swap-fill would send one behind its neighbours. So a removal leaves a hole in the buffer (culled by the vertex shader), the journal says which, and the buffer is compacted, keeping its order, once holes are many. Nothing is uploaded for a pile that isn't changing. The icon the user holds is left out of both and drawn last by `end`, a little bigger, as if lifted.
+- **The shapes program** (`render/gl/shape-batch.ts`, `shaders/shapes.ts`) is the core one for everything else a removal draws with plain `Gfx` calls: sprites and anti-aliased primitives (circles, rings, ellipses, wedges, rectangles, capsule lines, glows, flat polygons and quads). The batch builds triangles on the CPU in the order they are asked for, and each vertex says what its shape is (`a_kind`), the shape's numbers, and where it is within it, so the fragment shader works out the signed distance to the edge and covers it. One draw call lasts for as long as the texture and blend stay the same. The program has only these small arms; a remover's own art goes through `shade`, below, not into it.
+- **Particles** (`render/gl/particle-batch.ts`, `shaders/particles.ts`) are one instanced draw of soft quads (disc, spark, ring, star, built once by `render/gl/sprite-cache.ts`) per `Gfx.particles` call.
+- **Sprites** are textures, kept by key in the `SpriteCache`. A `SpriteSource` is Canvas2D art (`paint`, painted once by `render/bake.ts` at `BAKE_SCALE` texels per world pixel, or again every call if `dynamic`) or an image. The gift icon is the image `GIFT_ICON_URL` from `render/sprite.ts`, with a painted stand-in until it loads or if it can't.
+- **The post pass** applies what the removals ask for with `shockwave` (at most 4 a frame), `lens` (1), `haze` (2), `aberration` and `flash`, all kept in `PostEffects` and reset each frame. Positions are moved by the shake, so they stay on what they belong to.
+
+Everything is in world pixels shifted by the view (a uniform in the shaders), so the camera moving costs the GPU nothing to redo.
+
+### Quality
+
+`Quality` is `high` or `low`. On `high` the scene is drawn with 4 samples, the post pass adds bloom (the blurred bright parts added back), and a faint light sweeps across the resting icons now and then (the pile's sheen). `low` uses 2 samples and drops bloom and the sheen, and every `Emitter` (`removal/kit/particles.ts`, a pool of particles stepped by time) keeps 40% of its room. A remover may also read `gfx.quality` to spend less itself, as the fireworks do. The quality is chosen under 炫酷特效 and remembered (see "Effects" below).
+
+### The `Gfx` contract
+
+The removals see only `Gfx` (`render/gfx.ts`), never the GL behind it (`render/gl/gl-gfx.ts`), so a test can hand them a fake. Everything is in world pixels, y down, angles in radians clockwise on screen, and things are drawn in the order they are asked for, through a transform stack (`push`, `pop`). What it offers:
+
+- the gift icon (`icon`, which is what `Board.stamp` draws), with an optional `solid` material that fills its shape with one colour, for a white-hot flash;
+- sprites (`sprite`), by `SpriteSource`;
+- anti-aliased primitives (`circle`, `ring`, `ellipse`, `ellipseStroke`, `wedge`, `rect`, `line`, `polyline`, `polygon`, `quad`);
+- `glow`, `particles`, `ribbon` and `speedLines`;
+- effects on the whole picture: `flash` (a tint), `shockwave`, `lens`, `haze` and `aberration`;
+- `shade` and `shadeMany`, for a remover's own procedural art.
+
+`shade(src, box, options)` draws a `ShaderSource`: a `key` that is unique app-wide, and GLSL text defining `vec4 shade(vec2 p, vec4 P, vec4 Q, vec3 color)`. It is drawn over a box (centre, half sizes, rotation), and returns a premultiplied colour for the point `p`, in the caller's units from the box's centre. `P` and `Q` are up to four numbers each that the caller passes with the draw, and `color` is its colour, all arriving unchanged and in the caller's units, so nothing needs pre-scaling. `u_time` is the frame's time in ms, and `v_px` is how many caller units a device pixel is, for anti-aliased edges. The box must be big enough to hold everything drawn, glow and edge margin included, because nothing outside it is shaded. `shadeMany` draws many boxes of one source in one call (stars, puffs, pellets), from arrays.
+
+Each source is its own program, compiled once and cached by its `key` (`render/gl/shader-programs.ts`). Each is the shade vertex shader (`shaders/shade.ts`, with the same vertex layout as the shapes batch, so it shares the batch), then the shared prelude, then the source's own GLSL. A run of one key is one draw, and a different key is a state change, so drawing in groups of a key is cheaper. A remover therefore hands `Gfx` text and numbers and never touches GL, and adding a look adds a program of its own and nothing to anyone else's.
+
+The prelude (`render/gl/shaders/prelude.ts`) is what every source may use: `TAU`, `hue`, `cover` (the coverage of an edge from its signed distance, feathered over a device pixel), `over`, `hash12`, the signed distances `sdBox`, `sdEllipse` and `sdSegment`, `smin`, `Sky` and `envSky` (a studio of colours for shiny surfaces to mirror), and `snoise`, 2D simplex noise. The noise is vendored (see Credits) in `render/gl/shaders/noise.ts`, which the prelude pastes in.
+
+### Starting up and compile failures
+
+A shader that compiles for the first time in the middle of a removal would stall the page, and drivers such as ANGLE and Metal finish building a pipeline only at its first draw. So the page does that work ahead of time:
+
+- **Core programs** (shapes, particles, pile, post) are compiled when the context is made. Nothing is drawn until they are linked; if one fails, the renderer's `error` is set.
+- **`Remover.shaders`**: each remover lists the `ShaderSource`s it draws with, and `createPile()` hands them all to the renderer, which starts every program compiling when the context is made. Where the browser has `KHR_parallel_shader_compile` they all compile at once, and each frame takes only those that are done, never waiting. Otherwise one is compiled and linked a frame. A source that isn't listed still works, compiled at its first use.
+- **The warm-up draw**: once every program has linked, the renderer draws one invisible speck with each program in each blend, so the pipelines are built then, not at the first removal.
+- **`Remover.sprites` and `Pile.warmUp()`**: each remover also lists the Canvas2D art it will paint (its cut-in portraits). After the first frame that could be drawn, `Pile.warmUp()` hands them to the renderer, which paints them and the particles' soft shapes, one piece a frame, once everything is compiled, so Canvas2D's gradients and shadows are awake before the first removal.
+
+Until a source has compiled, `shade` draws nothing for it. One that fails to compile is logged once, with its key and the driver's log, kept as failed and draws nothing from then on: it never takes the renderer, the page or the other removers down. (A dev build also logs how long each program took, through `dev-log.ts`.)
 
 ## The camera
 
-Once the pile grows into the top third of the canvas (`headroom` in `core/config.ts`), the
-`Camera` moves the view up with it, easing, so the removals always have open sky to work in;
-the bottom of the pile goes out of sight. It comes back down as the pile does, but never below
-the floor, and holds still while a removal is under way, unless the removal moves it. The
-camera is a pure step: each frame the `Pile` tells it the time, how high the pile's heap is
-(`PileState.highestTop`: what rests, and what has moved a while, but not the stream just let
-in) and whether a removal is on, and it gives back the view; anyone who cares is told when it
-moves (`subscribe`). It is a small machine of modes, a removal over following the pile, so
-that something of higher priority, like the user's own navigation, can be added over them.
+Once the pile grows into the top third of the canvas (`headroom` in `core/config.ts`), the `Camera` moves the view up with it, easing, so the removals always have open sky to work in; the bottom of the pile goes out of sight. It comes back down as the pile does, but never below the floor, and holds still while a removal is under way, unless the removal moves it. The camera is a pure step: each frame the `Pile` tells it the time, how high the pile's heap is (`PileState.highestTop`: what rests, and what has moved a while, but not the stream just let in) and whether a removal is on, and it gives back the view; anyone who cares is told when it moves (`subscribe`). It is a small machine of modes, a removal over following the pile, so that something of higher priority, like the user's own navigation, can be added over them.
 
-New icons drop in from just above where the view is heading: the `Pile` works the line out
-from the camera's target (less an icon's radius) and sends the engine a `setDropLine` command
-when it changes; the engine knows nothing of the camera, and releases at the line, or just
-above the canvas's top until it is told.
+New icons drop in from just above where the view is heading. The `Pile` works the line out from the camera's target (less an icon's radius) and sends the engine a `setDropLine` command when it changes; the engine knows nothing of the camera, and releases at the line, or just above the canvas's top until it is told.
 
-Everything is drawn in world pixels shifted by the view (a uniform in the shaders), so the
-camera moving costs the GPU nothing to redo. Pointer
-presses are turned into world pixels with the view (`Pile.toWorld`), and the bin moves with
-the world as the camera does, kept on the canvas so it can always be dragged: the stage moves
-it from the camera's subscription directly on its element, not through React state, so a
-camera easing for a second doesn't render the stage on every frame. Removals get the camera
-on their `Board` (`camera.view`, and come, go and hover within it), and can move it while they
-run (`moveTo`, or `keepInView` to move it only as far as something needs): Pac-Man and the
-helicopter's winchman keep themselves in view as they work down into the pile, the helicopter
-coming down with the view if it has to. Once a removal is over, the camera follows the pile
-again.
+Pointer presses are turned into world pixels with the view (`Pile.toWorld`), and the bin moves with the world as the camera does, kept on the canvas so it can always be dragged. The stage moves it from the camera's subscription directly on its element, not through React state, so a camera easing for a second doesn't render the stage on every frame. Removals get the camera on their `Board` (`camera.view`, and come, go and hover within it), and can move it while they run (`moveTo`, or `keepInView` to move it only as far as something needs): Pac-Man and the helicopter's winchman keep themselves in view as they work down into the pile, the helicopter coming down with the view if it has to. Once a removal is over, the camera follows the pile again.
 
 ## The bin
 
-The bin (`ui/bin.tsx`) is an HTML element floating over the canvas, so it is outside the
-physics and always on top; drag it to move it. Pressing on an icon (`ui/stage.tsx`) has the
-`Pile` send the worker a `grab`: the icon leaves the engine entirely while held and the
-renderer draws it at the pointer. Letting go sends `release` (it falls from there) or, over
-the bin, `destroy`.
+The bin (`ui/bin.tsx`) is an HTML element floating over the canvas, so it is outside the physics and always on top; drag it to move it. Pressing on an icon (`ui/stage.tsx`) has the `Pile` send the worker a `grab`: the icon leaves the engine entirely while held and the renderer draws it at the pointer. Letting go sends `release` (it falls from there) or, over the bin, `destroy`.
 
 ## Removing: the removers
 
-减少 doesn't delete icons on the spot. When its turn comes (see below), the page works out
-from the pile's count what to take (`planRemoval` in `removal/queue.ts`): a quarter
-more than asked for, or all there is if that is less, of which what is over the number will
-be dropped back, so the pile loses just the number. It asks the worker to `scoop` that many: the engine picks them roughly
-from the top of the pile down (each icon's height blurred by a few radii, so the top layer
-thins out unevenly), sets them aside so no later scoop takes them, and reports which in the
-next frame's `scooped`. They stay in the pile as they are. The remover for the removal is
-dealt before the scoop is asked for, so it can say which icons it wants (its `shape`, a
-`ScoopShape` in `core/protocol.ts`): a rounded `clump` off the top of the pile at a point
-across it, nearest first, or the pile's outer `layers`, evenly all across and no blur, one
-before the next.
+减少 doesn't delete icons on the spot. When its turn comes (see below), the page works out from the pile's count what to take (`planRemoval` in `removal/queue.ts`): a quarter more than asked for, or all there is if that is less, of which what is over the number will be dropped back, so the pile loses just the number. It asks the worker to `scoop` that many: the engine picks them roughly from the top of the pile down (each icon's height blurred by a few radii, so the top layer thins out unevenly), sets them aside so no later scoop takes them, and reports which in the next frame's `scooped`. They stay in the pile as they are. The remover for the removal is dealt before the scoop is asked for, so it can say which icons it wants (its `shape`, a `ScoopShape` in `core/protocol.ts`): a rounded `clump` off the top of the pile at a point across it, nearest first, or the pile's outer `layers`, evenly all across and no blur, one before the next.
 
-The `RemovalDirector` (`removal/director.ts`), which the `Pile` makes with the client as its
-sink for the engine's commands, then deals a `Remover` from a shuffle bag, so each comes up as
-often as the others and never twice running, and has it `begin` a `Removal` on a `Board`: one
-at a time, drawn over the pile by the `Pile` each frame, after the pile itself. The
-contract is `removal/board.ts`, and it is all the pile knows of removers: the board gives a
-removal the icons set aside for it and lets it look where each is (`where`), `take` one out of
-the pile, `drop` one back, `destroy` one, and `stamp` an icon anywhere. The pile's side of it,
-`ScoopBoard` (`scoop-board.ts`), keeps the books, so each icon is `grab`bed before it moves
-and, when the removal is over, every one it didn't drop is `destroy`ed. What it needs to know
-of the pile (where icons are, where to stamp, the camera) comes from a `Ground` that the
-`Pile` makes, from its state, its renderer and its camera. Each remover has its
-own folder under `removal/` and decides for itself how it moves, what it looks like (it loads
-its own images, `load`) and how it carries icons off; they are listed in one place,
-`removal/removers.ts`, which `createPile()` in `create-pile.ts` hands to the `Pile`. To add
-one, implement `Remover` in a new folder, list it there, and give it a name to show in
-`messages.ts`. Under the 添加嘉年华 panel, 清除动画 (closed until opened) has a checkbox for each
-remover; the director deals only the ones ticked (`setEnabled`), and the ones unticked are
-remembered on the browser (`removersOffStore` in `settings.ts`), so one added later starts on.
+The `RemovalDirector` (`removal/director.ts`), which the `Pile` makes with the client as its sink for the engine's commands, then deals a `Remover` from a shuffle bag, so each comes up as often as the others and never twice running, and has it `begin` a `Removal` on a `Board`: one at a time, drawn over the pile by the `Pile` each frame, after the pile itself. The contract is `removal/board.ts`, and it is all the pile knows of removers. The board gives a removal the icons set aside for it and lets it look where each is (`where`), `take` one out of the pile, `drop` one back, `destroy` one, and `stamp` an icon anywhere. The pile's side of it, `ScoopBoard` (`removal/scoop-board.ts`), keeps the books, so each icon is `grab`bed before it moves and, when the removal is over, every one it didn't drop is `destroy`ed. What it needs to know of the pile (where icons are, where to stamp, the camera) comes from a `Ground` that the `Pile` makes, from its state, its renderer and its camera.
 
-Removers share what they like from `removal/kit/`: easing curves (`easing.ts`), aiming at a
-clump of the pile and finding where it is (`clump.ts`), stepping in small fixed steps however
-far apart the frames are (`clock.ts`), the top of the pile to walk along (`pile-top.ts`). Two of them are crafts (`Craft` in
-`kit/craft.ts`) that run a `Crossing` (`kit/crossing.ts`): the craft crosses from the left to
-the right just above the pile, taking icons in with its `Intake`, which is the craft's to
-choose: so far a `Vacuum` cleaner towed on a rope (`vacuum.ts`) for both. A craft says how long it takes to
-cross, where the intake fits on, its path, and how to draw it and any scenery: the hot-air
-balloon (`balloon/`) is drawn, and the `hypercar/` (wholly in GLSL, by `Gfx.hypercar`: car paint
-with flake, clear coat and a sweeping highlight, a glass canopy, LED lamps, a wing, neon underglow
-and wheels whose spokes blur with their speed; its cut-in portrait is `carPortrait` in
-`kit/portraits.ts`) runs up one
-half of a split bridge, jumps the gap in a ballistic arc and comes down onto the other, lower,
-half. The balloon is the
-slowest and the car the quickest, at three seconds. Each craft picks
-its colours for the crossing from its palettes when it begins: the balloon's stripes, skirt and
-and outline, and the car's body and trim.
+Each remover has its own folder under `removal/` and decides for itself how it moves, what it looks like (it loads its own images, `load`) and how it carries icons off. Its look is its own too: its GLSL is in its `shader.ts` (the `ShaderSource`s, and small functions that draw them with `Gfx.shade`), and the Canvas2D picture for its cut-in banner is in its `portrait.ts`. A remover lists the shaders and portraits it will need (`Remover.shaders`, `Remover.sprites`) so they are ready at startup (see "Starting up" above). The removers are listed in one place, `removal/removers.ts`, which `createPile()` hands to the `Pile`. To add one, implement `Remover` in a new folder, list it there, and give it a name to show in `messages.ts`. Under the 添加嘉年华 panel, 清除动画 (closed until opened) has a checkbox for each remover. The director deals only the ones ticked (`setEnabled`), and the ones unticked are remembered on the browser (`removersOffStore` in `settings.ts`), so one added later starts on.
 
-Removers get showy effects from `Gfx` (`render/gfx.ts`): glows, particles, ribbons, speed lines,
-materials on sprites (`holo`, `metal`, `rim`, `solid`), a procedural `blackHole` (and its `blackHolePop`), `saucer` and `plasmaBeam`, and ones that
-act on the whole picture once it is drawn (`shockwave`, `lens`, `haze`, `aberration`, `flash`),
-which the renderer's post pass applies (`render/gl/post-pass.ts`). On `high` quality that pass
-also adds bloom and the pile gets a faint sweeping sheen; `low` drops both and gives every
-`Emitter` (`kit/particles.ts`, a pool of particles stepped by time; `kit/fx.ts` has bursts to
-use with it, `Wake` in `kit/trail.ts` the points of a ribbon) 40% of its room. The quality, and
-whether the cut-in banner and the shake are on, are chosen under 炫酷特效 and remembered on the
-browser (`effectsStore`; the quality starts as `low` on a touch screen or a device with four
-cores or fewer). A visitor who asks the system for less motion gets no shake or freeze-frame
-whatever is ticked (`Pile.motion`).
+Removers share what they like from `removal/kit/`:
 
-Each remover also has its moment on the screen, through its `Board`'s `fx`: `shake(amplitude,
-ms)`, `hitStop(ms)`, which freezes the removal's own clock (the director gives it the time less
-what it has spent frozen, so what it draws and when it is over stand still together), and
-`cutIn(request)`, the anime banner (`ui/cut-in.tsx`) with the remover's name, its line
-(`labels.cutIn.lines`) and a portrait (`kit/portraits.ts`, or the remover's own art, painted
-once by `render/bake.ts`). The removal is paused for as long as the banner is up (`CUT_IN_MS`, handed to the director by
-`create-pile.ts`)
-and carries on once it is gone, even when freeze-frames are off. A remover asks for it at its best moment, once, and the director
-lets one through every 8 s at most, so asking is always safe. Each remover is dressed with the kit
-at hand: the helicopter has downwash, a searchlight and a vortex at the nozzle (`helicopter/
-effects.ts`), the saucer a chrome hull, a dome of swirling energy, a beam of scrolling bands and a
-streak as it leaves; the balloon (drawn in GLSL by `Gfx.hotAirBalloon`) silk gores with a pattern per palette,
-the burner's light glowing through them, a woven basket on ropes, a noise-driven flame, streamers and dust; the car underglow, a volumetric headlight beam, ghosts,
-brake discs that glow after the landing, a nitro flame with shock diamonds and a landing that
-shakes the screen; Pac-Man a neon lane of pellets along his row, crumbs and a power
-pellet, and the ghost an ectoplasm trail; the claw a spotlight with dust motes, a rail of chasing LEDs, an electric arc where its
-prongs bite, an aura round the prize and confetti; the fireworks five burst styles (peony, chrysanthemum, ring, willow, crossette) with a
-flash, a ring of air and a split of colour for each, all drawn in GLSL (see below);
-and the black hole (drawn in GLSL after Gargantua) its Einstein-ring lensing, a turbulent
-accretion disk, icons stretched and redshifted as they fall and a pop that flashes, rings with
-split colour and shakes. Their particles
-are `Emitter`s stepped by `Frames` (`kit/clock.ts`), the time since the last draw, so they stand
-still in a hit-stop as the rest does.
+- easing curves (`easing.ts`);
+- aiming at a clump of the pile and finding where it is (`clump.ts`);
+- stepping in small fixed steps however far apart the frames are (`clock.ts`: `Clock`, and `Frames`, the time since the last draw);
+- the top of the pile to walk along (`pile-top.ts`);
+- `Emitter` (`particles.ts`), a pool of particles stepped by time, with bursts to use with it in `fx.ts`, and `Wake` (`trail.ts`), the points of a ribbon;
+- path helpers (`vector.ts`).
 
-Six removers don't cross. The `helicopter/` (drawn wholly in GLSL by `Gfx.chopper`, facing right: glossy
-car-paint fuselage with a stripe, tinted cockpit glass with a pilot, a main rotor blurred into a
-shimmering disc with glowing tips, a turning tail rotor and blinking lights; `chopper.ts`; its
-portrait for the cut-in is in `kit/portraits.ts`) flies in from the left and hovers over the middle of the pile
-(`mission.ts`). A winchman (`winchman.ts`) goes down the rope with a vacuum on his back, its hose
-up to the helicopter, lets go onto the pile, and walks it end to end, lower each time, vacuuming
-the icons by his nozzle and down into the pile below it, until he has all the board's icons:
-the pile's outer layers, so they are along his way. He walks back to the rope and is winched
-up; if some are to be dropped, the helicopter sags under the weight and throws them out of the
-door, then rises back, winches him in and flies off to the right. Its paint schemes are a body colour and a stripe colour. Pac-Man (`pac-man/`), always the same size and speed, eats his way
-through the pile row by row with a ghost on his heels: in from the left along the top of the
-pile (`kit/pile-top.ts`), he eats whatever is in front of him, and at the end of a row goes down
-one and comes back the other way, until he has eaten all the board's icons (`run.ts`), which are the pile's outer layers, so just
-the ones he meets. Then,
-if some are to be dropped back, the ghost, following where he has been (`trail.ts`), catches
-him and he shrivels away as they burst back out of him; if not (the pile had no more than
-asked for), he runs off. His drawing and the ghost's (`sprites.ts`) are wholly GLSL, in `render/gl/shaders/pac-man.ts` by way of `Gfx.pacMan` and `Gfx.ghost`: he is a glossy sphere with a hot spot, a rim of light and a dark hollow where his mouth is cut; the ghost a translucent ectoplasm body with a noise-wobbling skirt and glossy eyes that look at him (pale dots and a zigzag mouth when frightened); and `Gfx.neonLane`, `Gfx.pellet` and `Gfx.arcadePop` draw the neon corridor and pellets along his row and the pop as he goes. The flying saucer (`ufo/`, drawn wholly in GLSL by `Gfx.saucer`: a chrome hull, a ring of chasing
-lights, a glass dome of swirling energy; its portrait for the cut-in is in `kit/portraits.ts`) aims at a
-spot, flies in and stops over it, and shines its tractor beam (`ufo/beam.ts`, a rippling plasma
-beam from `Gfx.plasmaBeam`) down on the
-clump: the icons rise up it into its belly, a few falling back out part way, then the beam
-goes off and it zips away. The claw machine (`claw/`, drawn in GLSL by `render/gl/shaders/claw.ts`: a gantry with RGB LEDs and its
-carriage, a chrome ball chain, a three-pronged claw of brushed chrome under a glossy hub with a glowing core
-and LED ring, a spotlight cone and the prize's aura; its portrait for the cut-in is in `kit/portraits.ts`)
-aims at a spot, slides along a rail at
-the top to it, lowers the claw and draws the clump up into a bunch in its grip (shrunk to fit
-if there are many), lets a few slip out on the way up, and carries the rest off. The fireworks
-(`fireworks/`) send the icons up in a handful of rockets, each gathered from its own stretch of
-the pile, that burst into sparks (`fireworks/`: a shader rocket with a flickering fuse, white-hot flashes
-with rays, stars with streaks that go from white-hot to ember and crackle as they die, willow
-drips, strobing glitter, and smoke lit by the burst; `Gfx.fireworkRocket`, `fireworkStars`,
-`fireworkFlash` and `fireworkSmoke`, with the stars held in `star-pool.ts`); the icons fly apart with the sparks and are `destroy`ed as
-they burn out, so the count goes down burst by burst, and the duds fall back onto the pile.
-The black hole (`black-hole/`, drawn wholly in GLSL by `Gfx.blackHole` and `Gfx.blackHolePop`
-from `render/gl/shaders/black-hole.ts`: a pure black horizon with a thin photon ring, a
-domain-warped-noise disk in differential rotation, hot white-blue inside and beamed brighter on
-one side, its far side bent over and under the horizon, and faint jets; its lensing is the
-`lens` post effect; the portrait for the cut-in is in `kit/portraits.ts`) aims at a spot, opens
-over the clump with the accretion disk, and swallows it, the icons spiralling in and shrinking as they go; the duds it flings
-back out on the swing, `drop`ping them moving, and then it collapses with a pop.
+Two removers are crafts (`Craft` in `kit/craft.ts`) that run a `Crossing` (`kit/crossing.ts`): the craft crosses from the left to the right just above the pile, taking icons in with its `Intake`, which is the craft's to choose (so far a `Vacuum` cleaner towed on a rope, `kit/vacuum.ts`, for both). A craft says how long it takes to cross, where the intake fits on, its path, and how to draw it and any scenery. Each picks its colours for the crossing from its palettes when it begins.
 
-As the intake nears each icon the page `grab`s it, so whatever rested on it falls then and
-not before, and draws it being drawn in, swinging and shrinking on the way. The ones to drop
-come back out over the pile (`release`: out of the vacuum's exhaust, say) and fall as physics
-has them; the stage tells the director where the bin is, and a dropped icon that falls into it
-is destroyed, with the bin lighting up (the stage tells the `Pile` where the bin is), so
-moving the bin under the craft catches more. When
-the craft is out of sight the rest are `destroy`ed.
+### Showy extras
 
-Presses queue in order (`ActionQueue` in `removal/queue.ts`): each removal begins a second
-after the one before is over, so two are never under way at once, and 添加 waits for any
-removal under way (the panel counts those icons as 待添加 meanwhile). One removal carries at
-most `LOAD_CAPACITY` icons; anything over that is removed at once, unseen, to keep drawing
-cheap.
+Removers get their effects from `Gfx`, and their moment on the screen through their `Board`'s `fx`:
+
+- `shake(amplitude, ms)` shakes the view (the `Pile`'s shaker in `render/shake.ts`, which caps the sum of overlapping shakes).
+- `hitStop(ms)` freezes the removal's own clock. The director gives a removal the time less what it has spent frozen, so what it draws and when it is over stand still together.
+- `cutIn(request)` brings on the anime banner (`ui/cut-in.tsx`) with the remover's name, its line (`labels.cutIn.lines`) and its portrait. The removal is paused for as long as the banner is up (`CUT_IN_MS`, handed to the director by `create-pile.ts`) and carries on once it is gone, and the banner comes with a shake. A remover asks for it at its best moment, once, and the director lets one through every 8 s at most, so asking is always safe.
+
+Whether they are on is chosen under 炫酷特效 (cut-ins, shake and the quality) and remembered on the browser (`effectsStore` in `settings.ts`). The quality starts as `low` on a touch screen or a device with four cores or fewer (`detectQuality`). A visitor who asks the system for less motion gets no shake and no freeze-frames whatever is ticked (`Pile.motion`); the banner still comes, if it is ticked, and still pauses the removal.
+
+### The eight removers
+
+The remover's colours (its palette or scheme) are picked for each removal. Particles are `Emitter`s stepped by `Frames`, so they stand still in a hit-stop as the rest does.
+
+**Hot-air balloon** (`balloon/`) is a craft. It is the slowest craft, at 5.6 seconds across, and climbs away at the end. The envelope is silk gores in the palette's stripes, with a pattern per palette (plain, bands, chevrons or stars), lit from inside as the burner fires, over its skirt and ropes. Under it hangs a woven wicker basket, and the burner has a noise-driven flame and the heat above it, with streamers from the basket and dust. The ropes, glow and streamers are plain `Gfx` calls; the envelope, basket, flame and heat haze are four sources in `shader.ts`.
+
+**Hypercar** (`hypercar/`) is a craft, and the quickest, at three seconds across. It runs up one half of a split bridge, jumps the gap in a ballistic arc and comes down onto the other, lower, half, where the landing shakes the screen and shockwaves. The car is drawn in GLSL: paint with flake, a clear coat and a sweeping highlight, a glass canopy, LED lamps, a wing, and wheels whose spokes blur with their speed (sources `body` and `wheel`). It has neon underglow, a volumetric headlight beam, a nitro flame with shock diamonds (`glow`, `beam`, `flame`), ghosts of itself behind it, brake discs that glow after the landing, speed lines and a colour split in the jump. The bridge is plain lines and rectangles.
+
+**Helicopter** (`helicopter/`) does not cross. It flies in from the left, facing right, and hovers over the middle of the pile (`mission.ts`). A winchman (`winchman.ts`, drawn with plain `Gfx` shapes) goes down the rope with a vacuum on his back, its hose up to the helicopter, lets go onto the pile, and walks it end to end, lower each time, vacuuming the icons by his nozzle and down into the pile below it, until he has all the board's icons: the pile's outer layers, so they are along his way. He walks back to the rope and is winched up. If some are to be dropped, the helicopter sags under the weight and throws them out of the door, then rises back, winches him in and flies off to the right. The helicopter (`chopper` in `shader.ts`, set up in `chopper.ts`) is a glossy car-paint fuselage with a stripe in its scheme's colours, tinted cockpit glass with a pilot, a main rotor blurred into a shimmering disc with glowing tips, a turning tail rotor and blinking lights. `effects.ts` adds the downwash with dust, a searchlight down to the winchman and a vortex at his nozzle.
+
+**Pac-Man** (`pac-man/`) does not cross. Always the same size and speed, he eats his way through the pile row by row with a ghost on his heels: in from the left along the top of the pile (`kit/pile-top.ts`), he eats whatever is in front of him, and at the end of a row goes down one and comes back the other way, until he has eaten all the board's icons (`run.ts`), which are the pile's outer layers, so just the ones he meets. Then, if some are to be dropped back, the ghost, following where he has been (`kit/trail.ts`), catches him and he shrivels away as they burst back out of him; if not (the pile had no more than asked for), he runs off. He is a glossy sphere with a hot spot, a rim of light and a dark hollow where his mouth is cut. The ghost is a translucent ectoplasm body with a noise-wobbling skirt and glossy eyes that look at him (pale dots and a zigzag mouth when frightened) and an ectoplasm trail. A neon lane of pellets runs along his row, with crumbs and a power pellet, and a pop of light ends him. Pac-Man, ghost, pellet, lane and pop are five sources in `shader.ts`, which `sprites.ts` draws with. The lighting is deliberately calm: soft halos, no flashing.
+
+**Flying saucer** (`ufo/`) does not cross. It aims at a spot, flies in and stops over it, and shines its tractor beam down on the clump: the icons rise up it into its belly, a few falling back out part way, then the beam goes off and it zips away in a streak. The saucer is a chrome hull, a ring of chasing lights, and a glass dome of swirling energy with a small alien in it (the `saucer` source). The beam (`beam.ts`, the `beam` source) is a rippling plasma beam with rings of light rising up it.
+
+**Claw machine** (`claw/`) does not cross. It aims at a spot, slides along a gantry rail at the top to it, lowers the claw and draws the clump up into a bunch in its grip (shrunk to fit if there are many), lets a few slip out on the way up, and carries the rest off. It is drawn from five sources: a gantry rail with RGB LEDs, its carriage and a rail of chasing LEDs (`rail`), a chrome ball chain (`chain`), a three-pronged claw of brushed chrome under a glossy hub with a glowing core and LED ring, with an electric arc where the prongs bite (`head`), a spotlight cone with dust motes (`spot`) and an aura round the prize (`aura`). Confetti goes off at the win.
+
+**Fireworks** (`fireworks/`) do not cross. They send the icons up in a handful of rockets (at most 14, launched in turn), each gathered from its own stretch of the pile, that burst into sparks. Each burst has one of five styles (peony, chrysanthemum, ring, willow, crossette), with a flash, a ring of air and a split of colour. The icons fly apart with the sparks and are `destroy`ed as they burn out, so the count goes down burst by burst, and the duds fall back onto the pile. All of it is drawn in GLSL, brighter than 1 on purpose so that it blooms: a rocket with a flickering fuse (`rocket`), white-hot flashes with rays (`flash`), stars with streaks that go from white-hot to ember and crackle as they die, and long golden drips for willows (`star`), strobing glitter (`glitter`), and smoke lit by the burst (`smoke`). The stars are kept in a pool (`star-pool.ts`) and drawn with `shadeMany`.
+
+**Black hole** (`black-hole/`) does not cross. It aims at a spot, opens over the clump, and swallows it, the icons spiralling in, shrinking and stretched and redshifted as they fall. The duds it flings back out on the swing, `drop`ping them moving, and then it collapses with a pop that flashes, rings with a split of colour and shakes. It is drawn after Gargantua (the `hole` source): a pure black horizon with a thin photon ring, a domain-warped-noise accretion disk in differential rotation, hot white-blue inside and beamed brighter on one side, its far side bent over and under the horizon, and faint jets. Its lensing is the `lens` post effect, and the pop is the `pop` source.
+
+As the intake nears each icon the page `grab`s it, so whatever rested on it falls then and not before, and draws it being drawn in, swinging and shrinking on the way. The ones to drop come back out over the pile (`release`: out of the vacuum's exhaust, say) and fall as physics has them. The stage tells the `Pile` where the bin is, and a dropped icon that falls into it is destroyed, with the bin lighting up, so moving the bin under the craft catches more. When the craft is out of sight the rest are `destroy`ed.
+
+Presses queue in order (`ActionQueue` in `removal/queue.ts`): each removal begins a second after the one before is over, so two are never under way at once, and 添加 waits for any removal under way (the panel counts those icons as 待添加 meanwhile). One removal carries at most `LOAD_CAPACITY` icons; anything over that is removed at once, unseen, to keep drawing cheap.
 
 ## How the pile stays honest
 
-A resting icon is a fixed collider, so it can't notice when what held it up goes. Rather than
-guess with geometry, the engine keeps the support graph: only the floor and resting icons
-hold an icon up (walls are frictionless and moving icons don't count), so the pile settles from
-the ground up; when an icon rests it records what it was touching, and each support remembers
-it as a dependent. A support that is taken away, or moves away from where its dependents
-rested on it, wakes them. And whenever the pile has changed, a sweep walks the graph from the
-floor and wakes every resting icon it can't reach, so icons holding each other up with no path
-to the ground fall together. Rapier's own sleep is off for icons: it would leave one hanging
-off a single neighbour it should slide down from.
+A resting icon is a fixed collider, so it can't notice when what held it up goes. Rather than guess with geometry, the engine keeps the support graph: only the floor and resting icons hold an icon up (walls are frictionless and moving icons don't count), so the pile settles from the ground up; when an icon rests it records what it was touching, and each support remembers it as a dependent. A support that is taken away, or moves away from where its dependents rested on it, wakes them. And whenever the pile has changed, a sweep walks the graph from the floor and wakes every resting icon it can't reach, so icons holding each other up with no path to the ground fall together. Rapier's own sleep is off for icons: it would leave one hanging off a single neighbour it should slide down from.
 
-The bin image (`public/bin/recycle-bin.png`) is the Windows-style
-[Recycle Bin icon by Icons8](https://icons8.com/icon/set/recycle-bin/color), used under their
-free licence, which asks for this link.
+The bin image (`public/bin/recycle-bin.png`) is the Windows-style [Recycle Bin icon by Icons8](https://icons8.com/icon/set/recycle-bin/color), used under their free licence, which asks for this link.
 
 ## TODO
 
@@ -241,7 +143,4 @@ free licence, which asks for this link.
 
 ## Credits
 
-The remover shaders in `render/gl/shaders/` (the saucer and beam, the fireworks, the helicopter,
-the balloon, Pac-Man's ghost, the black hole's disk, the claw machine)
-use 2D simplex noise from [stegu/webgl-noise](https://github.com/stegu/webgl-noise) (Ian McEwan,
-Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence.
+The remover shaders (every `removal/*/shader.ts`) use 2D simplex noise, `snoise`, from [stegu/webgl-noise](https://github.com/stegu/webgl-noise) (Ian McEwan, Ashima Arts; MIT licence), vendored in `render/gl/shaders/noise.ts` with its licence and put in front of every `ShaderSource` by `render/gl/shaders/prelude.ts`.
