@@ -93,7 +93,6 @@ export class Run implements Removal {
   /** Where icons were eaten, and when, for the pops of light; when the ghost last turned blue. */
   private readonly pops: { x: number; y: number; at: number }[] = [];
   private scaredAt = -Infinity;
-  private powerFlash = -Infinity;
   private popped = false;
 
   constructor(
@@ -168,13 +167,9 @@ export class Run implements Removal {
     this.board.camera.keepInView(me.y, CAMERA_MARGIN);
 
     const dt = this.frames.dt(t);
-    if (t - this.powerFlash < 120) gfx.flash('#fde047', 0.12 * (1 - (t - this.powerFlash) / 120));
     const scared = t - this.scaredAt < SCARED_MS;
-    const ghostColour = scared
-      ? Math.floor(t / 90) % 2 === 0 || t - this.scaredAt < 400
-        ? '#3b82f6'
-        : '#e2e8f0'
-      : palette.ghost;
+    // Frightened: blue, then one gentle change to a pale blue as it wears off (no blinking).
+    const ghostColour = scared ? (t - this.scaredAt < 400 ? '#3b82f6' : '#7f95c9') : palette.ghost;
     this.drawPellets(gfx, me);
     this.drawPops(gfx, t);
     this.crumbs.step(dt);
@@ -186,7 +181,7 @@ export class Run implements Removal {
       // The ghost leaves ectoplasm behind it; he, when leaving, a yellow streak.
       this.ghostWake.add(g.x, g.y, t);
       gfx.ribbon(this.ghostWake.points(), (u) => 2 * GHOST_R * (1 - u), ghostColour, {
-        alphaFrom: 0.25,
+        alphaFrom: 0.12,
         alphaTo: 0,
         blend: 'add',
       });
@@ -194,11 +189,11 @@ export class Run implements Removal {
       if (this.leaving) {
         this.streak.add(me.x, me.y, t);
         gfx.ribbon(this.streak.points(), (u) => PAC_R * 1.4 * (1 - u), palette.pac, {
-          alphaFrom: 0.5,
+          alphaFrom: 0.22,
           alphaTo: 0,
           blend: 'add',
         });
-        gfx.speedLines(me.x, me.y, { alpha: 0.25 });
+        gfx.speedLines(me.x, me.y, { alpha: 0.1 });
       }
       drawPacMan(gfx, me, this.facing(), palette.pac, t);
       return;
@@ -207,18 +202,17 @@ export class Run implements Removal {
     const since = t - this.caughtAt;
     const gap = GHOST_GAP + (PAC_R - GHOST_GAP) * Math.min(1, since / CATCH_MS);
     if (since >= CATCH_MS && !this.burst) this.burstOut(me);
-    if (since < CATCH_MS) gfx.speedLines(me.x, me.y, { alpha: 0.4, inner: 0.35, seed: 3 });
+    if (since < CATCH_MS) gfx.speedLines(me.x, me.y, { alpha: 0.15, inner: 0.35, seed: 3 });
     else {
       const u = Math.min(1, (since - CATCH_MS) / DIE_MS);
-      gfx.aberration(0.55 * (1 - u));
       // One ring out from where he popped, as the last of him goes.
       if (u > 0.85) {
         if (!this.popped) {
           this.popped = true;
-          sparkBurst(this.sparks, me.x, me.y, '#fef9c3', 12, { speed: 300, life: 600, size: 8 });
+          sparkBurst(this.sparks, me.x, me.y, '#fef9c3', 6, { speed: 220, life: 500, size: 6 });
         }
         const v = (u - 0.85) / 0.15;
-        gfx.shockwave(me.x, me.y, 80 * v, 24, 10 * (1 - v));
+        gfx.shockwave(me.x, me.y, 60 * v, 24, 3 * (1 - v));
       }
     }
     drawGhost(gfx, this.trail.behind(gap), me, ghostColour);
@@ -240,7 +234,7 @@ export class Run implements Removal {
       behind: PAC_R * 2.5,
       halfWidth: LANE_HALF,
       color: LANE_COLOUR,
-      alpha: 0.55,
+      alpha: 0.35,
     });
     const sign = down ? 1 : this.heading;
     const along = down ? me.y : me.x;
@@ -267,7 +261,7 @@ export class Run implements Removal {
       const pop = this.pops[k]!;
       const age = t - pop.at;
       if (age > POP_MS) this.pops.splice(k, 1);
-      else gfx.glow(pop.x, pop.y, 8, '#ffffff', { intensity: 1.6 * (1 - age / POP_MS) });
+      else gfx.glow(pop.x, pop.y, 6, '#ffffff', { intensity: 0.6 * (1 - age / POP_MS) });
     }
   }
 
@@ -337,10 +331,11 @@ export class Run implements Removal {
   private enjoy(i: number): void {
     const { t } = this.clock;
     const p = this.board.where(i) ?? this.board.icons[i]!;
-    this.pops.push({ x: p.x, y: p.y, at: t });
+    // Every third bite pops, so a run of bites is a few soft dots, not a blur of flashes.
+    if (this.eatenCount % 3 === 0) this.pops.push({ x: p.x, y: p.y, at: t });
     const me = this.at();
     const back = this.heading === 0 ? { x: 0, y: -1 } : { x: -this.heading, y: 0 };
-    this.crumbs.burst(3, () => ({
+    this.crumbs.burst(1, () => ({
       x: me.x,
       y: me.y,
       vx: back.x * (70 + 70 * this.rng()) + (this.rng() - 0.5) * 80,
@@ -350,7 +345,6 @@ export class Run implements Removal {
     }));
     if (this.eatenCount % POWER_EVERY === 0) {
       this.scaredAt = t;
-      this.powerFlash = t;
     }
   }
 
