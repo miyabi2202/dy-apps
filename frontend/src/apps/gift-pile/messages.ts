@@ -44,6 +44,7 @@ export const labels = {
       'black-hole': '黑洞',
       evanesco: '消失咒',
       hamster: '仓鼠',
+      cat: '猫猫',
     } as Record<string, string>,
   },
   effects: {
@@ -67,6 +68,7 @@ export const labels = {
       'black-hole': '吞噬一切！',
       evanesco: '消隐无踪！Evanesco!',
       hamster: '塞不下啦！',
+      cat: '喵？',
     } as Record<string, string>,
   },
   bin: '垃圾桶',
