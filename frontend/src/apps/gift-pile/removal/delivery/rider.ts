@@ -212,6 +212,27 @@ export function headTop(by: number): Point {
   return lean({ x: HEAD.x + 3, y: HEAD.y - 10 }, by);
 }
 
+/** The furthest his hand gets from his shoulder. */
+const ARM_REACH = UPPER_ARM + FOREARM - 0.5;
+
+/** `hand`, from his hip, brought in as far as his arm goes when he leans `by`: straight at it, if it is further. */
+export function reachTo(hand: Point, by: number): Point {
+  const shoulder = lean(SHOULDER, by);
+  const dx = hand.x - shoulder.x;
+  const dy = hand.y - shoulder.y;
+  const d = Math.hypot(dx, dy);
+  if (d <= ARM_REACH) return hand;
+  return { x: shoulder.x + (dx * ARM_REACH) / d, y: shoulder.y + (dy * ARM_REACH) / d };
+}
+
+/** How far his hip has to rise, leaning `by`, for his hand to get up to `hand` (from his hip as it is). */
+export function riseToReach(hand: Point, by: number): number {
+  const shoulder = lean(SHOULDER, by);
+  const dx = Math.abs(hand.x - shoulder.x);
+  const up = dx < ARM_REACH ? Math.sqrt(ARM_REACH * ARM_REACH - dx * dx) : 0;
+  return Math.max(0, shoulder.y - up - hand.y);
+}
+
 /** A leg from his hip to `foot`, the knee bent forward, and its trainer. */
 function drawLeg(gfx: Gfx, foot: Point, color: string, side: number): void {
   const hip = { x: side * 0.5, y: -1 };

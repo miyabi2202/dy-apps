@@ -3,7 +3,8 @@ import type { Gfx, Point, SpriteSource } from '../board';
 // The electric scooter and its insulated delivery box, seen from the side and facing right. The
 // body and the box are painted once each with Canvas2D; the wheels, which spin, are drawn over
 // them each frame with plain `Gfx` calls. The box is its own sprite so it can bulge as it is
-// stuffed and its lid can flap. Everything here is in the scooter's own frame, in world pixels,
+// stuffed; its lid, which flaps, is forced down and bows under the rope that ties it, is drawn
+// each frame, and so is the rope. Everything here is in the scooter's own frame, in world pixels,
 // with its origin on the ground halfway between the wheels, y down.
 
 /** The colours of one rider's kit: his scooter, jacket, helmet and box are all in them. No company's. */
@@ -37,6 +38,10 @@ export const BOX_W = 42;
 export const BOX_H = 34;
 /** Its lid: how thick it is, hinged at the box's back edge. */
 const LID_H = 5;
+/** The rope: its colours, and where its two wraps cross the box's side, as shares of its width from the middle. */
+const ROPE = '#d2a35c';
+const ROPE_TWIST = '#8c6230';
+const ROPE_AT = [-0.3, 0.3] as const;
 
 /** The painted body, and where the scooter's origin is in it. */
 const BODY_W = 124;
@@ -206,15 +211,27 @@ export function boxSprite(scheme: DeliveryScheme): SpriteSource {
   };
 }
 
+/** How far the rope is on: how much of each wrap is pulled down round the box (0 to 1), and how tied its knot is. */
+export interface RopeLook {
+  wraps: readonly [number, number];
+  knot: number;
+}
+
 /** How the scooter is to be drawn this frame. */
 export interface ScooterLook {
   tilt: number;
   /** How far the wheels have turned, in radians, and how fast they go (0 to 1), to blur their spokes. */
   spin: number;
   speed: number;
-  /** How much the box swells with what is stuffed in it (1 as it is), and how far its lid is flung open (radians). */
+  /** How much the box swells with what is stuffed in it (1 as it is), and how far its lid is open (radians). */
   bulge: number;
   lid: number;
+  /** How far the lid bows up in its middle, in px: pushed up from below, held down by the rope. */
+  bow: number;
+  /** The rope round the box, once he starts tying it. */
+  rope?: RopeLook;
+  /** What is in the box, drawn in the scooter's frame behind the box's front, so it peeks over the rim. */
+  contents?: () => void;
 }
 
 /** The scooter, wheels and box, with its origin at (x, y). */
@@ -225,15 +242,15 @@ export function drawScooter(
   scheme: DeliveryScheme,
   body: SpriteSource,
   box: SpriteSource,
-  { tilt, spin, speed, bulge, lid }: ScooterLook,
+  { tilt, spin, speed, bulge, lid, bow, rope, contents }: ScooterLook,
 ): void {
   gfx.push(x, y, tilt);
   drawWheel(gfx, REAR_WHEEL, spin, speed);
   drawWheel(gfx, FRONT_WHEEL, spin, speed);
   gfx.sprite(body, { x: 0, y: 0, anchorX: BODY_X / BODY_W, anchorY: BODY_Y / BODY_H });
+  contents?.();
   // The box, swollen fat and squat, bottom down on the rack.
-  const sx = bulge;
-  const sy = 1 + (bulge - 1) * 0.7;
+  const { sx, sy } = boxScale(bulge);
   gfx.sprite(box, {
     x: BOX_FOOT.x,
     y: BOX_FOOT.y,
@@ -242,20 +259,130 @@ export function drawScooter(
     scaleX: sx,
     scaleY: sy,
   });
-  // The lid, hinged at its back edge.
-  const top = BOX_FOOT.y - BOX_H * sy;
-  const back = BOX_FOOT.x - (BOX_W / 2) * sx;
-  const w = BOX_W * sx + 2;
-  gfx.push(back - 1, top, -lid);
-  gfx.rect(0, -LID_H, w, LID_H, scheme.deep, { radius: 2 });
-  gfx.rect(1, -LID_H, w - 2, 1.6, scheme.light, { radius: 1, alpha: 0.8 });
+  // The lid, hinged at its back edge, bowed up in its middle.
+  const hinge = hingeOf(bulge);
+  const w = lidWidth(bulge);
+  const mid: number[] = [];
+  const shine: number[] = [];
+  for (let k = 0; k <= 8; k++) {
+    const u = k / 8;
+    const up = bow * Math.sin(Math.PI * u);
+    mid.push(u * w, -LID_H / 2 - up);
+    shine.push(1 + u * (w - 2), -LID_H + 0.8 - up);
+  }
+  gfx.push(hinge.x, hinge.y, -lid);
+  gfx.polyline(mid, LID_H, scheme.deep, { cap: 'butt' });
+  gfx.polyline(shine, 1.6, scheme.light, { alpha: 0.8, cap: 'butt' });
   gfx.pop();
+  if (rope) drawRope(gfx, rope, bulge, lid, bow);
   gfx.pop();
 }
 
-/** Where the top of the box is, in the scooter's frame, swollen by `bulge`: where the tower stands. */
-export function boxTop(bulge: number): Point {
-  return { x: BOX_FOOT.x, y: BOX_FOOT.y - BOX_H * (1 + (bulge - 1) * 0.7) - LID_H };
+/** How much the box is stretched across and up, swollen by `bulge`. */
+export function boxScale(bulge: number): { sx: number; sy: number } {
+  return { sx: bulge, sy: 1 + (bulge - 1) * 0.7 };
+}
+
+/** The middle of the box's open top, its rim, swollen by `bulge`: what is packed in it peeks out over this. */
+export function rimOf(bulge: number): Point {
+  return { x: BOX_FOOT.x, y: BOX_FOOT.y - BOX_H * boxScale(bulge).sy };
+}
+
+/** The lid's hinge, at the rim's back edge. */
+function hingeOf(bulge: number): Point {
+  return { x: BOX_FOOT.x - (BOX_W / 2) * boxScale(bulge).sx - 1, y: rimOf(bulge).y };
+}
+
+/** How long the lid is, hinge to front. */
+function lidWidth(bulge: number): number {
+  return BOX_W * boxScale(bulge).sx + 2;
+}
+
+/**
+ * How high the lid's underside is over the rim, `dx` px in front of the rim's middle, with the
+ * lid open `lid` and bowed `bow`; Infinity once it is open so far it is out of the way.
+ */
+export function lidLift(dx: number, bulge: number, lid: number, bow: number): number {
+  if (lid > 1.2) return Infinity;
+  const w = lidWidth(bulge);
+  const d = dx + w / 2;
+  return d * Math.tan(lid) + bow * Math.sin(Math.PI * Math.min(1, Math.max(0, d / w)));
+}
+
+/** A point on top of the lid, `f` of the way from its hinge to its front: where his hands press. */
+export function lidPoint(f: number, bulge: number, lid: number, bow: number): Point {
+  const hinge = hingeOf(bulge);
+  const along = f * lidWidth(bulge);
+  const up = LID_H + bow * Math.sin(Math.PI * f);
+  const c = Math.cos(lid);
+  const s = Math.sin(lid);
+  return { x: hinge.x + along * c - up * s, y: hinge.y - along * s - up * c };
+}
+
+/** Where wrap `k` of the rope crosses the top of the lid, and the bottom of the box. */
+function ropeEnds(k: number, bulge: number, lid: number, bow: number): [Point, Point] {
+  const dx = ROPE_AT[k]! * BOX_W * boxScale(bulge).sx;
+  const rim = rimOf(bulge);
+  const top = { x: rim.x + dx, y: rim.y - lidLift(dx, bulge, lid, bow) - LID_H - 0.6 };
+  return [top, { x: rim.x + dx, y: BOX_FOOT.y + 1.6 }];
+}
+
+/** The end of wrap `k`, pulled `p` of the way down round the box: the end he is pulling on. */
+export function ropePoint(k: number, p: number, bulge: number, lid: number, bow: number): Point {
+  const [top, bottom] = ropeEnds(k, bulge, lid, bow);
+  return { x: top.x, y: top.y + (bottom.y - top.y) * p };
+}
+
+/** Where the knot is: on top of the first wrap, at the lid. */
+export function knotPoint(bulge: number, lid: number, bow: number): Point {
+  const [top] = ropeEnds(0, bulge, lid, bow);
+  return { x: top.x, y: top.y + 1.5 };
+}
+
+/** A length of rope from `from` to `to`, sagging `sag` px in its middle: the end he holds. */
+export function drawSlack(gfx: Gfx, from: Point, to: Point, sag: number): void {
+  const points: number[] = [];
+  for (let k = 0; k <= 8; k++) {
+    const u = k / 8;
+    points.push(from.x + (to.x - from.x) * u, from.y + (to.y - from.y) * u + sag * 4 * u * (1 - u));
+  }
+  gfx.polyline(points, 2, ROPE);
+}
+
+/** The rope: each wrap over the lid and down round the box as far as it has been pulled, and the knot. */
+function drawRope(
+  gfx: Gfx,
+  { wraps, knot }: RopeLook,
+  bulge: number,
+  lid: number,
+  bow: number,
+): void {
+  for (let k = 0; k < wraps.length; k++) {
+    const p = wraps[k]!;
+    if (p <= 0) continue;
+    const [top] = ropeEnds(k, bulge, lid, bow);
+    const end = ropePoint(k, p, bulge, lid, bow);
+    // Over the lid's back edge, then down the box's side, twisted.
+    gfx.line(top.x - 2.4, top.y + 1, top.x, top.y, 2.4, ROPE);
+    gfx.line(top.x, top.y, end.x, end.y, 2.4, ROPE);
+    gfx.line(top.x, top.y, end.x, end.y, 2.4, ROPE_TWIST, {
+      dash: [1.4, 2.2],
+      alpha: 0.7,
+      cap: 'butt',
+    });
+  }
+  if (knot > 0) {
+    // The knot pops on, a little big at first, with its two ends hanging off it.
+    const at = knotPoint(bulge, lid, bow);
+    const s = knot * (1 + 0.5 * Math.sin(Math.PI * knot));
+    gfx.polyline([at.x, at.y, at.x - 3 * s, at.y + 4 * s, at.x - 2 * s, at.y + 8 * s], 1.8, ROPE);
+    gfx.polyline(
+      [at.x, at.y, at.x + 2.5 * s, at.y + 5 * s, at.x + 1.5 * s, at.y + 9 * s],
+      1.8,
+      ROPE,
+    );
+    gfx.circle(at.x, at.y, 2.8 * s, ROPE, { stroke: { width: 0.8, color: ROPE_TWIST } });
+  }
 }
 
 /** A wheel: its tyre, a silver rim and spokes that blur into a disc as it speeds up. */

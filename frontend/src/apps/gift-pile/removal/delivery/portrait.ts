@@ -6,7 +6,7 @@ import type { DeliveryScheme } from './scooter';
 
 const SIZE = 64;
 
-/** The rider in his helmet, shouting, a thumb up, with a teetering stack of parcels over his shoulder. */
+/** The rider in his helmet, shouting, a thumb up, with his overstuffed box tied shut over his shoulder. */
 export function riderPortrait(scheme: DeliveryScheme): SpriteSource {
   return {
     key: `portrait/delivery/${scheme.main}`,
@@ -15,21 +15,35 @@ export function riderPortrait(scheme: DeliveryScheme): SpriteSource {
     paint(ctx) {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      // The stack behind him, leaning: a column of little parcels on his box.
-      ctx.fillStyle = scheme.deep;
-      ctx.fillRect(2, 40, 20, 24);
-      const parcels = ['#f6a55b', '#e9d4a8', '#f6a55b', '#c98d5a', '#e9d4a8'];
-      parcels.forEach((color, k) => {
-        ctx.save();
-        ctx.translate(12 + k * k * 0.5, 36 - k * 8.5);
-        ctx.rotate(0.06 * k + (k % 2 ? 0.12 : -0.1));
+      // The box behind him, a few parcels peeking out under its lid, roped down.
+      ctx.fillStyle = scheme.main;
+      ctx.fillRect(1, 26, 24, 38);
+      for (const [x, color] of [
+        [6, '#f6a55b'],
+        [13, '#e9d4a8'],
+        [19, '#c98d5a'],
+      ] as const) {
         ctx.fillStyle = color;
-        ctx.fillRect(-7, -4, 14, 8);
-        ctx.strokeStyle = 'rgba(80, 50, 20, 0.6)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(-7, -4, 14, 8);
-        ctx.restore();
-      });
+        ctx.fillRect(x - 4, 19, 8, 8);
+      }
+      ctx.save();
+      ctx.translate(0, 24);
+      ctx.rotate(-0.12);
+      ctx.fillStyle = scheme.deep;
+      ctx.fillRect(0, -4, 27, 5);
+      ctx.restore();
+      ctx.strokeStyle = '#d2a35c';
+      ctx.lineWidth = 2;
+      for (const x of [7, 18]) {
+        ctx.beginPath();
+        ctx.moveTo(x, 22 - x * 0.12);
+        ctx.lineTo(x, 64);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#d2a35c';
+      ctx.beginPath();
+      ctx.arc(7, 23, 2.6, 0, Math.PI * 2);
+      ctx.fill();
       // His shoulders, in his jacket with its stripe.
       ctx.fillStyle = scheme.main;
       ctx.beginPath();
