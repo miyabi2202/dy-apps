@@ -1,5 +1,13 @@
 import type { Board, Gfx, Point, Removal, SpriteSource } from '../board';
-import { anchorsOf, type CatLook, type CatPalette, catToWorld, drawCat, STILL } from './body';
+import {
+  anchorsOf,
+  type CatLook,
+  type CatPalette,
+  catToWorld,
+  drawCat,
+  HEAD_TOP,
+  STILL,
+} from './body';
 import { Flights } from './flights';
 import { catPortrait } from './portrait';
 import { drawSwoosh } from './shader';
@@ -625,7 +633,7 @@ export class Visit implements Removal {
   private drawDots(gfx: Gfx, look: CatLook): void {
     const u = this.since / (PHASE_MS[this.phase] ?? 1);
     const a = anchorsOf(look.sit, look.crouch, look.stretch);
-    const at = catToWorld(look, { x: a.headX, y: a.headY - 26 });
+    const at = catToWorld(look, { x: a.headX, y: a.headY - HEAD_TOP - 5 });
     for (let k = 0; k < 3; k++) {
       const appear = smooth((u - 0.2 - 0.18 * k) / 0.06);
       if (appear <= 0) continue;
