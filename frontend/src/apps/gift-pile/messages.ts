@@ -45,6 +45,7 @@ export const labels = {
       evanesco: '消失咒',
       hamster: '仓鼠',
       cat: '猫猫',
+      subway: '地铁',
     } as Record<string, string>,
   },
   effects: {
@@ -69,6 +70,7 @@ export const labels = {
       evanesco: '消隐无踪！Evanesco!',
       hamster: '塞不下啦！',
       cat: '喵？',
+      subway: '挤一挤，还能上！',
     } as Record<string, string>,
   },
   bin: '垃圾桶',
