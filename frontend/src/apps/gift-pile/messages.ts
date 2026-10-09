@@ -43,6 +43,7 @@ export const labels = {
       fireworks: '烟花',
       'black-hole': '黑洞',
       evanesco: '消失咒',
+      hamster: '仓鼠',
     } as Record<string, string>,
   },
   effects: {
@@ -65,6 +66,7 @@ export const labels = {
       fireworks: '绽放！',
       'black-hole': '吞噬一切！',
       evanesco: '消隐无踪！Evanesco!',
+      hamster: '塞不下啦！',
     } as Record<string, string>,
   },
   bin: '垃圾桶',
