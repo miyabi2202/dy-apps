@@ -42,6 +42,7 @@ export const labels = {
       claw: '娃娃机',
       fireworks: '烟花',
       'black-hole': '黑洞',
+      evanesco: '消失咒',
     } as Record<string, string>,
   },
   effects: {
@@ -63,6 +64,7 @@ export const labels = {
       claw: '一击必中！',
       fireworks: '绽放！',
       'black-hole': '吞噬一切！',
+      evanesco: '消隐无踪！Evanesco!',
     } as Record<string, string>,
   },
   bin: '垃圾桶',
