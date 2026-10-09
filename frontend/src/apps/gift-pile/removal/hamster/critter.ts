@@ -1,125 +1,63 @@
 import type { Gfx, Point, SpriteSource } from '../board';
-import { drawFace } from './shader';
+import { type BallShape, drawBall } from './shader';
 
-// The hamster, seen from the side. Its body is painted once with Canvas2D (`bodyOf`); what
-// moves is drawn over it each frame: its feet, its head and the cheek pouch that swells under
-// it (`hamster/face` in `shader.ts`), and its face, paws and sweat with plain `Gfx` calls.
-// Everything here is in its own frame, in world pixels, facing right with its origin on the
-// ground between its feet, y down; `dir` mirrors it to face left.
+// The hamster, a round mochi of a hamster seen from the front, turned a little the way it is
+// going. Its head and body are one ball of fur (`hamster/ball` in `shader.ts`), with its ears on
+// top and its cheek pouches swelling out either side of its face; its feet, face, blush, paws and
+// sweat are plain `Gfx` calls over it. Everything here is in its own frame, in world pixels,
+// facing right with its origin on the ground between its feet, y down; `dir` mirrors it to face
+// left.
 
-/** A hamster's colouring: the fur on its back, its outline, and the pink of its ears, nose and paws. */
+/**
+ * A hamster's colouring: the fur on its back, its soft outline, and the pink of its nose and
+ * paws. The ball works out its own outline from the fur (about `fur × (0.74, 0.62, 0.56)`), so
+ * `line` should be close to that.
+ */
 export interface Coat {
   fur: string;
   line: string;
   pink: string;
 }
 
-/** The painted body, and where the ground under its middle is in it. */
-const WIDTH = 66;
-const HEIGHT = 48;
-const ORIGIN_X = 36;
-const ORIGIN_Y = 45;
-
 /** How much bigger it is drawn than its own frame's pixels. */
 export const SCALE = 1.4;
-/** The head's radius, and its pouch's radius before it has anything in it. */
-export const HEAD_R = 14;
+/** Its pouch's radius before it has anything in it; the pouch grows from here. */
 export const EMPTY_POUCH = 6;
-/** The pouch swells from under the head towards the top front of the ball it makes, at this angle. */
-const SWELL_ANGLE = -0.7;
 
-/** Its body, painted once: a plump back, a creamy belly and a stub of a tail. */
-export function bodyOf(coat: Coat): SpriteSource {
+/** The colour of its eyes, and of its blush. */
+const EYE = '#2a1a17';
+const BLUSH = '#ff8fa3';
+
+/** Its ball, and where its face is on it. */
+interface Shape extends BallShape {
+  /** The ball's middle, above the ground. */
+  midY: number;
+  /** The middle of its eyes, from the ball's middle. */
+  faceY: number;
+}
+
+/**
+ * Its shape for a pouch of radius `pouch`: the fuller the pouches, the rounder the whole ball,
+ * and the bigger the two pouches bulging out either side of its face, which never sink into the
+ * ground.
+ */
+function shapeOf(pouch: number, stuffed: number): Shape {
+  const g = Math.max(0, pouch - EMPTY_POUCH);
+  const rx = 17 + 0.3 * g;
+  const ry = 15 + 0.5 * g;
+  const faceY = -0.25 * ry;
+  const cheekR = 3.5 + 0.55 * g;
   return {
-    key: `hamster/body/${coat.fur}`,
-    width: WIDTH,
-    height: HEIGHT,
-    paint(ctx) {
-      ctx.translate(ORIGIN_X, ORIGIN_Y);
-      ctx.lineJoin = 'round';
-      ctx.lineCap = 'round';
-      // The stub of a tail.
-      ctx.fillStyle = coat.pink;
-      ctx.strokeStyle = coat.line;
-      ctx.lineWidth = 1.3;
-      ctx.beginPath();
-      ctx.ellipse(-28, -12, 3.6, 2.6, -0.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      // The body, a round loaf of fur, darker along the back.
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(-5, -18, 25, 17.5, -0.08, 0, Math.PI * 2);
-      const fur = ctx.createLinearGradient(0, -36, 0, 0);
-      fur.addColorStop(0, coat.fur);
-      fur.addColorStop(0.55, coat.fur);
-      fur.addColorStop(1, '#fff6ea');
-      ctx.fillStyle = fur;
-      ctx.fill();
-      ctx.clip();
-      // The creamy belly, and a stripe of darker fur down the back.
-      ctx.fillStyle = 'rgba(255, 250, 242, 0.95)';
-      ctx.beginPath();
-      ctx.ellipse(4, -6, 19, 11, -0.15, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(90, 50, 20, 0.16)';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.ellipse(-5, -18, 22, 15, -0.08, Math.PI * 1.1, Math.PI * 1.75);
-      ctx.stroke();
-      // Tufts of fur, and the curve of its haunch.
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.lineWidth = 1.1;
-      for (const [x, y] of [
-        [-14, -28],
-        [-6, -31],
-        [3, -29],
-        [-20, -21],
-      ] as const) {
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.quadraticCurveTo(x + 2, y - 2, x + 4, y);
-        ctx.stroke();
-      }
-      ctx.strokeStyle = 'rgba(90, 50, 20, 0.3)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(-15, -9, 9, Math.PI * 1.05, Math.PI * 1.65);
-      ctx.stroke();
-      ctx.restore();
-      ctx.strokeStyle = coat.line;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.ellipse(-5, -18, 25, 17.5, -0.08, 0, Math.PI * 2);
-      ctx.stroke();
-    },
+    rx,
+    ry,
+    faceX: 3.2 + 0.04 * g,
+    cheekR,
+    cheekDX: 7 + 0.45 * g,
+    cheekY: Math.min(faceY + 4 + 0.3 * g, ry - cheekR - 0.5),
+    stuffed,
+    midY: -(ry + 1),
+    faceY,
   };
-}
-
-/** Where its head and pouch are in its own frame, for a pouch of radius `pouch`. */
-export interface Head {
-  headX: number;
-  headY: number;
-  pouchX: number;
-  pouchY: number;
-}
-
-/** The head over the body, pushed up and forward as the pouch under it swells into a ball, which never sinks into the ground. */
-export function headOf(pouch: number): Head {
-  const pouchX = 12 + 0.3 * pouch;
-  const pouchY = Math.min(-27, -4 - pouch);
-  const out = Math.max(0, pouch - HEAD_R * 0.75);
-  return {
-    headX: pouchX + out * Math.cos(SWELL_ANGLE),
-    headY: pouchY + out * Math.sin(SWELL_ANGLE),
-    pouchX,
-    pouchY,
-  };
-}
-
-/** Where its mouth is in its own frame, under the tip of its nose. */
-function mouthLocal(head: Head): Point {
-  return { x: head.headX + HEAD_R * 0.82, y: head.headY + HEAD_R * 0.5 };
 }
 
 /** How its eyes look. */
@@ -159,6 +97,11 @@ export interface Look {
   t: number;
 }
 
+/** Where its mouth is in its own frame, under its nose. */
+function mouthLocal(s: Shape): Point {
+  return { x: s.faceX, y: s.midY + s.faceY + 5.2 };
+}
+
 /** Where a point of its own frame is in the world, drawn as `look` says. */
 export function toWorld(local: Point, look: Look): Point {
   const sx = look.dir / look.squash;
@@ -173,166 +116,139 @@ export function toWorld(local: Point, look: Look): Point {
 
 /** Where its mouth is in the world. */
 export function mouthOf(look: Look): Point {
-  return toWorld(mouthLocal(headOf(look.pouch)), look);
+  return toWorld(mouthLocal(shapeOf(look.pouch, look.stuffed)), look);
 }
 
-/** Where the top of its head is in the world, for things over it. */
+/** Where the tops of its ears are in the world, for things over it. */
 export function crownOf(look: Look): Point {
-  const head = headOf(look.pouch);
-  return toWorld({ x: head.headX, y: Math.min(head.headY, head.pouchY) - look.pouch }, look);
+  const s = shapeOf(look.pouch, look.stuffed);
+  return toWorld({ x: s.faceX * 0.5, y: s.midY - s.ry * 0.8 - (3.6 + 0.12 * s.rx) }, look);
 }
 
-/** The hamster in `coat`, with its body painted as `body`. */
-export function drawHamster(gfx: Gfx, look: Look, coat: Coat, body: SpriteSource): void {
+/** The hamster in `coat`. */
+export function drawHamster(gfx: Gfx, look: Look, coat: Coat): void {
   const { dir, squash } = look;
   const sx = dir / squash;
-  const sy = squash;
   const X = (x: number) => x * sx;
-  const Y = (y: number) => y * sy;
-  const head = headOf(look.pouch);
-  const { headX: hx, headY: hy } = head;
-  const R = HEAD_R;
+  const Y = (y: number) => y * squash;
+  const s = shapeOf(look.pouch, look.stuffed);
+  const { faceX: fx, midY } = s;
+  const fy = midY + s.faceY;
   gfx.push(look.x, look.y, look.tilt * dir, SCALE);
 
-  // Its ears, behind its head: the far one darker.
-  gfx.circle(X(hx - 0.78 * R), Y(hy - 0.6 * R), 5, coat.line);
-  gfx.circle(X(hx - 0.78 * R), Y(hy - 0.6 * R), 3.6, coat.pink, { alpha: 0.6 });
-  gfx.circle(X(hx - 0.3 * R), Y(hy - 0.88 * R), 5.8, coat.line);
-  gfx.circle(X(hx - 0.3 * R), Y(hy - 0.88 * R), 4.4, coat.fur);
-  gfx.circle(X(hx - 0.28 * R), Y(hy - 0.86 * R), 2.8, coat.pink);
+  // The ball of it: head, body, ears and pouches.
+  drawBall(gfx, 0, Y(midY), dir, squash, s, coat.fur);
 
-  // Its back foot and its body, then its front foot.
-  const swing = Math.sin(look.step) * look.stride;
-  gfx.ellipse(
-    X(-16 - swing * 5),
-    Y(-1.5 + Math.min(0, Math.cos(look.step)) * 2 * look.stride),
-    5,
-    2.6,
-    0,
-    coat.pink,
-    {
-      stroke: { width: 1, color: coat.line },
-    },
-  );
-  gfx.sprite(body, {
-    x: 0,
-    y: 0,
-    anchorX: ORIGIN_X / WIDTH,
-    anchorY: ORIGIN_Y / HEIGHT,
-    flipX: dir < 0,
-    scaleX: 1 / squash,
-    scaleY: squash,
-  });
-  gfx.ellipse(
-    X(8 + swing * 5),
-    Y(-1.5 - Math.max(0, Math.cos(look.step)) * 2 * look.stride),
-    4.6,
-    2.5,
-    0,
-    coat.pink,
-    {
-      stroke: { width: 1, color: coat.line },
-    },
-  );
-
-  // The head and its pouch, as one ball of fur.
-  drawFace(
-    gfx,
-    {
-      headX: X(hx),
-      headY: Y(hy),
-      headR: R,
-      pouchX: X(head.pouchX),
-      pouchY: Y(head.pouchY),
-      pouchR: look.pouch,
-      stuffed: look.stuffed,
-      seed: 3.7,
-    },
-    coat.fur,
-  );
-  // Rosy cheeks, rosier the fuller they are.
-  gfx.ellipse(
-    X(head.pouchX + look.pouch * 0.45),
-    Y(head.pouchY + look.pouch * 0.2),
-    3 + look.pouch * 0.32,
-    2 + look.pouch * 0.2,
-    0,
-    '#ff8fa3',
-    { alpha: 0.22 + 0.3 * look.stuffed, soft: 2 + look.pouch * 0.12 },
-  );
-  drawEye(gfx, X(hx + 0.4 * R), Y(hy - 0.2 * R), look.eyes, dir, coat.line);
-
-  // The nose, twitching, and whiskers either side of it.
-  const twitch = Math.sin(look.t * 0.05) > 0.6 ? 0.6 : 0;
-  const noseX = X(hx + 0.98 * R);
-  const noseY = Y(hy + 0.12 * R) - twitch;
-  for (const k of [-1, 0, 1]) {
-    gfx.line(noseX - dir * 3, noseY + 2, noseX + dir * 9, noseY + 2 + k * 3.4 - 1, 0.7, coat.line, {
-      alpha: 0.65,
+  // Its tiny feet peeping out underneath, taking turns to lift as it walks.
+  for (const k of [-1, 1]) {
+    const lift = Math.max(0, Math.sin(look.step + (k > 0 ? 0 : Math.PI))) * 2.2 * look.stride;
+    gfx.ellipse(X(fx * 0.4 + k * s.rx * 0.4), Y(-1.8 - lift), 3.4, 2.3, 0, coat.pink, {
+      stroke: { width: 0.7, color: coat.line },
     });
   }
-  gfx.circle(noseX, noseY, 2.1, coat.pink, { stroke: { width: 0.8, color: coat.line } });
-  drawMouth(gfx, mouthLocal(head), look, X, Y, coat.line);
 
-  // Its front paws up at its mouth, taking turns to push food in.
-  if (look.paws !== null) {
-    const m = mouthLocal(head);
-    for (const k of [0, 1]) {
-      const push = Math.sin((look.paws + k * 0.5) * Math.PI * 2) * 0.5 + 0.5;
-      gfx.ellipse(
-        X(m.x - 2 + push * 3 - k * 4),
-        Y(m.y + 6 - push * 3 + k * 1.5),
-        3.4,
-        2.6,
-        0.5 * dir,
-        coat.pink,
-        { stroke: { width: 0.9, color: coat.line } },
-      );
+  // Rosy blush on its cheeks, bigger and rosier the fuller they are.
+  for (const k of [-1, 1]) {
+    gfx.ellipse(
+      X(fx + k * (s.cheekDX + 1.2)),
+      Y(midY + s.cheekY - s.cheekR * 0.05 + 1),
+      2.6 + s.cheekR * 0.32,
+      1.7 + s.cheekR * 0.18,
+      0,
+      BLUSH,
+      { alpha: 0.45 + 0.25 * look.stuffed, soft: 1.2 + s.cheekR * 0.12 },
+    );
+  }
+
+  // Its eyes, wide apart above its muzzle.
+  const gap = 5.6 + 0.12 * s.cheekDX;
+  const eyeR = 2.7 + 0.04 * (look.pouch - EMPTY_POUCH);
+  for (const k of [-1, 1]) drawEye(gfx, fx + k * gap, fy, k, eyeR, look.eyes, X, Y);
+
+  // A tiny pink nose, twitching, and its mouth under it.
+  const twitch = Math.sin(look.t * 0.05) > 0.6 ? 0.35 : 0;
+  gfx.ellipse(X(fx), Y(fy + 2.9 - twitch), 1.5, 1.1, 0, coat.pink, {
+    stroke: { width: 0.55, color: coat.line },
+  });
+  drawMouth(gfx, mouthLocal(s), look, X, Y, coat.line);
+
+  // Its little paws: held in front of it, or up at its mouth taking turns to push food in.
+  const m = mouthLocal(s);
+  for (const k of [-1, 1]) {
+    let px = fx + k * (4.2 + 0.1 * s.cheekDX);
+    let py = fy + 11.5 + 0.25 * s.cheekR;
+    if (look.paws !== null) {
+      const push = Math.sin((look.paws + (k > 0 ? 0.5 : 0)) * Math.PI * 2) * 0.5 + 0.5;
+      px = m.x + k * (2.6 - push * 0.8);
+      py = m.y + 4.2 - push * 2.4;
     }
+    gfx.ellipse(X(px), Y(py), 2.4, 2, 0, coat.pink, {
+      stroke: { width: 0.6, color: coat.line },
+    });
   }
 
-  // A drop of sweat on its brow, sliding off as it relaxes.
+  // A drop of sweat by its ear, sliding off as it relaxes.
   if (look.sweat > 0) {
-    const sx0 = X(hx - 0.55 * R);
-    const sy0 = Y(hy - 0.95 * R) + look.slide * 26;
-    drawSweat(gfx, sx0, sy0, look.sweat);
+    drawSweat(gfx, X(fx + s.rx * 0.62), Y(midY - s.ry * 0.5) + look.slide * 22, look.sweat);
   }
 
-  // Strain marks behind it: three short strokes fanning out from the ball.
+  // Strain marks: short strokes fanning out from its top either side.
   if (look.quiver > 0) {
-    const cx = X(head.pouchX);
-    const cy = Y(head.pouchY);
-    const r = look.pouch + 6;
-    for (const a of [-2.3, -1.9, -2.7]) {
-      const ax = Math.cos(a) * dir;
+    const ox = s.rx + s.cheekR * 0.6 + 3;
+    const oy = s.ry + 3;
+    for (const a of [-2.55, -2.15, -0.99, -0.59]) {
+      const ax = Math.cos(a);
       const ay = Math.sin(a);
-      gfx.line(cx + ax * r, cy + ay * r, cx + ax * (r + 7), cy + ay * (r + 7), 1.6, coat.line, {
-        alpha: 0.8 * look.quiver,
-      });
+      gfx.line(
+        X(fx * 0.5 + ax * ox),
+        Y(midY + ay * oy),
+        X(fx * 0.5 + ax * (ox + 5)),
+        Y(midY + ay * (oy + 5)),
+        1.1,
+        coat.line,
+        { alpha: 0.85 * look.quiver },
+      );
     }
   }
   gfx.pop();
 }
 
-/** Its eye at (x, y), as it looks. */
-function drawEye(gfx: Gfx, x: number, y: number, eyes: Eyes, dir: number, line: string): void {
+/** One eye at (x, y) of its own frame, `side` -1 on its left and 1 on its right, as it looks. */
+function drawEye(
+  gfx: Gfx,
+  x: number,
+  y: number,
+  side: number,
+  r: number,
+  eyes: Eyes,
+  X: (x: number) => number,
+  Y: (y: number) => number,
+): void {
+  const pts = (xy: readonly number[]) => xy.map((v, i) => (i % 2 === 0 ? X(x + v) : Y(y + v)));
   if (eyes === 'shut') {
-    // Screwed shut: a > (or < facing left).
-    gfx.polyline([x - dir * 2.6, y - 2.6, x + dir * 1.8, y, x - dir * 2.6, y + 2.6], 1.5, line);
+    // Screwed shut, > <, each pointing in.
+    const a = r * 0.85;
+    gfx.polyline(pts([side * a, -a, -side * a * 0.8, 0, side * a, a]), 1.1, EYE);
     return;
   }
   if (eyes === 'happy') {
-    // Squinting happily: an upturned arc.
-    gfx.polyline([x - 3, y + 1, x - 1.5, y - 1.4, x + 1.5, y - 1.4, x + 3, y + 1], 1.5, line);
+    // Squinting happily, ^ ^.
+    const a = r * 0.95;
+    gfx.polyline(
+      pts([-a, a * 0.45, -a * 0.5, -a * 0.25, 0, -a * 0.45, a * 0.5, -a * 0.25, a, a * 0.45]),
+      1.1,
+      EYE,
+    );
     return;
   }
-  const r = eyes === 'wide' ? 3.6 : 2.9;
-  gfx.circle(x, y, r, '#1a0f0a');
-  gfx.circle(x + dir * 0.9, y - 1.1, r * 0.38, '#ffffff');
-  if (eyes === 'wide') gfx.circle(x - dir * 1.1, y + 1.2, r * 0.18, '#ffffff');
+  // Big, round and shiny, with a sparkle up on the side the light comes from.
+  const rr = eyes === 'wide' ? r * 1.18 : r;
+  gfx.circle(X(x), Y(y), rr, EYE);
+  gfx.circle(X(x - rr * 0.32), Y(y - rr * 0.36), rr * 0.42, '#ffffff');
+  gfx.circle(X(x + rr * 0.38), Y(y + rr * 0.34), rr * 0.18, '#ffffff');
 }
 
-/** Its mouth, under its nose: a little w, chewing, pressed tight, or wide open. */
+/** Its mouth, under its nose: a little ω, chewing, pressed tight, or wide open. */
 function drawMouth(
   gfx: Gfx,
   m: Point,
@@ -341,36 +257,35 @@ function drawMouth(
   Y: (y: number) => number,
   line: string,
 ): void {
-  const x = X(m.x);
-  const y = Y(m.y);
-  const d = look.dir;
+  const pts = (xy: readonly number[]) => xy.map((v, i) => (i % 2 === 0 ? X(m.x + v) : Y(m.y + v)));
   if (look.mouth === 'open') {
-    gfx.ellipse(x, y + 1, 3.6, 4.4, 0, '#5a1f1f', { stroke: { width: 1, color: line } });
-    gfx.ellipse(x, y + 3.4, 2, 1.2, 0, '#ff8f9a');
+    gfx.ellipse(X(m.x), Y(m.y + 1.6), 2.2, 2.7, 0, '#8a3a3f', {
+      stroke: { width: 0.6, color: line },
+    });
+    gfx.ellipse(X(m.x), Y(m.y + 3), 1.3, 0.8, 0, '#ff9aa6');
     return;
   }
-  if (look.mouth === 'chew' && look.chew > 0.15) {
-    gfx.ellipse(x, y + 0.5, 2.4, 1 + 2.2 * look.chew, 0, '#5a1f1f', {
-      stroke: { width: 0.9, color: line },
+  if (look.mouth === 'chew' && look.chew > 0.55) {
+    gfx.ellipse(X(m.x), Y(m.y + 0.9), 1.3, 0.5 + 1.1 * look.chew, 0, '#8a3a3f', {
+      stroke: { width: 0.5, color: line },
     });
     return;
   }
   if (look.mouth === 'tight') {
-    gfx.polyline([x - d * 3, y, x - d * 1.5, y - 0.8, x, y, x + d * 1.5, y - 0.8], 1.1, line);
+    gfx.polyline(pts([-2.4, 0.6, -1.2, -0.2, 0, 0.6, 1.2, -0.2, 2.4, 0.6]), 0.8, line);
     return;
   }
-  gfx.polyline(
-    [x - d * 3, y - 0.5, x - d * 1.5, y + 0.9, x, y - 0.3, x + d * 1.2, y + 0.9],
-    1,
-    line,
-  );
+  // ω: a short stroke down from the nose, then two little curves.
+  gfx.polyline(pts([0, -1.3, 0, -0.1]), 0.7, line);
+  gfx.polyline(pts([-2.4, -0.6, -1.9, 0.5, -1.0, 0.7, -0.3, 0.3, 0, -0.1]), 0.7, line);
+  gfx.polyline(pts([2.4, -0.6, 1.9, 0.5, 1.0, 0.7, 0.3, 0.3, 0, -0.1]), 0.7, line);
 }
 
 /** A drop of sweat with its point up, `alpha` seen. */
 export function drawSweat(gfx: Gfx, x: number, y: number, alpha: number): void {
-  gfx.polygon([x, y - 6.5, x + 3.1, y - 0.6, x - 3.1, y - 0.6], '#9fd8ff', { alpha });
-  gfx.circle(x, y, 3.4, '#9fd8ff', { alpha, stroke: { width: 0.8, color: '#3d86c6' } });
-  gfx.circle(x - 1.1, y - 0.8, 0.9, '#ffffff', { alpha });
+  gfx.polygon([x, y - 5, x + 2.4, y - 0.5, x - 2.4, y - 0.5], '#a8dcff', { alpha });
+  gfx.circle(x, y, 2.6, '#a8dcff', { alpha, stroke: { width: 0.6, color: '#5c9fd6' } });
+  gfx.circle(x - 0.8, y - 0.6, 0.7, '#ffffff', { alpha });
 }
 
 /** "噗！" in a white burst, for the spit: painted once. */
@@ -387,7 +302,7 @@ export const PFFT: SpriteSource = {
     const spikes = 11;
     for (let k = 0; k < spikes * 2; k++) {
       const a = (k / (spikes * 2)) * Math.PI * 2;
-      const r = k % 2 === 0 ? 1 : 0.72;
+      const r = k % 2 === 0 ? 1 : 0.74;
       const x = cx + Math.cos(a) * 35 * r;
       const y = cy + Math.sin(a) * 23 * r;
       if (k === 0) ctx.moveTo(x, y);
@@ -396,19 +311,19 @@ export const PFFT: SpriteSource = {
     ctx.closePath();
     ctx.fillStyle = '#ffffff';
     ctx.fill();
-    ctx.strokeStyle = '#7a4320';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#d9925f';
+    ctx.lineWidth = 1.6;
     ctx.stroke();
-    // The word, fat and orange, outlined in brown.
+    // The word, fat and orange, outlined in warm brown.
     ctx.font = '900 26px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.translate(cx, cy + 1);
     ctx.rotate(-0.12);
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = '#7a4320';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#a5562c';
     ctx.strokeText('噗！', 0, 0);
-    ctx.fillStyle = '#ff7a3d';
+    ctx.fillStyle = '#ff8a4c';
     ctx.fillText('噗！', 0, 0);
   },
 };

@@ -9,7 +9,6 @@ import {
   type SpriteSource,
 } from '../board';
 import {
-  bodyOf,
   type Coat,
   crownOf,
   drawHamster,
@@ -68,9 +67,9 @@ const AIM_TO = 0.78;
 
 /** The hamsters to pick from: golden, the first; silver-grey; and cream. */
 export const COATS: readonly Coat[] = [
-  { fur: '#f0a95e', line: '#7a4320', pink: '#ffb3b8' },
-  { fur: '#b8b2bc', line: '#4e4752', pink: '#ffc2cc' },
-  { fur: '#f3dcbc', line: '#8a6440', pink: '#ffb0b8' },
+  { fur: '#f7b26a', line: '#b76e3b', pink: '#ffb3bd' },
+  { fur: '#bab3c6', line: '#8a6f6f', pink: '#ffbfcb' },
+  { fur: '#f2cf9e', line: '#b38058', pink: '#ffb5bf' },
 ];
 
 /** The colours of the crumbs that fly off its paws as it stuffs. */
@@ -90,13 +89,13 @@ export class Hamster implements Remover {
   readonly name = 'hamster';
   /** Compiled when the page opens. */
   readonly shaders = HAMSTER_SHADERS;
-  /** Its bodies, its "噗！" and its cut-in portraits, painted ahead of time. */
+  /** Its "噗！" and its cut-in portraits, painted ahead of time. */
   readonly sprites: readonly SpriteSource[];
   private readonly coats: readonly Coat[];
 
   constructor({ coats = COATS }: Options = {}) {
     this.coats = coats;
-    this.sprites = [PFFT, ...coats.map(bodyOf), ...coats.map(hamsterPortrait)];
+    this.sprites = [PFFT, ...coats.map(hamsterPortrait)];
   }
 
   /** A clump of the pile somewhere across it. */
@@ -120,7 +119,6 @@ interface Flying {
 /** One visit. */
 class Snack implements Removal {
   private readonly t0: number;
-  private readonly body: SpriteSource;
   /** Which way it faces coming in (1 is right), where it sets off from, and where it stands to eat. */
   private readonly dir: number;
   private readonly startX: number;
@@ -175,7 +173,6 @@ class Snack implements Removal {
     const d = Math.min(board.dropCount, n);
     this.rng = rng;
     this.t0 = now;
-    this.body = bodyOf(coat);
     this.crumbs = new Emitter(
       { capacity: 160, shape: 'disc', blend: 'normal', colorFrom: '#ffffff', gravity: 520 },
       rng,
@@ -211,7 +208,7 @@ class Snack implements Removal {
     this.peeked = this.arrived + PEEK_MS;
 
     // Nearest its mouth first, in mouthfuls; the farthest are the duds, which won't fit.
-    const mouth = { x: this.standX + this.dir * 28 * SCALE, y: this.ground - 26 * SCALE };
+    const mouth = { x: this.standX + this.dir * 4 * SCALE, y: this.ground - 16 * SCALE };
     const order = icons
       .map((p, i) => ({ i, dist: Math.hypot(p.x - mouth.x, p.y - mouth.y) }))
       .sort((a, b) => a.dist - b.dist);
@@ -301,7 +298,7 @@ class Snack implements Removal {
     for (let k = 0; k < nf; k++) if (f.behind[k]) board.stamp(f.x[k]!, f.y[k]!, f.scale[k]);
     this.dust.step(dt);
     this.dust.draw(gfx);
-    drawHamster(gfx, look, this.coat, this.body);
+    drawHamster(gfx, look, this.coat);
     // The ones that won't fit, poking out of its mouth as it strains.
     if (this.duds.length > 0 && t >= this.full && t < this.spitAt) {
       const r = board.iconRadius;
@@ -310,7 +307,7 @@ class Snack implements Removal {
         const jiggle = Math.sin(t * 0.06 + k * 2.1) * 1.2;
         board.stamp(
           mouth.x + look.dir * (r * 0.25 + k * 3) + jiggle,
-          mouth.y + (k - (shown - 1) / 2) * 4,
+          mouth.y + r * 0.2 + (k - (shown - 1) / 2) * 4,
           0.42,
         );
       }
