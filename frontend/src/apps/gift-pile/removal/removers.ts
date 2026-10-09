@@ -7,6 +7,7 @@ import { Evanesco } from './evanesco/evanesco';
 import { Helicopter } from './helicopter/helicopter';
 import { Hypercar } from './hypercar/hypercar';
 import { PacMan } from './pac-man/pac-man';
+import { Subway } from './subway/subway';
 import { Ufo } from './ufo/ufo';
 
 /** One of every remover, each with its own colours: the one place they are listed. */
@@ -20,4 +21,5 @@ export const allRemovers = (): Remover[] => [
   new Fireworks(),
   new BlackHole(),
   new Evanesco(),
+  new Subway(),
 ];
