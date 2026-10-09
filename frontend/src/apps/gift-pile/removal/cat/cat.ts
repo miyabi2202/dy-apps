@@ -13,7 +13,7 @@ import { CAT_SHADERS } from './shader';
 import { Visit } from './visit';
 
 interface Options {
-  /** The coats to pick from for each visit; the first, the hero, comes three visits in four. */
+  /** The coats to pick from for each visit. */
   palettes?: readonly CatPalette[];
 }
 
@@ -46,8 +46,6 @@ export class Cat implements Remover {
   }
 
   begin(board: Board, now: number, rng: () => number): Removal {
-    const [hero, ...others] = this.palettes;
-    const palette = others.length > 0 && rng() >= 0.75 ? pick(others, rng) : hero!;
-    return new Visit(board, now, rng, palette);
+    return new Visit(board, now, rng, pick(this.palettes, rng));
   }
 }

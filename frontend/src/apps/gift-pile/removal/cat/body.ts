@@ -23,7 +23,7 @@ export interface CatPalette {
   stripe: string;
   /** Its muzzle, chest and belly. */
   light: string;
-  /** Its outline: a deep tone of its coat (lighter than the coat on the black cat, so it shows on a dark stream). */
+  /** Its outline: a deep tone of its coat. */
   line: string;
   /** Its eyes: the rim of the iris, and the warmer middle round the pupil. */
   eye: string;
@@ -38,7 +38,7 @@ export interface CatPalette {
 }
 
 export const CAT_PALETTES: readonly CatPalette[] = [
-  // The ginger tabby, the hero: darker orange stripes, a cream muzzle and chest, green-gold eyes.
+  // The ginger tabby: darker orange stripes, a cream muzzle and chest, green-gold eyes.
   {
     key: 'ginger',
     fur: '#f29a4a',
@@ -52,21 +52,6 @@ export const CAT_PALETTES: readonly CatPalette[] = [
     ear: '#f6a59f',
     whisker: 'rgba(255, 246, 230, 0.9)',
     stripes: true,
-  },
-  // Now and then a black cat instead, with bright green eyes, outlined in lavender so it shows on a dark stream.
-  {
-    key: 'black',
-    fur: '#302e3a',
-    shade: '#23212b',
-    stripe: '#302e3a',
-    light: '#4d4a5c',
-    line: '#9a95b8',
-    eye: '#86dd4e',
-    eyeCore: '#e3e45a',
-    nose: '#d9798f',
-    ear: '#b97489',
-    whisker: 'rgba(235, 232, 250, 0.85)',
-    stripes: false,
   },
 ];
 
