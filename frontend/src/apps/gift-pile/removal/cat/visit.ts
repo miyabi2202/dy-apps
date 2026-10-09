@@ -9,6 +9,7 @@ import {
   STILL,
 } from './body';
 import { Flights } from './flights';
+import { NEON_CYAN_RGB, NEON_MAGENTA_RGB } from './neon';
 import { catPortrait } from './portrait';
 import { drawSwoosh } from './shader';
 import { easeOut, smooth } from '../kit/easing';
@@ -99,7 +100,7 @@ type Phase =
   | 'leave' // sauntering off, tail up
   | 'done';
 
-/** A swat's smear: from when, how long, round where, and the paw's way round, in the cat's own frame. */
+/** A swat's smear: from when, how long, round where, the paw's way round, in the cat's own frame, and its colours at the paw and behind. */
 interface Swoosh {
   at: number;
   ms: number;
@@ -110,7 +111,16 @@ interface Swoosh {
   from: number;
   to: number;
   facing: 1 | -1;
+  head: string;
+  tail: readonly [number, number, number];
 }
+
+/** The swat's smear goes from a pale cyan at the paw to magenta; the big sweep's the other way round. */
+const SWAT_HEAD = '#c9fdff';
+const SWEEP_HEAD = '#ffc4f3';
+/** Its buddy blinks for this long every so often. */
+const BLINK_EVERY = 2700;
+const BLINK_MS = 150;
 
 /**
  * One visit of the cat. It walks in along the top of the pile, sits by a gift, and stares at
@@ -119,7 +129,10 @@ interface Swoosh {
  * time, batting everything off, faster the more there is. Everything it bats flies off the
  * screen and is gone, except the last `dropCount`: when only those are left it loses interest
  * and sits down, patting one or two half-heartedly back onto the pile and leaving the rest
- * where they are. Then a yawn, a stretch, and off it saunters with its tail up.
+ * where they are. Then a yawn, a stretch, and off it saunters with its tail up. All the while
+ * its drone buddy rides in the backpack on its back, and its screen says what it makes of it:
+ * '…' and '?' as the cat stares (rising right up out of the backpack for a look), '!' at a
+ * swat, '^ ^' at the zoomies and the stretch, and 'z z' at the yawn.
  */
 export class Visit implements Removal {
   private readonly t0: number;
@@ -308,7 +321,9 @@ export class Visit implements Removal {
         }
         break;
       case 'swat':
-        if (crossed(SWAT_RAISED)) this.swoosh(t, 210, 24, 12, -1.75, 0.55);
+        if (crossed(SWAT_RAISED)) {
+          this.swoosh(t, 210, 24, 12, -1.75, 0.55, SWAT_HEAD, NEON_MAGENTA_RGB);
+        }
         if (crossed(SWAT_HIT)) {
           const at = this.firstAt(t);
           this.holding = false;
@@ -319,7 +334,9 @@ export class Visit implements Removal {
         }
         break;
       case 'sweep':
-        if (crossed(SWEEP_RAISED)) this.swoosh(t, 280, 34, 22, -1.95, 0.7);
+        if (crossed(SWEEP_RAISED)) {
+          this.swoosh(t, 280, 34, 22, -1.95, 0.7, SWEEP_HEAD, NEON_CYAN_RGB);
+        }
         if (crossed(SWEEP_HIT)) this.sweep(t);
         break;
       case 'zoom':
@@ -538,7 +555,7 @@ export class Visit implements Removal {
     this.left = 0;
   }
 
-  /** A swat's smear, round its shoulder as it is now, the paw going from `from` to `to` (in its own frame) over `ms`. */
+  /** A swat's smear, round its shoulder as it is now, the paw going from `from` to `to` (in its own frame) over `ms`, `head` at the paw and `tail` behind. */
   private swoosh(
     t: number,
     ms: number,
@@ -546,6 +563,8 @@ export class Visit implements Removal {
     thickness: number,
     from: number,
     to: number,
+    head: string,
+    tail: readonly [number, number, number],
   ): void {
     const look = this.lookAt(t);
     const a = anchorsOf(look.sit, look.crouch, 0);
@@ -560,6 +579,8 @@ export class Visit implements Removal {
       from,
       to,
       facing: this.facing,
+      head,
+      tail,
     });
   }
 
@@ -598,7 +619,8 @@ export class Visit implements Removal {
         angle,
         s.facing * reach,
         strength,
-        '#ffffff',
+        s.head,
+        s.tail,
       );
     }
   }
@@ -622,7 +644,7 @@ export class Visit implements Removal {
           tap.x + c * (out + 5),
           tap.y + s * (out + 5),
           1.8,
-          '#ffffff',
+          '#d8feff',
           { alpha: 1 - u },
         );
       }
@@ -652,6 +674,7 @@ export class Visit implements Removal {
       y: this.feetY,
       facing: this.facing,
       stride: this.stride,
+      buddy: t % BLINK_EVERY < BLINK_MS ? 'blink' : 'idle',
       t,
     };
     switch (this.phase) {
@@ -659,6 +682,7 @@ export class Visit implements Removal {
       case 'leave':
         look.gait = 1;
         look.tailUp = 1;
+        if (this.phase === 'leave') look.buddy = 'happy';
         break;
       case 'sit':
         look.sit = smooth(u);
@@ -673,22 +697,34 @@ export class Visit implements Removal {
         look.sit = 1;
         look.face = this.phase === 'tap1' ? 'side' : 'front';
         look.headTilt = this.phase === 'tap1' ? 0.32 : 0.08;
+        if (this.phase === 'tap2') {
+          look.buddy = 'what';
+          look.buddyLift = 0.2;
+        }
         this.tapPaw(look, t, u);
         break;
       case 'stare1':
         look.sit = 1;
         look.face = 'front';
         look.headTilt = 0.06 * smooth(u / 0.5);
+        // Its buddy peeks up out of the backpack: '…'.
+        look.buddy = 'dots';
+        look.buddyLift = 0.2 * smooth(u / 0.3);
         break;
       case 'stare2':
         look.sit = 1;
         look.face = u > 0.5 && u < 0.62 ? 'blink' : 'front';
         look.headTilt = 0.06 + 0.12 * smooth((u - 0.2) / 0.5);
+        // Its buddy rises right up out of the backpack to see: '?'.
+        look.buddy = 'what';
+        look.buddyLift = 0.2 + 0.8 * smooth((u - 0.08) / 0.25) * (1 - smooth((u - 0.86) / 0.14));
         break;
       case 'swat':
         look.sit = 1 - 0.15 * Math.sin(Math.PI * u);
         look.headTilt = 0.25;
         this.swatPaw(look, u);
+        look.buddy = 'alarm';
+        look.buddyLift = 0.45 * Math.sin(Math.PI * Math.min(1, Math.max(0, (u - 0.5) / 0.4)));
         break;
       case 'bored':
         look.face = 'front';
@@ -698,6 +734,7 @@ export class Visit implements Removal {
         look.crouch = smooth(u / 0.25);
         look.wiggle = Math.sin(this.since * 0.032) * 3.5 * smooth((u - 0.2) / 0.2);
         look.headTilt = 0.1;
+        look.buddy = 'alarm';
         break;
       }
       case 'sweep': {
@@ -709,6 +746,7 @@ export class Visit implements Removal {
             : -1.95 + (0.7 + 1.95) * easeOut((u - SWEEP_RAISED) / (SWEEP_HIT - SWEEP_RAISED));
         look.paw = { x: a.sx + Math.cos(angle) * 30, y: a.sy + Math.sin(angle) * 30 };
         look.pawReach = smooth(u / 0.1) * (1 - smooth((u - 0.75) / 0.25));
+        look.buddy = 'alarm';
         break;
       }
       case 'zoom': {
@@ -717,6 +755,7 @@ export class Visit implements Removal {
         look.bounce = running ? Math.abs(Math.sin(this.stride)) * 3 : 0;
         look.tailUp = running ? 0 : 1;
         look.tailFlat = running ? 1 : 0;
+        if (running) look.buddy = 'happy';
         // Swiping away with a front paw while it bats things off.
         const swipe = Math.max(0, Math.sin(t * 0.03));
         const busy = 1 - smooth((t - this.lastBat - 150) / 200);
@@ -732,6 +771,7 @@ export class Visit implements Removal {
       case 'meh': {
         look.sit = smooth(u / 0.25);
         look.face = 'front';
+        look.buddy = 'dots';
         // The half-hearted pat, as it sits down.
         const a = anchorsOf(look.sit, 0, 0);
         look.paw = { x: a.sx + 17, y: -4 };
@@ -742,12 +782,16 @@ export class Visit implements Removal {
         look.sit = 1;
         look.face = u > 0.12 && u < 0.82 ? 'yawn' : 'front';
         look.headTilt = -0.22 * Math.sin(Math.PI * u);
+        look.buddy = u > 0.12 ? 'sleep' : 'dots';
         break;
       case 'stretch':
         look.sit = 1 - smooth(u / 0.25);
         look.stretch = Math.sin(Math.PI * Math.min(1, Math.max(0, (u - 0.15) / 0.85)));
         look.face = look.stretch > 0.3 ? 'blink' : 'side';
         look.tailUp = Math.max(0.7 * look.stretch, smooth((u - 0.6) / 0.4));
+        // Its buddy hops up out of the backpack while it stretches, pleased: '^ ^'.
+        look.buddy = 'happy';
+        look.buddyLift = Math.sin(Math.PI * u) * 0.9;
         break;
       default:
         break;
