@@ -1,0 +1,46 @@
+import {
+  type Board,
+  pick,
+  type Removal,
+  type Remover,
+  type ScoopShape,
+  type SpriteSource,
+} from '../board';
+import { CAT_PALETTES, type CatPalette, headSprites } from './body';
+import { catPortrait } from './portrait';
+import { CAT_SHADERS } from './shader';
+import { Visit } from './visit';
+
+interface Options {
+  /** The coats to pick from for each visit; the first until the first pick. */
+  palettes?: readonly CatPalette[];
+}
+
+/**
+ * A cat, doing what cats do to things on tables: it walks in along the top of the pile, sits,
+ * and stares at the viewer while it pushes a gift off the screen, tap by tap. Then, bored, it
+ * sweeps and bats the rest off, until it loses interest in the duds, yawns, stretches and
+ * saunters off (see `Visit`).
+ */
+export class Cat implements Remover {
+  readonly name = 'cat';
+  /** Compiled when the page opens. */
+  readonly shaders = CAT_SHADERS;
+  /** Its heads, for every face it pulls in every coat, and its cut-in portraits, painted ahead of time. */
+  readonly sprites: readonly SpriteSource[];
+  private readonly palettes: readonly CatPalette[];
+
+  constructor({ palettes = CAT_PALETTES }: Options = {}) {
+    this.palettes = palettes;
+    this.sprites = palettes.flatMap((palette) => [...headSprites(palette), catPortrait(palette)]);
+  }
+
+  /** The pile's outer layer, all across, then the next one down: what it walks along and bats off. */
+  shape(): ScoopShape {
+    return { kind: 'layers' };
+  }
+
+  begin(board: Board, now: number, rng: () => number): Removal {
+    return new Visit(board, now, rng, pick(this.palettes, rng));
+  }
+}
