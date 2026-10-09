@@ -1,5 +1,6 @@
 import type { Gfx, Point, SpriteSource } from '../board';
 import { type BuddyFace, drawBuddy } from './buddy';
+import { band, bobAt, crease, joint, lerp, type Step, stepAt, taper, turn, within } from './limbs';
 import { NEON_CYAN, NEON_MAGENTA } from './neon';
 
 // The cat, a short-haired street cat seen from the side: a slender, agile body on long legs, a
@@ -566,19 +567,19 @@ const STAND: Anchors = {
 };
 /** Sitting up straight, front legs together under its chest, its haunch on the ground. */
 const SIT: Anchors = {
-  bx: -3.5,
+  bx: -4.5,
   by: -16,
   rx: 13.5,
   ry: 9,
   rot: -1.18,
-  sx: 2.5,
-  sy: -22,
-  hx: -7,
+  sx: 4,
+  sy: -21,
+  hx: -7.5,
   hy: -9,
   headX: 3,
   headY: -38,
-  frontX: 4,
-  hindX: -1,
+  frontX: 6.5,
+  hindX: -2,
   tx: -12,
   ty: -4,
 };
@@ -590,12 +591,12 @@ const CROUCH: Anchors = {
   ry: 7,
   rot: 0.14,
   sx: 11,
-  sy: -8,
+  sy: -11,
   hx: -12,
   hy: -17,
   headX: 23,
-  headY: -16,
-  frontX: 17,
+  headY: -18,
+  frontX: 19,
   hindX: -12,
   tx: -17,
   ty: -19,
@@ -698,11 +699,37 @@ export function catToWorld(look: CatLook, local: Point): Point {
 /** The tail's segments, and how long each is. */
 const TAIL_SEGMENTS = 12;
 const TAIL_STEP = 3.5;
-/** How thick its legs are, upper and lower, and its outline. */
-const FORELEG = 4.4;
-const THIGH = 7.6;
-const SHIN = 4;
+/** Its outline. */
 const LINE = 1.25;
+/** How far round its stride its legs go for each px it walks, in radians. */
+export const STRIDE_PER_PX = 0.16;
+/** Its front legs: the upper arm and forearm, and where its wrist is from the middle of its paw. */
+const UPPER_ARM = 10;
+const FOREARM = 8.8;
+const WRIST: Point = { x: -0.6, y: -2.8 };
+/** Its hind legs: the thigh and shin, and where its hock is from the middle of its paw. */
+const THIGH = 9.5;
+const SHIN = 9.5;
+const HOCK: Point = { x: -2.4, y: -6.6 };
+/** How thick a front leg is at its shoulder, elbow, wrist and paw, and a hind leg at its hip, knee, hock and paw. */
+const ARM_WIDTHS = [6.8, 4.6, 3.4, 3.2];
+const LEG_WIDTHS = [8.6, 5.8, 3.8, 3.3];
+/** The middle of a paw is this far up off the ground. */
+const PAW_UP = 2.2;
+/** The furthest its paw reaches from its shoulder; for anything further it leans its shoulder in, this far at most. */
+const ARM_REACH = UPPER_ARM + FOREARM + 2;
+const MOST_LEAN = 12;
+/** A foot goes this far forward and back of where it stands in a step: as far as the body goes in half a stride, so a planted foot stays put. */
+const STEP_REACH = Math.PI / STRIDE_PER_PX / 2;
+/** How high a foot lifts at a walk, and how far its shoulders and hips rise and fall over its planted feet. */
+const STEP_UP = 4.5;
+const BOB = 1.1;
+/**
+ * Where each foot is in the stride, in turns (near hind, far hind, near fore, far fore): at a
+ * walk one after another, hind then fore; running, the hind pair together and then the fore pair.
+ */
+const WALK_LAG = [0, 0.5, 0.25, 0.75] as const;
+const RUN_LAG = [0, 0.08, 0.5, 0.58] as const;
 /** The backpack: its size, and where it sits on its back (along its body, and down from the top of it). */
 const PACK_W = 17;
 const PACK_H = 9.5;
@@ -722,79 +749,245 @@ const BADGES: readonly (readonly [number, number, number, string])[] = [
   [4.2, 1.2, 1.3, '#6dff9c'],
 ];
 
+/** A front leg standing or stepping: shoulder, elbow, wrist and paw, the paw curled back under the wrist as it swings. */
+function foreleg(shoulder: Point, standX: number, step: Step): Point[] {
+  const s = step.swing;
+  const paw = { x: standX + step.dx, y: -PAW_UP - step.up };
+  const wrist = { x: paw.x + WRIST.x + 2.4 * s, y: paw.y + WRIST.y + 0.6 * s };
+  return [shoulder, joint(shoulder, wrist, UPPER_ARM, FOREARM, 1), wrist, paw];
+}
+
+/** A front leg reaching out for `paw`, which is within its reach. */
+function reachingLeg(shoulder: Point, paw: Point): Point[] {
+  const d = Math.hypot(paw.x - shoulder.x, paw.y - shoulder.y) || 1;
+  const wrist = {
+    x: paw.x - ((paw.x - shoulder.x) / d) * 2.6,
+    y: paw.y - ((paw.y - shoulder.y) / d) * 2.6,
+  };
+  return [shoulder, joint(shoulder, wrist, UPPER_ARM, FOREARM, 1), wrist, paw];
+}
+
+/**
+ * A hind leg standing or stepping: hip, knee (bent forward), hock (bent back) and paw. Pushing
+ * off and swinging, its hock comes forward over its paw; sitting, its foot lies flat on the
+ * ground under its haunch.
+ */
+function hindleg(hip: Point, standX: number, step: Step, sit: number): Point[] {
+  const paw = { x: standX + step.dx, y: -PAW_UP - step.up };
+  const off = lerp(turn(HOCK, 0.7 * step.swing - 0.03 * step.dx), { x: -7.5, y: -0.8 }, sit);
+  const hock = { x: paw.x + off.x, y: paw.y + off.y };
+  return [hip, joint(hip, hock, THIGH, SHIN, -1), hock, paw];
+}
+
+/** An ellipse of fur over the top of a limb (its shoulder blade, or its thigh): its middle, half sizes and tilt, in its own frame. */
+interface Mass {
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  rot: number;
+}
+
+/** The mass over the limb from `top` to `next`, moved `off` from `top`, `rx` across and at least `ry` along it, turned `follow` of the way with the limb. */
+function massOver(
+  top: Point,
+  next: Point,
+  off: Point,
+  rx: number,
+  ry: number,
+  follow: number,
+): Mass {
+  const along = Math.atan2(next.y - top.y, next.x - top.x) - Math.PI / 2;
+  const mid = lerp(top, next, 0.4);
+  return {
+    x: mid.x + off.x,
+    y: mid.y + off.y,
+    rx,
+    ry: Math.max(ry, Math.hypot(next.x - top.x, next.y - top.y) * 0.55 + 2),
+    rot: along * follow,
+  };
+}
+
+/** A mass, `grow` px bigger all round, in `color`. */
+function drawMass(
+  gfx: Gfx,
+  m: Mass,
+  grow: number,
+  color: string,
+  W: (q: Point) => Point,
+  f: 1 | -1,
+): void {
+  const at = W(m);
+  gfx.ellipse(at.x, at.y, m.rx + grow, m.ry + grow, f * m.rot, color);
+}
+
+/** A far leg, in shade: outlined, filled and its paw. */
+function farLeg(gfx: Gfx, p: CatPalette, points: Point[], widths: readonly number[]): void {
+  taper(
+    gfx,
+    points,
+    widths.map((w) => w + 2 * LINE),
+    p.line,
+  );
+  taper(gfx, points, widths, p.shade);
+  const end = points[points.length - 1]!;
+  paw(gfx, p, p.shade, end.x, end.y, false, 0);
+}
+
+/** The near front leg's fur, the line down the back of it, its stripes and its paw, through world `points` (shoulder, elbow, wrist, paw), facing `f`. */
+function nearForeleg(gfx: Gfx, p: CatPalette, points: Point[], beans: boolean, f: 1 | -1): void {
+  taper(gfx, points, ARM_WIDTHS, p.fur);
+  crease(gfx, points, ARM_WIDTHS, 0.35, f, p.line, 0.55);
+  if (p.stripes) {
+    band(gfx, points[0]!, points[1]!, 0.78, ARM_WIDTHS[1]! + 1, p.stripe);
+    band(gfx, points[1]!, points[2]!, 0.35, ARM_WIDTHS[1]!, p.stripe);
+    band(gfx, points[1]!, points[2]!, 0.75, ARM_WIDTHS[2]!, p.stripe);
+  }
+  paw(gfx, p, p.fur, points[3]!.x, points[3]!.y, beans, 0);
+}
+
 /** The cat, as `look` says. */
 export function drawCat(gfx: Gfx, p: CatPalette, look: CatLook): void {
   const { x, y, facing: f } = look;
   const a = anchorsOf(look.sit, look.crouch, look.stretch);
-  // A light step as it walks, and its bounce as it runs.
-  const lift = -look.bounce - Math.abs(Math.sin(look.stride)) * 1.1 * Math.min(1, look.gait);
-  // The rear sways as it wiggles; the front stays put.
+  // The rear sways as it wiggles, its weight shifting over its hind legs; the front stays put.
   a.hx += look.wiggle * 0.3;
   a.hy += Math.abs(look.wiggle) * 0.2;
   a.tx += look.wiggle;
+  const W = (q: Point): Point => ({ x: x + f * q.x, y: y + q.y });
   const X = (v: number) => x + f * v;
   const Y = (v: number) => y + v;
 
+  // Where each foot is in its step.
+  const g = Math.min(1, look.gait);
+  const running = look.gait > 1.1;
+  const turns = look.stride / (Math.PI * 2);
+  const lag = running ? RUN_LAG : WALK_LAG;
+  const reach = STEP_REACH * Math.min(1.15, look.gait);
+  const lift = STEP_UP * g * (running ? 1.25 : 1);
+  const nearHind = stepAt(turns + lag[0], reach, lift);
+  const farHind = stepAt(turns + lag[1], reach, lift);
+  const nearFore = stepAt(turns + lag[2], reach, lift);
+  const farFore = stepAt(turns + lag[3], reach, lift);
+
+  // Its body rides over its legs: its shoulders rise over a planted front foot and its hips
+  // over a planted hind one, tilting its spine between them; running, its spine flexes and
+  // stretches with each bound. Its head rides steadier than its shoulders.
+  const shoulderBob = bobAt(turns + lag[2], BOB * g) - look.bounce;
+  const hipBob = bobAt(turns + lag[0], BOB * g) - look.bounce;
+  const flex = running ? Math.sin(Math.PI * 2 * turns) * 1.6 : 0;
+  a.sx += flex * 0.6;
+  a.hx -= flex * 0.6;
+  a.rx += flex * 0.5;
+  a.sy += shoulderBob;
+  a.hy += hipBob;
+  a.by += (shoulderBob + hipBob) / 2;
+  a.rot += (shoulderBob - hipBob) / Math.max(6, a.sx - a.hx);
+  a.headX += flex * 0.6;
+  a.headY += shoulderBob * 0.55;
+  a.ty += hipBob * (1 - look.sit);
+
+  // Reaching, it leans its shoulder and chest into the reach, further the further the paw has
+  // to go, rather than stretching its leg out past what a leg can do.
+  const r = Math.min(1, Math.max(0, look.pawReach));
+  let reachPaw: Point | null = null;
+  if (r > 0.02) {
+    const stand = foreleg({ x: a.sx, y: a.sy }, a.frontX, nearFore)[3]!;
+    const target = lerp(stand, look.paw, r);
+    const dx = target.x - a.sx;
+    const dy = target.y - a.sy;
+    const d = Math.hypot(dx, dy) || 1;
+    const lean = Math.min(MOST_LEAN, Math.max(0, d - ARM_REACH * 0.85) + 2 * r);
+    const lx = (dx / d) * lean;
+    const ly = (dy / d) * lean;
+    a.sx += lx;
+    a.sy += ly;
+    a.headX += lx * 0.6;
+    a.headY += ly * 0.6;
+    a.bx += lx * 0.35;
+    a.by += ly * 0.35;
+    a.rot += (ly * 0.35) / Math.max(6, a.sx - a.hx);
+    reachPaw = within({ x: a.sx, y: a.sy }, target, ARM_REACH);
+  }
+
   gfx.ellipse(X(a.bx * 0.4), Y(1), 19 - 5 * look.sit, 3, 0, '#000000', { alpha: 0.24, soft: 3 });
+  drawTail(gfx, p, look, a, X, Y);
 
-  drawTail(gfx, p, look, a, X, Y, lift);
-
-  // The legs: where each foot is in its stride, the far pair half a stride from the near.
-  const stepAt = (phase: number) => ({
-    dx: Math.sin(phase) * 5.5 * look.gait,
-    up: Math.max(0, Math.cos(phase)) * 4 * look.gait,
-  });
-  const nearFront = stepAt(look.stride);
-  const farFront = stepAt(look.stride + Math.PI);
-  const nearHind = stepAt(look.stride + Math.PI);
-  const farHind = stepAt(look.stride);
-  const sx = a.sx;
-  const sy = a.sy + lift;
-  const hx = a.hx;
-  const hy = a.hy + lift;
+  const shoulder = { x: a.sx, y: a.sy };
+  const hip = { x: a.hx, y: a.hy };
   const upright = look.sit > 0.5;
 
   // The far legs, in shade, behind its body.
-  foreleg(gfx, p, p.shade, X, Y, sx - 2.5, sy, a.frontX - 2.5 + farFront.dx, -farFront.up, false);
-  if (!upright) hindleg(gfx, p, p.shade, X, Y, hx + 3, hy, a.hindX + 3 + farHind.dx, -farHind.up);
+  // Sitting, its far front paw stands just ahead of its near one, so the pair shows.
+  const farStand = a.frontX - 2.5 + 5.5 * look.sit;
+  farLeg(gfx, p, foreleg({ x: a.sx - 2.5, y: a.sy }, farStand, farFore).map(W), ARM_WIDTHS);
+  if (!upright) {
+    const far = hindleg({ x: a.hx + 2.5, y: a.hy }, a.hindX + 2.5, farHind, 0);
+    farLeg(gfx, p, far.map(W), LEG_WIDTHS);
+  }
 
-  // Its body, chest and neck as one, outlined all round, with the neon catching its back and chest.
+  // The near legs, and the shoulder blade and thigh over the tops of them.
+  const fore = reachPaw ? reachingLeg(shoulder, reachPaw) : foreleg(shoulder, a.frontX, nearFore);
+  const hind = hindleg(hip, a.hindX, nearHind, look.sit);
+  const blade = massOver(fore[0]!, fore[1]!, { x: -1.2, y: 0.4 }, 5.2, 7, 0.45);
+  const thigh = massOver(hind[0]!, hind[1]!, { x: -0.6, y: 0.4 }, 6, 7.2, 1);
+  const haunch = 9.5 * Math.min(1, look.sit * 1.3);
+  const haunchAt = { x: -6.5, y: -9.5 + hipBob * (1 - look.sit) };
+
+  // Its body, chest, neck, haunch and near legs as one: all of them outlined first, then all
+  // filled over the outlines, so the outline goes only round the outside of the cat and its
+  // legs grow out of its body with no seam. The neon catches its back and chest.
   const rot = f * a.rot;
-  const by = a.by + lift;
-  const headX = a.headX;
-  const headY = a.headY + lift;
-  const neck = [X(sx + 1.5), Y(sy - 2.5), X(headX - 2.5 * (1 - look.sit)), Y(headY + 5)] as const;
-  const chest = { x: X(sx + 0.5), y: Y(sy + 0.5), r: 6 };
-  const rump = { x: X(hx + 1), y: Y(hy - 0.5), r: 6.4 };
-  gfx.ellipse(X(a.bx) - f * 1.4, Y(by) - 1.5, a.rx + 0.8, a.ry + 0.9, rot, NEON_CYAN, {
+  const neckW = 8 + 2 * look.sit;
+  const neckFrom = W({ x: a.sx + 1.5, y: a.sy - 2.5 });
+  const neckTo = W({ x: a.headX - 2.5 * (1 - look.sit), y: a.headY + 5 });
+  const chest = W({ x: a.sx + 0.5, y: a.sy + 0.5 });
+  const rump = W({ x: a.hx + 1, y: a.hy - 0.5 });
+  gfx.ellipse(X(a.bx) - f * 1.4, Y(a.by) - 1.5, a.rx + 0.8, a.ry + 0.9, rot, NEON_CYAN, {
     alpha: 0.7,
     soft: 1.2,
   });
-  gfx.ellipse(X(a.bx) + f * 1.4, Y(by) + 0.9, a.rx + 0.6, a.ry + 0.6, rot, NEON_MAGENTA, {
+  gfx.ellipse(X(a.bx) + f * 1.4, Y(a.by) + 0.9, a.rx + 0.6, a.ry + 0.6, rot, NEON_MAGENTA, {
     alpha: 0.6,
     soft: 1.2,
   });
-  const neckW = 8 + 2 * look.sit;
-  gfx.line(neck[0], neck[1], neck[2], neck[3], neckW + 2 * LINE, p.line);
-  gfx.circle(chest.x, chest.y, chest.r + LINE, p.line);
-  gfx.circle(rump.x, rump.y, rump.r + LINE, p.line);
-  gfx.ellipse(X(a.bx), Y(by), a.rx + LINE, a.ry + LINE, rot, p.line);
-  gfx.line(neck[0], neck[1], neck[2], neck[3], neckW, p.fur);
-  gfx.circle(chest.x, chest.y, chest.r, p.fur);
-  gfx.circle(rump.x, rump.y, rump.r, p.fur);
-  gfx.ellipse(X(a.bx), Y(by), a.rx, a.ry, rot, p.fur);
+  const torso = (grow: number, color: string) => {
+    gfx.line(neckFrom.x, neckFrom.y, neckTo.x, neckTo.y, neckW + 2 * grow, color);
+    gfx.circle(chest.x, chest.y, 6 + grow, color);
+    gfx.circle(rump.x, rump.y, 6.4 + grow, color);
+    gfx.ellipse(X(a.bx), Y(a.by), a.rx + grow, a.ry + grow, rot, color);
+  };
+  const hindW = hind.map(W);
+  const foreW = fore.map(W);
+  torso(LINE, p.line);
+  if (haunch > 1) gfx.circle(X(haunchAt.x), Y(haunchAt.y), haunch + LINE, p.line);
+  drawMass(gfx, thigh, LINE, p.line, W, f);
+  taper(
+    gfx,
+    hindW,
+    LEG_WIDTHS.map((w) => w + 2 * LINE),
+    p.line,
+  );
+  drawMass(gfx, blade, LINE, p.line, W, f);
+  if (!reachPaw) {
+    taper(
+      gfx,
+      foreW,
+      ARM_WIDTHS.map((w) => w + 2 * LINE),
+      p.line,
+    );
+  }
 
+  torso(0, p.fur);
   const c = Math.cos(a.rot);
   const s = Math.sin(a.rot);
   const inBody = (u: number, v: number) => ({
     x: X(a.bx + u * c - v * s),
-    y: Y(by + u * s + v * c),
+    y: Y(a.by + u * s + v * c),
   });
-  // Its cream belly and chest.
+  // Its cream belly, and a tabby's stripes across its back, each side of the backpack.
   const belly = inBody(a.rx * 0.18, a.ry * 0.55);
   gfx.ellipse(belly.x, belly.y, a.rx * 0.55, a.ry * 0.4, rot, p.light);
-  gfx.ellipse(X(sx + 3.6), Y(sy + 0.5), 3.4, 4.6, f * 0.3, p.light);
-  // A tabby's stripes across its back, each side of the backpack.
   if (p.stripes) {
     for (const u of [-0.88, -0.66, 0.42, 0.64]) {
       const top = inBody(a.rx * u, -a.ry * 0.95);
@@ -802,29 +995,36 @@ export function drawCat(gfx: Gfx, p: CatPalette, look: CatLook): void {
       gfx.line(top.x, top.y, end.x, end.y, 1.9, p.stripe);
     }
   }
-
-  // Sitting, its haunch, round on the ground, with its hind paw peeping out in front.
-  const haunch = 9.5 * Math.min(1, look.sit * 1.3);
+  // The harness: a strap round its chest and one round its belly, under its legs.
+  const strap = (u0: number, u1: number) => {
+    const top = inBody(a.rx * u0, -a.ry * 0.7);
+    const end = inBody(a.rx * u1, a.ry * 0.92);
+    gfx.line(top.x, top.y, end.x, end.y, 2, STRAP);
+  };
+  strap(0.3, 0.46);
+  strap(-0.5, -0.42);
+  // The near hind leg and its thigh; sitting, its haunch, round on the ground, over them.
+  taper(gfx, hindW, LEG_WIDTHS, p.fur);
+  drawMass(gfx, thigh, 0, p.fur, W, f);
+  if (p.stripes) {
+    band(gfx, hindW[0]!, hindW[1]!, 0.42, 10, p.stripe);
+    band(gfx, hindW[0]!, hindW[1]!, 0.75, 8, p.stripe);
+    band(gfx, hindW[1]!, hindW[2]!, 0.5, LEG_WIDTHS[2]! + 1, p.stripe);
+  }
   if (haunch > 1) {
-    gfx.circle(X(-6.5), Y(-9.5 + lift), haunch, p.fur, {
-      stroke: { width: LINE, color: p.line },
-    });
+    gfx.circle(X(haunchAt.x), Y(haunchAt.y), haunch, p.fur);
     if (p.stripes && haunch > 6) {
       gfx.line(X(-13.5), Y(-13), X(-9.5), Y(-11.5), 1.8, p.stripe, { alpha: look.sit });
       gfx.line(X(-13), Y(-8), X(-9), Y(-7.5), 1.8, p.stripe, { alpha: look.sit });
     }
-    if (upright) paw(gfx, p, p.fur, X(a.hindX), Y(-2.2), false);
   }
+  paw(gfx, p, p.fur, hindW[3]!.x - f * 1.2 * look.sit, hindW[3]!.y, false, look.sit);
+  // The near front leg out of its shoulder, and its cream chest.
+  if (!reachPaw) nearForeleg(gfx, p, foreW, false, f);
+  drawMass(gfx, blade, 0, p.fur, W, f);
+  gfx.ellipse(X(a.sx + 4.4), Y(a.sy + 0.5), 3.2, 4.6, f * 0.3, p.light);
 
-  // The harness: a strap round its chest and one round its belly, and the backpack on its back.
-  const strap = (u0: number, u1: number) => {
-    const top = inBody(a.rx * u0, -a.ry * 0.7);
-    const end = inBody(a.rx * u1, a.ry * 0.92);
-    gfx.line(top.x, top.y, end.x, end.y, 2.3, STRAP);
-  };
-  strap(0.3, 0.46);
-  strap(-0.5, -0.42);
-  // Sitting up, the backpack rides higher, by its shoulders, and leans back less far than its body.
+  // The backpack on its back. Sitting up, it rides higher, by its shoulders, and leans back less far than its body.
   const pack = inBody(a.rx * (PACK_U + 0.22 * look.sit), -a.ry + PACK_DOWN - PACK_H / 2);
   const packRot = a.rot * (1 - 0.55 * look.sit);
   const pc = Math.cos(packRot);
@@ -854,133 +1054,69 @@ export function drawCat(gfx: Gfx, p: CatPalette, look: CatLook): void {
     radius: 1.8,
     rotation: f * packRot,
   });
-  for (const [u, v, r, color] of BADGES) {
+  for (const [u, v, br, color] of BADGES) {
     const at = inPack(u, v);
-    gfx.circle(at.x, at.y, r, color, { stroke: { width: 0.6, color: PACK_LINE } });
+    gfx.circle(at.x, at.y, br, color, { stroke: { width: 0.6, color: PACK_LINE } });
   }
 
-  // The near legs, over its body.
-  if (!upright) {
-    hindleg(gfx, p, p.fur, X, Y, hx, hy, a.hindX + nearHind.dx, -nearHind.up);
+  // Reaching, its near front leg comes out of its shoulder, toe beans showing; its shoulder
+  // blade, drawn over the top of it, joins it to its body.
+  if (reachPaw) {
+    taper(
+      gfx,
+      foreW,
+      ARM_WIDTHS.map((w) => w + 2 * LINE),
+      p.line,
+    );
+    nearForeleg(gfx, p, foreW, true, f);
+    drawMass(gfx, blade, 0, p.fur, W, f);
   }
-  const footX = a.frontX + nearFront.dx;
-  const footY = -nearFront.up;
-  const r = Math.min(1, Math.max(0, look.pawReach));
-  const reaching = r > 0.02;
-  if (!reaching) foreleg(gfx, p, p.fur, X, Y, sx, sy, footX, footY, false);
 
   // The head pulling its face, up on its neck.
   gfx.sprite(headSprite(p, look.face), {
-    x: X(headX),
-    y: Y(headY),
+    x: X(a.headX),
+    y: Y(a.headY),
     anchorX: HEAD_CX / HEAD_W,
     anchorY: HEAD_CY / HEAD_H,
     rotation: f * look.headTilt,
     flipX: f < 0 && look.face === 'side',
   });
 
-  // Reaching, its near front paw comes out in front of everything, toe beans showing.
-  if (reaching) {
-    foreleg(
+  // A paw raised up past its chin comes in front of its face.
+  if (reachPaw && reachPaw.y < a.headY + 6) {
+    const forearm = foreW.slice(1);
+    taper(
       gfx,
-      p,
-      p.fur,
-      X,
-      Y,
-      sx,
-      sy,
-      footX + (look.paw.x - footX) * r,
-      footY + (look.paw.y - footY) * r,
-      true,
+      forearm,
+      ARM_WIDTHS.slice(1).map((w) => w + 2 * LINE),
+      p.line,
     );
+    taper(gfx, forearm, ARM_WIDTHS.slice(1), p.fur);
+    paw(gfx, p, p.fur, foreW[3]!.x, foreW[3]!.y, true, 0);
   }
 
   // Hovering, the buddy is out in front of it all.
   if (!ride) buddy();
 }
 
-/** A front leg from its shoulder straight down to its paw, in `color`, toe beans showing if `beans`; a tabby's stripes on the near ones. */
-function foreleg(
+/** A neat paw at (x, y), in world px, `long` px longer when its foot lies flat; toe beans showing if `beans`. */
+function paw(
   gfx: Gfx,
   p: CatPalette,
   color: string,
-  X: (v: number) => number,
-  Y: (v: number) => number,
-  sx: number,
-  sy: number,
-  fx: number,
-  fy: number,
+  x: number,
+  y: number,
   beans: boolean,
+  long: number,
 ): void {
-  const px = fx + 0.8;
-  const py = fy - 2.2;
-  gfx.line(X(sx), Y(sy), X(px), Y(py), FORELEG + 2 * LINE, p.line);
-  gfx.line(X(sx), Y(sy), X(px), Y(py), FORELEG, color);
-  if (p.stripes && color === p.fur) legStripes(gfx, p, X(sx), Y(sy), X(px), Y(py), FORELEG);
-  paw(gfx, p, color, X(px), Y(py), beans);
-}
-
-/** A hind leg: a strong thigh from its hip down to its hock, and a slim shin from there to its paw. */
-function hindleg(
-  gfx: Gfx,
-  p: CatPalette,
-  color: string,
-  X: (v: number) => number,
-  Y: (v: number) => number,
-  hx: number,
-  hy: number,
-  fx: number,
-  fy: number,
-): void {
-  const kx = fx - 4;
-  const ky = fy - 7.5;
-  const px = fx + 0.6;
-  const py = fy - 2.2;
-  gfx.circle(X(hx + 0.5), Y(hy + 2.5), 6.2 + LINE, p.line);
-  gfx.line(X(hx), Y(hy + 2), X(kx), Y(ky), THIGH * 0.7 + 2 * LINE, p.line);
-  gfx.line(X(kx), Y(ky), X(px), Y(py), SHIN + 2 * LINE, p.line);
-  gfx.circle(X(hx + 0.5), Y(hy + 2.5), 6.2, color);
-  gfx.line(X(hx), Y(hy + 2), X(kx), Y(ky), THIGH * 0.7, color);
-  gfx.line(X(kx), Y(ky), X(px), Y(py), SHIN, color);
-  if (p.stripes && color === p.fur) {
-    gfx.line(X(hx - 4.5), Y(hy + 0.5), X(hx - 1.5), Y(hy + 2.5), 1.7, p.stripe);
-    gfx.line(X(hx - 4), Y(hy + 4.5), X(hx - 1), Y(hy + 5.5), 1.7, p.stripe);
-  }
-  paw(gfx, p, color, X(px), Y(py), false);
-}
-
-/** Two stripes across a leg from (x0, y0) to (x1, y1), in world px. */
-function legStripes(
-  gfx: Gfx,
-  p: CatPalette,
-  x0: number,
-  y0: number,
-  x1: number,
-  y1: number,
-  width: number,
-): void {
-  const dx = x1 - x0;
-  const dy = y1 - y0;
-  const d = Math.hypot(dx, dy) || 1;
-  const nx = (-dy / d) * width * 0.5;
-  const ny = (dx / d) * width * 0.5;
-  for (const u of [0.45, 0.68]) {
-    const cx = x0 + dx * u;
-    const cy = y0 + dy * u;
-    gfx.line(cx - nx, cy - ny, cx + nx, cy + ny, 1.4, p.stripe, { cap: 'butt' });
-  }
-}
-
-/** A neat paw at (x, y), in world px. */
-function paw(gfx: Gfx, p: CatPalette, color: string, x: number, y: number, beans: boolean): void {
-  gfx.ellipse(x, y, 3.2, 2.3, 0, color, { stroke: { width: LINE, color: p.line } });
+  gfx.ellipse(x, y, 3.2 + long, 2.3, 0, color, { stroke: { width: LINE, color: p.line } });
   if (beans) {
     gfx.circle(x, y + 0.5, 1.1, p.ear);
     for (const dx of [-1.5, 0, 1.5]) gfx.circle(x + dx, y - 1.1, 0.55, p.ear);
   }
 }
 
-/** Its long, ringed tail: up with a hook at its tip, flat out as it runs, or curled round its feet as it sits. */
+/** Its long, ringed tail: up with a hook at its tip, flat out as it runs, or curled round its feet as it sits; swaying in time with its stride as it walks. */
 function drawTail(
   gfx: Gfx,
   p: CatPalette,
@@ -988,7 +1124,6 @@ function drawTail(
   a: Anchors,
   X: (v: number) => number,
   Y: (v: number) => number,
-  lift: number,
 ): void {
   // Where it starts pointing, how much it curls along its length, and how much more its tip hooks over.
   let start = Math.PI - 0.5;
@@ -1004,15 +1139,18 @@ function drawTail(
   toward(Math.PI * 0.62, -0.24, 0, look.sit);
   const points: number[] = [];
   let px = a.tx;
-  let py = a.ty + lift * (1 - look.sit);
+  let py = a.ty;
   points.push(X(px), Y(py));
   let angle = start;
+  const walking = Math.min(1, look.gait);
   for (let k = 1; k <= TAIL_SEGMENTS; k++) {
     const u = k / TAIL_SEGMENTS;
-    // A lazy swish, stronger towards the tip, and quicker as it runs.
+    // A lazy swish, stronger towards the tip, and quicker as it runs; walking, a sway in time
+    // with its steps, rippling down to the tip.
     const swish =
       Math.sin(look.t * (0.004 + 0.012 * look.tailFlat) - k * 0.45) * (0.03 + 0.016 * k);
-    angle += curl + hook * u * u + swish * (1 - 0.6 * look.sit);
+    const sway = Math.sin(look.stride * 2 - k * 0.35) * 0.018 * k * walking;
+    angle += curl + hook * u * u + (swish * (1 - walking * 0.6) + sway) * (1 - 0.6 * look.sit);
     px += Math.cos(angle) * TAIL_STEP;
     py = Math.min(-2.4, py + Math.sin(angle) * TAIL_STEP);
     points.push(X(px), Y(py));

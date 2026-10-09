@@ -7,6 +7,7 @@ import {
   drawCat,
   HEAD_TOP,
   STILL,
+  STRIDE_PER_PX,
 } from './body';
 import { Flights } from './flights';
 import { NEON_CYAN_RGB, NEON_MAGENTA_RGB } from './neon';
@@ -22,8 +23,6 @@ import { PileTop } from '../kit/pile-top';
 const ENTER_FROM = -50;
 const ENTER_SPEED = 0.13;
 const LEAVE_SPEED = 0.12;
-/** How far round its stride its legs go for each px it walks, in radians. */
-const STRIDE_PER_PX = 0.16;
 /** Its feet settle onto the top of the pile over about this long, so it doesn't jolt as the pile changes. */
 const SETTLE_MS = 90;
 /** It stands this far into the top of the pile, by the icons' middles, as their tops overlap. */
@@ -38,6 +37,9 @@ const NUDGE_MS = 170;
 /** As it sits, that icon hops up out of the pile onto its top over this long, this high. */
 const HOP_MS = 300;
 const HOP = 10;
+/** Running faster than this, in px per ms, a hind paw kicks up a scuff of grit every so far round its stride (radians). */
+const SCUFF_SPEED = 0.3;
+const SCUFF_EVERY = Math.PI * 4;
 /** How long each beat of its act takes. */
 const PHASE_MS: Partial<Record<Phase, number>> = {
   sit: 380,
@@ -180,7 +182,8 @@ export class Visit implements Removal {
   /** When it last batted something off as it walked, for its paw's swipes. */
   private lastBat = -Infinity;
   private introduced = false;
-  private readonly dust: Emitter;
+  /** Bits of grit its paws kick up off the pile: a few, small and quick, falling straight back. */
+  private readonly grit: Emitter;
   private readonly portrait: SpriteSource;
 
   constructor(
@@ -195,14 +198,13 @@ export class Visit implements Removal {
     this.toBat = Math.max(0, n - board.dropCount);
     this.flights = new Flights(board, n);
     this.portrait = catPortrait(palette);
-    this.dust = new Emitter(
+    this.grit = new Emitter(
       {
-        capacity: 160,
+        capacity: 60,
         blend: 'normal',
-        colorFrom: 'rgba(236, 226, 210, 0.3)',
-        drag: 2.5,
-        gravity: -30,
-        sizeOverLife: (u) => 0.5 + u,
+        colorFrom: 'rgba(206, 160, 178, 0.6)',
+        drag: 1.5,
+        gravity: 600,
       },
       rng,
     );
@@ -268,18 +270,8 @@ export class Visit implements Removal {
     if (this.phase !== 'done') drawCat(gfx, this.palette, look);
     this.drawSwooshes(gfx, t);
     this.drawTaps(gfx, t);
-    if (this.phase === 'zoom' && this.speed > 0.2) {
-      this.dust.stream(60 + 100 * this.speed, dt, () => ({
-        x: this.x - this.facing * (10 + 8 * this.rng()),
-        y: this.feetY - 1 - 5 * this.rng(),
-        vx: -this.facing * (30 + 50 * this.rng()),
-        vy: -(10 + 30 * this.rng()),
-        life: 450 + 300 * this.rng(),
-        size: 12 + 10 * this.rng(),
-      }));
-    }
-    this.dust.step(dt);
-    this.dust.draw(gfx);
+    this.grit.step(dt);
+    this.grit.draw(gfx);
     if (this.phase === 'stare2' || this.phase === 'meh') this.drawDots(gfx, look);
   }
 
@@ -330,7 +322,7 @@ export class Visit implements Removal {
           this.flights.launch(this.first, at.x, at.y, 430, -330, 10, t);
           this.batted++;
           board.fx.shake(2, 140);
-          this.puff(at.x, at.y, 5);
+          this.kick(at.x, at.y, 4, 1);
         }
         break;
       case 'sweep':
@@ -339,8 +331,16 @@ export class Visit implements Removal {
         }
         if (crossed(SWEEP_HIT)) this.sweep(t);
         break;
-      case 'zoom':
+      case 'zoom': {
+        const was = this.stride;
         this.walk(this.speed, dt);
+        // At full tilt, a scuff of grit as a hind paw pushes off, every other stride.
+        if (
+          this.speed > SCUFF_SPEED &&
+          Math.floor(this.stride / SCUFF_EVERY) > Math.floor(was / SCUFF_EVERY)
+        ) {
+          this.kick(this.x - this.facing * 12, this.feetY, 2, -this.facing);
+        }
         this.bat(t);
         if (this.batted >= this.toBat) {
           this.go('meh');
@@ -352,6 +352,7 @@ export class Visit implements Removal {
           this.go('turn');
         }
         break;
+      }
       case 'turn':
         if (crossed(0.5)) this.facing = this.facing === 1 ? -1 : 1;
         break;
@@ -501,7 +502,7 @@ export class Visit implements Removal {
     }
     board.fx.shake(5, 300);
     board.fx.hitStop(70);
-    this.puff(this.x + f * 40, this.feetY, 12);
+    this.kick(this.x + f * 40, this.feetY, 7, f);
   }
 
   /**
@@ -584,16 +585,16 @@ export class Visit implements Removal {
     });
   }
 
-  /** A little cloud of dust kicked up at (x, y). */
-  private puff(x: number, y: number, n: number): void {
+  /** `n` bits of grit kicked up at (x, y), flung a little `way` (1 right, -1 left), falling straight back. */
+  private kick(x: number, y: number, n: number, way: number): void {
     const { rng } = this;
-    this.dust.burst(n, () => ({
-      x: x + (rng() - 0.5) * 16,
-      y: y + (rng() - 0.5) * 6,
-      vx: (rng() - 0.5) * 90,
-      vy: -(20 + 50 * rng()),
-      life: 450 + 350 * rng(),
-      size: 9 + 7 * rng(),
+    this.grit.burst(n, () => ({
+      x: x + (rng() - 0.5) * 10,
+      y: y + (rng() - 0.5) * 3,
+      vx: way * (20 + 60 * rng()),
+      vy: -(50 + 70 * rng()),
+      life: 200 + 160 * rng(),
+      size: 2.5 + 2.5 * rng(),
     }));
   }
 
