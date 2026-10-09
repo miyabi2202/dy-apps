@@ -8,6 +8,7 @@ import {
   type ScoopShape,
   type SpriteSource,
 } from '../board';
+import { heap, MOUND_ICON_R, MOUND_KEEP, MOUND_SLOTS } from './mound';
 import { riderPortrait } from './portrait';
 import {
   blendPose,
@@ -15,26 +16,34 @@ import {
   drawShout,
   headTop,
   type Pose,
+  reachTo,
   riderSprite,
+  riseToReach,
   STAND_HIP,
 } from './rider';
 import {
   BARS,
+  boxScale,
   boxSprite,
-  boxTop,
   DELIVERY_SCHEMES,
   type DeliveryScheme,
   drawScooter,
+  drawSlack,
   FOOTBOARD,
   FRONT_WHEEL,
+  knotPoint,
+  lidLift,
+  lidPoint,
   REAR_WHEEL,
+  rimOf,
+  type RopeLook,
+  ropePoint,
   scooterSprite,
   SEAT,
   toWorld,
   WHEEL_R,
   WHEELBASE,
 } from './scooter';
-import { type Sway, Tower, TOWER_CAP } from './tower';
 import { easeOut, smooth } from '../kit/easing';
 import { clumpOf, clumpSomewhere } from '../kit/clump';
 import { Frames } from '../kit/clock';
@@ -49,41 +58,68 @@ const START_X = -110;
 /** He hops off over this long, and back on over this long. */
 const HOP_OFF_MS = 380;
 const HOP_ON_MS = 420;
-/** How long the stacking takes: this long, and this much more an icon, up to this long in all. */
-const STACK_MIN_MS = 700;
-const STACK_PER_ICON_MS = 38;
-const STACK_MAX_MS = 3400;
-/** The share of that spent stuffing the box, when there are more icons than the tower holds. */
-const BOX_SHARE = 0.45;
-/** An icon flies from the pile to his hands over this long, and from his hands onto the stack over this long. */
+/** How long the packing takes: this long, and this much more an icon, up to this long in all. */
+const PACK_MIN_MS = 700;
+const PACK_PER_ICON_MS = 38;
+const PACK_MAX_MS = 3000;
+/** The share of that spent stuffing the box, when there is more than the mound on top holds. */
+const BOX_SHARE = 0.5;
+/** An icon flies from the pile to his hands over this long, and from his hands into the box over this long. */
 const GRAB_MS = 170;
-const TOSS_MS = 400;
-/** The tower sways for at least this long once it is built before the top comes off, at a peak of its swing. */
-const TEETER_MS = 700;
-/** How long a full swing of the tower takes. */
-const SWAY_PERIOD_MS = 760;
-/** The duds come off the top over this long, and spill out of the box over this long. */
-const TOPPLE_MS = 340;
-const SPILL_MS = 420;
-/** He stares at what is left for this long, then shouts and hops on. */
-const STARE_MS = 650;
+const TOSS_MS = 380;
+/** Each go at forcing the lid shut takes this long. */
+const TRY_MS = 620;
+/** He glares at the heap for this long before giving up forcing it. */
+const SIGH_MS = 420;
+/** Throwing out the excess takes this long, and this much more a dud, up to this long in all. */
+const OUT_MIN_MS = 300;
+const OUT_PER_DUD_MS = 75;
+const OUT_MAX_MS = 2000;
+/** A dud goes from the heap to over his shoulder over this long; the one under it pops up into its place over this long. */
+const PLUCK_MS = 200;
+const POP_MS = 140;
+/** He slaps the lid shut over this long, then ties it down over this long. */
+const SHUT_MS = 360;
+const ROPE_MS = 1500;
+/** When, as shares of the tying, the second wrap starts, he starts on the knot, and he gives it a tug. */
+const WRAP_2 = 0.34;
+const KNOT_AT = 0.68;
+const TUG_AT = 0.86;
+/** He admires his knot for this long before he shouts and hops on. */
+const ADMIRE_MS = 220;
 /** The shout's bubble stays up this long. */
 const SHOUT_MS = 1150;
 /** He rides off over this long. */
 const RIDE_MS = 1750;
-/** He parks with the box this far right of the clump's middle, and stands this far left of the scooter's middle. */
+/** He parks with the box this far right of the clump's middle. */
 const BOX_TO_CLUMP = 37;
-const STAND_OFF = 84;
+/** He stands this far left of the scooter's middle to pack, and steps up to this far behind the box to force the lid and tie it. */
+const STAND_OFF = 92;
+const BESIDE = 9;
+/** The most he goes up on tiptoe, or jumps, to reach the lid. */
+const MAX_RISE = 16;
 /** The ground under a wheel or his feet may rise this much for each px the scooter moves across, and this much a ms besides. */
 const RISE_PER_PX = 1.2;
 const RISE_PER_MS = 0.02;
-/** How far down through the clump the scooter is reckoned to have sunk when the tower goes up. */
-const SINK = 0.7;
-/** The tower keeps this far below the view's top. */
-const TOP_MARGIN = 34;
 /** Where he can aim, as fractions of the canvas's width. */
 const AIM_FROM = 0.25;
 const AIM_TO = 0.75;
+/**
+ * The lid, in radians open: thrown wide as he packs, forced down this far at each go and
+ * springing back up this far, then left ajar on the mound and pulled down a little more by
+ * the rope, which bows it up this many px.
+ */
+const LID_OPEN = 1.75;
+const LID_PRESS = 0.08;
+const LID_SPRUNG = 0.85;
+const LID_AJAR = 0.12;
+const LID_TIED = 0.05;
+const BOW_TIED = 2.2;
+
+/** What becomes of an icon: stuffed into the box, kept on the mound in its top, or thrown out. */
+const BOXED = 0;
+const KEPT = 1;
+const DUD = 2;
 
 /** Sitting on the scooter, hands on the bars and feet on the footboard. */
 const SEATED: Pose = {
@@ -118,10 +154,11 @@ interface Look {
 
 /**
  * A food-delivery rider on an electric scooter: zooms in and skids to a stop on the pile, hops
- * off and frantically stacks the icons onto his delivery box (stuffing it first when there are
- * many) into a tall, teetering tower. It sways worse and worse until the duds topple off the
- * top and burst out of the box back onto the pile. He shouts that the order is delivered, hops
- * back on and pulls a wheelie off the canvas, the tower leaning wildly behind him.
+ * off and frantically packs the icons into his delivery box until a little heap sticks out of
+ * its top. He tries to force the lid shut on it, and it springs back up; so he throws the duds
+ * off the top over his shoulder back onto the pile, shuts the lid on what is left and ties it
+ * down with a rope. He shouts that the order is delivered, hops back on and pulls a wheelie off
+ * the canvas.
  */
 export class Delivery implements Remover {
   readonly name = 'delivery';
@@ -159,6 +196,13 @@ interface Ride {
   speed: number;
 }
 
+/** How the box is this frame: how swollen, how far its lid is open, and how far the lid bows. */
+interface Box {
+  bulge: number;
+  lid: number;
+  bow: number;
+}
+
 /** Where he is: his hip, how his frame is turned, his pose, and how wide his mouth is open. */
 interface Him {
   x: number;
@@ -171,27 +215,44 @@ interface Him {
 /** One delivery. */
 class Run implements Removal {
   private readonly t0: number;
-  /** Where the scooter parks, by its middle, and where he stands to stack. */
+  /** Where the scooter parks, by its middle, and where he stands to pack. */
   private readonly stopX: number;
   private readonly standX: number;
-  /** Where he rides off to, far enough right that the leaning tower is gone too. */
+  /** Where he rides off to, off the right of the canvas. */
   private readonly endX: number;
-  /** How many icons go into the box first, and how many stack in the tower after them. */
+  /** How many icons are thrown out, how many of the kept ones sit on the mound, and how many duds are on it to start with. */
+  private readonly drops: number;
+  private readonly keptMound: number;
+  private readonly shown: number;
+  /** How many icons go into the box first (the rest of the kept ones, and the duds the mound has no room for). */
   private readonly boxed: number;
-  private readonly tower: Tower;
+  /** How big the mound's icons are drawn, as a share of an icon's size. */
+  private readonly moundScale: number;
+  /** What becomes of each icon, and its slot on the mound (kept) or its turn to be thrown out (a dud). */
+  private readonly role: Uint8Array;
+  private readonly rank: Int32Array;
+  /** The duds, in the order they are thrown out, and when each goes. */
+  private readonly dudIcon: Int32Array;
+  private readonly tossAt: Float32Array;
+  /** How many goes he has at forcing the lid shut: two, or one when nothing is over. */
+  private readonly tries: number;
   /** When each phase starts or ends, in ms after `t0`. */
-  private readonly stackFrom: number;
+  private readonly packFrom: number;
   private readonly boxedBy: number;
-  private readonly stackedBy: number;
-  private readonly topple: number;
-  /** Which way the tower is swinging when its top comes off: 1 right, -1 left. */
-  private readonly toppleSide: number;
+  private readonly packedBy: number;
+  private readonly tryFrom: number;
+  private readonly triedBy: number;
+  private readonly outFrom: number;
+  private readonly shutAt: number;
+  private readonly ropeFrom: number;
   private readonly depart: number;
   private readonly mounted: number;
   private readonly done: number;
-  /** When each icon leaves the pile, and when it is dropped back (Infinity for one that isn't). */
+  /** How far the lid sits open on the mound once shut, and once tied. */
+  private readonly ajar: number;
+  private readonly tied: number;
+  /** When each icon leaves the pile. */
   private readonly launchAt: Float32Array;
-  private readonly dropAt: Float32Array;
   /** Where each icon left the pile from. */
   private readonly fromX: Float32Array;
   private readonly fromY: Float32Array;
@@ -204,9 +265,15 @@ class Run implements Removal {
   private groundStand = NaN;
   /** Where the scooter was across last frame, to know how far the ground may have risen under it. */
   private lastX = NaN;
+  /** Where his hip was this frame, for his sweat. */
+  private hipX = 0;
+  private hipY = 0;
   private stopped = false;
+  private slammed = 0;
+  private sighed = false;
+  private thudded = false;
+  private tugged = false;
   private introduced = false;
-  private spilled = false;
   private revved = false;
   private readonly dust: Emitter;
   private readonly sweat: Emitter;
@@ -219,7 +286,7 @@ class Run implements Removal {
     rng: () => number,
     private readonly look: Look,
   ) {
-    const { icons, world, iconRadius, camera, dropCount } = board;
+    const { icons, world, iconRadius, dropCount } = board;
     const n = icons.length;
     this.rng = rng;
     this.t0 = now;
@@ -248,28 +315,48 @@ class Run implements Removal {
       rng,
     );
 
-    const { x: clumpX, bottom } = clumpOf(icons, world, 40);
+    const { x: clumpX } = clumpOf(icons, world, 40);
     this.stopX = Math.min(world.width - 52, Math.max(STAND_OFF + 22, clumpX + BOX_TO_CLUMP));
     this.standX = this.stopX - STAND_OFF;
+    this.endX = world.width + 140;
+    this.hipX = this.standX;
 
-    // The tower stands on the box with its top under the view's top.
-    this.boxed = Math.max(0, n - TOWER_CAP);
-    const towered = n - this.boxed;
-    // By the time the tower goes up, the box has swallowed the top of the clump and the
-    // scooter has sunk most of the way down through it.
-    const parkedOn = this.groundAt(this.stopX);
-    const floor = camera.view.top + camera.view.height - 6;
-    const sunk = Math.min(floor, Math.max(parkedOn, parkedOn + SINK * (bottom - parkedOn)));
-    const maxHeight = sunk + boxTop(1.15).y - (camera.view.top + TOP_MARGIN);
-    this.tower = new Tower(Math.max(1, towered), iconRadius, maxHeight, rng);
-    this.endX = world.width + 140 + this.tower.height * 0.6;
+    // Who goes where: the kept ones fill the bottom of the mound and the rest go into the box;
+    // the duds are heaped over the mound, and those it has no room for wait in the box, to be
+    // pulled up out of it as the ones over them are thrown out.
+    this.drops = Math.min(dropCount, n);
+    const kept = n - this.drops;
+    this.keptMound = Math.min(kept, MOUND_KEEP);
+    this.shown = Math.min(this.drops, MOUND_SLOTS - this.keptMound);
+    const hidden = this.drops - this.shown;
+    this.boxed = kept - this.keptMound + hidden;
+    this.moundScale = MOUND_ICON_R / iconRadius;
+    this.role = new Uint8Array(n);
+    this.rank = new Int32Array(n);
+    this.dudIcon = new Int32Array(this.drops);
+    for (let j = 0; j < hidden; j++) {
+      const i = Math.floor((j * this.boxed) / hidden);
+      this.role[i] = DUD;
+      this.rank[i] = this.shown + j;
+      this.dudIcon[this.shown + j] = i;
+    }
+    for (let k = 0; k < this.keptMound; k++) {
+      this.role[this.boxed + k] = KEPT;
+      this.rank[this.boxed + k] = k;
+    }
+    for (let j = 0; j < this.shown; j++) {
+      const i = this.boxed + this.keptMound + j;
+      this.role[i] = DUD;
+      this.rank[i] = j;
+      this.dudIcon[j] = i;
+    }
 
-    // The stacking: the box first, then the tower layer by layer, ever faster.
-    this.stackFrom = ARRIVE_MS + HOP_OFF_MS;
-    const span = Math.min(STACK_MAX_MS, STACK_MIN_MS + n * STACK_PER_ICON_MS);
+    // The packing: the box first, then the mound, ever faster.
+    this.packFrom = ARRIVE_MS + HOP_OFF_MS;
+    const span = Math.min(PACK_MAX_MS, PACK_MIN_MS + n * PACK_PER_ICON_MS);
     const boxSpan = this.boxed > 0 ? span * BOX_SHARE : 0;
+    const heaped = Math.max(1, n - this.boxed);
     this.launchAt = new Float32Array(n);
-    this.dropAt = new Float32Array(n).fill(Infinity);
     this.fromX = new Float32Array(n);
     this.fromY = new Float32Array(n);
     this.launched = new Uint8Array(n);
@@ -277,38 +364,30 @@ class Run implements Removal {
     for (let i = 0; i < n; i++) {
       this.launchAt[i] =
         i < this.boxed
-          ? this.stackFrom + boxSpan * (i / this.boxed)
-          : this.stackFrom + boxSpan + (span - boxSpan) * ((i - this.boxed) / towered) ** 0.8;
+          ? this.packFrom + boxSpan * (i / this.boxed)
+          : this.packFrom + boxSpan + (span - boxSpan) * ((i - this.boxed) / heaped) ** 0.8;
     }
     const flight = GRAB_MS + TOSS_MS;
-    this.boxedBy = this.boxed > 0 ? this.launchAt[this.boxed - 1]! + flight : this.stackFrom;
-    this.stackedBy = (n > 0 ? this.launchAt[n - 1]! : this.stackFrom) + flight;
+    this.boxedBy = this.boxed > 0 ? this.launchAt[this.boxed - 1]! + flight : this.packFrom;
+    this.packedBy = (n > 0 ? this.launchAt[n - 1]! : this.packFrom) + flight;
 
-    // The top comes off at a peak of its swing, once it has teetered a while.
-    const omega = (Math.PI * 2) / SWAY_PERIOD_MS;
-    const swings = Math.ceil(
-      ((this.stackedBy + TEETER_MS - this.stackFrom) * omega) / Math.PI - 0.5,
-    );
-    this.topple = this.stackFrom + (Math.PI / 2 + swings * Math.PI) / omega;
-    this.toppleSide = swings % 2 === 0 ? 1 : -1;
-
-    // The duds: the top of the tower, and the rest from among those stuffed in the box.
-    const inTower = Math.min(
-      towered,
-      Math.max(Math.min(dropCount, Math.floor(towered * 0.6), towered - 1), dropCount - this.boxed),
-    );
-    const inBox = dropCount - inTower;
-    for (let j = 0; j < inTower; j++) {
-      // Top first, a little after one another.
-      this.dropAt[n - 1 - j] = this.topple + (TOPPLE_MS * j) / Math.max(1, inTower);
+    // Then the goes at the lid, throwing out the excess, shutting it and tying it down.
+    this.tries = this.drops > 0 ? 2 : 1;
+    this.tryFrom = this.packedBy + 150;
+    this.triedBy = this.tryFrom + this.tries * TRY_MS;
+    this.outFrom = this.triedBy + SIGH_MS;
+    const outSpan = Math.min(OUT_MAX_MS, OUT_MIN_MS + this.drops * OUT_PER_DUD_MS);
+    this.tossAt = new Float32Array(this.drops);
+    for (let j = 0; j < this.drops; j++) {
+      this.tossAt[j] = this.outFrom + outSpan * (j / this.drops);
     }
-    for (let j = 0; j < inBox; j++) {
-      const i = Math.floor((j * this.boxed) / inBox);
-      this.dropAt[i] = this.topple + 120 + (SPILL_MS * j) / inBox;
-    }
-    this.depart = this.topple + Math.max(TOPPLE_MS, inBox > 0 ? SPILL_MS + 120 : 0) + STARE_MS;
+    this.shutAt = this.drops > 0 ? this.outFrom + outSpan + PLUCK_MS : this.triedBy;
+    this.ropeFrom = this.drops > 0 ? this.shutAt + SHUT_MS : this.triedBy + 120;
+    this.depart = this.ropeFrom + ROPE_MS + ADMIRE_MS;
     this.mounted = this.depart + HOP_ON_MS;
     this.done = this.mounted + RIDE_MS;
+    this.ajar = this.keptMound > 0 ? LID_AJAR : 0;
+    this.tied = this.keptMound > 0 ? LID_TIED : 0;
   }
 
   isOver(now: number): boolean {
@@ -320,13 +399,13 @@ class Run implements Removal {
     const { look } = this;
     const dt = this.frames.dt(now);
     const ride = this.rideAt(t, dt);
-    const sway = this.swayAt(t);
-    const bulge = this.bulgeAt(t);
-    const base = toWorld(boxTop(bulge), ride.x, ride.y, ride.tilt);
-    const him = this.himAt(t, ride, dt);
+    const box: Box = { bulge: this.bulgeAt(t), lid: this.lidAt(t), bow: this.bowAt(t) };
+    const him = this.himAt(t, ride, box, dt);
+    this.hipX = him.x;
+    this.hipY = him.y;
     const toss = { x: this.standX + 12, y: this.groundStand - STAND_HIP - 44 };
 
-    this.events(t, ride, base);
+    this.events(t, ride, box);
     this.launch(t);
 
     // Behind it all: the skid mark, and streaks behind him as he zooms.
@@ -336,12 +415,13 @@ class Run implements Removal {
       tilt: ride.tilt,
       spin: (ride.x - START_X) / WHEEL_R,
       speed: ride.speed,
-      bulge,
-      lid: this.lidAt(t),
+      ...box,
+      rope: this.ropeAt(t),
+      contents: () => this.drawMound(gfx, t, box),
     });
-    this.drawTower(gfx, t, ride, sway, base);
     this.drawHim(gfx, him);
-    this.drawFlying(gfx, t, ride, sway, base, toss);
+    this.drawFlying(gfx, t, ride, box, toss, him);
+    this.drawHeldRope(gfx, t, ride, box, him);
 
     this.dust.step(dt);
     this.dust.draw(gfx);
@@ -357,8 +437,8 @@ class Run implements Removal {
     }
   }
 
-  /** What happens once at its moment: the skid's stop, the top coming off, the shout, the getaway. */
-  private events(t: number, ride: Ride, base: Point): void {
+  /** What happens once at its moment: the skid's stop, each slam of the lid, giving up, the thud, the tug, the shout, the getaway. */
+  private events(t: number, ride: Ride, box: Box): void {
     const { board, rng } = this;
     if (!this.stopped && t >= ARRIVE_MS) {
       this.stopped = true;
@@ -375,21 +455,35 @@ class Run implements Removal {
         }));
       }
     }
-    if (!this.spilled && t >= this.topple) {
-      this.spilled = true;
-      board.fx.shake(4, 300);
-      board.fx.hitStop(60);
+    // The lid slammed down on the heap.
+    while (this.slammed < this.tries && t >= this.tryFrom + (this.slammed + 0.48) * TRY_MS) {
+      this.slammed++;
+      board.fx.shake(2.5, 160);
+      this.sweatBurst(4);
+    }
+    if (!this.sighed && this.drops > 0 && t >= this.triedBy) {
+      this.sighed = true;
       this.sweatBurst(8);
-      if (this.boxed > 0) {
-        this.dust.burst(10, () => ({
-          x: base.x + (rng() - 0.5) * 30,
-          y: base.y,
-          vx: (rng() - 0.5) * 160,
-          vy: -(40 + 80 * rng()),
-          life: 500 + 300 * rng(),
-          size: 10 + 10 * rng(),
-        }));
-      }
+    }
+    // The lid slapped shut on what is left, with a puff out of the box.
+    if (!this.thudded && this.drops > 0 && t >= this.shutAt + SHUT_MS * 0.3) {
+      this.thudded = true;
+      board.fx.shake(3, 200);
+      const rim = toWorld(rimOf(box.bulge), ride.x, ride.y, ride.tilt);
+      this.dust.burst(8, () => ({
+        x: rim.x + (rng() - 0.3) * 40,
+        y: rim.y,
+        vx: (rng() - 0.3) * 120,
+        vy: -(20 + 50 * rng()),
+        life: 400 + 300 * rng(),
+        size: 8 + 8 * rng(),
+      }));
+    }
+    if (!this.tugged && t >= this.ropeFrom + TUG_AT * ROPE_MS) {
+      this.tugged = true;
+      board.fx.shake(2, 160);
+      board.fx.hitStop(50);
+      this.sweatBurst(3);
     }
     // As he shouts and hops back on, the cut-in.
     if (!this.introduced && t >= this.depart) {
@@ -414,7 +508,7 @@ class Run implements Removal {
     }
   }
 
-  /** Take each icon out of the pile as its turn comes to be tossed. */
+  /** Take each icon out of the pile as its turn comes to be packed. */
   private launch(t: number): void {
     const { board } = this;
     const n = board.icons.length;
@@ -427,68 +521,88 @@ class Run implements Removal {
     }
   }
 
-  /** The tower: each slot that has landed and not toppled, bottom up, and the top coming off. */
-  private drawTower(gfx: Gfx, t: number, ride: Ride, sway: Sway, base: Point): void {
-    const { board, tower } = this;
-    const n = board.icons.length;
-    const c = Math.cos(ride.tilt);
-    const s = Math.sin(ride.tilt);
+  /** Where slot `k` of the mound is in the scooter's frame, `rise` px down, squashed under the lid as it is. */
+  private slotAt(k: number, box: Box, rise = 0): ReturnType<typeof heap> {
+    const rim = rimOf(box.bulge);
+    const h = heap(k, boxScale(box.bulge).sx, rise, (dx) =>
+      lidLift(dx, box.bulge, box.lid, box.bow),
+    );
+    return { ...h, x: rim.x + h.x, y: rim.y + h.y };
+  }
+
+  /** Where slot `k` of the mound is in the world. */
+  private slotInWorld(k: number, ride: Ride, box: Box): Point {
+    return toWorld(this.slotAt(k, box), ride.x, ride.y, ride.tilt);
+  }
+
+  /** The mound in the top of the box, in the scooter's frame: the kept ones under the duds, and each dud waiting its turn. */
+  private drawMound(gfx: Gfx, t: number, box: Box): void {
     const landing = GRAB_MS + TOSS_MS;
-    for (let i = this.boxed; i < n; i++) {
-      if (this.finished[i] || t < this.launchAt[i]! + landing) continue;
-      const p = tower.place(i - this.boxed, sway);
-      const x = base.x + p.x * c - p.y * s;
-      const y = base.y + p.x * s + p.y * c;
-      if (t >= this.dropAt[i]!) {
-        // Off the top, flung the way it was swinging.
-        this.finished[i] = 1;
-        const side = this.toppleSide;
-        board.drop(
-          i,
-          x,
-          y,
-          side * (140 + 160 * this.rng()) + (this.rng() - 0.5) * 60,
-          -(60 + 140 * this.rng()),
-        );
+    const put = (k: number, rise: number) => {
+      const h = this.slotAt(k, box, rise);
+      gfx.icon(h.x, h.y, this.moundScale, {
+        rotation: h.rotation,
+        scaleX: h.scaleX,
+        scaleY: h.scaleY,
+      });
+    };
+    for (let k = 0; k < this.keptMound; k++) {
+      if (t >= this.launchAt[this.boxed + k]! + landing) put(k, 0);
+    }
+    for (let j = 0; j < this.drops; j++) {
+      if (t >= this.tossAt[j]!) continue;
+      if (j < this.shown) {
+        if (t >= this.launchAt[this.dudIcon[j]!]! + landing) put(this.keptMound + j, 0);
         continue;
       }
-      gfx.icon(x, y, 1, { rotation: ride.tilt + p.rotation, scaleX: p.scaleX, scaleY: p.scaleY });
+      // One from the box pops up into the place of the one thrown out over it.
+      const freed = this.tossAt[j - this.shown]!;
+      if (t < freed) break;
+      put(this.keptMound + (j % this.shown), 12 * (1 - easeOut((t - freed) / POP_MS)));
     }
   }
 
   /**
-   * The icons in the air: from the pile up to his hands, then tossed onto the top of the stack
-   * (or into the box, while it is being stuffed). Those that land in the box are gone, but for
-   * the duds, which wait in it to burst back out.
+   * The icons in the air: from the pile up to his hands, then tossed into the box or onto the
+   * mound; and the duds, from the mound over his shoulder, where he lets them go back onto the
+   * pile. Those that land in the box are gone, but for the duds, which wait in it.
    */
-  private drawFlying(gfx: Gfx, t: number, ride: Ride, sway: Sway, base: Point, toss: Point): void {
-    const { board, tower } = this;
+  private drawFlying(gfx: Gfx, t: number, ride: Ride, box: Box, toss: Point, him: Him): void {
+    const { board, rng } = this;
     const n = board.icons.length;
-    const c = Math.cos(ride.tilt);
-    const s = Math.sin(ride.tilt);
-    const mouth = { x: base.x, y: base.y + 4 };
+    const rim = rimOf(box.bulge);
+    const mouth = toWorld({ x: rim.x, y: rim.y + 4 }, ride.x, ride.y, ride.tilt);
+    const shoulder = { x: him.x - 6, y: him.y - 48 };
+    const landing = GRAB_MS + TOSS_MS;
+    const s = this.moundScale;
     for (let i = 0; i < n; i++) {
       if (!this.launched[i] || this.finished[i]) continue;
-      const age = t - this.launchAt[i]!;
-      const boxed = i < this.boxed;
-      if (boxed && t >= this.dropAt[i]!) {
-        // Bursting back out of the box, onto the pile.
-        this.finished[i] = 1;
-        board.drop(
-          i,
-          base.x + (this.rng() - 0.5) * 24,
-          base.y - 4,
-          (this.rng() - 0.5) * 380,
-          -(240 + 280 * this.rng()),
-        );
+      const role = this.role[i]!;
+      const rank = this.rank[i]!;
+      if (role === DUD && t >= this.tossAt[rank]!) {
+        const age = t - this.tossAt[rank]!;
+        if (age >= PLUCK_MS) {
+          // Let go over his shoulder, flung back onto the pile behind him.
+          this.finished[i] = 1;
+          board.drop(i, shoulder.x, shoulder.y, -(130 + 170 * rng()), -(170 + 190 * rng()));
+          continue;
+        }
+        // Plucked off the heap and swung up over his head.
+        const from = this.slotInWorld(this.keptMound + (rank % this.shown), ride, box);
+        const u = age / PLUCK_MS;
+        const e = smooth(u);
+        const x = from.x + (shoulder.x - from.x) * e;
+        const y = from.y + (shoulder.y - from.y) * e - 16 * Math.sin(Math.PI * u);
+        gfx.icon(x, y, s + (1 - s) * u, { rotation: -4 * u });
         continue;
       }
-      if (age >= GRAB_MS + TOSS_MS) {
-        if (boxed && this.dropAt[i] === Infinity) {
+      const age = t - this.launchAt[i]!;
+      if (age >= landing) {
+        if (role === BOXED) {
           this.finished[i] = 1;
           board.destroy(i);
         }
-        // A dud in the box waits there, unseen; one on the tower is drawn with it.
+        // One on the mound is drawn with it; a dud in the box waits there, unseen.
         continue;
       }
       if (age < GRAB_MS) {
@@ -499,22 +613,42 @@ class Run implements Removal {
         gfx.icon(x, y, 1, { rotation: u * 2 });
         continue;
       }
-      // Tossed up onto the stack, spinning, as the stack moves.
+      // Tossed up into the box, or onto the mound, spinning.
       const u = (age - GRAB_MS) / TOSS_MS;
-      let tx = mouth.x;
-      let ty = mouth.y;
+      let target = mouth;
       let scale = 1 - 0.35 * u;
-      if (!boxed) {
-        const p = tower.place(i - this.boxed, sway);
-        tx = base.x + p.x * c - p.y * s;
-        ty = base.y + p.x * s + p.y * c;
-        scale = 1 + (tower.scale - 1) * u;
+      const slot =
+        role === KEPT ? rank : role === DUD && rank < this.shown ? this.keptMound + rank : -1;
+      if (slot >= 0) {
+        target = this.slotInWorld(slot, ride, box);
+        scale = 1 + (s - 1) * u;
       }
       const e = smooth(u);
-      const lift = 40 + 0.3 * Math.max(0, toss.y - ty);
-      const x = toss.x + (tx - toss.x) * e;
-      const y = toss.y + (ty - toss.y) * e - lift * 4 * u * (1 - u);
+      const lift = 40 + 0.3 * Math.max(0, toss.y - target.y);
+      const x = toss.x + (target.x - toss.x) * e;
+      const y = toss.y + (target.y - toss.y) * e - lift * 4 * u * (1 - u);
       gfx.icon(x, y, scale, { rotation: (1 - u) * 5 * (i % 2 ? 1 : -1) });
+    }
+  }
+
+  /** The rope in his hands as he ties it: the end he is hauling round the box, then the two ends of the knot as he tugs it tight. */
+  private drawHeldRope(gfx: Gfx, t: number, ride: Ride, box: Box, him: Him): void {
+    if (t < this.ropeFrom || t >= this.depart - ADMIRE_MS) return;
+    const r = (t - this.ropeFrom) / ROPE_MS;
+    const hand = { x: him.x + him.pose.farHand.x, y: him.y + him.pose.farHand.y };
+    const world = (p: Point) => toWorld(p, ride.x, ride.y, ride.tilt);
+    if (r < KNOT_AT) {
+      const rope = this.ropeAt(t)!;
+      const k = r < WRAP_2 ? 0 : 1;
+      const end = world(ropePoint(k, rope.wraps[k], box.bulge, box.lid, box.bow));
+      drawSlack(gfx, end, hand, 7 + 3 * Math.sin(t * 0.02));
+      return;
+    }
+    if (r >= TUG_AT) {
+      const knot = world(knotPoint(box.bulge, box.lid, box.bow));
+      const near = { x: him.x + him.pose.nearHand.x, y: him.y + him.pose.nearHand.y };
+      drawSlack(gfx, knot, near, 0.5);
+      drawSlack(gfx, knot, hand, 0.5);
     }
   }
 
@@ -549,51 +683,106 @@ class Run implements Removal {
     }
   }
 
-  /** How far the tower leans at `t`: a little as it goes up, worse and worse until the top comes off, then wildly as he rides. */
-  private swayAt(t: number): Sway {
-    if (t < this.stackFrom) return { lean: 0, whip: 0 };
-    const omega = (Math.PI * 2) / SWAY_PERIOD_MS;
-    const phase = (t - this.stackFrom) * omega;
-    let amp: number;
-    if (t < this.stackedBy)
-      amp = 0.06 + 0.1 * smooth((t - this.stackFrom) / (this.stackedBy - this.stackFrom));
-    else if (t < this.topple)
-      amp = 0.16 + 0.32 * smooth((t - this.stackedBy) / (this.topple - this.stackedBy));
-    else amp = 0.48 - 0.3 * smooth((t - this.topple) / 500);
-    // Each icon landing knocks it.
-    const jiggle = t < this.stackedBy ? 0.03 * Math.sin(t * 0.05) : 0;
-    let lean = amp * Math.sin(phase) + jiggle;
-    let whip = 0.5 * amp * Math.sin(phase * 2.3 + 1);
-    if (t >= this.depart) {
-      // The hop back on jolts it, and riding off it leans back wildly, then flails.
-      const hop = Math.sin(Math.PI * Math.min(1, (t - this.depart) / HOP_ON_MS));
-      lean += 0.12 * hop;
-      if (t >= this.mounted) {
-        const u = (t - this.mounted) / RIDE_MS;
-        lean += -0.55 * smooth(u / 0.25) * (1 - 0.5 * u) + 0.22 * Math.sin(t * 0.011);
-        whip += 0.35 * Math.sin(t * 0.019) * smooth(u / 0.2);
+  /** Which go at the lid `t` is in, and how far through it; null outside them. */
+  private tryAt(t: number): { k: number; u: number } | null {
+    if (t < this.tryFrom || t >= this.triedBy) return null;
+    const k = Math.floor((t - this.tryFrom) / TRY_MS);
+    return { k, u: (t - this.tryFrom - k * TRY_MS) / TRY_MS };
+  }
+
+  /** Whether go `k` at the lid is the one that shuts it (the only one, when nothing is over). */
+  private shutsOn(k: number): boolean {
+    return this.drops === 0 && k === this.tries - 1;
+  }
+
+  /** How far through the tying `t` is, 0 to 1. */
+  private ropeShare(t: number): number {
+    return Math.min(1, Math.max(0, (t - this.ropeFrom) / ROPE_MS));
+  }
+
+  /** How hard he is tugging the knot at `t`, 0 to 1 and back. */
+  private tugAt(t: number): number {
+    return Math.sin(
+      Math.PI * Math.min(1, Math.max(0, (this.ropeShare(t) - TUG_AT) / (1 - TUG_AT))),
+    );
+  }
+
+  /** The rope at `t`: each wrap pulled down round the box in turn, then the knot; none before he starts. */
+  private ropeAt(t: number): RopeLook | undefined {
+    if (t < this.ropeFrom) return undefined;
+    const r = this.ropeShare(t);
+    return {
+      wraps: [smooth(r / (WRAP_2 - 0.04)), smooth((r - WRAP_2) / (KNOT_AT - WRAP_2 - 0.04))],
+      knot: smooth((r - KNOT_AT) / 0.12),
+    };
+  }
+
+  /**
+   * How far the lid is open at `t`: flapping as the box is stuffed and thrown wide for the
+   * mound; slammed down on the heap and springing back at each go; up while the excess is
+   * thrown out; slapped shut, ajar on what is left; and pulled down by the rope.
+   */
+  private lidAt(t: number): number {
+    if (t < this.packFrom) return 0;
+    if (t < this.tryFrom) {
+      const open = smooth((t - this.packFrom) / 160);
+      const flap = 0.75 + 0.35 * Math.sin(t * 0.05);
+      const wide =
+        this.boxed > 0
+          ? flap + (LID_OPEN - flap) * smooth((t - this.boxedBy + 200) / 260)
+          : LID_OPEN;
+      return open * wide;
+    }
+    const go = this.tryAt(t);
+    if (go) {
+      const { k, u } = go;
+      // Hauled down a little as he jumps for it, then slammed down on the heap.
+      const from = (k === 0 ? LID_OPEN : LID_SPRUNG) - 0.2 * smooth(u / 0.3);
+      if (u < 0.3) return from;
+      if (u < 0.48) return from + (LID_PRESS - from) * ((u - 0.3) / 0.18) ** 2;
+      if (this.shutsOn(k)) return LID_PRESS + (this.ajar - LID_PRESS) * smooth((u - 0.48) / 0.3);
+      // Held down as the heap shoves back, then springing up out of his hands.
+      if (u < 0.68) return LID_PRESS + 0.07 * Math.abs(Math.sin(((u - 0.48) / 0.2) * 3 * Math.PI));
+      return LID_PRESS + (LID_SPRUNG - LID_PRESS) * springy((u - 0.68) / 0.32);
+    }
+    if (this.drops > 0 && t < this.shutAt) {
+      return LID_SPRUNG + 0.05 * Math.sin(t * 0.03) * smooth((t - this.triedBy) / 200);
+    }
+    if (this.drops > 0 && t < this.shutAt + SHUT_MS) {
+      const v = (t - this.shutAt) / SHUT_MS;
+      return Math.max(0, this.ajar + (LID_SPRUNG - this.ajar) * (1 - springy(v)));
+    }
+    const r = this.ropeShare(t);
+    return Math.max(
+      0,
+      this.ajar + (this.tied - this.ajar) * smooth(r / KNOT_AT) - 0.03 * this.tugAt(t),
+    );
+  }
+
+  /** How far the lid bows up at `t`: as the rope pulls it down on what is in the box, most as he tugs the knot. */
+  private bowAt(t: number): number {
+    if (t < this.ropeFrom) return 0;
+    return BOW_TIED * smooth((this.ropeShare(t) - 0.1) / 0.6) + 0.8 * this.tugAt(t);
+  }
+
+  /** How swollen the box is at `t`: fatter the more is stuffed in it, a gulp at each, squeezed out at each go at the lid and at the tug. */
+  private bulgeAt(t: number): number {
+    if (t < this.packFrom) return 1;
+    let bulge = 1;
+    if (this.boxed > 0) {
+      const fat = 0.15 * Math.min(1, 0.35 + this.boxed / 40);
+      bulge += fat * smooth((t - this.packFrom) / Math.max(1, this.boxedBy - this.packFrom));
+      if (t < this.boxedBy) bulge += 0.035 * Math.abs(Math.sin(t * 0.045));
+      // A little less, once the duds waiting in it are pulled out.
+      const hidden = this.drops - this.shown;
+      if (hidden > 0) {
+        const out = smooth((t - this.outFrom) / Math.max(1, this.shutAt - this.outFrom));
+        bulge -= 0.4 * fat * (hidden / this.boxed) * out;
       }
     }
-    return { lean, whip };
-  }
-
-  /** How swollen the box is at `t`: fatter the more is stuffed in it, a gulp at each, and less once the duds burst out. */
-  private bulgeAt(t: number): number {
-    if (this.boxed === 0 || t < this.stackFrom) return 1;
-    const full = smooth((t - this.stackFrom) / Math.max(1, this.boxedBy - this.stackFrom));
-    const gulp = t < this.boxedBy ? 0.035 * Math.abs(Math.sin(t * 0.045)) : 0;
-    const burst = t >= this.topple ? 0.06 * smooth((t - this.topple) / SPILL_MS) : 0;
-    return 1 + 0.15 * full + gulp - burst;
-  }
-
-  /** How far the box's lid is open at `t`: flapping as it is stuffed, flung open as the duds burst out. */
-  private lidAt(t: number): number {
-    if (this.boxed === 0) return 0;
-    const open = (from: number, to: number, ease: number) =>
-      smooth((t - from) / ease) * (1 - smooth((t - to) / ease));
-    const flap = open(this.stackFrom, this.boxedBy, 120) * (0.7 + 0.4 * Math.sin(t * 0.05));
-    const burst = open(this.topple + 60, this.topple + 120 + SPILL_MS, 90) * 2.1;
-    return flap + burst;
+    const go = this.tryAt(t);
+    if (go) bulge += 0.07 * Math.sin(Math.PI * Math.min(1, Math.max(0, (go.u - 0.4) / 0.35)));
+    return bulge + 0.04 * this.tugAt(t);
   }
 
   /** The scooter at `t`: zooming in and skidding to a stop, parked, then pulling a wheelie off to the right. */
@@ -649,8 +838,8 @@ class Run implements Removal {
     return this.stopX + (this.endX - this.stopX) * u * u;
   }
 
-  /** Him at `t`: riding in, hopping off, stacking in a frenzy, staring up at the tower, hopping back on and riding off. */
-  private himAt(t: number, ride: Ride, dt: number): Him {
+  /** Him at `t`: riding in, hopping off, at work on the box, hopping back on and riding off. */
+  private himAt(t: number, ride: Ride, box: Box, dt: number): Him {
     const seat = toWorld(SEAT, ride.x, ride.y, ride.tilt);
     this.groundStand = follow(this.groundStand, this.groundAt(this.standX), dt, dt * RISE_PER_MS);
     const stand = { x: this.standX, y: this.groundStand - STAND_HIP };
@@ -660,7 +849,7 @@ class Run implements Removal {
       const pose = { ...SEATED, lean: SEATED.lean + 0.25 * (1 - u) - 0.3 * brace };
       return { x: seat.x, y: seat.y, turn: ride.tilt, pose, mouth: 0.6 * brace };
     }
-    if (t < this.stackFrom) {
+    if (t < this.packFrom) {
       // Hopping off, over the box, to stand behind the scooter.
       const u = smooth((t - ARRIVE_MS) / HOP_OFF_MS);
       return {
@@ -671,13 +860,14 @@ class Run implements Removal {
         mouth: 0,
       };
     }
-    if (t < this.depart) return this.atWork(t, stand, dt);
+    if (t < this.depart) return this.atWork(t, stand, ride, box, dt);
+    const near = this.closeBy(stand, ride, box);
     if (t < this.mounted) {
       // Back on, in one leap.
       const u = smooth((t - this.depart) / HOP_ON_MS);
       return {
-        x: stand.x + (seat.x - stand.x) * u,
-        y: stand.y + (seat.y - stand.y) * u - 34 * Math.sin(Math.PI * u),
+        x: near.x + (seat.x - near.x) * u,
+        y: near.y + (seat.y - near.y) * u - 34 * Math.sin(Math.PI * u),
         turn: ride.tilt * u,
         pose: blendPose(blendPose(STANDING, cheer(t), 1 - u), SEATED, u),
         mouth: 1,
@@ -688,10 +878,23 @@ class Run implements Removal {
     return { x: seat.x, y: seat.y, turn: ride.tilt, pose, mouth: u < 0.4 ? 0.8 : 0 };
   }
 
-  /** Him off the scooter: tossing icons up as fast as his arms go, then staring up as the tower teeters, flinching as its top comes off. */
-  private atWork(t: number, stand: Point, dt: number): Him {
+  /** Where he stands to work on the box: just behind its back edge, wherever the scooter's tilt and the box's swelling put it. */
+  private closeBy(stand: Point, ride: Ride, box: Box): Point {
+    const back = toWorld(lidPoint(0, box.bulge, 0, 0), ride.x, ride.y, ride.tilt);
+    return { x: back.x - BESIDE, y: stand.y };
+  }
+
+  /**
+   * Him off the scooter: packing as fast as his arms go; jumping up to force the lid down and
+   * being thrown off as it springs back; throwing the excess over his shoulder; slapping the lid
+   * shut; and tying it down.
+   */
+  private atWork(t: number, stand: Point, ride: Ride, box: Box, dt: number): Him {
     const head = headTop(0);
-    if (t < this.stackedBy - TOSS_MS) {
+    const close = this.closeBy(stand, ride, box);
+    const onLid = (f: number) =>
+      toWorld(lidPoint(f, box.bulge, box.lid, box.bow), ride.x, ride.y, ride.tilt);
+    if (t < this.packedBy - TOSS_MS) {
       // Arms pumping one after the other, feet stamping, mouth going.
       const beat = t * 0.036;
       const near = 0.5 + 0.5 * Math.sin(beat);
@@ -719,37 +922,227 @@ class Run implements Removal {
         mouth: 0.35 + 0.3 * Math.sin(t * 0.05),
       };
     }
-    if (t < this.topple) {
-      // Backing off a step, hands up to steady it from afar, staring up.
-      const u = smooth((t - (this.stackedBy - TOSS_MS)) / 300);
-      const steady = Math.sin(t * 0.012) * 3;
-      const pose: Pose = {
-        lean: -0.22 * u,
-        nearHand: { x: 14 + steady, y: -38 },
-        farHand: { x: 10 + steady, y: -36 },
-        nearFoot: { x: 4, y: STAND_HIP },
-        farFoot: { x: -6, y: STAND_HIP },
+    if (t < this.tryFrom) {
+      // A step up to the box, sizing up the heap, hands rising.
+      const u = smooth((t - (this.packedBy - TOSS_MS)) / (this.tryFrom - this.packedBy + TOSS_MS));
+      const ready: Pose = {
+        lean: 0.05,
+        nearHand: { x: 10, y: -30 },
+        farHand: { x: 6, y: -28 },
+        nearFoot: { x: 5, y: STAND_HIP },
+        farFoot: { x: -5, y: STAND_HIP },
       };
-      this.sweat.stream(6, dt, () => this.sweatDrop(stand.x + head.x, stand.y + head.y));
       return {
-        x: stand.x - 6 * u,
+        x: stand.x + (close.x - stand.x) * u,
         y: stand.y,
         turn: 0,
-        pose: blendPose(STANDING, pose, u),
+        pose: blendPose(STANDING, ready, u),
         mouth: 0.2,
       };
     }
-    // The top comes off: he jumps, hands to his helmet.
-    const since = t - this.topple;
-    const jump = 10 * Math.sin(Math.PI * Math.min(1, since / 320));
+    const go = this.tryAt(t);
+    if (go) return this.forcing(go.k, go.u, t, close, onLid(0.3));
+    if (this.drops > 0 && t < this.outFrom) {
+      // Glaring at it, hands on his hips, then wiping his brow.
+      const u = (t - this.triedBy) / SIGH_MS;
+      const pose: Pose = {
+        lean: -0.12,
+        nearHand: u < 0.5 ? { x: 7, y: -6 } : { x: 10, y: -38 },
+        farHand: { x: -4, y: -6 },
+        nearFoot: { x: 6, y: STAND_HIP },
+        farFoot: { x: -6, y: STAND_HIP },
+      };
+      return {
+        x: close.x - 10 * (1 - smooth(u)),
+        y: close.y,
+        turn: 0,
+        pose: blendPose(STANDING, pose, smooth(u / 0.3)),
+        mouth: 0.15,
+      };
+    }
+    if (this.drops > 0 && t < this.shutAt) {
+      // Plucking off the top two-handed, one hand after the other, and over his shoulder.
+      const top = toWorld(
+        { x: rimOf(box.bulge).x - 12, y: rimOf(box.bulge).y - 10 },
+        ride.x,
+        ride.y,
+        ride.tilt,
+      );
+      const swing = 0.5 + 0.5 * Math.sin(((t - this.outFrom) / PLUCK_MS) * Math.PI);
+      const lean = -0.1 + 0.12 * (swing - 0.5);
+      const grab = { x: top.x - close.x, y: top.y - close.y };
+      const rise = Math.min(6, riseToReach(grab, lean));
+      grab.y += rise;
+      const back = { x: -7, y: -44 };
+      const mix = (a: Point, b: Point, u: number) => ({
+        x: a.x + (b.x - a.x) * u,
+        y: a.y + (b.y - a.y) * u,
+      });
+      this.sweat.stream(8, dt, () => this.sweatDrop(close.x + head.x, close.y - rise + head.y));
+      return {
+        x: close.x,
+        y: close.y - rise,
+        turn: 0,
+        pose: {
+          lean,
+          nearHand: reachTo(mix(back, grab, swing), lean),
+          farHand: reachTo(mix(grab, back, swing), lean),
+          nearFoot: { x: 5, y: Math.min(29.5, STAND_HIP + rise) },
+          farFoot: { x: -5, y: Math.min(29.5, STAND_HIP + rise) },
+        },
+        mouth: 0.4 + 0.3 * Math.sin(t * 0.06),
+      };
+    }
+    if (this.drops > 0 && t < this.ropeFrom) {
+      // Slapping the lid shut with both hands.
+      return this.reaching(close, onLid(0.35), onLid(0.2), 0.2, 0.5);
+    }
+    return this.tying(t, close, ride, box);
+  }
+
+  /** Him at go `k` at the lid, `u` of the way through: jumping up, hanging on it with his legs kicking, then thrown off as it springs back. */
+  private forcing(k: number, u: number, t: number, close: Point, grip: Point): Him {
+    // Knocked back by the last go, he steps in again.
+    const x = close.x - (k > 0 ? 10 * (1 - smooth(u / 0.3)) : 0);
+    if (u < 0.3) {
+      const crouch = 3 * Math.sin(Math.PI * Math.min(1, u / 0.12));
+      const jump = MAX_RISE * smooth((u - 0.12) / 0.18);
+      const y = close.y + crouch - jump;
+      const aim = { x: grip.x - x, y: grip.y - 6 - y };
+      const lift = smooth(u / 0.3);
+      const pose: Pose = {
+        lean: 0.2 * lift,
+        nearHand: reachTo({ x: 10 + (aim.x - 10) * lift, y: -28 + (aim.y + 28) * lift }, 0.2),
+        farHand: reachTo({ x: 6 + (aim.x - 8) * lift, y: -26 + (aim.y + 26) * lift }, 0.2),
+        nearFoot: { x: 5, y: Math.min(29.5, STAND_HIP - crouch + jump) },
+        farFoot: { x: -5, y: Math.min(29.5, STAND_HIP - crouch + jump) },
+      };
+      return { x, y, turn: 0, pose, mouth: 0.3 };
+    }
+    if (u < 0.68 || this.shutsOn(k)) {
+      // Hanging on it, pushing down with both hands, legs kicking.
+      const settle = this.shutsOn(k) ? smooth((u - 0.7) / 0.3) : 0;
+      const him = this.reaching(
+        { x, y: close.y },
+        grip,
+        { x: grip.x - 5, y: grip.y + 1 },
+        0.3,
+        0.6,
+      );
+      const kick = 4 * Math.sin(t * 0.07) * (1 - settle);
+      him.pose.nearFoot = { x: 6 + kick, y: him.pose.nearFoot.y - 2 };
+      him.pose.farFoot = { x: -6 - kick, y: him.pose.farFoot.y - 1 };
+      him.y += 1.5 * Math.sin(t * 0.06) * (1 - settle);
+      return settle > 0
+        ? {
+            ...him,
+            y: him.y + (close.y - him.y) * settle,
+            pose: blendPose(him.pose, STANDING, settle),
+          }
+        : him;
+    }
+    // Sprung off it: knocked back, arms flung up, yelling.
+    const v = (u - 0.68) / 0.32;
+    const from = this.reaching({ x, y: close.y }, grip, grip, 0.3, 0);
     const pose: Pose = {
-      lean: -0.3,
-      nearHand: { x: 10, y: -42 },
-      farHand: { x: -2, y: -44 },
-      nearFoot: { x: 6, y: STAND_HIP - 2 },
-      farFoot: { x: -6, y: STAND_HIP - 2 },
+      lean: 0.3 - 0.6 * Math.sin(Math.PI * Math.min(1, v * 1.4)),
+      nearHand: { x: 8, y: -44 },
+      farHand: { x: -6, y: -42 },
+      nearFoot: { x: 8, y: STAND_HIP - 3 },
+      farFoot: { x: -2, y: STAND_HIP - 1 },
     };
-    return { x: stand.x - 6, y: stand.y - jump, turn: 0, pose, mouth: 0.9 };
+    return {
+      x: x - 10 * easeOut(v),
+      y: from.y + (close.y - from.y) * easeOut(v) - 6 * Math.sin(Math.PI * v),
+      turn: 0,
+      pose: blendPose(from.pose, pose, smooth(v / 0.3)),
+      mouth: 0.95,
+    };
+  }
+
+  /** Him reaching `near` and `far` (world points) with his hands, up on tiptoe or off the ground as he must, leaning `lean`. */
+  private reaching(at: Point, near: Point, far: Point, lean: number, mouth: number): Him {
+    const rel = (p: Point, y: number) => ({ x: p.x - at.x, y: p.y - y });
+    const rise = Math.min(MAX_RISE, riseToReach(rel(near, at.y), lean));
+    const y = at.y - rise;
+    return {
+      x: at.x,
+      y,
+      turn: 0,
+      pose: {
+        lean,
+        nearHand: reachTo(rel(near, y), lean),
+        farHand: reachTo(rel(far, y), lean),
+        nearFoot: { x: 5, y: Math.min(29.5, STAND_HIP + rise) },
+        farFoot: { x: -5, y: Math.min(29.5, STAND_HIP + rise) },
+      },
+      mouth,
+    };
+  }
+
+  /** Him tying the box down: hauling each wrap round it hand over hand, working the knot, tugging it tight, then admiring it. */
+  private tying(t: number, close: Point, ride: Ride, box: Box): Him {
+    const r = this.ropeShare(t);
+    const world = (p: Point) => toWorld(p, ride.x, ride.y, ride.tilt);
+    if (t < this.ropeFrom) {
+      // Nothing was over: he gets the rope out.
+      return { x: close.x, y: close.y, turn: 0, pose: STANDING, mouth: 0 };
+    }
+    if (r < KNOT_AT) {
+      // Feeding the rope over the lid with one hand, hauling on it with the other.
+      const k = r < WRAP_2 ? 0 : 1;
+      const top = world(ropePoint(k, 0, box.bulge, box.lid, box.bow));
+      const haul = Math.sin(t * 0.03);
+      const him = this.reaching(close, top, top, 0.12, 0.3);
+      him.pose.farHand = { x: 2 - 6 * haul, y: -22 + 3 * haul };
+      return him;
+    }
+    const knot = world(knotPoint(box.bulge, box.lid, box.bow));
+    if (r < TUG_AT) {
+      // Working the knot with both hands, tongue out.
+      const jiggle = 2 * Math.sin(t * 0.09);
+      return this.reaching(
+        close,
+        { x: knot.x + jiggle, y: knot.y },
+        { x: knot.x - 3 - jiggle, y: knot.y + 1 },
+        0.18,
+        0.25,
+      );
+    }
+    if (r < 1) {
+      // A good hard tug on both ends.
+      const tug = this.tugAt(t);
+      const him = this.reaching(close, knot, knot, 0.18, 0.6);
+      const back: Pose = {
+        lean: -0.35,
+        nearHand: { x: -1, y: -28 },
+        farHand: { x: -4, y: -26 },
+        nearFoot: { x: 8, y: STAND_HIP },
+        farFoot: { x: -2, y: STAND_HIP },
+      };
+      return {
+        x: close.x - 4 * tug,
+        y: close.y,
+        turn: 0,
+        pose: blendPose(him.pose, back, tug),
+        mouth: 0.6,
+      };
+    }
+    // Dusting off his hands, pleased with it.
+    const clap = Math.abs(Math.sin(t * 0.04)) * 3;
+    return {
+      x: close.x,
+      y: close.y,
+      turn: 0,
+      pose: {
+        lean: -0.06,
+        nearHand: { x: 9 + clap, y: -14 },
+        farHand: { x: 6 - clap, y: -13 },
+        nearFoot: { x: 4, y: STAND_HIP },
+        farFoot: { x: -4, y: STAND_HIP },
+      },
+      mouth: 0,
+    };
   }
 
   /** A drop of sweat flying off his helmet. */
@@ -769,11 +1162,11 @@ class Run implements Removal {
     };
   }
 
-  /** A burst of sweat off his helmet. */
+  /** A burst of sweat off his helmet, wherever he is. */
   private sweatBurst(n: number): void {
     const head = headTop(0);
-    const x = this.standX - 6 + head.x;
-    const y = this.groundStand - STAND_HIP + head.y;
+    const x = this.hipX + head.x;
+    const y = this.hipY + head.y;
     this.sweat.burst(n, () => this.sweatDrop(x, y));
   }
 
@@ -806,6 +1199,12 @@ class Run implements Removal {
 function follow(from: number, to: number, dt: number, rise: number): number {
   if (Number.isNaN(from)) return to;
   return from + (Math.max(to, from - rise) - from) * (1 - Math.exp(-dt / 90));
+}
+
+/** 0 to 1 like a spring let go: fast, past 1, and back. */
+function springy(u: number): number {
+  const c = Math.min(1, Math.max(0, u));
+  return 1 - Math.exp(-6 * c) * Math.cos(9 * c);
 }
 
 /** Arms flung up as he shouts. */
