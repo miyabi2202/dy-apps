@@ -2,6 +2,7 @@ import type { Remover } from './board';
 import { HotAirBalloon } from './balloon/hot-air-balloon';
 import { BlackHole } from './black-hole/black-hole';
 import { ClawMachine } from './claw/claw-machine';
+import { Delivery } from './delivery/delivery';
 import { Fireworks } from './fireworks/fireworks';
 import { Evanesco } from './evanesco/evanesco';
 import { Helicopter } from './helicopter/helicopter';
@@ -20,4 +21,5 @@ export const allRemovers = (): Remover[] => [
   new Fireworks(),
   new BlackHole(),
   new Evanesco(),
+  new Delivery(),
 ];
