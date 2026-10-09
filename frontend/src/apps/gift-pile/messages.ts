@@ -46,6 +46,7 @@ export const labels = {
       hamster: '仓鼠',
       cat: '猫猫',
       subway: '地铁',
+      delivery: '外卖',
     } as Record<string, string>,
   },
   effects: {
@@ -71,6 +72,7 @@ export const labels = {
       hamster: '塞不下啦！',
       cat: '喵？',
       subway: '挤一挤，还能上！',
+      delivery: '您的订单已送达！',
     } as Record<string, string>,
   },
   bin: '垃圾桶',

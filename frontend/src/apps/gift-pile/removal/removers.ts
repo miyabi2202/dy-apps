@@ -3,6 +3,7 @@ import { HotAirBalloon } from './balloon/hot-air-balloon';
 import { BlackHole } from './black-hole/black-hole';
 import { Cat } from './cat/cat';
 import { ClawMachine } from './claw/claw-machine';
+import { Delivery } from './delivery/delivery';
 import { Fireworks } from './fireworks/fireworks';
 import { Hamster } from './hamster/hamster';
 import { Evanesco } from './evanesco/evanesco';
@@ -26,4 +27,5 @@ export const allRemovers = (): Remover[] => [
   new Hamster(),
   new Cat(),
   new Subway(),
+  new Delivery(),
 ];
