@@ -1,97 +1,133 @@
 import type { Gfx, ShaderSource } from '../board';
 
-// The hamster's face, drawn in GLSL through `Gfx.shade`: its round head and the cheek pouch
-// that swells under it with every mouthful, into one furry ball. The `shade()` gets its position
-// in px from the box's middle and returns a premultiplied colour; the prelude
-// (`render/gl/shaders/prelude.ts`) supplies `smin`, `snoise` and `cover`.
+// The hamster's round body, drawn in GLSL through `Gfx.shade`: one soft ball of fur that is its
+// head and body together, its ears on top and the two cheek pouches either side of its face that
+// swell with every mouthful. The `shade()` gets its position in px from the box's middle (the
+// ball's middle) and returns a premultiplied colour; the prelude (`render/gl/shaders/prelude.ts`)
+// supplies `smin`, `sdEllipse` and `cover`.
 
 /**
- * The head and its cheek pouch: two balls of fur melted into one, golden on top and creamy
- * underneath, softly lit from the top left, with a fringe of fur, a brown outline and, as the
- * pouch stretches tight, a shine on it and lumps where the icons are packed in.
+ * The ball: golden on top and creamy-white on its belly, muzzle and under its cheeks, softly lit
+ * from the top left, with round ears with pink insides, a thin warm outline and, as the pouches
+ * stretch tight, a shine on each. It works facing right and unsquashed, so it first undoes the
+ * squash and the mirroring it is drawn with.
  */
-export const FACE_SHADER: ShaderSource = {
-  key: 'hamster/face',
+export const BALL_SHADER: ShaderSource = {
+  key: 'hamster/ball',
   glsl: `
-// P: the head's middle (x, y) and radius, the pouch's radius. Q: the pouch's middle (x, y), how
-// stuffed it is (0 to 1), a seed. color: the fur on top. All from the box's middle.
+// P: the ball's radii (x, y), its face's middle across it, and which way it faces (the sign)
+// times how squashed it is. Q: the pouches' radius, how far each is from the face's middle, how
+// far down they are, and how stuffed they are (0 to 1). color: the fur on top. The face is a
+// quarter of the ball's height up from its middle.
 vec4 shade(vec2 p, vec4 P, vec4 Q, vec3 color) {
-  vec2 hc = P.xy;
-  float R = P.z;
-  float C = max(P.w, 0.5);
-  vec2 cc = Q.xy;
-  float stuffed = Q.z;
-  float seed = Q.w;
-  // The pouch, lumpy with what is packed into it, melted into the head.
-  vec2 pc = p - cc;
-  vec2 dir = pc / max(length(pc), 1e-3);
-  float lumps = snoise(dir * 1.7 + vec2(seed, seed * 0.37)) * 0.6
-              + snoise(dir * 3.1 - vec2(seed * 0.5, seed)) * 0.4;
-  float dc = length(pc) - C - lumps * C * 0.05 * stuffed;
-  float dh = length(p - hc) - R;
-  float d = smin(dh, dc, R * 0.9);
-  // A fringe of fur round the edge, smoother where the pouch is stretched.
-  d += snoise(p * 0.22 + seed) * (0.65 - 0.35 * stuffed);
+  vec2 r = P.xy;
+  float fx = P.z;
+  float sq = max(abs(P.w), 0.1);
+  float dir = P.w < 0.0 ? -1.0 : 1.0;
+  float cr = Q.x;
+  float cdx = Q.y;
+  float cy = Q.z;
+  float stuffed = Q.w;
+  vec2 q = vec2(p.x * dir * sq, p.y / sq);
+  float fy = -0.25 * r.y;
+  float lw = max(0.75, v_px * 1.4);
+  vec3 cream = vec3(1.0, 0.955, 0.89);
+  vec3 line = color * vec3(0.74, 0.62, 0.56);
+
+  // The ball and its pouches, melted into one.
+  float db = sdEllipse(q, r);
+  vec2 c1 = vec2(fx - cdx, cy);
+  vec2 c2 = vec2(fx + cdx, cy);
+  float dc = min(length(q - c1), length(q - c2)) - cr;
+  float d = smin(db, dc, 1.5 + 0.12 * cr);
+
+  // Its ears, round, peeking over the top behind it.
+  float er = 3.6 + 0.12 * r.x;
+  vec2 e1 = vec2(fx * 0.5 - r.x * 0.56, -r.y * 0.8);
+  vec2 e2 = vec2(fx * 0.5 + r.x * 0.56, -r.y * 0.8);
+  vec2 eq = q - (length(q - e1) < length(q - e2) ? e1 : e2);
+  float de = length(eq) - er;
+  float di = length(eq - vec2(0.0, -er * 0.12)) - er * 0.58;
+  vec4 ear = vec4(0.0);
+  float ea = cover(de);
+  if (ea > 0.0) {
+    vec3 ec = mix(color * 0.97, vec3(1.0, 0.68, 0.73), cover(di, er * 0.15));
+    ec = mix(ec, line, 1.0 - cover(de + lw));
+    ear = vec4(ec * ea, ea);
+  }
+
   float a = cover(d);
-  if (a <= 0.0) return vec4(0.0);
-  // Round as a ball: a normal from whichever of the two the point is nearer.
-  float w = smoothstep(-R * 0.5, R * 0.5, dc - dh);
-  vec2 mid = mix(cc, hc, w);
-  float rad = mix(C, R, w);
-  vec2 nxy = clamp((p - mid) / (rad * 1.08), -1.0, 1.0);
+  if (a <= 0.0) return ear;
+
+  // Creamy white on its belly, round its muzzle and under its cheeks; golden on top.
+  float belly = sdEllipse(q - vec2(fx * 0.4, r.y * 0.62), vec2(r.x * 0.64, r.y * 0.52));
+  float muzzle = sdEllipse(q - vec2(fx, fy + 4.6), vec2(4.2 + 0.12 * cdx, 3.4 + 0.06 * r.y));
+  vec2 inCheek = vec2(abs(q.x - fx) - cdx, q.y - cy) / max(cr, 1.0);
+  float under = smoothstep(-0.05, 0.55, inCheek.y) * (1.0 - smoothstep(0.9, 1.1, length(inCheek)));
+  float white = max(max(cover(belly, 2.5), cover(muzzle, 1.6)), under * smoothstep(0.0, 6.0, cr));
+  vec3 rgb = mix(color, cream, white);
+
+  // Round as a ball: lit from the top left, a little darker towards its rim and underneath.
+  vec2 n = q / (r * 1.05);
+  vec2 nc = (q - (q.x < fx ? c1 : c2)) / max(cr, 1.0);
+  float w = smoothstep(-2.0, 2.0, db - dc);
+  vec2 nxy = clamp(mix(n, nc, w), -1.0, 1.0);
   float nz = sqrt(max(0.0, 1.0 - dot(nxy, nxy)));
-  vec3 n = normalize(vec3(nxy, nz + 0.2));
-  vec3 L = normalize(vec3(-0.45, -0.7, 0.6));
-  float diffuse = 0.82 + 0.18 * dot(n, L);
-  // Golden on top, creamy underneath, the line between them soft and a little wavy.
-  vec3 cream = mix(color, vec3(1.0, 0.97, 0.92), 0.88);
-  float under = smoothstep(-0.05, 0.25, nxy.y + 0.06 * snoise(p * 0.12 + seed));
-  vec3 rgb = mix(color, cream, under) * diffuse;
-  // Darker towards the rim, as a ball of fur is.
-  rgb *= 0.86 + 0.14 * smoothstep(0.0, 0.6, nz);
-  // Stretched tight, the pouch shines: a small crisp highlight up on its top left.
-  vec2 g = nxy - vec2(-0.38, -0.45);
-  float shine = smoothstep(0.2, 0.05, length(g * vec2(1.0, 1.6))) * stuffed * (1.0 - w);
-  rgb = mix(rgb, vec3(1.0), shine * 0.55);
-  // The brown outline of a cartoon.
-  float line = 1.0 - cover(d + max(1.5, v_px * 1.5));
-  rgb = mix(rgb, color * 0.32, line * 0.9);
-  return vec4(rgb * a, a);
+  float light = 0.9 + 0.1 * dot(normalize(vec3(nxy, nz + 0.3)), normalize(vec3(-0.4, -0.65, 0.65)));
+  rgb *= light * (0.94 + 0.06 * smoothstep(0.0, 0.5, nz));
+  // A soft sheen up on its crown.
+  float crown = smoothstep(0.55, 0.0, length((n - vec2(-0.3, -0.55)) * vec2(1.0, 1.8)));
+  rgb = mix(rgb, vec3(1.0, 0.97, 0.9), crown * 0.16);
+  // Stretched tight, each pouch shines: a small crisp highlight on its top.
+  vec2 g = nc - vec2(-0.25, -0.55);
+  float shine = smoothstep(0.3, 0.12, length(g * vec2(1.0, 1.7))) * stuffed * w;
+  rgb = mix(rgb, vec3(1.0), shine * 0.6);
+
+  // The thin, warm outline of a sticker.
+  rgb = mix(rgb, line, 1.0 - cover(d + lw));
+  return over(vec4(rgb * a, a), ear);
 }
 `,
 };
 
 /** What the hamster compiles at startup. */
-export const HAMSTER_SHADERS: readonly ShaderSource[] = [FACE_SHADER];
+export const HAMSTER_SHADERS: readonly ShaderSource[] = [BALL_SHADER];
 
-/** Where the head and pouch are and how big, in world pixels, for `drawFace`. */
-export interface FaceShape {
-  headX: number;
-  headY: number;
-  headR: number;
-  pouchX: number;
-  pouchY: number;
-  pouchR: number;
-  /** How stuffed it is, 0 to 1: how lumpy and shiny. */
+/** The ball's shape, in its own frame from its middle, facing right and unsquashed, for `drawBall`. */
+export interface BallShape {
+  rx: number;
+  ry: number;
+  /** The face's middle across it. */
+  faceX: number;
+  /** The pouches' radius, how far each is from the face's middle, and how far down they are. */
+  cheekR: number;
+  cheekDX: number;
+  cheekY: number;
+  /** How stuffed they are, 0 to 1: how shiny. */
   stuffed: number;
-  seed: number;
 }
 
-/** The head and pouch, in fur of `color`. */
-export function drawFace(gfx: Gfx, f: FaceShape, color: string): void {
-  // A box round both, with room for the fringe and the outline.
-  const left = Math.min(f.headX - f.headR, f.pouchX - f.pouchR) - 4;
-  const right = Math.max(f.headX + f.headR, f.pouchX + f.pouchR) + 4;
-  const top = Math.min(f.headY - f.headR, f.pouchY - f.pouchR) - 4;
-  const bottom = Math.max(f.headY + f.headR, f.pouchY + f.pouchR) + 4;
-  const x = (left + right) / 2;
-  const y = (top + bottom) / 2;
+/** The ball with its middle at (x, y) in the current transform, facing `dir`, squashed by `squash`, in fur of `color`. */
+export function drawBall(
+  gfx: Gfx,
+  x: number,
+  y: number,
+  dir: number,
+  squash: number,
+  b: BallShape,
+  color: string,
+): void {
+  // A box round all of it, with room for the ears and the outline.
+  const reach = Math.max(b.rx, Math.abs(b.faceX) + b.cheekDX + b.cheekR) + 3;
+  const down = Math.max(b.ry, b.cheekY + b.cheekR) + 3;
+  const up = b.ry + 3.6 + 0.12 * b.rx + 3;
+  const half = Math.max(down, up);
   gfx.shade(
-    FACE_SHADER,
-    { x, y, halfW: (right - left) / 2, halfH: (bottom - top) / 2 },
+    BALL_SHADER,
+    { x, y, halfW: reach / squash, halfH: half * squash },
     {
-      p: [f.headX - x, f.headY - y, f.headR, f.pouchR],
-      q: [f.pouchX - x, f.pouchY - y, f.stuffed, f.seed],
+      p: [b.rx, b.ry, b.faceX, (dir < 0 ? -1 : 1) * squash],
+      q: [b.cheekR, b.cheekDX, b.cheekY, b.stuffed],
       color,
     },
   );
