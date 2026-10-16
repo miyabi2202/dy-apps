@@ -6,7 +6,7 @@ export const USAGE =
   'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
   '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
-  '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --free] [--queue 20]\n' +
+  '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/]';
 
 /** The command line, checked and converted; see the README for what each option does. */
@@ -26,7 +26,7 @@ export interface CliOptions {
   asr: boolean;
   transcriptMs: number;
   screenshot: boolean;
-  /** Diamonds per @mention; `--free` makes it 0. */
+  /** Diamonds per @mention; `--test` makes it 0. */
   cost: number;
   maxPending: number;
   sendIntervalMs: number;
@@ -56,8 +56,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       // Off by default: most streams don't need Claude to see the video (lessons with a board do).
       screenshot: { type: 'boolean', default: false },
       cost: { type: 'string', default: '1' },
-      // Free mode: the same as --cost 0.
-      free: { type: 'boolean', default: false },
+      // Test mode: the same as --cost 0.
+      test: { type: 'boolean', default: false },
       queue: { type: 'string', default: '20' },
       'send-interval': { type: 'string', default: '10' },
       data: { type: 'string', default: join(packageDir, 'data') },
@@ -83,7 +83,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     asr: values.asr,
     transcriptMs: Number(values['transcript-minutes']) * 60_000,
     screenshot: values.screenshot,
-    cost: values.free ? 0 : Number(values.cost),
+    cost: values.test ? 0 : Number(values.cost),
     maxPending: Number(values.queue),
     sendIntervalMs: Number(values['send-interval']) * 1000,
     dataDir: values.data,

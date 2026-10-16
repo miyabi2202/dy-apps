@@ -122,7 +122,7 @@ Other options:
 | `--system`             | `你是一个抖音直播间的机器人`        | Added to Claude Code's system prompt                                                                    |
 | `--tools`              | `WebSearch,WebFetch,Read,Glob,Grep` | Claude Code's built-in tools, comma-separated; `''` for none. File tools read only `data/chat/<房间号>` |
 | `--cost`               | `1`                                 | Diamonds per @mention; `0` makes them free                                                              |
-| `--free`               |                                     | Free mode: the same as `--cost 0`                                                                       |
+| `--test`               |                                     | Test mode: the same as `--cost 0`                                                                       |
 | `--queue`              | `20`                                | Paid questions waiting for Claude; more are dropped and refunded. Low-balance notices don't wait        |
 | `--send-interval`      | `10`                                | Seconds between two messages the bot sends; waiting replies go before waiting notices                   |
 | `--no-asr`             |                                     | Don't transcribe the streamer                                                                           |
