@@ -1,7 +1,10 @@
-import type { DyhubChatPart, DyhubCommentEvent } from '@dy-apps/services';
+import type { DyhubChatPart, DyhubCommentEvent, DyhubGiftEvent } from '@dy-apps/services';
 import { ChatBot, type BotLog } from '../src/chat-bot';
+import { Transcript } from '../src/transcript';
+import { Wallet, type Account } from '../src/wallet';
 
 const BOT = { nickname: '小助手', userId: 'bot-1' };
+const NOW = Date.UTC(2026, 9, 16, 8, 0, 0);
 const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{maxLength}})';
 
 let nextId = 0;
@@ -19,9 +22,40 @@ function chat(nickname: string, content: string, parts?: DyhubChatPart[]): Dyhub
 
 const silentLog: BotLog = { debug() {}, info() {}, warn() {}, error() {} };
 
-function setup(options: { answer?: string; historySize?: number; maxReplyLength?: number } = {}) {
+interface SetupOptions {
+  answer?: string;
+  historySize?: number;
+  maxReplyLength?: number;
+  template?: string;
+  transcript?: Transcript;
+  screenshot?: () => Promise<Uint8Array>;
+  wallet?: Wallet;
+  cost?: number;
+  ask?: () => Promise<string>;
+}
+
+/** A wallet kept in memory, starting from `accounts`. */
+function memoryWallet(accounts: Record<string, Account> = {}) {
+  return new Wallet({ load: () => structuredClone(accounts), save: () => {} });
+}
+
+function gift(nickname: string, diamondCount: number): DyhubGiftEvent {
+  nextId++;
+  return {
+    id: `g${nextId}`,
+    roomId: '1',
+    type: 'gift',
+    ts: nextId,
+    user: { id: `u-${nickname}`, nickname },
+    data: { giftId: 'rose', giftName: '玫瑰', diamondCount },
+  };
+}
+
+function setup(options: SetupOptions = {}) {
   let onComment: (event: DyhubCommentEvent) => void = () => {};
+  let onGift: (event: DyhubGiftEvent, newGifts: number) => void = () => {};
   const prompts: string[] = [];
+  const images: (Uint8Array | undefined)[] = [];
   const sent: string[] = [];
   const bot = new ChatBot({
     client: {
@@ -29,26 +63,43 @@ function setup(options: { answer?: string; historySize?: number; maxReplyLength?
         onComment = handler;
         return () => {};
       },
+      onGift: (handler) => {
+        onGift = handler;
+        return () => {};
+      },
       onStatus: () => () => {},
       connect: () => {},
       close: () => {},
     },
     bot: BOT,
-    ask: (prompt) => {
+    ask: ({ prompt, image }) => {
       prompts.push(prompt);
-      return Promise.resolve(options.answer ?? '你好呀');
+      images.push(image);
+      return options.ask ? options.ask() : Promise.resolve(options.answer ?? '你好呀');
     },
     send: (text) => {
       sent.push(text);
       return Promise.resolve({ echoed: true });
     },
     log: silentLog,
-    promptTemplate: TEMPLATE,
+    promptTemplate: options.template ?? TEMPLATE,
+    transcript: options.transcript,
+    screenshot: options.screenshot,
+    now: () => NOW,
+    wallet: options.wallet,
+    cost: options.cost,
     historySize: options.historySize,
     maxReplyLength: options.maxReplyLength,
   });
   bot.start();
-  return { bot, say: (event: DyhubCommentEvent) => onComment(event), prompts, sent };
+  return {
+    bot,
+    say: (event: DyhubCommentEvent) => onComment(event),
+    give: (event: DyhubGiftEvent, count = 1) => onGift(event, count),
+    prompts,
+    images,
+    sent,
+  };
 }
 
 test('answers an @mention with the chat before it, and replies to the asker', async () => {
@@ -112,4 +163,73 @@ test('drops the sources list web search adds', async () => {
   await bot.idle();
 
   expect(sent).toEqual(['@阿明 大约41.89万亲密度']);
+});
+
+test('passes the last minutes of what the streamer said, and a screenshot', async () => {
+  const transcript = new Transcript(30 * 60_000, () => NOW);
+  const said = (minutesAgo: number, text: string) => {
+    const end = NOW - minutesAgo * 60_000;
+    transcript.add({ start: end - 3000, end, text, bgm: false, emotion: null });
+  };
+  said(8, '太早了');
+  said(2, '吕布一开始是文官');
+  said(1, '谢谢点赞');
+  const frame = new Uint8Array([0xff, 0xd8]);
+  const { bot, say, prompts, images } = setup({
+    template: '{{now}}\n{{transcript}}',
+    transcript,
+    screenshot: () => Promise.resolve(frame),
+  });
+  say(chat('阿明', '@小助手 主播在讲什么'));
+  await bot.idle();
+
+  expect(prompts).toEqual(['08:00:00\n07:57:57 吕布一开始是文官\n07:58:57 谢谢点赞']);
+  expect(images).toEqual([frame]);
+});
+
+test('answers without a picture when the screenshot fails', async () => {
+  const { bot, say, sent, images } = setup({
+    screenshot: () => Promise.reject(new Error('房间未连接')),
+  });
+  say(chat('阿明', '@小助手 在吗'));
+  await bot.idle();
+
+  expect(images).toEqual([undefined]);
+  expect(sent).toEqual(['@阿明 你好呀']);
+});
+
+test('gifts pay for mentions: each one costs the set price', async () => {
+  const wallet = memoryWallet();
+  const { bot, say, give, prompts, sent } = setup({ wallet, cost: 2 });
+  give(gift('阿明', 1), 3);
+  say(chat('阿明', '@小助手 第一问'));
+  await bot.idle();
+
+  expect(prompts).toHaveLength(1);
+  expect(sent).toEqual(['@阿明 你好呀']);
+  expect(wallet.balance('u-阿明')).toBe(1);
+});
+
+test('tells a viewer who cannot pay, once a minute, without asking Claude', async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 1 } });
+  const { bot, say, prompts, sent } = setup({ wallet, cost: 1 });
+  say(chat('阿明', '@小助手 第一问'));
+  say(chat('阿明', '@小助手 第二问'));
+  await bot.idle();
+
+  expect(prompts).toEqual([]);
+  expect(sent).toEqual(['@阿明 你的余额不足，每次@需要1钻']);
+});
+
+test('gives the diamond back when the mention cannot be answered', async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
+  const { bot, say, sent } = setup({
+    wallet,
+    ask: () => Promise.reject(new Error('claude timed out')),
+  });
+  say(chat('阿明', '@小助手 在吗'));
+  await bot.idle();
+
+  expect(sent).toEqual([]);
+  expect(wallet.balance('u-阿明')).toBe(1);
 });

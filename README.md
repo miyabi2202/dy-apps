@@ -11,7 +11,7 @@ Small live-stream apps, served as one site: an index page at `/` and each app on
 | `frontend/src/apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers                        |
 | `frontend/src/services/`         | Shared non-UI code: the DyHub client, messages, fake data and saved settings     |
 | `frontend/src/ui/`               | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
-| `chat-bot/`                      | Command-line bot that answers @mentions in a live room with `claude -p`          |
+| `chat-bot/`                      | Command-line bot that answers paid @mentions in a live room with `claude -p`     |
 
 ## Layout
 
@@ -43,9 +43,10 @@ frontend/                 # @dy-apps/frontend: the one package
     storybook/            #   ui stories
   tsconfig.json           #   stays here so editors and ESLint find it
 chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (see "Chat bot" below)
-  prompt.md               #   the prompt sent to Claude: {{history}}, {{asker}}, {{question}}
+  prompt.md               #   the prompt sent to Claude: {{history}}, {{transcript}}, {{asker}}, {{question}}, …
   src/main.ts             #   entry: options, real objects wired by hand
-  logs/                   #   winston logs, chat-bot.log (not in git)
+  asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + SenseVoice
+  logs/  data/            #   winston logs, and balances per room (not in git)
 eslint.config.js          # lint for the whole repo, including which folders may import which
 .prettierrc.json          # repo-wide formatting (+ .prettierignore)
 package.json              # private root: lint/format tools and the repo-wide checks
@@ -90,15 +91,36 @@ Status: both apps pick fake data or a live room in their 数据来源 panel. The
 
 ## Chat bot
 
-`chat-bot/` reads a room's chat from DyHub and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompt.md`](chat-bot/prompt.md) with that message and the chat before it, runs `claude -p` (only web search, no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through DyHub's `POST /api/rooms/:roomId/chat`.
+`chat-bot/` reads a room's chat from DyHub and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompt.md`](chat-bot/prompt.md) with that message, the chat before it and what the streamer said lately, runs `claude -p` with a screenshot of the live video (only web search, no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through DyHub's `POST /api/rooms/:roomId/chat`.
 
-It needs DyHub running with the browser collector and logged in (网页登录) as the bot's account, and Claude Code's `claude` on `PATH`. From `chat-bot/`:
+- **What the streamer says**: `chat-bot/asr/transcribe.py` pulls the stream's audio with ffmpeg (the URL comes from DyHub's `GET /api/rooms/:roomId/stream`), finds sentences with fsmn-vad and transcribes them with SenseVoice, on Apple's GPU, CUDA or the CPU. Audio stays in that process and is never written to disk; the bot keeps the text, timestamped, for 30 minutes, and gives the last 5 to the prompt as `{{transcript}}`. When the stream ends or its URL expires, the bot asks DyHub again and restarts the worker. Singing comes out as background music and is mostly skipped.
+- **What's on screen**: DyHub's `GET /api/rooms/:roomId/screenshot` (the player only, as a JPEG) goes to Claude with each question.
+- **Paying with gifts**: every gift a viewer sends in the room adds its diamonds (抖币) to their balance, and each @mention costs `--cost` diamonds. A viewer who can't pay gets `@昵称 你的余额不足，每次@需要1钻` instead of an answer, at most once a minute; a mention that fails is refunded. Balances are kept per room in `data/wallet-<房间号>.json` (`gifted` and `spent` per user id), so they survive restarts. Gift events need DyHub logged in.
+
+It needs DyHub running with the browser collector and logged in (网页登录) as the bot's account, Claude Code's `claude`, `ffmpeg` and [uv](https://docs.astral.sh/uv/) on `PATH`. The first run downloads the speech models (about 1 GB) into `~/.cache/modelscope`. From `chat-bot/`:
 
 ```sh
 pnpm start --room <房间号> --bot-name <the logged-in account's nickname> [--bot-id <its uid>]
 ```
 
-Other options: `--port` (DyHub, `8757`), `--prompt` (`prompt.md`), `--history` (`100`), `--max-reply` (characters, `49`: Douyin's limit is under 50; the prompt's `{{maxLength}}` is what's left after `@asker `), `--model` (`opus`), `--system` (added to Claude Code's system prompt, `你是一个抖音直播间的机器人`), `--tools` (Claude Code's built-in tools, comma-separated, pre-approved; `WebSearch`, or `''` for none) and `--logs` (`logs/`). The console shows info and up; `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.
+Other options:
+
+| Option                 | Default                      | What it does                                                                                 |
+| ---------------------- | ---------------------------- | -------------------------------------------------------------------------------------------- |
+| `--port`               | `8757`                       | DyHub's port                                                                                 |
+| `--prompt`             | `prompt.md`                  | The prompt template                                                                          |
+| `--history`            | `100`                        | Chat messages remembered and passed as `{{history}}`                                         |
+| `--max-reply`          | `49`                         | Reply length; Douyin's limit is under 50, and `{{maxLength}}` is what's left after `@asker ` |
+| `--model`              | `opus`                       | Claude model                                                                                 |
+| `--system`             | `你是一个抖音直播间的机器人` | Added to Claude Code's system prompt                                                         |
+| `--tools`              | `WebSearch`                  | Claude Code's built-in tools, comma-separated, pre-approved; `''` for none                   |
+| `--cost`               | `1`                          | Diamonds per @mention; `0` makes them free                                                   |
+| `--no-asr`             |                              | Don't transcribe the streamer                                                                |
+| `--transcript-minutes` | `5`                          | How far back `{{transcript}}` goes                                                           |
+| `--no-screenshot`      |                              | Don't send a screenshot                                                                      |
+| `--logs` / `--data`    | `logs/` / `data/`            | Where logs and balances go                                                                   |
+
+The console shows info and up (mentions, gifts, what was heard, replies); `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.
 
 Shared code comes from `@dy-apps/services` (the `DyhubClient`), read from `frontend/src/services` through `paths` in `chat-bot/tsconfig.json` and `moduleNameMapper` in `chat-bot/jest.config.js`.
 

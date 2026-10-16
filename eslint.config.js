@@ -34,6 +34,8 @@ export default tseslint.config(
       '**/playwright-report',
       '**/test-results',
       '**/storybook-static',
+      // The chat bot's Python environment.
+      '**/.venv',
     ],
   },
   js.configs.recommended,

@@ -11,12 +11,16 @@ import { parseArgs } from 'node:util';
 import { DyhubClient, isRoomId, parsePort } from '@dy-apps/services';
 import { ChatBot } from './chat-bot';
 import { claudeCli } from './claude';
-import { dyhubChat } from './dyhub-chat';
+import { DyhubRoomApi } from './dyhub-room';
 import { createLogger } from './logger';
+import { Transcriber, uvWorker } from './transcriber';
+import { Transcript } from './transcript';
+import { jsonFileStorage, Wallet } from './wallet';
 
 const packageDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const { values } = parseArgs({
+  allowNegative: true,
   options: {
     room: { type: 'string' },
     port: { type: 'string', default: '8757' },
@@ -29,6 +33,11 @@ const { values } = parseArgs({
     model: { type: 'string', default: 'opus' },
     system: { type: 'string', default: '你是一个抖音直播间的机器人' },
     logs: { type: 'string', default: join(packageDir, 'logs') },
+    asr: { type: 'boolean', default: true },
+    'transcript-minutes': { type: 'string', default: '5' },
+    screenshot: { type: 'boolean', default: true },
+    cost: { type: 'string', default: '1' },
+    data: { type: 'string', default: join(packageDir, 'data') },
   },
 });
 
@@ -39,12 +48,23 @@ if (!isRoomId(roomId) || port === null || !botName) {
   console.error(
     'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
       '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--tools WebSearch]\n' +
-      '       [--model opus] [--system <系统提示>] [--logs logs/]',
+      '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
+      '       [--no-asr] [--transcript-minutes 5] [--no-screenshot] [--cost 1] [--data data/]',
   );
   process.exit(1);
 }
 
 const log = createLogger(resolve(values.logs));
+const room = new DyhubRoomApi(port, roomId);
+const transcript = new Transcript();
+const transcriber = values.asr
+  ? new Transcriber({
+      streamUrl: room.streamUrl,
+      transcript,
+      log,
+      spawnWorker: uvWorker(join(packageDir, 'asr')),
+    })
+  : null;
 const bot = new ChatBot({
   client: new DyhubClient({ port, roomId, retryMs: 5000 }),
   bot: { nickname: botName, userId: values['bot-id'] },
@@ -55,19 +75,34 @@ const bot = new ChatBot({
     model: values.model,
     systemPrompt: values.system,
   }),
-  send: dyhubChat(port, roomId),
+  send: room.sendChat,
+  screenshot: values.screenshot ? room.screenshot : undefined,
+  transcript,
+  transcriptMs: Number(values['transcript-minutes']) * 60_000,
+  // Balances are per room: what a viewer gifted here pays for their mentions here.
+  wallet: new Wallet(jsonFileStorage(join(resolve(values.data), `wallet-${roomId}.json`))),
+  cost: Number(values.cost),
   log,
   promptTemplate: readFileSync(resolve(values.prompt), 'utf8'),
   historySize: Number(values.history),
   maxReplyLength: Number(values['max-reply']),
 });
 
-log.info('starting', { roomId, port, botName });
+log.info('starting', {
+  roomId,
+  port,
+  botName,
+  asr: values.asr,
+  screenshot: values.screenshot,
+  cost: Number(values.cost),
+});
 bot.start();
+void transcriber?.run();
 
 const shutdown = () => {
   log.info('stopping');
   bot.stop();
+  transcriber?.stop();
   log.on('finish', () => process.exit(0));
   log.end();
 };

@@ -1,0 +1,34 @@
+/** One sentence the streamer said, as the transcription worker heard it. */
+export interface TranscriptLine {
+  /** When it started and ended, in ms since the epoch. */
+  start: number;
+  end: number;
+  text: string;
+  /** Background music was playing (often true under speech too, so only a hint). */
+  bgm: boolean;
+  /** SenseVoice's guess, like `HAPPY` or `NEUTRAL`. */
+  emotion: string | null;
+}
+
+/** What the streamer said lately, oldest first. Lines older than `keepMs` are forgotten. */
+export class Transcript {
+  private lines: TranscriptLine[] = [];
+
+  constructor(
+    private readonly keepMs = 30 * 60_000,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  add(line: TranscriptLine): void {
+    this.lines.push(line);
+    const cutoff = this.now() - this.keepMs;
+    const firstKept = this.lines.findIndex((l) => l.end >= cutoff);
+    if (firstKept > 0) this.lines = this.lines.slice(firstKept);
+  }
+
+  /** Lines that ended within the last `ms`. */
+  recent(ms: number): TranscriptLine[] {
+    const cutoff = this.now() - ms;
+    return this.lines.filter((l) => l.end >= cutoff);
+  }
+}
