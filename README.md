@@ -73,6 +73,7 @@ Live chat and gifts come from [DyHub](https://github.com/ymstar/dyhub), a Douyin
 - 网页登录 in the console: log in to Douyin in a pop-up window and the cookie is saved. Gift events need a logged-in cookie
 - A fix so a room isn't marked closed when some other WebSocket on the live page closes
 - The console's live feed merges the messages of one gift send
+- For the chat bot: `POST /api/rooms/:roomId/chat` sends chat as the logged-in account, `GET …/stream` gives the room's FLV stream URL and `GET …/screenshot` a JPEG of the player
 
 Run it on the machine that opens the app (the streaming PC, for OBS):
 

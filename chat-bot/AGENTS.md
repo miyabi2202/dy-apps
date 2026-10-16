@@ -7,7 +7,7 @@ How to run the chat bot for the user, e.g. when they say 「启动机器人，�
 The user gives a room number (the digits in `live.douyin.com/<id>`). Run both processes with the Bash tool's `run_in_background`, never `&` or `nohup`, so they can be stopped later.
 
 1. **Check nothing is running yet**: `lsof -nP -iTCP:8757 -sTCP:LISTEN` and `pgrep -fl "transcribe.py|chat-bot/src/main"`. If DyHub is already up, skip step 2; if a bot is already running, ask before starting a second one.
-2. **DyHub**, from `~/coding/dyhub` (the miyabi2202 fork, branch `feat/send-chat` until it's merged into `main`): `npm run dev`. Wait until `curl -s localhost:8757/api/rooms` answers.
+2. **DyHub**, from `~/coding/dyhub` (the miyabi2202 fork, `main`): `npm run dev`. Wait until `curl -s localhost:8757/api/rooms` answers.
 3. **Check the login**: `curl -s localhost:8757/api/cookie` must show `"hasLogin":true` (and `expiresAt` in the future). Without it the bot can't send chat and gifts don't arrive: tell the user to log in from the console at http://localhost:8757 (网页登录) and stop here.
 4. **The bot**, from `chat-bot/`:
 
