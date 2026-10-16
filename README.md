@@ -90,7 +90,7 @@ Status: both apps pick fake data or a live room in their 数据来源 panel. The
 
 ## Chat bot
 
-`chat-bot/` reads a room's chat from DyHub and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompt.md`](chat-bot/prompt.md) with that message and the chat before it, runs `claude -p` (no tools, no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through DyHub's `POST /api/rooms/:roomId/chat`.
+`chat-bot/` reads a room's chat from DyHub and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompt.md`](chat-bot/prompt.md) with that message and the chat before it, runs `claude -p` (only web search, no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through DyHub's `POST /api/rooms/:roomId/chat`.
 
 It needs DyHub running with the browser collector and logged in (网页登录) as the bot's account, and Claude Code's `claude` on `PATH`. From `chat-bot/`:
 
@@ -98,7 +98,7 @@ It needs DyHub running with the browser collector and logged in (网页登录) a
 pnpm start --room <房间号> --bot-name <the logged-in account's nickname> [--bot-id <its uid>]
 ```
 
-Other options: `--port` (DyHub, `8757`), `--prompt` (`prompt.md`), `--history` (`100`), `--max-reply` (characters, `50`) and `--logs` (`logs/`). The console shows info and up; `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.
+Other options: `--port` (DyHub, `8757`), `--prompt` (`prompt.md`), `--history` (`100`), `--max-reply` (characters, `49`: Douyin's limit is under 50; the prompt's `{{maxLength}}` is what's left after `@asker `), `--tools` (Claude Code's built-in tools, comma-separated, pre-approved; `WebSearch`, or `''` for none) and `--logs` (`logs/`). The console shows info and up; `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.
 
 Shared code comes from `@dy-apps/services` (the `DyhubClient`), read from `frontend/src/services` through `paths` in `chat-bot/tsconfig.json` and `moduleNameMapper` in `chat-bot/jest.config.js`.
 

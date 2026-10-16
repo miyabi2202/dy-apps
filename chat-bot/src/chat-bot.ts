@@ -23,7 +23,7 @@ export interface ChatBotOptions {
   promptTemplate: string;
   /** How many recent chats to remember and pass to Claude. */
   historySize?: number;
-  /** Longer replies are cut to this many characters. */
+  /** Douyin's chat length limit: the prompt asks for less, and longer replies are cut to it. */
   maxReplyLength?: number;
   /** Mentions waiting beyond this are dropped, so a busy room can't pile up a backlog. */
   maxPending?: number;
@@ -49,7 +49,7 @@ export class ChatBot {
 
   constructor(private readonly options: ChatBotOptions) {
     this.history = new ChatHistory(options.historySize ?? 100);
-    this.maxReplyLength = options.maxReplyLength ?? 50;
+    this.maxReplyLength = options.maxReplyLength ?? 49;
     this.maxPending = options.maxPending ?? 5;
   }
 
@@ -105,7 +105,9 @@ export class ChatBot {
 
   private async answer(mention: Mention): Promise<void> {
     const { ask, send, log, promptTemplate } = this.options;
-    const prompt = buildPrompt(promptTemplate, mention);
+    // The reply is `@asker answer`, so the answer gets what the @ leaves of the limit.
+    const maxLength = this.maxReplyLength - [...`@${mention.asker} `].length;
+    const prompt = buildPrompt(promptTemplate, { ...mention, maxLength });
     log.debug('prompt', { prompt });
     try {
       const started = Date.now();
@@ -128,9 +130,16 @@ export class ChatBot {
     }
   }
 
-  /** `@asker answer` on one line, cut to the length limit; empty when Claude said nothing. */
+  /**
+   * `@asker answer` on one line, cut to the length limit; empty when Claude said nothing.
+   * Claude sees the bot's earlier `@…` replies in the chat and often starts with the @ itself.
+   */
   private toReply(asker: string, answer: string): string {
-    const text = answer.replace(/\s+/g, ' ').trim();
+    const tag = `@${asker}`;
+    // Web search makes Claude add a sources list; it has no place in a chat message.
+    const body = answer.split(/\n\s*(?:Sources|来源)\s*[:：]/)[0] ?? '';
+    let text = body.replace(/\s+/g, ' ').trim();
+    while (text.startsWith(tag)) text = text.slice(tag.length).trim();
     if (!text) return '';
     return [...`@${asker} ${text}`].slice(0, this.maxReplyLength).join('');
   }

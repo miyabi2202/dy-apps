@@ -2,7 +2,7 @@ import type { DyhubChatPart, DyhubCommentEvent } from '@dy-apps/services';
 import { ChatBot, type BotLog } from '../src/chat-bot';
 
 const BOT = { nickname: '小助手', userId: 'bot-1' };
-const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}}';
+const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{maxLength}})';
 
 let nextId = 0;
 function chat(nickname: string, content: string, parts?: DyhubChatPart[]): DyhubCommentEvent {
@@ -58,7 +58,7 @@ test('answers an @mention with the chat before it, and replies to the asker', as
   say(chat('阿明', '@小助手 这题怎么做', [{ type: 'mention', text: '@小助手', userId: 'bot-1' }]));
   await bot.idle();
 
-  expect(prompts).toEqual(['阿明: 主播好\n小红: 今天讲什么\n---\n阿明: 这题怎么做']);
+  expect(prompts).toEqual(['阿明: 主播好\n小红: 今天讲什么\n---\n阿明: 这题怎么做 (45)']);
   expect(sent).toEqual(['@阿明 你好呀']);
 });
 
@@ -68,7 +68,7 @@ test('passes only the most recent chats', async () => {
   say(chat('小红', '@小助手 hi'));
   await bot.idle();
 
-  expect(prompts[0]).toBe('阿明: 二\n阿明: 三\n---\n小红: hi');
+  expect(prompts[0]).toBe('阿明: 二\n阿明: 三\n---\n小红: hi (45)');
 });
 
 test('ignores chat that does not mention the bot, and its own messages', async () => {
@@ -94,4 +94,22 @@ test('puts the reply on one line and cuts it to the length limit', async () => {
   await bot.idle();
 
   expect(sent).toEqual(['@阿明 第一行 第二']);
+});
+
+test('does not repeat the @ when Claude already starts with it', async () => {
+  const { bot, say, sent } = setup({ answer: '@阿明 @阿明 等于2' });
+  say(chat('阿明', '@小助手 1+1'));
+  await bot.idle();
+
+  expect(sent).toEqual(['@阿明 等于2']);
+});
+
+test('drops the sources list web search adds', async () => {
+  const { bot, say, sent } = setup({
+    answer: '大约41.89万亲密度\n\nSources:\n- [jb51](https://jb51.net)',
+  });
+  say(chat('阿明', '@小助手 16级灯牌'));
+  await bot.idle();
+
+  expect(sent).toEqual(['@阿明 大约41.89万亲密度']);
 });

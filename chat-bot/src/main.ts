@@ -24,7 +24,8 @@ const { values } = parseArgs({
     'bot-id': { type: 'string' },
     prompt: { type: 'string', default: join(packageDir, 'prompt.md') },
     history: { type: 'string', default: '100' },
-    'max-reply': { type: 'string', default: '50' },
+    'max-reply': { type: 'string', default: '49' },
+    tools: { type: 'string', default: 'WebSearch' },
     logs: { type: 'string', default: join(packageDir, 'logs') },
   },
 });
@@ -35,7 +36,7 @@ const botName = values['bot-name'];
 if (!isRoomId(roomId) || port === null || !botName) {
   console.error(
     'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
-      '       [--prompt prompt.md] [--history 100] [--max-reply 50] [--logs logs/]',
+      '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--tools WebSearch] [--logs logs/]',
   );
   process.exit(1);
 }
@@ -45,7 +46,7 @@ const bot = new ChatBot({
   client: new DyhubClient({ port, roomId, retryMs: 5000 }),
   bot: { nickname: botName, userId: values['bot-id'] },
   // An empty working directory, so Claude Code picks up no project's CLAUDE.md or settings.
-  ask: claudeCli({ cwd: tmpdir() }),
+  ask: claudeCli({ cwd: tmpdir(), tools: values.tools.split(',').filter(Boolean) }),
   send: dyhubChat(port, roomId),
   log,
   promptTemplate: readFileSync(resolve(values.prompt), 'utf8'),

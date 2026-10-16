@@ -10,25 +10,30 @@ export interface ClaudeCliOptions {
   timeoutMs?: number;
   /** Working directory for the run. */
   cwd?: string;
+  /** Built-in tools Claude may use, all pre-approved; read-only ones only, since chat is untrusted. */
+  tools?: readonly string[];
   spawnProcess?: typeof spawn;
 }
 
 /**
- * `claude -p`, with the prompt on stdin. Chat is untrusted, so the run gets no tools, no MCP
- * servers and no saved session: it can only answer in text.
+ * `claude -p`, with the prompt on stdin. Chat is untrusted, so the run gets only the listed
+ * tools (web search by default), no MCP servers and no saved session.
  */
 export function claudeCli({
   command = 'claude',
   timeoutMs = 120_000,
   cwd,
+  tools = ['WebSearch'],
   spawnProcess = spawn,
 }: ClaudeCliOptions = {}): AskClaude {
+  const toolList = tools.join(',');
   const args = [
     '-p',
     '--output-format',
     'text',
     '--tools',
-    '',
+    toolList,
+    ...(tools.length ? ['--allowedTools', toolList] : []),
     '--strict-mcp-config',
     '--no-session-persistence',
   ];
