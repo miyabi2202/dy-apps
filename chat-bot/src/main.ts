@@ -41,6 +41,8 @@ const { values } = parseArgs({
     // Off by default: most streams don't need Claude to see the video (lessons with a board do).
     screenshot: { type: 'boolean', default: false },
     cost: { type: 'string', default: '1' },
+    // Free mode: the same as --cost 0.
+    free: { type: 'boolean', default: false },
     queue: { type: 'string', default: '20' },
     'send-interval': { type: 'string', default: '10' },
     data: { type: 'string', default: join(packageDir, 'data') },
@@ -55,12 +57,13 @@ if (!isRoomId(roomId) || port === null || !botName) {
     'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
       '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,Read,Glob,Grep]\n' +
       '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
-      '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1] [--queue 20]\n' +
+      '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --free] [--queue 20]\n' +
       '       [--send-interval 10] [--data data/]',
   );
   process.exit(1);
 }
 
+const cost = values.free ? 0 : Number(values.cost);
 const log = createLogger(resolve(values.logs));
 const room = new DyhubRoomApi(port, roomId);
 const transcript = new Transcript();
@@ -103,7 +106,7 @@ const bot = new ChatBot({
   transcriptMs: Number(values['transcript-minutes']) * 60_000,
   chatLog,
   wallet,
-  cost: Number(values.cost),
+  cost,
   maxPending: Number(values.queue),
   log,
   promptTemplate: readFileSync(resolve(values.prompt), 'utf8'),
@@ -118,7 +121,7 @@ log.info('starting', {
   botName,
   asr: values.asr,
   screenshot: values.screenshot,
-  cost: Number(values.cost),
+  cost,
 });
 bot.start();
 void transcriber?.run();
