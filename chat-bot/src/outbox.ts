@@ -4,8 +4,8 @@ import type { SendChat } from './dyhub-room';
 /** One message waiting to go out. */
 export interface OutgoingMessage {
   text: string;
-  /** What it is, for the log: `reply` or `notice`. */
-  kind: string;
+  /** An answer to a question, or a notice like "balance too low": replies go first. */
+  kind: 'reply' | 'notice';
   /** Called when DyHub couldn't send it, e.g. to refund the question it answers. */
   onFailed?: () => void;
 }
@@ -20,11 +20,13 @@ export interface OutboxOptions {
 }
 
 /**
- * Every message the bot says goes through here: queued, then sent one at a time, in order, at
- * least `intervalMs` apart. Whoever made the message doesn't wait for it to go out.
+ * Every message the bot says goes through here: queued, then sent one at a time, at least
+ * `intervalMs` apart. Replies and notices wait in two queues, each in order, and a waiting reply
+ * always goes before a waiting notice. Whoever made the message doesn't wait for it to go out.
  */
 export class Outbox {
-  private readonly queue: OutgoingMessage[] = [];
+  private readonly replies: OutgoingMessage[] = [];
+  private readonly notices: OutgoingMessage[] = [];
   private sending = false;
   private lastSentAt = -Infinity;
   private readonly intervalMs: number;
@@ -38,8 +40,8 @@ export class Outbox {
   }
 
   push(message: OutgoingMessage): void {
-    this.queue.push(message);
-    this.options.log.debug('queued to send', { ...message, waiting: this.queue.length });
+    (message.kind === 'reply' ? this.replies : this.notices).push(message);
+    this.options.log.debug('queued to send', { ...message, waiting: this.waiting() });
     void this.drain();
   }
 
@@ -52,7 +54,7 @@ export class Outbox {
     if (this.sending) return;
     this.sending = true;
     try {
-      for (let message = this.queue.shift(); message; message = this.queue.shift()) {
+      for (let message = this.next(); message; message = this.next()) {
         const wait = this.lastSentAt + this.intervalMs - this.now();
         if (wait > 0) await this.sleep(wait);
         await this.sendOne(message);
@@ -63,11 +65,19 @@ export class Outbox {
     }
   }
 
+  private next(): OutgoingMessage | undefined {
+    return this.replies.shift() ?? this.notices.shift();
+  }
+
+  private waiting(): number {
+    return this.replies.length + this.notices.length;
+  }
+
   private async sendOne({ text, kind, onFailed }: OutgoingMessage): Promise<void> {
     const { send, log } = this.options;
     try {
       const { echoed } = await send(text);
-      log.info(`${kind} sent`, { text, echoed, waiting: this.queue.length });
+      log.info(`${kind} sent`, { text, echoed, waiting: this.waiting() });
       if (!echoed) log.warn(`${kind} did not show up in the room chat`, { text });
     } catch (err) {
       log.error(`could not send ${kind}`, {

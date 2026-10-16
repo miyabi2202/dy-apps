@@ -3,7 +3,7 @@ import { Outbox } from '../src/outbox';
 
 const silentLog: BotLog = { debug() {}, info() {}, warn() {}, error() {} };
 
-test('sends in order, at least the interval apart, and reports a failed send', async () => {
+test('sends replies before notices, at least the interval apart, and reports a failed send', async () => {
   let now = 0;
   const sentAt: [string, number][] = [];
   const failed: string[] = [];
@@ -25,13 +25,16 @@ test('sends in order, at least the interval apart, and reports a failed send', a
   });
   outbox.push({ kind: 'reply', text: '一' });
   outbox.push({ kind: 'notice', text: '坏的', onFailed: () => failed.push('坏的') });
-  outbox.push({ kind: 'reply', text: '三' });
+  outbox.push({ kind: 'notice', text: '提醒' });
+  outbox.push({ kind: 'reply', text: '二' });
   await outbox.idle();
 
+  // '一' is already going out when the rest arrive; '二' then jumps the notices.
   expect(sentAt).toEqual([
     ['一', 0],
-    ['坏的', 11_000],
-    ['三', 22_000],
+    ['二', 11_000],
+    ['坏的', 22_000],
+    ['提醒', 33_000],
   ]);
   expect(failed).toEqual(['坏的']);
 });
