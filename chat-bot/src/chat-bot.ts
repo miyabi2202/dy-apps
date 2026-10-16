@@ -156,9 +156,13 @@ export class ChatBot {
     const key = userId ?? asker;
     const last = this.noticedAt.get(key);
     const now = this.now();
-    if (last !== undefined && now - last < (this.options.noticeCooldownMs ?? 60_000)) return;
+    const cooldownMs = this.options.noticeCooldownMs ?? 60_000;
+    if (last !== undefined && now - last < cooldownMs) return;
     this.noticedAt.set(key, now);
-    this.enqueue({ kind: 'notice', text: `@${asker} 你的余额不足，每次@需要${this.cost}钻` });
+    this.enqueue({
+      kind: 'notice',
+      text: `@${asker} 你的余额不足，每次@需要${this.cost}钻（${Math.round(cooldownMs / 1000)}秒内只提醒一次）`,
+    });
   }
 
   /** Queues a job; false when the queue is full and the job was dropped. */

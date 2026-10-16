@@ -221,7 +221,7 @@ test('tells a viewer who cannot pay, once a minute, without asking Claude', asyn
   await bot.idle();
 
   expect(prompts).toEqual([]);
-  expect(sent).toEqual(['@阿明 你的余额不足，每次@需要1钻']);
+  expect(sent).toEqual(['@阿明 你的余额不足，每次@需要1钻（60秒内只提醒一次）']);
 });
 
 test('gives the diamond back when the mention cannot be answered', async () => {
