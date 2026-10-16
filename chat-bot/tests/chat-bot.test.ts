@@ -1,6 +1,6 @@
 import type { DyhubChatPart, DyhubCommentEvent, DyhubGiftEvent } from '@dy-apps/services';
 import { ChatBot, type BotLog } from '../src/chat-bot';
-import { ChatLog, type ChatRecord } from '../src/chat-log';
+import { ChatLog } from '../src/chat-log';
 import { Transcript } from '../src/transcript';
 import { Wallet, type Account } from '../src/wallet';
 
@@ -250,19 +250,19 @@ test('clearing the wallet forgets every balance', () => {
 });
 
 test('records chat and gifts, and points Claude at the record folder', async () => {
-  let records: ChatRecord[] = [];
+  let written = '';
   const chatLog = new ChatLog('/data/chat/1', {
-    write: (_path, value) => (records = structuredClone(value as ChatRecord[])),
+    now: () => NOW,
+    append: (_path, text) => (written += text),
   });
   const { bot, say, give, prompts } = setup({ chatLog, template: '{{chatDir}}' });
   give(gift('阿明', 10), 2);
   say(chat('阿明', '@小助手 记得我送了什么吗'));
   await bot.idle();
 
-  expect(records.map(({ sender, type }) => `${sender} ${type}`)).toEqual([
-    '阿明 gift',
-    '阿明 chat',
-  ]);
-  expect(records[0]).toMatchObject({ gift: { name: '玫瑰', count: 2, diamonds: 20 } });
+  expect(written).toBe(
+    '2026-10-16 08:00:00 [阿明#u-阿明](gift) 送出 玫瑰×2（20钻）\n' +
+      '2026-10-16 08:00:00 [阿明#u-阿明](chat) @小助手 记得我送了什么吗\n',
+  );
   expect(prompts).toEqual(['/data/chat/1']);
 });

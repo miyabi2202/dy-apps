@@ -1,34 +1,27 @@
 import { ChatLog } from '../src/chat-log';
 
-test('writes records to a file per 100, named by the first record’s time', () => {
-  const files = new Map<string, unknown[]>();
-  let now = 1_000;
+test('writes one line per record, 100 to a file, named by the first record’s time', () => {
+  const files = new Map<string, string>();
+  let now = Date.UTC(2026, 9, 16, 8, 47, 20);
   const log = new ChatLog('/data/chat/1', {
     perFile: 2,
-    now: () => now++,
-    write: (path, value) => files.set(path, structuredClone(value as unknown[])),
+    now: () => (now += 1000),
+    append: (path, text) => files.set(path, (files.get(path) ?? '') + text),
   });
-  log.add({ type: 'speech', sender: '主播', text: '大家好', emotion: 'HAPPY' });
+  log.add({ type: 'speech', sender: '主播', text: '大家好\n今天讲吕布', emotion: 'HAPPY' });
   log.add({ type: 'chat', sender: '阿明', userId: 'u1', text: '主播好' });
   log.add({
     type: 'gift',
-    sender: '阿明',
-    userId: 'u1',
-    gift: { name: '玫瑰', count: 3, diamonds: 3 },
+    sender: '雅',
+    userId: 'u2',
+    gift: { name: '人气票', count: 1, diamonds: 1 },
   });
 
-  expect([...files.keys()]).toEqual(['/data/chat/1/1000.json', '/data/chat/1/1002.json']);
-  expect(files.get('/data/chat/1/1000.json')).toEqual([
-    expect.objectContaining({
-      ts: 1000,
-      sender: '主播',
-      type: 'speech',
-      text: '大家好',
-      emotion: 'HAPPY',
-    }),
-    expect.objectContaining({ ts: 1001, sender: '阿明', type: 'chat', text: '主播好' }),
-  ]);
-  expect(files.get('/data/chat/1/1002.json')).toEqual([
-    expect.objectContaining({ type: 'gift', gift: { name: '玫瑰', count: 3, diamonds: 3 } }),
-  ]);
+  expect(Object.fromEntries(files)).toEqual({
+    [`/data/chat/1/${Date.UTC(2026, 9, 16, 8, 47, 21)}.txt`]:
+      '2026-10-16 08:47:21 [主播](speech)(HAPPY) 大家好 今天讲吕布\n' +
+      '2026-10-16 08:47:22 [阿明#u1](chat) 主播好\n',
+    [`/data/chat/1/${Date.UTC(2026, 9, 16, 8, 47, 23)}.txt`]:
+      '2026-10-16 08:47:23 [雅#u2](gift) 送出 人气票×1（1钻）\n',
+  });
 });

@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess } from 'node:child_process';
 import type { BotLog } from '../src/chat-bot';
-import { ChatLog, type ChatRecord } from '../src/chat-log';
+import { ChatLog } from '../src/chat-log';
 import { Transcriber } from '../src/transcriber';
 import { Transcript } from '../src/transcript';
 
@@ -22,9 +22,10 @@ function fakeWorker(lines: string[]): ChildProcess {
 
 test('keeps what the worker hears, and restarts it on a fresh stream URL when it ends', async () => {
   const transcript = new Transcript(Infinity);
-  let records: ChatRecord[] = [];
+  let written = '';
   const chatLog = new ChatLog('/data/chat/1', {
-    write: (_path, value) => (records = structuredClone(value as ChatRecord[])),
+    now: () => Date.UTC(2026, 9, 16, 8, 0, 0),
+    append: (_path, text) => (written += text),
   });
   const urls = ['url-1', null, 'url-2'];
   const started: string[] = [];
@@ -57,9 +58,8 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
     { start: 100_000, end: 102_500, text: '从 url-1 听到', bgm: true, emotion: 'HAPPY' },
     { start: 100_000, end: 102_500, text: '从 url-2 听到', bgm: true, emotion: 'HAPPY' },
   ]);
-  expect(records.map(({ sender, type }) => `${sender} ${type}`)).toEqual([
-    '主播 speech',
-    '主播 speech',
-  ]);
-  expect(records[0]).toMatchObject({ text: '从 url-1 听到', emotion: 'HAPPY' });
+  expect(written).toBe(
+    '2026-10-16 08:00:00 [主播](speech)(HAPPY) 从 url-1 听到\n' +
+      '2026-10-16 08:00:00 [主播](speech)(HAPPY) 从 url-2 听到\n',
+  );
 });
