@@ -57,6 +57,9 @@ if (!isRoomId(roomId) || port === null || !botName) {
 const log = createLogger(resolve(values.logs));
 const room = new DyhubRoomApi(port, roomId);
 const transcript = new Transcript();
+// Balances last one run: cleared on exit, and on start in case the last run didn't exit cleanly.
+const wallet = new Wallet(jsonFileStorage(join(resolve(values.data), `wallet-${roomId}.json`)));
+wallet.clear();
 const transcriber = values.asr
   ? new Transcriber({
       streamUrl: room.streamUrl,
@@ -79,8 +82,7 @@ const bot = new ChatBot({
   screenshot: values.screenshot ? room.screenshot : undefined,
   transcript,
   transcriptMs: Number(values['transcript-minutes']) * 60_000,
-  // Balances are per room: what a viewer gifted here pays for their mentions here.
-  wallet: new Wallet(jsonFileStorage(join(resolve(values.data), `wallet-${roomId}.json`))),
+  wallet,
   cost: Number(values.cost),
   log,
   promptTemplate: readFileSync(resolve(values.prompt), 'utf8'),
@@ -103,6 +105,7 @@ const shutdown = () => {
   log.info('stopping');
   bot.stop();
   transcriber?.stop();
+  wallet.clear();
   log.on('finish', () => process.exit(0));
   log.end();
 };

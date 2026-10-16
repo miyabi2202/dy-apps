@@ -69,6 +69,12 @@ export class Wallet {
     this.storage.save(this.accounts);
   }
 
+  /** Forgets every balance. */
+  clear(): void {
+    for (const userId of Object.keys(this.accounts)) delete this.accounts[userId];
+    this.storage.save(this.accounts);
+  }
+
   private account(userId: string, nickname: string): Account {
     const account = (this.accounts[userId] ??= { nickname, gifted: 0, spent: 0 });
     account.nickname = nickname;

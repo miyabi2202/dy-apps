@@ -233,3 +233,15 @@ test('gives the diamond back when the mention cannot be answered', async () => {
   expect(sent).toEqual([]);
   expect(wallet.balance('u-阿明')).toBe(1);
 });
+
+test('clearing the wallet forgets every balance', () => {
+  const saved: Record<string, Account>[] = [];
+  const wallet = new Wallet({
+    load: () => ({ 'u-阿明': { nickname: '阿明', gifted: 5, spent: 1 } }),
+    save: (accounts) => saved.push(structuredClone(accounts)),
+  });
+  wallet.clear();
+
+  expect(wallet.balance('u-阿明')).toBe(0);
+  expect(saved).toEqual([{}]);
+});

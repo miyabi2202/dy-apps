@@ -27,11 +27,11 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
 
 - In someone else's room, the bot answers anyone who @s it, in public, as the user's account. Say so when starting it there.
 - Read `chat-bot/logs/chat-bot.log` (JSON lines: every chat, prompt, answer, gift and transcript line) to answer questions like 「刚才机器人回了什么」 or 「谁送了礼物」.
-- Balances are in `chat-bot/data/wallet-<房间号>.json` (`gifted` − `spent` per user id). Don't edit them unless the user asks.
+- Balances are in `chat-bot/data/wallet-<房间号>.json` (`gifted` − `spent` per user id) while the bot runs. Don't edit them unless the user asks.
 
 ## Stop
 
-Stop the bot's background task first, then DyHub's (TaskStop), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or DyHub process is left. Balances are saved as they change, so nothing is lost.
+Stop the bot's background task first, then DyHub's (TaskStop), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or DyHub process is left. Stopping clears every balance (`wallet.clear()` on exit); starting clears them too.
 
 ## Troubleshooting
 
