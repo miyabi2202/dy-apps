@@ -1,0 +1,41 @@
+# AGENTS.md (chat-bot)
+
+How to run the chat bot for the user, e.g. when they say 「启动机器人，房间 123」 or 「停掉机器人」. What the bot does and every option are in the [README](../README.md#chat-bot).
+
+## Start
+
+The user gives a room number (the digits in `live.douyin.com/<id>`). Run both processes with the Bash tool's `run_in_background`, never `&` or `nohup`, so they can be stopped later.
+
+1. **Check nothing is running yet**: `lsof -nP -iTCP:8757 -sTCP:LISTEN` and `pgrep -fl "transcribe.py|chat-bot/src/main"`. If DyHub is already up, skip step 2; if a bot is already running, ask before starting a second one.
+2. **DyHub**, from `~/coding/dyhub` (the miyabi2202 fork, branch `feat/send-chat` until it's merged into `main`): `npm run dev`. Wait until `curl -s localhost:8757/api/rooms` answers.
+3. **Check the login**: `curl -s localhost:8757/api/cookie` must show `"hasLogin":true` (and `expiresAt` in the future). Without it the bot can't send chat and gifts don't arrive: tell the user to log in from the console at http://localhost:8757 (网页登录) and stop here.
+4. **The bot**, from `chat-bot/`:
+
+   ```sh
+   pnpm start --room <房间号> --bot-name 默认关闭 --bot-id 7692586790687114297
+   ```
+
+   `默认关闭` / `7692586790687114297` is the Douyin account DyHub is logged in as. If the user logged in with another account, get its nickname from them and its uid from the `user.id` of one of its own chat messages (in `logs/chat-bot.log`).
+
+5. **Confirm it's working** from the bot's output, and tell the user:
+   - `dyhub ready` within seconds: connected to the room's chat.
+   - `transcribing {"url": …}`: DyHub has the stream. If it never comes, the room isn't live.
+   - `heard {"text": …}` within about 2 minutes: speech recognition is running (the first sentence waits for the models to load). The first run ever downloads about 1 GB of models first.
+   - `gift {…}` lines as viewers send gifts, with their new balance.
+
+## While it runs
+
+- In someone else's room, the bot answers anyone who @s it, in public, as the user's account. Say so when starting it there.
+- Read `chat-bot/logs/chat-bot.log` (JSON lines: every chat, prompt, answer, gift and transcript line) to answer questions like 「刚才机器人回了什么」 or 「谁送了礼物」.
+- Balances are in `chat-bot/data/wallet-<房间号>.json` (`gifted` − `spent` per user id). Don't edit them unless the user asks.
+
+## Stop
+
+Stop the bot's background task first, then DyHub's (TaskStop), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or DyHub process is left. Balances are saved as they change, so nothing is lost.
+
+## Troubleshooting
+
+- `transcriber stopped, restarting` now and then is normal (the stream URL expires or the stream drops); it retries every 10 s. If it repeats, `GET localhost:8757/api/rooms/<房间号>/stream` shows whether DyHub still has a stream.
+- `reply did not show up in the room chat`: Douyin may be throttling the account; suggest a pause.
+- `could not answer mention … claude …`: run `claude -p` by hand to check Claude Code works; the mention was refunded.
+- Changed the code? Run `pnpm typecheck`, `pnpm test` and `pnpm lint` (from the repo root) before restarting it.

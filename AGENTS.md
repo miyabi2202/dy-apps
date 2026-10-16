@@ -1,6 +1,6 @@
 # AGENTS.md
 
-See the [README](README.md) for layout and commands.
+See the [README](README.md) for layout and commands. To start or stop the live-room chat bot for the user, follow [chat-bot/AGENTS.md](chat-bot/AGENTS.md).
 
 ## Code splitting
 
