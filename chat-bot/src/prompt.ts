@@ -8,7 +8,9 @@ export interface PromptInput {
   transcript: readonly TranscriptLine[];
   asker: string;
   question: string;
-  /** How many characters the answer may use. */
+  /** How many characters fit in one message. */
+  singleLength: number;
+  /** How many characters the answer may use at most, over several messages. */
   maxLength: number;
   /** The current time, ms since the epoch. */
   now: number;
@@ -24,17 +26,19 @@ export function clock(ms: number): string {
 /**
  * Fills a prompt template: `{{history}}` becomes one `昵称: 内容` line per chat, `{{transcript}}`
  * one `HH:MM:SS 内容` line per sentence the streamer said, `{{asker}}` and `{{question}}` the
- * mention's sender and text, `{{maxLength}}` the answer's length limit, `{{now}}` the time, and
+ * mention's sender and text, `{{singleLength}}` what fits in one message and `{{maxLength}}` the
+ * most the answer may use over several, `{{now}}` the time, and
  * `{{chatDir}}` the folder of chat record files.
  */
 export function buildPrompt(template: string, input: PromptInput): string {
-  const { history, transcript, asker, question, maxLength, now, chatDir } = input;
+  const { history, transcript, asker, question, singleLength, maxLength, now, chatDir } = input;
   const values: Record<string, string> = {
     history: history.map((line) => `${line.nickname}: ${line.content}`).join('\n') || '（暂无）',
     transcript:
       transcript.map((line) => `${clock(line.start)} ${line.text}`).join('\n') || '（暂无）',
     asker,
     question: question || '（只 @ 了你，没有说别的）',
+    singleLength: String(singleLength),
     maxLength: String(maxLength),
     now: clock(now),
     chatDir: chatDir ?? '（无）',

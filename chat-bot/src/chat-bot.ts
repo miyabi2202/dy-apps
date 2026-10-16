@@ -5,6 +5,7 @@ import type { AskClaude } from './claude';
 import type { Outbox } from './outbox';
 import { isFromBot, questionFor, type BotIdentity } from './mention';
 import { buildPrompt } from './prompt';
+import { answerBudget, oneMessage, replyMessages, singleBudget, type ReplyLimits } from './reply';
 import type { Transcript } from './transcript';
 import type { Wallet } from './wallet';
 
@@ -36,6 +37,8 @@ export interface ChatBotOptions {
   historySize?: number;
   /** Douyin's chat length limit: the prompt asks for less, and longer replies are cut to it. */
   maxReplyLength?: number;
+  /** A long answer goes out as up to this many messages, `@asker (1/3) …`. */
+  maxReplyParts?: number;
   /** Mentions waiting for Claude beyond this are dropped (and refunded), so a busy room can't
    * pile up a backlog nobody remembers asking. */
   maxPending?: number;
@@ -72,14 +75,14 @@ export class ChatBot {
   /** When each viewer was last told their balance is too low. */
   private readonly noticedAt = new Map<string, number>();
   private busy = false;
-  private readonly maxReplyLength: number;
+  private readonly limits: ReplyLimits;
   private readonly maxPending: number;
   private readonly now: () => number;
   private readonly cost: number;
 
   constructor(private readonly options: ChatBotOptions) {
     this.history = new ChatHistory(options.historySize ?? 100);
-    this.maxReplyLength = options.maxReplyLength ?? 49;
+    this.limits = { maxLength: options.maxReplyLength ?? 49, maxParts: options.maxReplyParts ?? 5 };
     this.maxPending = options.maxPending ?? 20;
     this.now = options.now ?? Date.now;
     this.cost = options.cost ?? 1;
@@ -160,9 +163,10 @@ export class ChatBot {
     const cooldownMs = this.options.noticeCooldownMs ?? 60_000;
     if (last !== undefined && now - last < cooldownMs) return;
     this.noticedAt.set(key, now);
+    const notice = `你的余额不足，每次@需要${this.cost}钻（${Math.round(cooldownMs / 1000)}秒内只提醒一次）`;
     this.options.outbox.push({
       kind: 'notice',
-      text: `@${asker} 你的余额不足，每次@需要${this.cost}钻（${Math.round(cooldownMs / 1000)}秒内只提醒一次）`,
+      text: oneMessage(asker, notice, this.limits.maxLength) ?? `@${asker} ${notice}`,
     });
   }
 
@@ -200,12 +204,11 @@ export class ChatBot {
 
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, log, promptTemplate, transcript } = this.options;
-    // The reply is `@asker answer`, so the answer gets what the @ leaves of the limit.
-    const maxLength = this.maxReplyLength - [...`@${mention.asker} `].length;
     const prompt = buildPrompt(promptTemplate, {
       ...mention,
+      singleLength: singleBudget(mention.asker, this.limits),
+      maxLength: answerBudget(mention.asker, this.limits),
       transcript: transcript?.recent(this.options.transcriptMs ?? 5 * 60_000) ?? [],
-      maxLength,
       now: this.now(),
       chatDir: this.options.chatLog?.dir,
     });
@@ -215,13 +218,20 @@ export class ChatBot {
       const started = this.now();
       const answer = await ask({ prompt, image });
       log.info('claude answered', { answer, ms: this.now() - started, image: !!image });
-      const reply = this.toReply(mention.asker, answer);
-      if (!reply) {
+      const messages = replyMessages(mention.asker, answer, this.limits);
+      if (!messages.length) {
         log.warn('claude gave an empty answer', { asker: mention.asker });
         this.refund(mention);
         return;
       }
-      outbox.push({ kind: 'reply', text: reply, onFailed: () => this.refund(mention) });
+      // One refund however many of the parts fail.
+      let refunded = false;
+      const onFailed = () => {
+        if (refunded) return;
+        refunded = true;
+        this.refund(mention);
+      };
+      for (const text of messages) outbox.push({ kind: 'reply', text, onFailed });
     } catch (err) {
       log.error('could not answer mention', {
         asker: mention.asker,
@@ -242,19 +252,5 @@ export class ChatBot {
       });
       return undefined;
     }
-  }
-
-  /**
-   * `@asker answer` on one line, cut to the length limit; empty when Claude said nothing.
-   * Claude sees the bot's earlier `@…` replies in the chat and often starts with the @ itself.
-   */
-  private toReply(asker: string, answer: string): string {
-    const tag = `@${asker}`;
-    // Web search makes Claude add a sources list; it has no place in a chat message.
-    const body = answer.split(/\n\s*(?:Sources|来源)\s*[:：]/)[0] ?? '';
-    let text = body.replace(/\s+/g, ' ').trim();
-    while (text.startsWith(tag)) text = text.slice(tag.length).trim();
-    if (!text) return '';
-    return [...`@${asker} ${text}`].slice(0, this.maxReplyLength).join('');
   }
 }

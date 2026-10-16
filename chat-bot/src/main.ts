@@ -31,13 +31,15 @@ const { values } = parseArgs({
     prompt: { type: 'string', default: join(packageDir, 'prompt.md') },
     history: { type: 'string', default: '100' },
     'max-reply': { type: 'string', default: '49' },
+    'max-parts': { type: 'string', default: '5' },
     tools: { type: 'string', default: 'WebSearch,Read,Glob,Grep' },
     model: { type: 'string', default: 'opus' },
     system: { type: 'string', default: '你是一个抖音直播间的机器人' },
     logs: { type: 'string', default: join(packageDir, 'logs') },
     asr: { type: 'boolean', default: true },
     'transcript-minutes': { type: 'string', default: '5' },
-    screenshot: { type: 'boolean', default: true },
+    // Off by default: most streams don't need Claude to see the video (lessons with a board do).
+    screenshot: { type: 'boolean', default: false },
     cost: { type: 'string', default: '1' },
     queue: { type: 'string', default: '20' },
     'send-interval': { type: 'string', default: '10' },
@@ -51,9 +53,9 @@ const botName = values['bot-name'];
 if (!isRoomId(roomId) || port === null || !botName) {
   console.error(
     'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
-      '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--tools WebSearch,Read,Glob,Grep]\n' +
+      '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,Read,Glob,Grep]\n' +
       '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
-      '       [--no-asr] [--transcript-minutes 5] [--no-screenshot] [--cost 1] [--queue 20]\n' +
+      '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1] [--queue 20]\n' +
       '       [--send-interval 10] [--data data/]',
   );
   process.exit(1);
@@ -107,6 +109,7 @@ const bot = new ChatBot({
   promptTemplate: readFileSync(resolve(values.prompt), 'utf8'),
   historySize: Number(values.history),
   maxReplyLength: Number(values['max-reply']),
+  maxReplyParts: Number(values['max-parts']),
 });
 
 log.info('starting', {

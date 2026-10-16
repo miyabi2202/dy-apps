@@ -15,6 +15,8 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
    pnpm start --room <房间号> --bot-name 默认关闭 --bot-id 7692586790687114297
    ```
 
+   Add `--screenshot` when the stream is a lesson or game where Claude needs to see the video (a board, a question on screen); the user may ask for it.
+
    `默认关闭` / `7692586790687114297` is the Douyin account DyHub is logged in as. If the user logged in with another account, get its nickname from them and its uid from the `user.id` of one of its own chat messages (in `logs/chat-bot.log`).
 
 5. **Confirm it's working** from the bot's output, and tell the user:

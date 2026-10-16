@@ -7,7 +7,7 @@ import { Wallet, type Account } from '../src/wallet';
 
 const BOT = { nickname: '小助手', userId: 'bot-1' };
 const NOW = Date.UTC(2026, 9, 16, 8, 0, 0);
-const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{maxLength}})';
+const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{singleLength}})';
 
 let nextId = 0;
 function chat(nickname: string, content: string, parts?: DyhubChatPart[]): DyhubCommentEvent {
