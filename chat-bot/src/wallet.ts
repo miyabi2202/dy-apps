@@ -1,5 +1,5 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { writeJsonAtomic } from './json-file';
 
 /** One viewer's account, in diamonds (抖币). */
 export interface Account {
@@ -16,7 +16,7 @@ export interface WalletStorage {
   save(accounts: Record<string, Account>): void;
 }
 
-/** A JSON file, written to a temporary file first so a crash never leaves half of one. */
+/** A JSON file. */
 export function jsonFileStorage(path: string): WalletStorage {
   return {
     load() {
@@ -27,9 +27,7 @@ export function jsonFileStorage(path: string): WalletStorage {
       }
     },
     save(accounts) {
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(`${path}.tmp`, JSON.stringify(accounts, null, 2));
-      renameSync(`${path}.tmp`, path);
+      writeJsonAtomic(path, accounts);
     },
   };
 }

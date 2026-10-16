@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { BotLog } from './chat-bot';
+import type { ChatLog } from './chat-log';
 import type { Transcript } from './transcript';
 
 /** Starts the transcription worker on a stream URL. */
@@ -21,6 +22,8 @@ export interface TranscriberOptions {
   /** The room's stream URL, or null while there isn't one (not live, or DyHub still opening it). */
   streamUrl: () => Promise<string | null>;
   transcript: Transcript;
+  /** Where each sentence is also recorded, as said by 主播. */
+  chatLog?: ChatLog;
   log: BotLog;
   spawnWorker: SpawnWorker;
   /** Wait this long before asking for the stream again after it ends or isn't there. */
@@ -87,6 +90,12 @@ export class Transcriber {
         const line = parseLine(text);
         if (!line) return;
         transcript.add(line);
+        this.options.chatLog?.add({
+          type: 'speech',
+          sender: '主播',
+          text: line.text,
+          emotion: line.emotion,
+        });
         log.info('heard', { text: line.text, bgm: line.bgm, emotion: line.emotion });
       });
     }

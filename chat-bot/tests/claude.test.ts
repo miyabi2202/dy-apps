@@ -1,4 +1,5 @@
-import { resultFrom, userMessage } from '../src/claude';
+import type { spawn } from 'node:child_process';
+import { claudeCli, resultFrom, userMessage } from '../src/claude';
 
 test('sends the screenshot before the prompt', () => {
   const message = JSON.parse(
@@ -23,4 +24,18 @@ test('reads the answer from the result line, and fails on an error result', () =
     resultFrom(lines({ type: 'result', subtype: 'error_max_turns', is_error: true })),
   ).toThrow('error_max_turns');
   expect(() => resultFrom('')).toThrow('no result');
+});
+
+test('pre-approves web search but not the file tools, which only reach the given folders', () => {
+  let args: readonly string[] = [];
+  const spawnProcess = ((_command: string, a: readonly string[]) => {
+    args = a;
+    throw new Error('not really running claude');
+  }) as unknown as typeof spawn;
+  void claudeCli({ readDirs: ['/data/chat/1'], spawnProcess })({ prompt: 'hi' }).catch(() => {});
+
+  const after = (flag: string) => args[args.indexOf(flag) + 1];
+  expect(after('--tools')).toBe('WebSearch,Read,Glob,Grep');
+  expect(after('--allowedTools')).toBe('WebSearch');
+  expect(after('--add-dir')).toBe('/data/chat/1');
 });

@@ -16,14 +16,23 @@ export interface ClaudeCliOptions {
   timeoutMs?: number;
   /** Working directory for the run. */
   cwd?: string;
-  /** Built-in tools Claude may use, all pre-approved; read-only ones only, since chat is untrusted. */
+  /**
+   * Built-in tools Claude may use; read-only ones only, since chat is untrusted. All are
+   * pre-approved except the file tools, which then reach only `readDirs`: Claude Code lets them
+   * read the working directories, and without someone to approve, anything else is denied.
+   */
   tools?: readonly string[];
+  /** Folders Claude may read (`--add-dir`). */
+  readDirs?: readonly string[];
   /** `--model`: an alias like `opus` or a full model name; Claude Code's default when unset. */
   model?: string;
   /** Added to Claude Code's system prompt for every question. */
   systemPrompt?: string;
   spawnProcess?: typeof spawn;
 }
+
+/** Tools that read files: never pre-approved, so they stay inside the working directories. */
+const FILE_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead']);
 
 /** The stream-json user message `claude -p --input-format stream-json` reads on stdin. */
 export function userMessage({ prompt, image }: Question): string {
@@ -65,19 +74,21 @@ export function resultFrom(output: string): string {
 
 /**
  * `claude -p`, with the question as a stream-json message on stdin so it can carry an image.
- * Chat is untrusted, so the run gets only the listed tools (web search by default), no MCP
- * servers and no saved session.
+ * Chat is untrusted, so the run gets only the listed tools (web search, and reading `readDirs`,
+ * by default), no MCP servers and no saved session.
  */
 export function claudeCli({
   command = 'claude',
   timeoutMs = 120_000,
   cwd,
-  tools = ['WebSearch'],
+  tools = ['WebSearch', 'Read', 'Glob', 'Grep'],
+  readDirs = [],
   model,
   systemPrompt,
   spawnProcess = spawn,
 }: ClaudeCliOptions = {}): AskClaude {
   const toolList = tools.join(',');
+  const preApproved = tools.filter((tool) => !FILE_TOOLS.has(tool)).join(',');
   const args = [
     '-p',
     '--input-format',
@@ -87,7 +98,8 @@ export function claudeCli({
     '--verbose',
     '--tools',
     toolList,
-    ...(tools.length ? ['--allowedTools', toolList] : []),
+    ...(preApproved ? ['--allowedTools', preApproved] : []),
+    ...readDirs.flatMap((dir) => ['--add-dir', dir]),
     '--strict-mcp-config',
     '--no-session-persistence',
     ...(model ? ['--model', model] : []),

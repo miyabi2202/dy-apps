@@ -3,13 +3,14 @@
  *
  *     pnpm start --room 259175310675 --bot-name 默认关闭
  */
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { DyhubClient, isRoomId, parsePort } from '@dy-apps/services';
 import { ChatBot } from './chat-bot';
+import { ChatLog } from './chat-log';
 import { claudeCli } from './claude';
 import { DyhubRoomApi } from './dyhub-room';
 import { createLogger } from './logger';
@@ -29,7 +30,7 @@ const { values } = parseArgs({
     prompt: { type: 'string', default: join(packageDir, 'prompt.md') },
     history: { type: 'string', default: '100' },
     'max-reply': { type: 'string', default: '49' },
-    tools: { type: 'string', default: 'WebSearch' },
+    tools: { type: 'string', default: 'WebSearch,Read,Glob,Grep' },
     model: { type: 'string', default: 'opus' },
     system: { type: 'string', default: '你是一个抖音直播间的机器人' },
     logs: { type: 'string', default: join(packageDir, 'logs') },
@@ -47,7 +48,7 @@ const botName = values['bot-name'];
 if (!isRoomId(roomId) || port === null || !botName) {
   console.error(
     'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
-      '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--tools WebSearch]\n' +
+      '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--tools WebSearch,Read,Glob,Grep]\n' +
       '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
       '       [--no-asr] [--transcript-minutes 5] [--no-screenshot] [--cost 1] [--data data/]',
   );
@@ -58,12 +59,18 @@ const log = createLogger(resolve(values.logs));
 const room = new DyhubRoomApi(port, roomId);
 const transcript = new Transcript();
 // Balances last one run: cleared on exit, and on start in case the last run didn't exit cleanly.
-const wallet = new Wallet(jsonFileStorage(join(resolve(values.data), `wallet-${roomId}.json`)));
+const dataDir = resolve(values.data);
+const wallet = new Wallet(jsonFileStorage(join(dataDir, `wallet-${roomId}.json`)));
 wallet.clear();
+// Everything said, chatted and gifted, 100 records a file; Claude may read this folder.
+const chatDir = join(dataDir, 'chat', roomId);
+mkdirSync(chatDir, { recursive: true });
+const chatLog = new ChatLog(chatDir);
 const transcriber = values.asr
   ? new Transcriber({
       streamUrl: room.streamUrl,
       transcript,
+      chatLog,
       log,
       spawnWorker: uvWorker(join(packageDir, 'asr')),
     })
@@ -75,6 +82,7 @@ const bot = new ChatBot({
   ask: claudeCli({
     cwd: tmpdir(),
     tools: values.tools.split(',').filter(Boolean),
+    readDirs: [chatDir],
     model: values.model,
     systemPrompt: values.system,
   }),
@@ -82,6 +90,7 @@ const bot = new ChatBot({
   screenshot: values.screenshot ? room.screenshot : undefined,
   transcript,
   transcriptMs: Number(values['transcript-minutes']) * 60_000,
+  chatLog,
   wallet,
   cost: Number(values.cost),
   log,

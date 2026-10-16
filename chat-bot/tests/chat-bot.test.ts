@@ -1,5 +1,6 @@
 import type { DyhubChatPart, DyhubCommentEvent, DyhubGiftEvent } from '@dy-apps/services';
 import { ChatBot, type BotLog } from '../src/chat-bot';
+import { ChatLog, type ChatRecord } from '../src/chat-log';
 import { Transcript } from '../src/transcript';
 import { Wallet, type Account } from '../src/wallet';
 
@@ -32,6 +33,7 @@ interface SetupOptions {
   wallet?: Wallet;
   cost?: number;
   ask?: () => Promise<string>;
+  chatLog?: ChatLog;
 }
 
 /** A wallet kept in memory, starting from `accounts`. */
@@ -87,6 +89,7 @@ function setup(options: SetupOptions = {}) {
     screenshot: options.screenshot,
     now: () => NOW,
     wallet: options.wallet,
+    chatLog: options.chatLog,
     cost: options.cost,
     historySize: options.historySize,
     maxReplyLength: options.maxReplyLength,
@@ -244,4 +247,22 @@ test('clearing the wallet forgets every balance', () => {
 
   expect(wallet.balance('u-阿明')).toBe(0);
   expect(saved).toEqual([{}]);
+});
+
+test('records chat and gifts, and points Claude at the record folder', async () => {
+  let records: ChatRecord[] = [];
+  const chatLog = new ChatLog('/data/chat/1', {
+    write: (_path, value) => (records = structuredClone(value as ChatRecord[])),
+  });
+  const { bot, say, give, prompts } = setup({ chatLog, template: '{{chatDir}}' });
+  give(gift('阿明', 10), 2);
+  say(chat('阿明', '@小助手 记得我送了什么吗'));
+  await bot.idle();
+
+  expect(records.map(({ sender, type }) => `${sender} ${type}`)).toEqual([
+    '阿明 gift',
+    '阿明 chat',
+  ]);
+  expect(records[0]).toMatchObject({ gift: { name: '玫瑰', count: 2, diamonds: 20 } });
+  expect(prompts).toEqual(['/data/chat/1']);
 });

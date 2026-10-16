@@ -46,7 +46,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   prompt.md               #   the prompt sent to Claude: {{history}}, {{transcript}}, {{asker}}, {{question}}, …
   src/main.ts             #   entry: options, real objects wired by hand
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + SenseVoice
-  logs/  data/            #   winston logs, and balances per room (not in git)
+  logs/  data/            #   winston logs; balances and chat records per room (not in git)
 eslint.config.js          # lint for the whole repo, including which folders may import which
 .prettierrc.json          # repo-wide formatting (+ .prettierignore)
 package.json              # private root: lint/format tools and the repo-wide checks
@@ -95,6 +95,7 @@ Status: both apps pick fake data or a live room in their 数据来源 panel. The
 
 - **What the streamer says**: `chat-bot/asr/transcribe.py` pulls the stream's audio with ffmpeg (the URL comes from DyHub's `GET /api/rooms/:roomId/stream`), finds sentences with fsmn-vad and transcribes them with SenseVoice, on Apple's GPU, CUDA or the CPU. Audio stays in that process and is never written to disk; the bot keeps the text, timestamped, for 30 minutes, and gives the last 5 to the prompt as `{{transcript}}`. When the stream ends or its URL expires, the bot asks DyHub again and restarts the worker. Singing comes out as background music and is mostly skipped.
 - **What's on screen**: DyHub's `GET /api/rooms/:roomId/screenshot` (the player only, as a JPEG) goes to Claude with each question.
+- **Chat record**: everything the streamer says (`sender: "主播"`, with SenseVoice's emotion), every chat message and every gift (name, count, diamonds) goes into `data/chat/<房间号>/<ms>.json`, a JSON array of up to 100 records per file, named by its first record's time. Claude gets the folder (`--add-dir`) and is told in the prompt (`{{chatDir}}`) that it's the room's chat record, to read when the recent lines in the prompt aren't enough. Its file tools aren't pre-approved, so they reach only that folder: Claude Code denies reads anywhere else when nobody is there to approve them. The record is kept across runs.
 - **Paying with gifts**: every gift a viewer sends in the room adds its diamonds (抖币) to their balance, and each @mention costs `--cost` diamonds. A viewer who can't pay gets `@昵称 你的余额不足，每次@需要1钻` instead of an answer, at most once a minute; a mention that fails is refunded. Balances last one run: they're written to `data/wallet-<房间号>.json` (`gifted` and `spent` per user id) as they change, and cleared when the bot exits (and when it starts, in case it didn't exit cleanly). Gift events need DyHub logged in.
 
 It needs DyHub running with the browser collector and logged in (网页登录) as the bot's account, Claude Code's `claude`, `ffmpeg` and [uv](https://docs.astral.sh/uv/) on `PATH`. The first run downloads the speech models (about 1 GB) into `~/.cache/modelscope`. From `chat-bot/`:
@@ -105,20 +106,20 @@ pnpm start --room <房间号> --bot-name <the logged-in account's nickname> [--b
 
 Other options:
 
-| Option                 | Default                      | What it does                                                                                 |
-| ---------------------- | ---------------------------- | -------------------------------------------------------------------------------------------- |
-| `--port`               | `8757`                       | DyHub's port                                                                                 |
-| `--prompt`             | `prompt.md`                  | The prompt template                                                                          |
-| `--history`            | `100`                        | Chat messages remembered and passed as `{{history}}`                                         |
-| `--max-reply`          | `49`                         | Reply length; Douyin's limit is under 50, and `{{maxLength}}` is what's left after `@asker ` |
-| `--model`              | `opus`                       | Claude model                                                                                 |
-| `--system`             | `你是一个抖音直播间的机器人` | Added to Claude Code's system prompt                                                         |
-| `--tools`              | `WebSearch`                  | Claude Code's built-in tools, comma-separated, pre-approved; `''` for none                   |
-| `--cost`               | `1`                          | Diamonds per @mention; `0` makes them free                                                   |
-| `--no-asr`             |                              | Don't transcribe the streamer                                                                |
-| `--transcript-minutes` | `5`                          | How far back `{{transcript}}` goes                                                           |
-| `--no-screenshot`      |                              | Don't send a screenshot                                                                      |
-| `--logs` / `--data`    | `logs/` / `data/`            | Where logs and balances go                                                                   |
+| Option                 | Default                      | What it does                                                                                            |
+| ---------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `--port`               | `8757`                       | DyHub's port                                                                                            |
+| `--prompt`             | `prompt.md`                  | The prompt template                                                                                     |
+| `--history`            | `100`                        | Chat messages remembered and passed as `{{history}}`                                                    |
+| `--max-reply`          | `49`                         | Reply length; Douyin's limit is under 50, and `{{maxLength}}` is what's left after `@asker `            |
+| `--model`              | `opus`                       | Claude model                                                                                            |
+| `--system`             | `你是一个抖音直播间的机器人` | Added to Claude Code's system prompt                                                                    |
+| `--tools`              | `WebSearch,Read,Glob,Grep`   | Claude Code's built-in tools, comma-separated; `''` for none. File tools read only `data/chat/<房间号>` |
+| `--cost`               | `1`                          | Diamonds per @mention; `0` makes them free                                                              |
+| `--no-asr`             |                              | Don't transcribe the streamer                                                                           |
+| `--transcript-minutes` | `5`                          | How far back `{{transcript}}` goes                                                                      |
+| `--no-screenshot`      |                              | Don't send a screenshot                                                                                 |
+| `--logs` / `--data`    | `logs/` / `data/`            | Where logs and balances go                                                                              |
 
 The console shows info and up (mentions, gifts, what was heard, replies); `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.
 

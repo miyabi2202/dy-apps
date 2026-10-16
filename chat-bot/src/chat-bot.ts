@@ -1,5 +1,6 @@
 import type { DyhubClient, DyhubCommentEvent } from '@dy-apps/services';
 import { ChatHistory, chatLineFrom, type ChatLine } from './chat-history';
+import type { ChatLog } from './chat-log';
 import type { AskClaude } from './claude';
 import type { SendChat } from './dyhub-room';
 import { isFromBot, questionFor, type BotIdentity } from './mention';
@@ -36,6 +37,8 @@ export interface ChatBotOptions {
   maxReplyLength?: number;
   /** Mentions waiting beyond this are dropped, so a busy room can't pile up a backlog. */
   maxPending?: number;
+  /** Where the room's chat and gifts are recorded for Claude to read. */
+  chatLog?: ChatLog;
   /** Viewers' balances from their gifts. Without one, mentions are free. */
   wallet?: Wallet;
   /** Diamonds one @mention costs. */
@@ -87,14 +90,27 @@ export class ChatBot {
     client.onComment((event) => {
       const line = chatLineFrom(event);
       log.debug('chat', { ...line });
+      this.options.chatLog?.add({
+        type: 'chat',
+        sender: line.nickname,
+        userId: line.userId,
+        text: line.content,
+      });
       const { bot } = this.options;
       const question = isFromBot(event, bot) ? null : questionFor(event, bot);
       if (question !== null) this.onMention(event, question);
       this.history.add(line);
     });
     client.onGift((event, newGifts) => {
+      if (!event.user || newGifts <= 0) return;
       const diamonds = newGifts * (event.data.diamondCount ?? 0);
-      if (!event.user || diamonds <= 0) return;
+      this.options.chatLog?.add({
+        type: 'gift',
+        sender: event.user.nickname,
+        userId: event.user.id,
+        gift: { name: event.data.giftName ?? '礼物', count: newGifts, diamonds },
+      });
+      if (diamonds <= 0) return;
       this.options.wallet?.credit(event.user.id, event.user.nickname, diamonds);
       log.info('gift', {
         userId: event.user.id,
@@ -198,6 +214,7 @@ export class ChatBot {
       transcript: transcript?.recent(this.options.transcriptMs ?? 5 * 60_000) ?? [],
       maxLength,
       now: this.now(),
+      chatDir: this.options.chatLog?.dir,
     });
     log.debug('prompt', { prompt });
     try {
