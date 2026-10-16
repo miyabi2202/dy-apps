@@ -122,6 +122,68 @@ export default tseslint.config(
     },
   },
 
+  // The chat bot's layers: core is pure logic, app the use cases, adapters the outside world
+  // (DyHub, Claude CLI, files, processes). Only adapters and the entry touch the outside.
+  {
+    files: ['chat-bot/src/**/*.ts'],
+    plugins: { 'import-x': importX },
+    settings: {
+      'import-x/resolver-next': [
+        createNodeResolver({
+          extensions: ['.ts', '.js'],
+          tsconfig: { configFile: 'chat-bot/tsconfig.json' },
+        }),
+      ],
+    },
+    rules: {
+      'import-x/no-restricted-paths': [
+        'error',
+        {
+          basePath: 'chat-bot/src',
+          zones: [
+            {
+              target: './core',
+              from: ['./app', './adapters'],
+              message: 'core is pure logic: it imports only core.',
+            },
+            {
+              target: './app',
+              from: './adapters',
+              message: 'app reaches the outside world only through the interfaces in app/ports.ts.',
+            },
+            {
+              target: ['./core', './app', './adapters'],
+              from: './*.ts',
+              message: 'Only the entry imports main.ts and cli-options.ts.',
+            },
+            {
+              target: './adapters',
+              from: './app',
+              except: ['./ports.ts'],
+              message: 'adapters implement app/ports.ts and never import the use cases.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['chat-bot/src/core/**/*.ts', 'chat-bot/src/app/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['node:*', '@dy-apps/services', 'winston'],
+              message: 'Only adapters and main.ts talk to Node, DyHub and logging libraries.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Last, so formatting is left entirely to Prettier.
   prettier,
 );

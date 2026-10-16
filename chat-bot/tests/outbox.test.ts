@@ -1,7 +1,7 @@
-import type { BotLog } from '../src/chat-bot';
-import { Outbox } from '../src/outbox';
+import { Outbox } from '../src/app/outbox';
+import type { Log } from '../src/app/ports';
 
-const silentLog: BotLog = { debug() {}, info() {}, warn() {}, error() {} };
+const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 
 test('sends replies before notices, at least the interval apart, and reports a failed send', async () => {
   let now = 0;

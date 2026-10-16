@@ -44,7 +44,10 @@ frontend/                 # @dy-apps/frontend: the one package
   tsconfig.json           #   stays here so editors and ESLint find it
 chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (see "Chat bot" below)
   prompt.md               #   the prompt sent to Claude: {{history}}, {{transcript}}, {{asker}}, {{question}}, …
-  src/main.ts             #   entry: options, real objects wired by hand
+  src/main.ts             #   entry: real objects wired by hand (options parsed in cli-options.ts)
+  src/core/               #   pure logic: mentions, prompt, reply splitting, wallet, chat record format
+  src/app/                #   use cases: ChatBot, Billing, Outbox, Transcriber; ports.ts for the outside
+  src/adapters/           #   DyHub, the Claude CLI, the ASR process, files and logging
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + SenseVoice
   logs/  data/            #   winston logs; balances and chat records per room (not in git)
 eslint.config.js          # lint for the whole repo, including which folders may import which
@@ -167,6 +170,7 @@ The site, apps and shared libraries share one `package.json`, `tsconfig.json` an
 - an app imports another app, or the site
 - `ui` or `services` imports an app or the site
 - `services` imports `ui`
+- in `chat-bot/src`, `core` imports `app` or `adapters`; `app` imports `adapters`; `adapters` imports from `app` anything but `ports.ts`; or any of them imports `main.ts` or `cli-options.ts`. `core` and `app` may not import `node:*`, `@dy-apps/services` or `winston` either (`@typescript-eslint/no-restricted-imports`): only adapters and the entry touch the outside world
 
 Apps import the shared libraries by name, `@dy-apps/ui` and `@dy-apps/services`. Those names come from `frontend/config/aliases.js`, which Vite, StyleX, Jest and Storybook read; `paths` in `frontend/tsconfig.json` repeats them for TypeScript.
 

@@ -1,4 +1,4 @@
-import { answerBudget, oneMessage, replyMessages, singleBudget } from '../src/reply';
+import { answerBudget, oneMessage, replyMessages, singleBudget } from '../src/core/reply';
 
 const limits = { maxLength: 30, maxParts: 3 };
 

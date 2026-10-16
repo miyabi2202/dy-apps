@@ -1,10 +1,4 @@
-/** Sends one chat message to the live room as DyHub's logged-in account. */
-export type SendChat = (text: string) => Promise<SendResult>;
-
-export interface SendResult {
-  /** Whether the message came back in the room's chat stream, i.e. Douyin took it. */
-  echoed: boolean;
-}
+import type { Screenshot, SendChat, StreamUrl } from '../app/ports';
 
 /**
  * One live room's HTTP API on DyHub: send chat, and get the stream URL and a screenshot of the
@@ -34,7 +28,7 @@ export class DyhubRoomApi {
   };
 
   /** `GET …/stream`: the FLV or HLS URL the room's player pulls, or null before it starts. */
-  readonly streamUrl = async (): Promise<string | null> => {
+  readonly streamUrl: StreamUrl = async () => {
     const res = await this.fetchFn(`${this.base}/stream`);
     if (!res.ok) return null;
     const body = (await res.json()) as { url?: string };
@@ -42,7 +36,7 @@ export class DyhubRoomApi {
   };
 
   /** `GET …/screenshot`: the player as a JPEG. */
-  readonly screenshot = async (): Promise<Uint8Array> => {
+  readonly screenshot: Screenshot = async () => {
     const res = await this.fetchFn(`${this.base}/screenshot`);
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };

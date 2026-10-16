@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { writeJsonAtomic } from './json-file';
-
 /** One viewer's account, in diamonds (抖币). */
 export interface Account {
   nickname: string;
@@ -14,22 +11,6 @@ export interface Account {
 export interface WalletStorage {
   load(): Record<string, Account>;
   save(accounts: Record<string, Account>): void;
-}
-
-/** A JSON file. */
-export function jsonFileStorage(path: string): WalletStorage {
-  return {
-    load() {
-      try {
-        return JSON.parse(readFileSync(path, 'utf8')) as Record<string, Account>;
-      } catch {
-        return {};
-      }
-    },
-    save(accounts) {
-      writeJsonAtomic(path, accounts);
-    },
-  };
 }
 
 /** Viewers' balances, keyed by Douyin user id: gifts add to them, @mentions spend them. */

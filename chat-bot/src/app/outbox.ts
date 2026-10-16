@@ -1,5 +1,4 @@
-import type { BotLog } from './chat-bot';
-import type { SendChat } from './dyhub-room';
+import type { Log, SendChat } from './ports';
 
 /** One message waiting to go out. */
 export interface OutgoingMessage {
@@ -12,7 +11,7 @@ export interface OutgoingMessage {
 
 export interface OutboxOptions {
   send: SendChat;
-  log: BotLog;
+  log: Log;
   /** At least this long between two messages, so the account doesn't look like a spammer. */
   intervalMs?: number;
   now?: () => number;

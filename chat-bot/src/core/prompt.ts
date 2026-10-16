@@ -1,4 +1,5 @@
-import type { ChatLine } from './chat-history';
+import { clock } from './local-time';
+import type { ChatLine } from './room-events';
 import type { TranscriptLine } from './transcript';
 
 export interface PromptInput {
@@ -16,11 +17,6 @@ export interface PromptInput {
   now: number;
   /** The folder of the room's chat record files. */
   chatDir?: string;
-}
-
-/** `HH:MM:SS` in the machine's time zone. */
-export function clock(ms: number): string {
-  return new Date(ms).toTimeString().slice(0, 8);
 }
 
 /**

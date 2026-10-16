@@ -1,28 +1,28 @@
-import type { DyhubChatPart, DyhubCommentEvent, DyhubGiftEvent } from '@dy-apps/services';
-import { ChatBot, type BotLog } from '../src/chat-bot';
-import { Outbox } from '../src/outbox';
-import { ChatLog } from '../src/chat-log';
-import { Transcript } from '../src/transcript';
-import { Wallet, type Account } from '../src/wallet';
+import { ChatLog } from '../src/adapters/chat-log-files';
+import { Billing } from '../src/app/billing';
+import { ChatBot } from '../src/app/chat-bot';
+import { Outbox } from '../src/app/outbox';
+import type { Log } from '../src/app/ports';
+import type { Gift, IncomingChat } from '../src/core/room-events';
+import { Transcript } from '../src/core/transcript';
+import { Wallet, type Account } from '../src/core/wallet';
 
 const BOT = { nickname: '小助手', userId: 'bot-1' };
 const NOW = Date.UTC(2026, 9, 16, 8, 0, 0);
 const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{singleLength}})';
 
 let nextId = 0;
-function chat(nickname: string, content: string, parts?: DyhubChatPart[]): DyhubCommentEvent {
+function chat(
+  nickname: string,
+  content: string,
+  mentions: IncomingChat['mentions'] = [],
+): IncomingChat {
   nextId++;
-  return {
-    id: `m${nextId}`,
-    roomId: '1',
-    type: 'chat',
-    ts: nextId,
-    user: { id: nickname === BOT.nickname ? BOT.userId : `u-${nickname}`, nickname },
-    data: { content, parts },
-  };
+  const userId = nickname === BOT.nickname ? BOT.userId : `u-${nickname}`;
+  return { ts: nextId, userId, nickname, content, mentions };
 }
 
-const silentLog: BotLog = { debug() {}, info() {}, warn() {}, error() {} };
+const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 
 interface SetupOptions {
   answer?: string;
@@ -42,21 +42,13 @@ function memoryWallet(accounts: Record<string, Account> = {}) {
   return new Wallet({ load: () => structuredClone(accounts), save: () => {} });
 }
 
-function gift(nickname: string, diamondCount: number): DyhubGiftEvent {
-  nextId++;
-  return {
-    id: `g${nextId}`,
-    roomId: '1',
-    type: 'gift',
-    ts: nextId,
-    user: { id: `u-${nickname}`, nickname },
-    data: { giftId: 'rose', giftName: '玫瑰', diamondCount },
-  };
+function gift(nickname: string, count: number, diamondCount: number): Gift {
+  return { userId: `u-${nickname}`, nickname, name: '玫瑰', count, diamonds: count * diamondCount };
 }
 
 function setup(options: SetupOptions = {}) {
-  let onComment: (event: DyhubCommentEvent) => void = () => {};
-  let onGift: (event: DyhubGiftEvent, newGifts: number) => void = () => {};
+  let onChat: (chat: IncomingChat) => void = () => {};
+  let onGift: (gift: Gift) => void = () => {};
   const prompts: string[] = [];
   const sent: string[] = [];
   // Sends at once: spacing is the outbox's own test.
@@ -70,16 +62,10 @@ function setup(options: SetupOptions = {}) {
   });
   const images: (Uint8Array | undefined)[] = [];
   const bot = new ChatBot({
-    client: {
-      onComment: (handler) => {
-        onComment = handler;
-        return () => {};
-      },
-      onGift: (handler) => {
-        onGift = handler;
-        return () => {};
-      },
-      onStatus: () => () => {},
+    events: {
+      onChat: (handler) => (onChat = handler),
+      onGift: (handler) => (onGift = handler),
+      onStatus: () => {},
       connect: () => {},
       close: () => {},
     },
@@ -95,9 +81,8 @@ function setup(options: SetupOptions = {}) {
     transcript: options.transcript,
     screenshot: options.screenshot,
     now: () => NOW,
-    wallet: options.wallet,
-    chatLog: options.chatLog,
-    cost: options.cost,
+    billing: options.wallet && new Billing({ wallet: options.wallet, cost: options.cost }),
+    record: options.chatLog,
     historySize: options.historySize,
     maxReplyLength: options.maxReplyLength,
   });
@@ -109,8 +94,8 @@ function setup(options: SetupOptions = {}) {
       await bot.idle();
       await outbox.idle();
     },
-    say: (event: DyhubCommentEvent) => onComment(event),
-    give: (event: DyhubGiftEvent, count = 1) => onGift(event, count),
+    say: (event: IncomingChat) => onChat(event),
+    give: (event: Gift) => onGift(event),
     prompts,
     images,
     sent,
@@ -121,7 +106,7 @@ test('answers an @mention with the chat before it, and replies to the asker', as
   const { settle, say, prompts, sent } = setup();
   say(chat('阿明', '主播好'));
   say(chat('小红', '今天讲什么'));
-  say(chat('阿明', '@小助手 这题怎么做', [{ type: 'mention', text: '@小助手', userId: 'bot-1' }]));
+  say(chat('阿明', '@小助手 这题怎么做', [{ text: '@小助手', userId: 'bot-1' }]));
   await settle();
 
   expect(prompts).toEqual(['阿明: 主播好\n小红: 今天讲什么\n---\n阿明: 这题怎么做 (45)']);
@@ -139,7 +124,7 @@ test('passes only the most recent chats', async () => {
 
 test('ignores chat that does not mention the bot, and its own messages', async () => {
   const { settle, say, prompts } = setup();
-  say(chat('阿明', '@别人 你好', [{ type: 'mention', text: '@别人', userId: 'u-x' }]));
+  say(chat('阿明', '@别人 你好', [{ text: '@别人', userId: 'u-x' }]));
   say(chat('小助手', '@小助手 自己提到自己'));
   await settle();
 
@@ -148,7 +133,7 @@ test('ignores chat that does not mention the bot, and its own messages', async (
 
 test('matches a picked @mention by user id even when the nickname text differs', async () => {
   const { settle, say, prompts } = setup();
-  say(chat('阿明', '@旧昵称 在吗', [{ type: 'mention', text: '@旧昵称', userId: 'bot-1' }]));
+  say(chat('阿明', '@旧昵称 在吗', [{ text: '@旧昵称', userId: 'bot-1' }]));
   await settle();
 
   expect(prompts).toHaveLength(1);
@@ -216,7 +201,7 @@ test('answers without a picture when the screenshot fails', async () => {
 test('gifts pay for mentions: each one costs the set price', async () => {
   const wallet = memoryWallet();
   const { settle, say, give, prompts, sent } = setup({ wallet, cost: 2 });
-  give(gift('阿明', 1), 3);
+  give(gift('阿明', 3, 1));
   say(chat('阿明', '@小助手 第一问'));
   await settle();
 
@@ -268,7 +253,7 @@ test('records chat and gifts, and points Claude at the record folder', async () 
     append: (_path, text) => (written += text),
   });
   const { settle, say, give, prompts } = setup({ chatLog, template: '{{chatDir}}' });
-  give(gift('阿明', 10), 2);
+  give(gift('阿明', 2, 10));
   say(chat('阿明', '@小助手 记得我送了什么吗'));
   await settle();
 

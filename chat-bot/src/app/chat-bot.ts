@@ -1,35 +1,33 @@
-import type { DyhubClient, DyhubCommentEvent } from '@dy-apps/services';
-import { ChatHistory, chatLineFrom, type ChatLine } from './chat-history';
-import type { ChatLog } from './chat-log';
-import type { AskClaude } from './claude';
+import { ChatHistory } from '../core/chat-history';
+import { chatRecord, giftRecord } from '../core/chat-record';
+import { isFromBot, questionFor, type BotIdentity } from '../core/mention';
+import { buildPrompt } from '../core/prompt';
+import {
+  answerBudget,
+  oneMessage,
+  replyMessages,
+  singleBudget,
+  type ReplyLimits,
+} from '../core/reply';
+import type { ChatLine, IncomingChat } from '../core/room-events';
+import type { Transcript } from '../core/transcript';
+import type { Billing } from './billing';
 import type { Outbox } from './outbox';
-import { isFromBot, questionFor, type BotIdentity } from './mention';
-import { buildPrompt } from './prompt';
-import { answerBudget, oneMessage, replyMessages, singleBudget, type ReplyLimits } from './reply';
-import type { Transcript } from './transcript';
-import type { Wallet } from './wallet';
-
-/** The logger methods the bot uses; a winston logger fits. */
-export interface BotLog {
-  debug(message: string, meta?: object): void;
-  info(message: string, meta?: object): void;
-  warn(message: string, meta?: object): void;
-  error(message: string, meta?: object): void;
-}
+import type { AskClaude, Log, RoomEvents, RoomRecord, Screenshot } from './ports';
 
 export interface ChatBotOptions {
-  client: Pick<DyhubClient, 'onComment' | 'onGift' | 'onStatus' | 'connect' | 'close'>;
+  events: RoomEvents;
   bot: BotIdentity;
   ask: AskClaude;
   /** Where replies and notices go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
   /** A JPEG of the live video, sent to Claude with each question. */
-  screenshot?: () => Promise<Uint8Array>;
+  screenshot?: Screenshot;
   /** What the streamer has said, for `{{transcript}}`. */
   transcript?: Transcript;
   /** How far back `{{transcript}}` goes. */
   transcriptMs?: number;
-  log: BotLog;
+  log: Log;
   /** The prompt; see buildPrompt for what it can fill in. */
   promptTemplate: string;
   now?: () => number;
@@ -43,13 +41,9 @@ export interface ChatBotOptions {
    * pile up a backlog nobody remembers asking. */
   maxPending?: number;
   /** Where the room's chat and gifts are recorded for Claude to read. */
-  chatLog?: ChatLog;
-  /** Viewers' balances from their gifts. Without one, mentions are free. */
-  wallet?: Wallet;
-  /** Diamonds one @mention costs. */
-  cost?: number;
-  /** Tell a viewer their balance is too low at most this often. */
-  noticeCooldownMs?: number;
+  record?: RoomRecord;
+  /** Charges for mentions from what viewers gift. Without it, mentions are free. */
+  billing?: Billing;
 }
 
 interface Mention {
@@ -64,72 +58,47 @@ interface Mention {
 /**
  * Remembers a room's recent chat and answers each @mention of the bot: the question and the
  * chat before it go to Claude, and the answer joins the outbox to be sent to the room. Claude
- * answers one mention at a time, in order, without waiting for earlier answers to go out. With a
- * wallet, each mention costs `cost` diamonds from what the asker has gifted, given back if it
- * can't be answered; a viewer who can't pay gets a fixed notice, put in the outbox straight away
- * rather than waiting behind the questions for Claude.
+ * answers one mention at a time, in order, without waiting for earlier answers to go out. With
+ * billing, a viewer who can't pay gets a fixed notice, put in the outbox straight away rather
+ * than waiting behind the questions for Claude.
  */
 export class ChatBot {
   private readonly history: ChatHistory;
   private readonly pending: Mention[] = [];
-  /** When each viewer was last told their balance is too low. */
-  private readonly noticedAt = new Map<string, number>();
   private busy = false;
   private readonly limits: ReplyLimits;
   private readonly maxPending: number;
   private readonly now: () => number;
-  private readonly cost: number;
 
   constructor(private readonly options: ChatBotOptions) {
     this.history = new ChatHistory(options.historySize ?? 100);
     this.limits = { maxLength: options.maxReplyLength ?? 49, maxParts: options.maxReplyParts ?? 5 };
     this.maxPending = options.maxPending ?? 20;
     this.now = options.now ?? Date.now;
-    this.cost = options.cost ?? 1;
   }
 
   start(): void {
-    const { client, log } = this.options;
-    client.onStatus((status, detail) => log.info(`dyhub ${status}`, detail ? { detail } : {}));
-    client.onComment((event) => {
-      const line = chatLineFrom(event);
-      log.debug('chat', { ...line });
-      this.options.chatLog?.add({
-        type: 'chat',
-        sender: line.nickname,
-        userId: line.userId,
-        text: line.content,
-      });
+    const { events, log, record, billing } = this.options;
+    events.onStatus((status, detail) => log.info(`dyhub ${status}`, detail ? { detail } : {}));
+    events.onChat((chat) => {
+      log.debug('chat', { ...chat });
+      record?.add(chatRecord(chat));
       const { bot } = this.options;
-      const question = isFromBot(event, bot) ? null : questionFor(event, bot);
-      if (question !== null) this.onMention(event, question);
-      this.history.add(line);
+      const question = isFromBot(chat, bot) ? null : questionFor(chat, bot);
+      if (question !== null) this.onMention(chat, question);
+      this.history.add(chat);
     });
-    client.onGift((event, newGifts) => {
-      if (!event.user || newGifts <= 0) return;
-      const diamonds = newGifts * (event.data.diamondCount ?? 0);
-      this.options.chatLog?.add({
-        type: 'gift',
-        sender: event.user.nickname,
-        userId: event.user.id,
-        gift: { name: event.data.giftName ?? '礼物', count: newGifts, diamonds },
-      });
-      if (diamonds <= 0) return;
-      this.options.wallet?.credit(event.user.id, event.user.nickname, diamonds);
-      log.info('gift', {
-        userId: event.user.id,
-        nickname: event.user.nickname,
-        gift: event.data.giftName,
-        count: newGifts,
-        diamonds,
-        balance: this.options.wallet?.balance(event.user.id),
-      });
+    events.onGift((gift) => {
+      record?.add(giftRecord(gift));
+      if (gift.diamonds <= 0) return;
+      billing?.credit(gift);
+      log.info('gift', { ...gift, balance: billing?.balance(gift.userId) });
     });
-    client.connect();
+    events.connect();
   }
 
   stop(): void {
-    this.options.client.close();
+    this.options.events.close();
   }
 
   /** Resolves once Claude has answered every queued mention (or failed to). */
@@ -138,36 +107,24 @@ export class ChatBot {
   }
 
   /** Charges the asker and queues the question, or queues a notice when they can't pay. */
-  private onMention(event: DyhubCommentEvent, question: string): void {
-    const { wallet, log } = this.options;
-    const asker = event.user?.nickname ?? '匿名';
-    const userId = event.user?.id;
+  private onMention(chat: IncomingChat, question: string): void {
+    const { billing, log, outbox } = this.options;
+    const { nickname: asker, userId } = chat;
     log.info('mention', { asker, userId, question });
-    let paid = 0;
-    if (wallet && this.cost > 0) {
-      if (!userId || !wallet.spend(userId, asker, this.cost)) {
-        log.info('balance too low', { asker, userId, balance: userId && wallet.balance(userId) });
-        this.notifyBalanceTooLow(asker, userId);
-        return;
+    const charge = billing?.charge(userId, asker) ?? { ok: true, paid: 0 };
+    if (!charge.ok) {
+      log.info('balance too low', { asker, userId, balance: billing?.balance(userId) });
+      if (charge.notify && billing) {
+        const notice = billing.lowBalanceNotice();
+        outbox.push({
+          kind: 'notice',
+          text: oneMessage(asker, notice, this.limits.maxLength) ?? `@${asker} ${notice}`,
+        });
       }
-      paid = this.cost;
+      return;
     }
-    const mention = { asker, userId, paid, question, history: this.history.recent() };
+    const mention = { asker, userId, paid: charge.paid, question, history: this.history.recent() };
     if (!this.enqueue(mention)) this.refund(mention);
-  }
-
-  private notifyBalanceTooLow(asker: string, userId: string | undefined): void {
-    const key = userId ?? asker;
-    const last = this.noticedAt.get(key);
-    const now = this.now();
-    const cooldownMs = this.options.noticeCooldownMs ?? 60_000;
-    if (last !== undefined && now - last < cooldownMs) return;
-    this.noticedAt.set(key, now);
-    const notice = `你的余额不足，每次@需要${this.cost}钻（${Math.round(cooldownMs / 1000)}秒内只提醒一次）`;
-    this.options.outbox.push({
-      kind: 'notice',
-      text: oneMessage(asker, notice, this.limits.maxLength) ?? `@${asker} ${notice}`,
-    });
   }
 
   /** Queues a mention for Claude; false when the queue is full and it was dropped. */
@@ -198,7 +155,7 @@ export class ChatBot {
 
   private refund(mention: Mention): void {
     if (!mention.userId || !mention.paid) return;
-    this.options.wallet?.refund(mention.userId, mention.paid);
+    this.options.billing?.refund(mention.userId, mention.paid);
     this.options.log.info('refunded', { asker: mention.asker, diamonds: mention.paid });
   }
 
@@ -210,7 +167,7 @@ export class ChatBot {
       maxLength: answerBudget(mention.asker, this.limits),
       transcript: transcript?.recent(this.options.transcriptMs ?? 5 * 60_000) ?? [],
       now: this.now(),
-      chatDir: this.options.chatLog?.dir,
+      chatDir: this.options.record?.dir,
     });
     log.debug('prompt', { prompt });
     try {

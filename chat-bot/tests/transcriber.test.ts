@@ -1,23 +1,19 @@
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
-import type { ChildProcess } from 'node:child_process';
-import type { BotLog } from '../src/chat-bot';
-import { ChatLog } from '../src/chat-log';
-import { Transcriber } from '../src/transcriber';
-import { Transcript } from '../src/transcript';
+import { ChatLog } from '../src/adapters/chat-log-files';
+import type { Log, Worker } from '../src/app/ports';
+import { Transcriber } from '../src/app/transcriber';
+import { Transcript } from '../src/core/transcript';
 
-const silentLog: BotLog = { debug() {}, info() {}, warn() {}, error() {} };
+const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 
 /** A worker that prints `lines` and exits. */
-function fakeWorker(lines: string[]): ChildProcess {
-  const worker = new EventEmitter() as ChildProcess;
-  const stdout = new PassThrough();
-  Object.assign(worker, { stdout, stderr: new PassThrough(), kill: () => true });
-  setImmediate(() => {
-    stdout.end(lines.join('\n') + '\n');
-    stdout.on('close', () => worker.emit('close', 0));
-  });
-  return worker;
+function fakeWorker(lines: string[], onLine: (line: string) => void): Worker {
+  return {
+    kill: () => {},
+    exited: Promise.resolve().then(() => {
+      lines.forEach(onLine);
+      return 0;
+    }),
+  };
 }
 
 test('keeps what the worker hears, and restarts it on a fresh stream URL when it ends', async () => {
@@ -33,21 +29,24 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
   transcriber = new Transcriber({
     streamUrl: () => Promise.resolve(urls.shift() ?? null),
     transcript,
-    chatLog,
+    record: chatLog,
     log: silentLog,
-    spawnWorker: (url) => {
+    spawnWorker: (url, { onLine }) => {
       started.push(url);
       if (started.length === 2) transcriber?.stop();
-      return fakeWorker([
-        'not json',
-        JSON.stringify({
-          start: 100,
-          end: 102.5,
-          text: `从 ${url} 听到`,
-          bgm: true,
-          emotion: 'HAPPY',
-        }),
-      ]);
+      return fakeWorker(
+        [
+          'not json',
+          JSON.stringify({
+            start: 100,
+            end: 102.5,
+            text: `从 ${url} 听到`,
+            bgm: true,
+            emotion: 'HAPPY',
+          }),
+        ],
+        onLine,
+      );
     },
     sleep: () => Promise.resolve(),
   });

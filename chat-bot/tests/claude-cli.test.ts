@@ -1,5 +1,5 @@
 import type { spawn } from 'node:child_process';
-import { claudeCli, resultFrom, userMessage } from '../src/claude';
+import { claudeCli, resultFrom, userMessage } from '../src/adapters/claude-cli';
 
 test('sends the screenshot before the prompt', () => {
   const message = JSON.parse(

@@ -1,13 +1,5 @@
 import { spawn } from 'node:child_process';
-
-/** One question for Claude: the prompt, and optionally a JPEG to look at with it. */
-export interface Question {
-  prompt: string;
-  image?: Uint8Array;
-}
-
-/** Asks Claude one question and resolves with its answer. */
-export type AskClaude = (question: Question) => Promise<string>;
+import type { AskClaude, Question } from '../app/ports';
 
 export interface ClaudeCliOptions {
   /** The `claude` executable; found on PATH by default. */

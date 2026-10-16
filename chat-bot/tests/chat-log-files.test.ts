@@ -1,4 +1,4 @@
-import { ChatLog } from '../src/chat-log';
+import { ChatLog } from '../src/adapters/chat-log-files';
 
 test('writes one line per record, 100 to a file, named by the first record’s time', () => {
   const files = new Map<string, string>();
