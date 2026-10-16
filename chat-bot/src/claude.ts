@@ -12,6 +12,10 @@ export interface ClaudeCliOptions {
   cwd?: string;
   /** Built-in tools Claude may use, all pre-approved; read-only ones only, since chat is untrusted. */
   tools?: readonly string[];
+  /** `--model`: an alias like `opus` or a full model name; Claude Code's default when unset. */
+  model?: string;
+  /** Added to Claude Code's system prompt for every question. */
+  systemPrompt?: string;
   spawnProcess?: typeof spawn;
 }
 
@@ -24,6 +28,8 @@ export function claudeCli({
   timeoutMs = 120_000,
   cwd,
   tools = ['WebSearch'],
+  model,
+  systemPrompt,
   spawnProcess = spawn,
 }: ClaudeCliOptions = {}): AskClaude {
   const toolList = tools.join(',');
@@ -36,6 +42,8 @@ export function claudeCli({
     ...(tools.length ? ['--allowedTools', toolList] : []),
     '--strict-mcp-config',
     '--no-session-persistence',
+    ...(model ? ['--model', model] : []),
+    ...(systemPrompt ? ['--append-system-prompt', systemPrompt] : []),
   ];
   return (prompt) =>
     new Promise((resolve, reject) => {

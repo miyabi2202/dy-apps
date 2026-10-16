@@ -98,7 +98,7 @@ It needs DyHub running with the browser collector and logged in (网页登录) a
 pnpm start --room <房间号> --bot-name <the logged-in account's nickname> [--bot-id <its uid>]
 ```
 
-Other options: `--port` (DyHub, `8757`), `--prompt` (`prompt.md`), `--history` (`100`), `--max-reply` (characters, `49`: Douyin's limit is under 50; the prompt's `{{maxLength}}` is what's left after `@asker `), `--tools` (Claude Code's built-in tools, comma-separated, pre-approved; `WebSearch`, or `''` for none) and `--logs` (`logs/`). The console shows info and up; `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.
+Other options: `--port` (DyHub, `8757`), `--prompt` (`prompt.md`), `--history` (`100`), `--max-reply` (characters, `49`: Douyin's limit is under 50; the prompt's `{{maxLength}}` is what's left after `@asker `), `--model` (`opus`), `--system` (added to Claude Code's system prompt, `你是一个抖音直播间的机器人`), `--tools` (Claude Code's built-in tools, comma-separated, pre-approved; `WebSearch`, or `''` for none) and `--logs` (`logs/`). The console shows info and up; `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.
 
 Shared code comes from `@dy-apps/services` (the `DyhubClient`), read from `frontend/src/services` through `paths` in `chat-bot/tsconfig.json` and `moduleNameMapper` in `chat-bot/jest.config.js`.
 
