@@ -78,8 +78,10 @@ def main() -> None:
     logging.getLogger().setLevel(logging.WARNING)
 
     ffmpeg = subprocess.Popen(
+        # A CDN can stop sending without closing the connection; give up after 15s of silence
+        # so the bot fetches the stream again instead of hanging.
         ["ffmpeg", "-hide_banner", "-loglevel", "error", *(["-re"] if args.realtime else []),
-         "-i", args.url, "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
+         "-rw_timeout", "15000000", "-i", args.url, "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
         stdout=subprocess.PIPE,
     )
     log("listening")
