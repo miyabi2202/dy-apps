@@ -95,7 +95,7 @@ Status: both apps pick fake data or a live room in their 数据来源 panel. The
 
 ## Chat bot
 
-`chat-bot/` reads a room's chat from DyHub and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompt.md`](chat-bot/prompt.md) with that message, the chat before it and what the streamer said lately, runs `claude -p` (with a screenshot of the live video if `--screenshot` is on; only web search, no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through DyHub's `POST /api/rooms/:roomId/chat`. Everything the bot says goes out at least 10 seconds apart, while Claude goes on to the next question. Replies and low-balance notices wait in two queues, each in order, and a waiting reply always goes before a waiting notice.
+`chat-bot/` reads a room's chat from DyHub and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompt.md`](chat-bot/prompt.md) with that message, the chat before it and what the streamer said lately, runs `claude -p` (with a screenshot of the live video if `--screenshot` is on; only web search and fetch, no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through DyHub's `POST /api/rooms/:roomId/chat`. Everything the bot says goes out at least 10 seconds apart, while Claude goes on to the next question. Replies and low-balance notices wait in two queues, each in order, and a waiting reply always goes before a waiting notice.
 
 - **What the streamer says**: `chat-bot/asr/transcribe.py` pulls the stream's audio with ffmpeg (the URL comes from DyHub's `GET /api/rooms/:roomId/stream`), finds sentences with fsmn-vad and transcribes them with SenseVoice, on Apple's GPU, CUDA or the CPU. Audio stays in that process and is never written to disk; the bot keeps the text, timestamped, for 30 minutes, and gives the last 5 to the prompt as `{{transcript}}`. When the stream ends or its URL expires, the bot asks DyHub again and restarts the worker. Singing comes out as background music and is mostly skipped.
 - **What's on screen**, with `--screenshot` (off by default; most streams don't need it, lessons with a board do): DyHub's `GET /api/rooms/:roomId/screenshot` (the player only, as a JPEG) goes to Claude with each question.
@@ -111,24 +111,24 @@ pnpm start --room <房间号> --bot-name <the logged-in account's nickname> [--b
 
 Other options:
 
-| Option                 | Default                      | What it does                                                                                            |
-| ---------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `--port`               | `8757`                       | DyHub's port                                                                                            |
-| `--prompt`             | `prompt.md`                  | The prompt template                                                                                     |
-| `--history`            | `100`                        | Chat messages remembered and passed as `{{history}}`                                                    |
-| `--max-reply`          | `49`                         | Reply length; Douyin's limit is under 50, and `{{maxLength}}` is what's left after `@asker `            |
-| `--max-parts`          | `5`                          | A long answer is split into up to this many messages                                                    |
-| `--model`              | `opus`                       | Claude model                                                                                            |
-| `--system`             | `你是一个抖音直播间的机器人` | Added to Claude Code's system prompt                                                                    |
-| `--tools`              | `WebSearch,Read,Glob,Grep`   | Claude Code's built-in tools, comma-separated; `''` for none. File tools read only `data/chat/<房间号>` |
-| `--cost`               | `1`                          | Diamonds per @mention; `0` makes them free                                                              |
-| `--free`               |                              | Free mode: the same as `--cost 0`                                                                       |
-| `--queue`              | `20`                         | Paid questions waiting for Claude; more are dropped and refunded. Low-balance notices don't wait        |
-| `--send-interval`      | `10`                         | Seconds between two messages the bot sends; waiting replies go before waiting notices                   |
-| `--no-asr`             |                              | Don't transcribe the streamer                                                                           |
-| `--transcript-minutes` | `5`                          | How far back `{{transcript}}` goes                                                                      |
-| `--screenshot`         |                              | Send Claude a screenshot of the live video with each question                                           |
-| `--logs` / `--data`    | `logs/` / `data/`            | Where logs and balances go                                                                              |
+| Option                 | Default                             | What it does                                                                                            |
+| ---------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `--port`               | `8757`                              | DyHub's port                                                                                            |
+| `--prompt`             | `prompt.md`                         | The prompt template                                                                                     |
+| `--history`            | `100`                               | Chat messages remembered and passed as `{{history}}`                                                    |
+| `--max-reply`          | `49`                                | Reply length; Douyin's limit is under 50, and `{{maxLength}}` is what's left after `@asker `            |
+| `--max-parts`          | `5`                                 | A long answer is split into up to this many messages                                                    |
+| `--model`              | `opus`                              | Claude model                                                                                            |
+| `--system`             | `你是一个抖音直播间的机器人`        | Added to Claude Code's system prompt                                                                    |
+| `--tools`              | `WebSearch,WebFetch,Read,Glob,Grep` | Claude Code's built-in tools, comma-separated; `''` for none. File tools read only `data/chat/<房间号>` |
+| `--cost`               | `1`                                 | Diamonds per @mention; `0` makes them free                                                              |
+| `--free`               |                                     | Free mode: the same as `--cost 0`                                                                       |
+| `--queue`              | `20`                                | Paid questions waiting for Claude; more are dropped and refunded. Low-balance notices don't wait        |
+| `--send-interval`      | `10`                                | Seconds between two messages the bot sends; waiting replies go before waiting notices                   |
+| `--no-asr`             |                                     | Don't transcribe the streamer                                                                           |
+| `--transcript-minutes` | `5`                                 | How far back `{{transcript}}` goes                                                                      |
+| `--screenshot`         |                                     | Send Claude a screenshot of the live video with each question                                           |
+| `--logs` / `--data`    | `logs/` / `data/`                   | Where logs and balances go                                                                              |
 
 The console shows info and up (mentions, gifts, what was heard, replies); `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.
 

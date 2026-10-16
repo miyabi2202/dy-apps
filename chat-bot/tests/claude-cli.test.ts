@@ -26,7 +26,7 @@ test('reads the answer from the result line, and fails on an error result', () =
   expect(() => resultFrom('')).toThrow('no result');
 });
 
-test('pre-approves web search but not the file tools, which only reach the given folders', () => {
+test('pre-approves the web tools but not the file tools, which only reach the given folders', () => {
   let args: readonly string[] = [];
   const spawnProcess = ((_command: string, a: readonly string[]) => {
     args = a;
@@ -35,7 +35,7 @@ test('pre-approves web search but not the file tools, which only reach the given
   void claudeCli({ readDirs: ['/data/chat/1'], spawnProcess })({ prompt: 'hi' }).catch(() => {});
 
   const after = (flag: string) => args[args.indexOf(flag) + 1];
-  expect(after('--tools')).toBe('WebSearch,Read,Glob,Grep');
-  expect(after('--allowedTools')).toBe('WebSearch');
+  expect(after('--tools')).toBe('WebSearch,WebFetch,Read,Glob,Grep');
+  expect(after('--allowedTools')).toBe('WebSearch,WebFetch');
   expect(after('--add-dir')).toBe('/data/chat/1');
 });

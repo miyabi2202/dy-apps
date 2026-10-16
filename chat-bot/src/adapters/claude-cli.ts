@@ -66,14 +66,14 @@ export function resultFrom(output: string): string {
 
 /**
  * `claude -p`, with the question as a stream-json message on stdin so it can carry an image.
- * Chat is untrusted, so the run gets only the listed tools (web search, and reading `readDirs`,
+ * Chat is untrusted, so the run gets only the listed tools (web search and fetch, and reading `readDirs`,
  * by default), no MCP servers and no saved session.
  */
 export function claudeCli({
   command = 'claude',
   timeoutMs = 120_000,
   cwd,
-  tools = ['WebSearch', 'Read', 'Glob', 'Grep'],
+  tools = ['WebSearch', 'WebFetch', 'Read', 'Glob', 'Grep'],
   readDirs = [],
   model,
   systemPrompt,

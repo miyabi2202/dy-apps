@@ -4,7 +4,7 @@ import { isRoomId, parsePort } from '@dy-apps/services';
 
 export const USAGE =
   'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
-  '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,Read,Glob,Grep]\n' +
+  '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --free] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/]';
@@ -47,7 +47,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       history: { type: 'string', default: '100' },
       'max-reply': { type: 'string', default: '49' },
       'max-parts': { type: 'string', default: '5' },
-      tools: { type: 'string', default: 'WebSearch,Read,Glob,Grep' },
+      tools: { type: 'string', default: 'WebSearch,WebFetch,Read,Glob,Grep' },
       model: { type: 'string', default: 'opus' },
       system: { type: 'string', default: '你是一个抖音直播间的机器人' },
       logs: { type: 'string', default: join(packageDir, 'logs') },
