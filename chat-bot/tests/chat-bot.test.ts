@@ -1,5 +1,6 @@
 import type { DyhubChatPart, DyhubCommentEvent, DyhubGiftEvent } from '@dy-apps/services';
 import { ChatBot, type BotLog } from '../src/chat-bot';
+import { Outbox } from '../src/outbox';
 import { ChatLog } from '../src/chat-log';
 import { Transcript } from '../src/transcript';
 import { Wallet, type Account } from '../src/wallet';
@@ -57,8 +58,17 @@ function setup(options: SetupOptions = {}) {
   let onComment: (event: DyhubCommentEvent) => void = () => {};
   let onGift: (event: DyhubGiftEvent, newGifts: number) => void = () => {};
   const prompts: string[] = [];
-  const images: (Uint8Array | undefined)[] = [];
   const sent: string[] = [];
+  // Sends at once: spacing is the outbox's own test.
+  const outbox = new Outbox({
+    send: (text) => {
+      sent.push(text);
+      return Promise.resolve({ echoed: true });
+    },
+    log: silentLog,
+    sleep: () => Promise.resolve(),
+  });
+  const images: (Uint8Array | undefined)[] = [];
   const bot = new ChatBot({
     client: {
       onComment: (handler) => {
@@ -79,10 +89,7 @@ function setup(options: SetupOptions = {}) {
       images.push(image);
       return options.ask ? options.ask() : Promise.resolve(options.answer ?? '你好呀');
     },
-    send: (text) => {
-      sent.push(text);
-      return Promise.resolve({ echoed: true });
-    },
+    outbox,
     log: silentLog,
     promptTemplate: options.template ?? TEMPLATE,
     transcript: options.transcript,
@@ -97,6 +104,11 @@ function setup(options: SetupOptions = {}) {
   bot.start();
   return {
     bot,
+    /** Waits for Claude's answers and for everything to be sent. */
+    settle: async () => {
+      await bot.idle();
+      await outbox.idle();
+    },
     say: (event: DyhubCommentEvent) => onComment(event),
     give: (event: DyhubGiftEvent, count = 1) => onGift(event, count),
     prompts,
@@ -106,64 +118,64 @@ function setup(options: SetupOptions = {}) {
 }
 
 test('answers an @mention with the chat before it, and replies to the asker', async () => {
-  const { bot, say, prompts, sent } = setup();
+  const { settle, say, prompts, sent } = setup();
   say(chat('阿明', '主播好'));
   say(chat('小红', '今天讲什么'));
   say(chat('阿明', '@小助手 这题怎么做', [{ type: 'mention', text: '@小助手', userId: 'bot-1' }]));
-  await bot.idle();
+  await settle();
 
   expect(prompts).toEqual(['阿明: 主播好\n小红: 今天讲什么\n---\n阿明: 这题怎么做 (45)']);
   expect(sent).toEqual(['@阿明 你好呀']);
 });
 
 test('passes only the most recent chats', async () => {
-  const { bot, say, prompts } = setup({ historySize: 2 });
+  const { settle, say, prompts } = setup({ historySize: 2 });
   for (const text of ['一', '二', '三']) say(chat('阿明', text));
   say(chat('小红', '@小助手 hi'));
-  await bot.idle();
+  await settle();
 
   expect(prompts[0]).toBe('阿明: 二\n阿明: 三\n---\n小红: hi (45)');
 });
 
 test('ignores chat that does not mention the bot, and its own messages', async () => {
-  const { bot, say, prompts } = setup();
+  const { settle, say, prompts } = setup();
   say(chat('阿明', '@别人 你好', [{ type: 'mention', text: '@别人', userId: 'u-x' }]));
   say(chat('小助手', '@小助手 自己提到自己'));
-  await bot.idle();
+  await settle();
 
   expect(prompts).toEqual([]);
 });
 
 test('matches a picked @mention by user id even when the nickname text differs', async () => {
-  const { bot, say, prompts } = setup();
+  const { settle, say, prompts } = setup();
   say(chat('阿明', '@旧昵称 在吗', [{ type: 'mention', text: '@旧昵称', userId: 'bot-1' }]));
-  await bot.idle();
+  await settle();
 
   expect(prompts).toHaveLength(1);
 });
 
 test('puts the reply on one line and cuts it to the length limit', async () => {
-  const { bot, say, sent } = setup({ answer: '  第一行\n第二行很长很长  ', maxReplyLength: 10 });
+  const { settle, say, sent } = setup({ answer: '  第一行\n第二行很长很长  ', maxReplyLength: 10 });
   say(chat('阿明', '@小助手 说说'));
-  await bot.idle();
+  await settle();
 
   expect(sent).toEqual(['@阿明 第一行 第二']);
 });
 
 test('does not repeat the @ when Claude already starts with it', async () => {
-  const { bot, say, sent } = setup({ answer: '@阿明 @阿明 等于2' });
+  const { settle, say, sent } = setup({ answer: '@阿明 @阿明 等于2' });
   say(chat('阿明', '@小助手 1+1'));
-  await bot.idle();
+  await settle();
 
   expect(sent).toEqual(['@阿明 等于2']);
 });
 
 test('drops the sources list web search adds', async () => {
-  const { bot, say, sent } = setup({
+  const { settle, say, sent } = setup({
     answer: '大约41.89万亲密度\n\nSources:\n- [jb51](https://jb51.net)',
   });
   say(chat('阿明', '@小助手 16级灯牌'));
-  await bot.idle();
+  await settle();
 
   expect(sent).toEqual(['@阿明 大约41.89万亲密度']);
 });
@@ -178,24 +190,24 @@ test('passes the last minutes of what the streamer said, and a screenshot', asyn
   said(2, '吕布一开始是文官');
   said(1, '谢谢点赞');
   const frame = new Uint8Array([0xff, 0xd8]);
-  const { bot, say, prompts, images } = setup({
+  const { settle, say, prompts, images } = setup({
     template: '{{now}}\n{{transcript}}',
     transcript,
     screenshot: () => Promise.resolve(frame),
   });
   say(chat('阿明', '@小助手 主播在讲什么'));
-  await bot.idle();
+  await settle();
 
   expect(prompts).toEqual(['08:00:00\n07:57:57 吕布一开始是文官\n07:58:57 谢谢点赞']);
   expect(images).toEqual([frame]);
 });
 
 test('answers without a picture when the screenshot fails', async () => {
-  const { bot, say, sent, images } = setup({
+  const { settle, say, sent, images } = setup({
     screenshot: () => Promise.reject(new Error('房间未连接')),
   });
   say(chat('阿明', '@小助手 在吗'));
-  await bot.idle();
+  await settle();
 
   expect(images).toEqual([undefined]);
   expect(sent).toEqual(['@阿明 你好呀']);
@@ -203,10 +215,10 @@ test('answers without a picture when the screenshot fails', async () => {
 
 test('gifts pay for mentions: each one costs the set price', async () => {
   const wallet = memoryWallet();
-  const { bot, say, give, prompts, sent } = setup({ wallet, cost: 2 });
+  const { settle, say, give, prompts, sent } = setup({ wallet, cost: 2 });
   give(gift('阿明', 1), 3);
   say(chat('阿明', '@小助手 第一问'));
-  await bot.idle();
+  await settle();
 
   expect(prompts).toHaveLength(1);
   expect(sent).toEqual(['@阿明 你好呀']);
@@ -215,10 +227,10 @@ test('gifts pay for mentions: each one costs the set price', async () => {
 
 test('tells a viewer who cannot pay, once a minute, without asking Claude', async () => {
   const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 1 } });
-  const { bot, say, prompts, sent } = setup({ wallet, cost: 1 });
+  const { settle, say, prompts, sent } = setup({ wallet, cost: 1 });
   say(chat('阿明', '@小助手 第一问'));
   say(chat('阿明', '@小助手 第二问'));
-  await bot.idle();
+  await settle();
 
   expect(prompts).toEqual([]);
   expect(sent).toEqual(['@阿明 你的余额不足，每次@需要1钻（60秒内只提醒一次）']);
@@ -226,12 +238,12 @@ test('tells a viewer who cannot pay, once a minute, without asking Claude', asyn
 
 test('gives the diamond back when the mention cannot be answered', async () => {
   const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
-  const { bot, say, sent } = setup({
+  const { settle, say, sent } = setup({
     wallet,
     ask: () => Promise.reject(new Error('claude timed out')),
   });
   say(chat('阿明', '@小助手 在吗'));
-  await bot.idle();
+  await settle();
 
   expect(sent).toEqual([]);
   expect(wallet.balance('u-阿明')).toBe(1);
@@ -255,10 +267,10 @@ test('records chat and gifts, and points Claude at the record folder', async () 
     now: () => NOW,
     append: (_path, text) => (written += text),
   });
-  const { bot, say, give, prompts } = setup({ chatLog, template: '{{chatDir}}' });
+  const { settle, say, give, prompts } = setup({ chatLog, template: '{{chatDir}}' });
   give(gift('阿明', 10), 2);
   say(chat('阿明', '@小助手 记得我送了什么吗'));
-  await bot.idle();
+  await settle();
 
   expect(written).toBe(
     '2026-10-16 08:00:00 [阿明#u-阿明](gift) 送出 玫瑰×2（20钻）\n' +
@@ -270,7 +282,7 @@ test('records chat and gifts, and points Claude at the record folder', async () 
 test('a low-balance notice goes out while Claude is still answering someone else', async () => {
   let finish: (answer: string) => void = () => {};
   const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
-  const { bot, say, sent } = setup({
+  const { settle, say, sent } = setup({
     wallet,
     ask: () => new Promise((resolve) => (finish = resolve)),
   });
@@ -280,6 +292,6 @@ test('a low-balance notice goes out while Claude is still answering someone else
 
   expect(sent).toEqual(['@小红 你的余额不足，每次@需要1钻（60秒内只提醒一次）']);
   finish('想好了');
-  await bot.idle();
+  await settle();
   expect(sent).toEqual(['@小红 你的余额不足，每次@需要1钻（60秒内只提醒一次）', '@阿明 想好了']);
 });

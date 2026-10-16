@@ -2,7 +2,7 @@ import type { DyhubClient, DyhubCommentEvent } from '@dy-apps/services';
 import { ChatHistory, chatLineFrom, type ChatLine } from './chat-history';
 import type { ChatLog } from './chat-log';
 import type { AskClaude } from './claude';
-import type { SendChat } from './dyhub-room';
+import type { Outbox } from './outbox';
 import { isFromBot, questionFor, type BotIdentity } from './mention';
 import { buildPrompt } from './prompt';
 import type { Transcript } from './transcript';
@@ -20,7 +20,8 @@ export interface ChatBotOptions {
   client: Pick<DyhubClient, 'onComment' | 'onGift' | 'onStatus' | 'connect' | 'close'>;
   bot: BotIdentity;
   ask: AskClaude;
-  send: SendChat;
+  /** Where replies and notices go to be sent, spaced out. */
+  outbox: Pick<Outbox, 'push'>;
   /** A JPEG of the live video, sent to Claude with each question. */
   screenshot?: () => Promise<Uint8Array>;
   /** What the streamer has said, for `{{transcript}}`. */
@@ -59,16 +60,15 @@ interface Mention {
 
 /**
  * Remembers a room's recent chat and answers each @mention of the bot: the question and the
- * chat before it go to Claude, and the answer goes back to the room through DyHub. Mentions are
- * answered one at a time, in order. With a wallet, each mention costs `cost` diamonds from what
- * the asker has gifted, given back if it can't be answered; a viewer who can't pay gets a fixed
- * notice straight away, without waiting behind the questions for Claude.
+ * chat before it go to Claude, and the answer joins the outbox to be sent to the room. Claude
+ * answers one mention at a time, in order, without waiting for earlier answers to go out. With a
+ * wallet, each mention costs `cost` diamonds from what the asker has gifted, given back if it
+ * can't be answered; a viewer who can't pay gets a fixed notice, put in the outbox straight away
+ * rather than waiting behind the questions for Claude.
  */
 export class ChatBot {
   private readonly history: ChatHistory;
   private readonly pending: Mention[] = [];
-  /** Notices still being sent, so `idle()` can wait for them. */
-  private readonly sendingNotices = new Set<Promise<void>>();
   /** When each viewer was last told their balance is too low. */
   private readonly noticedAt = new Map<string, number>();
   private busy = false;
@@ -129,11 +129,9 @@ export class ChatBot {
     this.options.client.close();
   }
 
-  /** Resolves once every queued mention has been answered and every notice sent (or failed). */
+  /** Resolves once Claude has answered every queued mention (or failed to). */
   async idle(): Promise<void> {
-    while (this.busy || this.sendingNotices.size) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
+    while (this.busy) await new Promise((resolve) => setTimeout(resolve, 10));
   }
 
   /** Charges the asker and queues the question, or queues a notice when they can't pay. */
@@ -162,11 +160,10 @@ export class ChatBot {
     const cooldownMs = this.options.noticeCooldownMs ?? 60_000;
     if (last !== undefined && now - last < cooldownMs) return;
     this.noticedAt.set(key, now);
-    // Straight to DyHub, which spaces out the room's messages itself: no reason to wait for Claude.
-    const sending = this.sendNotice(
-      `@${asker} 你的余额不足，每次@需要${this.cost}钻（${Math.round(cooldownMs / 1000)}秒内只提醒一次）`,
-    ).finally(() => this.sendingNotices.delete(sending));
-    this.sendingNotices.add(sending);
+    this.options.outbox.push({
+      kind: 'notice',
+      text: `@${asker} 你的余额不足，每次@需要${this.cost}钻（${Math.round(cooldownMs / 1000)}秒内只提醒一次）`,
+    });
   }
 
   /** Queues a mention for Claude; false when the queue is full and it was dropped. */
@@ -195,18 +192,6 @@ export class ChatBot {
     }
   }
 
-  private async sendNotice(text: string): Promise<void> {
-    try {
-      const { echoed } = await this.options.send(text);
-      this.options.log.info('notice sent', { text, echoed });
-    } catch (err) {
-      this.options.log.error('could not send notice', {
-        text,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
   private refund(mention: Mention): void {
     if (!mention.userId || !mention.paid) return;
     this.options.wallet?.refund(mention.userId, mention.paid);
@@ -214,7 +199,7 @@ export class ChatBot {
   }
 
   private async answer(mention: Mention): Promise<void> {
-    const { ask, send, log, promptTemplate, transcript } = this.options;
+    const { ask, outbox, log, promptTemplate, transcript } = this.options;
     // The reply is `@asker answer`, so the answer gets what the @ leaves of the limit.
     const maxLength = this.maxReplyLength - [...`@${mention.asker} `].length;
     const prompt = buildPrompt(promptTemplate, {
@@ -236,9 +221,7 @@ export class ChatBot {
         this.refund(mention);
         return;
       }
-      const { echoed } = await send(reply);
-      log.info('reply sent', { reply, echoed });
-      if (!echoed) log.warn('reply did not show up in the room chat', { reply });
+      outbox.push({ kind: 'reply', text: reply, onFailed: () => this.refund(mention) });
     } catch (err) {
       log.error('could not answer mention', {
         asker: mention.asker,

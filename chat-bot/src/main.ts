@@ -14,6 +14,7 @@ import { ChatLog } from './chat-log';
 import { claudeCli } from './claude';
 import { DyhubRoomApi } from './dyhub-room';
 import { createLogger } from './logger';
+import { Outbox } from './outbox';
 import { Transcriber, uvWorker } from './transcriber';
 import { Transcript } from './transcript';
 import { jsonFileStorage, Wallet } from './wallet';
@@ -39,6 +40,7 @@ const { values } = parseArgs({
     screenshot: { type: 'boolean', default: true },
     cost: { type: 'string', default: '1' },
     queue: { type: 'string', default: '20' },
+    'send-interval': { type: 'string', default: '10' },
     data: { type: 'string', default: join(packageDir, 'data') },
   },
 });
@@ -51,7 +53,8 @@ if (!isRoomId(roomId) || port === null || !botName) {
     'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
       '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--tools WebSearch,Read,Glob,Grep]\n' +
       '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
-      '       [--no-asr] [--transcript-minutes 5] [--no-screenshot] [--cost 1] [--queue 20] [--data data/]',
+      '       [--no-asr] [--transcript-minutes 5] [--no-screenshot] [--cost 1] [--queue 20]\n' +
+      '       [--send-interval 10] [--data data/]',
   );
   process.exit(1);
 }
@@ -87,7 +90,12 @@ const bot = new ChatBot({
     model: values.model,
     systemPrompt: values.system,
   }),
-  send: room.sendChat,
+  // Every reply and notice waits here, and goes out at least --send-interval seconds apart.
+  outbox: new Outbox({
+    send: room.sendChat,
+    log,
+    intervalMs: Number(values['send-interval']) * 1000,
+  }),
   screenshot: values.screenshot ? room.screenshot : undefined,
   transcript,
   transcriptMs: Number(values['transcript-minutes']) * 60_000,

@@ -92,7 +92,7 @@ Status: both apps pick fake data or a live room in their 数据来源 panel. The
 
 ## Chat bot
 
-`chat-bot/` reads a room's chat from DyHub and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompt.md`](chat-bot/prompt.md) with that message, the chat before it and what the streamer said lately, runs `claude -p` with a screenshot of the live video (only web search, no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through DyHub's `POST /api/rooms/:roomId/chat`.
+`chat-bot/` reads a room's chat from DyHub and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompt.md`](chat-bot/prompt.md) with that message, the chat before it and what the streamer said lately, runs `claude -p` with a screenshot of the live video (only web search, no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through DyHub's `POST /api/rooms/:roomId/chat`. Everything the bot says (replies and low-balance notices) joins one send queue and goes out in order, at least 10 seconds apart, while Claude goes on to the next question.
 
 - **What the streamer says**: `chat-bot/asr/transcribe.py` pulls the stream's audio with ffmpeg (the URL comes from DyHub's `GET /api/rooms/:roomId/stream`), finds sentences with fsmn-vad and transcribes them with SenseVoice, on Apple's GPU, CUDA or the CPU. Audio stays in that process and is never written to disk; the bot keeps the text, timestamped, for 30 minutes, and gives the last 5 to the prompt as `{{transcript}}`. When the stream ends or its URL expires, the bot asks DyHub again and restarts the worker. Singing comes out as background music and is mostly skipped.
 - **What's on screen**: DyHub's `GET /api/rooms/:roomId/screenshot` (the player only, as a JPEG) goes to Claude with each question.
@@ -118,6 +118,7 @@ Other options:
 | `--tools`              | `WebSearch,Read,Glob,Grep`   | Claude Code's built-in tools, comma-separated; `''` for none. File tools read only `data/chat/<房间号>` |
 | `--cost`               | `1`                          | Diamonds per @mention; `0` makes them free                                                              |
 | `--queue`              | `20`                         | Paid questions waiting for Claude; more are dropped and refunded. Low-balance notices don't wait        |
+| `--send-interval`      | `10`                         | Seconds between two messages the bot sends; replies and notices queue for their turn                    |
 | `--no-asr`             |                              | Don't transcribe the streamer                                                                           |
 | `--transcript-minutes` | `5`                          | How far back `{{transcript}}` goes                                                                      |
 | `--no-screenshot`      |                              | Don't send a screenshot                                                                                 |
