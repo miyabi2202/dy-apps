@@ -1,0 +1,24 @@
+{
+  "name": "@dy-apps/chat-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Command-line bot: reads a live room's chat from DyHub and answers @mentions with `claude -p`.",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "jest -c jest.config.js"
+  },
+  "dependencies": {
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.16.13",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.3",
+    "jest": "^30.5.2",
+    "tsx": "^4.23.13",
+    "typescript": "~6.0.3"
+  }
+}

@@ -72,6 +72,7 @@ export default tseslint.config(
       'frontend/config/jest/*.ts',
       'frontend/src/services/tests/**/*.ts',
       'frontend/src/ui/tests/**/*.{ts,tsx}',
+      'chat-bot/tests/**/*.ts',
     ],
     languageOptions: { globals: globals.jest },
   },

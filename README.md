@@ -1,6 +1,6 @@
 # dy-apps
 
-Small live-stream apps, served as one site: an index page at `/` and each app on its own route. Everything lives in one package, [`frontend/`](frontend) (`@dy-apps/frontend`), inside a pnpm workspace.
+Small live-stream apps, served as one site: an index page at `/` and each app on its own route. The site lives in one package, [`frontend/`](frontend) (`@dy-apps/frontend`), inside a pnpm workspace. Beside it, [`chat-bot/`](chat-bot) (`@dy-apps/chat-bot`) is a command-line bot, not a web page.
 
 | Path                             | What it is                                                                       |
 | -------------------------------- | -------------------------------------------------------------------------------- |
@@ -11,6 +11,7 @@ Small live-stream apps, served as one site: an index page at `/` and each app on
 | `frontend/src/apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers                        |
 | `frontend/src/services/`         | Shared non-UI code: the DyHub client, messages, fake data and saved settings     |
 | `frontend/src/ui/`               | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
+| `chat-bot/`                      | Command-line bot that answers @mentions in a live room with `claude -p`          |
 
 ## Layout
 
@@ -41,6 +42,10 @@ frontend/                 # @dy-apps/frontend: the one package
     playwright.config.ts  #   every app's integration tests, against `vite build` + `vite preview`
     storybook/            #   ui stories
   tsconfig.json           #   stays here so editors and ESLint find it
+chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (see "Chat bot" below)
+  prompt.md               #   the prompt sent to Claude: {{history}}, {{asker}}, {{question}}
+  src/main.ts             #   entry: options, real objects wired by hand
+  logs/                   #   winston logs, chat-bot.log (not in git)
 eslint.config.js          # lint for the whole repo, including which folders may import which
 .prettierrc.json          # repo-wide formatting (+ .prettierignore)
 package.json              # private root: lint/format tools and the repo-wide checks
@@ -82,6 +87,20 @@ It needs Node.js 20+ and Chrome installed. Log in once from the console (网页�
 Apps connect through [`@dy-apps/services`](services) to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (DyHub's default is `8757`) and the room ID (the number in `live.douyin.com/<id>`), and DyHub starts collecting that room. The address is always `localhost`, so DyHub must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
 
 Status: both apps pick fake data or a live room in their 数据来源 panel. The danmaku wall shows the room's chat, gifts and likes; tetris turns its gifts into curses, one draw per diamond.
+
+## Chat bot
+
+`chat-bot/` reads a room's chat from DyHub and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompt.md`](chat-bot/prompt.md) with that message and the chat before it, runs `claude -p` (no tools, no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through DyHub's `POST /api/rooms/:roomId/chat`.
+
+It needs DyHub running with the browser collector and logged in (网页登录) as the bot's account, and Claude Code's `claude` on `PATH`. From `chat-bot/`:
+
+```sh
+pnpm start --room <房间号> --bot-name <the logged-in account's nickname> [--bot-id <its uid>]
+```
+
+Other options: `--port` (DyHub, `8757`), `--prompt` (`prompt.md`), `--history` (`100`), `--max-reply` (characters, `50`) and `--logs` (`logs/`). The console shows info and up; `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.
+
+Shared code comes from `@dy-apps/services` (the `DyhubClient`), read from `frontend/src/services` through `paths` in `chat-bot/tsconfig.json` and `moduleNameMapper` in `chat-bot/jest.config.js`.
 
 ## Requirements
 
