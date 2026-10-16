@@ -117,6 +117,7 @@ Other options:
 | `--system`             | `你是一个抖音直播间的机器人` | Added to Claude Code's system prompt                                                                    |
 | `--tools`              | `WebSearch,Read,Glob,Grep`   | Claude Code's built-in tools, comma-separated; `''` for none. File tools read only `data/chat/<房间号>` |
 | `--cost`               | `1`                          | Diamonds per @mention; `0` makes them free                                                              |
+| `--queue`              | `20`                         | Paid questions waiting for Claude; more are dropped and refunded. Low-balance notices don't wait        |
 | `--no-asr`             |                              | Don't transcribe the streamer                                                                           |
 | `--transcript-minutes` | `5`                          | How far back `{{transcript}}` goes                                                                      |
 | `--no-screenshot`      |                              | Don't send a screenshot                                                                                 |

@@ -266,3 +266,20 @@ test('records chat and gifts, and points Claude at the record folder', async () 
   );
   expect(prompts).toEqual(['/data/chat/1']);
 });
+
+test('a low-balance notice goes out while Claude is still answering someone else', async () => {
+  let finish: (answer: string) => void = () => {};
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
+  const { bot, say, sent } = setup({
+    wallet,
+    ask: () => new Promise((resolve) => (finish = resolve)),
+  });
+  say(chat('阿明', '@小助手 慢慢想'));
+  say(chat('小红', '@小助手 我没钱'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(sent).toEqual(['@小红 你的余额不足，每次@需要1钻（60秒内只提醒一次）']);
+  finish('想好了');
+  await bot.idle();
+  expect(sent).toEqual(['@小红 你的余额不足，每次@需要1钻（60秒内只提醒一次）', '@阿明 想好了']);
+});

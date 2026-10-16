@@ -38,6 +38,7 @@ const { values } = parseArgs({
     'transcript-minutes': { type: 'string', default: '5' },
     screenshot: { type: 'boolean', default: true },
     cost: { type: 'string', default: '1' },
+    queue: { type: 'string', default: '20' },
     data: { type: 'string', default: join(packageDir, 'data') },
   },
 });
@@ -50,7 +51,7 @@ if (!isRoomId(roomId) || port === null || !botName) {
     'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
       '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--tools WebSearch,Read,Glob,Grep]\n' +
       '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
-      '       [--no-asr] [--transcript-minutes 5] [--no-screenshot] [--cost 1] [--data data/]',
+      '       [--no-asr] [--transcript-minutes 5] [--no-screenshot] [--cost 1] [--queue 20] [--data data/]',
   );
   process.exit(1);
 }
@@ -93,6 +94,7 @@ const bot = new ChatBot({
   chatLog,
   wallet,
   cost: Number(values.cost),
+  maxPending: Number(values.queue),
   log,
   promptTemplate: readFileSync(resolve(values.prompt), 'utf8'),
   historySize: Number(values.history),

@@ -35,7 +35,8 @@ export interface ChatBotOptions {
   historySize?: number;
   /** Douyin's chat length limit: the prompt asks for less, and longer replies are cut to it. */
   maxReplyLength?: number;
-  /** Mentions waiting beyond this are dropped, so a busy room can't pile up a backlog. */
+  /** Mentions waiting for Claude beyond this are dropped (and refunded), so a busy room can't
+   * pile up a backlog nobody remembers asking. */
   maxPending?: number;
   /** Where the room's chat and gifts are recorded for Claude to read. */
   chatLog?: ChatLog;
@@ -56,18 +57,18 @@ interface Mention {
   history: ChatLine[];
 }
 
-/** Waiting to go out: an answer from Claude, or a fixed notice. */
-type Job = { kind: 'mention'; mention: Mention } | { kind: 'notice'; text: string };
-
 /**
  * Remembers a room's recent chat and answers each @mention of the bot: the question and the
  * chat before it go to Claude, and the answer goes back to the room through DyHub. Mentions are
  * answered one at a time, in order. With a wallet, each mention costs `cost` diamonds from what
- * the asker has gifted, given back if it can't be answered.
+ * the asker has gifted, given back if it can't be answered; a viewer who can't pay gets a fixed
+ * notice straight away, without waiting behind the questions for Claude.
  */
 export class ChatBot {
   private readonly history: ChatHistory;
-  private readonly pending: Job[] = [];
+  private readonly pending: Mention[] = [];
+  /** Notices still being sent, so `idle()` can wait for them. */
+  private readonly sendingNotices = new Set<Promise<void>>();
   /** When each viewer was last told their balance is too low. */
   private readonly noticedAt = new Map<string, number>();
   private busy = false;
@@ -79,7 +80,7 @@ export class ChatBot {
   constructor(private readonly options: ChatBotOptions) {
     this.history = new ChatHistory(options.historySize ?? 100);
     this.maxReplyLength = options.maxReplyLength ?? 49;
-    this.maxPending = options.maxPending ?? 5;
+    this.maxPending = options.maxPending ?? 20;
     this.now = options.now ?? Date.now;
     this.cost = options.cost ?? 1;
   }
@@ -128,9 +129,11 @@ export class ChatBot {
     this.options.client.close();
   }
 
-  /** Resolves once every queued mention has been answered (or has failed). */
+  /** Resolves once every queued mention has been answered and every notice sent (or failed). */
   async idle(): Promise<void> {
-    while (this.busy) await new Promise((resolve) => setTimeout(resolve, 10));
+    while (this.busy || this.sendingNotices.size) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
   }
 
   /** Charges the asker and queues the question, or queues a notice when they can't pay. */
@@ -149,7 +152,7 @@ export class ChatBot {
       paid = this.cost;
     }
     const mention = { asker, userId, paid, question, history: this.history.recent() };
-    if (!this.enqueue({ kind: 'mention', mention })) this.refund(mention);
+    if (!this.enqueue(mention)) this.refund(mention);
   }
 
   private notifyBalanceTooLow(asker: string, userId: string | undefined): void {
@@ -159,21 +162,23 @@ export class ChatBot {
     const cooldownMs = this.options.noticeCooldownMs ?? 60_000;
     if (last !== undefined && now - last < cooldownMs) return;
     this.noticedAt.set(key, now);
-    this.enqueue({
-      kind: 'notice',
-      text: `@${asker} 你的余额不足，每次@需要${this.cost}钻（${Math.round(cooldownMs / 1000)}秒内只提醒一次）`,
-    });
+    // Straight to DyHub, which spaces out the room's messages itself: no reason to wait for Claude.
+    const sending = this.sendNotice(
+      `@${asker} 你的余额不足，每次@需要${this.cost}钻（${Math.round(cooldownMs / 1000)}秒内只提醒一次）`,
+    ).finally(() => this.sendingNotices.delete(sending));
+    this.sendingNotices.add(sending);
   }
 
-  /** Queues a job; false when the queue is full and the job was dropped. */
-  private enqueue(job: Job): boolean {
+  /** Queues a mention for Claude; false when the queue is full and it was dropped. */
+  private enqueue(mention: Mention): boolean {
     if (this.pending.length >= this.maxPending) {
       this.options.log.warn('too many waiting, dropping one', {
-        dropped: job.kind === 'mention' ? job.mention.question : job.text,
+        asker: mention.asker,
+        question: mention.question,
       });
       return false;
     }
-    this.pending.push(job);
+    this.pending.push(mention);
     void this.drain();
     return true;
   }
@@ -182,9 +187,8 @@ export class ChatBot {
     if (this.busy) return;
     this.busy = true;
     try {
-      for (let job = this.pending.shift(); job; job = this.pending.shift()) {
-        if (job.kind === 'mention') await this.answer(job.mention);
-        else await this.sendNotice(job.text);
+      for (let mention = this.pending.shift(); mention; mention = this.pending.shift()) {
+        await this.answer(mention);
       }
     } finally {
       this.busy = false;
