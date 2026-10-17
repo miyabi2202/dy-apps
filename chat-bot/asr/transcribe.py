@@ -1,11 +1,14 @@
 """Live transcription worker for the chat bot.
 
 ffmpeg pulls a live stream's audio, fsmn-vad finds where each sentence starts and ends, and
-SenseVoice transcribes it. Each sentence is printed to stdout as one JSON line:
+SenseVoice transcribes it, and AST (an AudioSet classifier) scores how much it sounds like speech
+and like singing, since SenseVoice transcribes a song in the background as if the streamer said
+it. Each sentence is printed to stdout as one JSON line:
 
-    {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "bgm": false, "emotion": "HAPPY"}
+    {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "bgm": false, "emotion": "HAPPY",
+     "speech": 0.93, "singing": 0.02}
 
-`start` and `end` are Unix times in seconds. Logs go to stderr. Audio never touches the disk:
+`start` and `end` are Unix times in seconds; `speech` and `singing` are AST's 0–1 scores. Logs go to stderr. Audio never touches the disk:
 only the sentence being spoken is held in memory. The worker exits when the stream ends; the
 bot restarts it with a fresh stream URL.
 
@@ -24,6 +27,7 @@ import time
 import numpy as np
 import torch
 from funasr import AutoModel
+from transformers import ASTFeatureExtractor, ASTForAudioClassification
 
 RATE = 16000
 CHUNK_MS = 200
@@ -34,6 +38,12 @@ MAX_SENTENCE_MS = 15000
 VAD_RESET_MS = 5 * 60 * 1000
 TAG = re.compile(r"<\|([^|]*)\|>")
 EMOTIONS = {"HAPPY", "SAD", "ANGRY", "NEUTRAL", "FEARFUL", "DISGUSTED", "SURPRISED"}
+AST_MODEL = "MIT/ast-finetuned-audioset-10-10-0.4593"
+# AudioSet classes that count as each kind of voice.
+SPEECH_LABELS = {"Speech", "Male speech, man speaking", "Female speech, woman speaking",
+                 "Child speech, kid speaking", "Conversation", "Narration, monologue"}
+SINGING_LABELS = {"Singing", "Choir", "Male singing", "Female singing", "Child singing",
+                  "Synthetic singing", "Rapping", "Humming"}
 
 
 def log(message: str) -> None:
@@ -50,7 +60,25 @@ def pick_device(name: str) -> str:
     return "cpu"
 
 
-def load_models(device: str) -> tuple[AutoModel, AutoModel]:
+class VoiceClassifier:
+    """Scores a sentence's audio for speech and for singing, each the top of its AudioSet classes."""
+
+    def __init__(self, device: str):
+        self.device = device
+        self.features = ASTFeatureExtractor.from_pretrained(AST_MODEL)
+        self.model = ASTForAudioClassification.from_pretrained(AST_MODEL).to(device).eval()
+        ids = self.model.config.label2id
+        self.speech = [ids[label] for label in SPEECH_LABELS]
+        self.singing = [ids[label] for label in SINGING_LABELS]
+
+    def __call__(self, audio: np.ndarray) -> tuple[float, float]:
+        inputs = self.features(audio, sampling_rate=RATE, return_tensors="pt")["input_values"]
+        with torch.no_grad():
+            scores = self.model(inputs.to(self.device)).logits[0].sigmoid().cpu()
+        return round(float(scores[self.speech].max()), 2), round(float(scores[self.singing].max()), 2)
+
+
+def load_models(device: str) -> tuple[AutoModel, AutoModel, VoiceClassifier]:
     vad = AutoModel(
         model="fsmn-vad",
         max_single_segment_time=MAX_SENTENCE_MS,
@@ -60,7 +88,9 @@ def load_models(device: str) -> tuple[AutoModel, AutoModel]:
     asr = AutoModel(model="iic/SenseVoiceSmall", device=device, disable_update=True, log_level="ERROR")
     # The first run on a GPU compiles kernels; do it before the stream starts.
     asr.generate(input=np.zeros(RATE, dtype=np.float32), language="zh", use_itn=True, disable_pbar=True)
-    return vad, asr
+    voice = VoiceClassifier(device)
+    voice(np.zeros(RATE, dtype=np.float32))
+    return vad, asr, voice
 
 
 def main() -> None:
@@ -74,7 +104,7 @@ def main() -> None:
     log(f"loading models on {device}")
     # FunASR prints while loading; stdout is only for transcript lines.
     with contextlib.redirect_stdout(sys.stderr):
-        vad, asr = load_models(device)
+        vad, asr, voice = load_models(device)
     logging.getLogger().setLevel(logging.WARNING)
 
     ffmpeg = subprocess.Popen(
@@ -101,6 +131,7 @@ def main() -> None:
         text = TAG.sub("", raw).strip()
         if not re.search(r"\w", text):
             return
+        speech, singing = voice(audio)
         now = time.time()
         duration = (end - beg) / 1000
         line = {
@@ -109,6 +140,8 @@ def main() -> None:
             "text": text,
             "bgm": "BGM" in tags,
             "emotion": next((t for t in tags if t in EMOTIONS), None),
+            "speech": speech,
+            "singing": singing,
         }
         print(json.dumps(line, ensure_ascii=False), flush=True)
 

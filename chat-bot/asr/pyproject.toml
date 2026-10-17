@@ -1,11 +1,12 @@
 [project]
 name = "dy-apps-chat-bot-asr"
 version = "0.1.0"
-description = "Live transcription worker for the chat bot: ffmpeg + fsmn-vad + SenseVoice."
+description = "Live transcription worker for the chat bot: ffmpeg + fsmn-vad + SenseVoice + AST."
 requires-python = ">=3.10,<3.14"
 dependencies = [
   "funasr>=1.2",
   "numpy",
   "torch>=2.4",
   "torchaudio>=2.4",
+  "transformers>=4.40",
 ]
