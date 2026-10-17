@@ -5,12 +5,33 @@
 import type { ChatRecord } from '../core/chat-record';
 import type { Gift, IncomingChat } from '../core/room-events';
 
-/** The logger methods the bot uses; a winston logger fits. */
 /** Who the admins are, by user id; it may change while the bot runs. */
 export interface Admins {
   has(userId: string): boolean;
 }
 
+/** Everything the bot has said in the room, so Claude can see it and not repeat itself. */
+export interface BotTalk {
+  add(text: string): void;
+  /** The latest of it, one message a line, oldest first; empty when there's none. */
+  recent(): string;
+}
+
+/** One @ and how the bot answered it. */
+export interface Exchange {
+  nickname: string;
+  question: string;
+  answer: string;
+}
+
+/** Each viewer's past exchanges with the bot, by user id, so a regular gets continuity. */
+export interface UserTalk {
+  add(userId: string, exchange: Exchange): void;
+  /** Their latest exchanges, oldest first; empty when there are none. */
+  recent(userId: string): string;
+}
+
+/** The logger methods the bot uses; a winston logger fits. */
 export interface Log {
   debug(message: string, meta?: object): void;
   info(message: string, meta?: object): void;

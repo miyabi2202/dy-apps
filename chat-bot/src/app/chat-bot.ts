@@ -15,7 +15,16 @@ import type { Transcript } from '../core/transcript';
 import type { Billing, Charge } from './billing';
 import type { Command, CommandResult, Persona } from './commands';
 import type { Outbox } from './outbox';
-import type { Admins, AskClaude, Log, RoomEvents, RoomRecord, Screenshot } from './ports';
+import type {
+  Admins,
+  AskClaude,
+  BotTalk,
+  Log,
+  RoomEvents,
+  RoomRecord,
+  Screenshot,
+  UserTalk,
+} from './ports';
 
 export interface ChatBotOptions {
   events: RoomEvents;
@@ -55,6 +64,11 @@ export interface ChatBotOptions {
   commands?: readonly Command[];
   /** Background on the room for `{{context}}`, read each time so edits apply at once. */
   context?: () => string;
+  /** What the bot has said in the room, for `{{botTalk}}`. */
+  botTalk?: Pick<BotTalk, 'recent'>;
+  /** Each viewer's past exchanges with the bot: answers are added, and `{{userHistory}}` is
+   * the asker's. */
+  userTalk?: UserTalk;
 }
 
 interface Mention {
@@ -64,6 +78,8 @@ interface Mention {
   paid: number;
   question: string;
   history: ChatLine[];
+  /** A command's own prompt template instead of the usual one. */
+  template?: string;
 }
 
 /**
@@ -169,7 +185,8 @@ export class ChatBot {
   ): Charge {
     const { billing, log } = this.options;
     if (admin || !billing) return { ok: true, paid: 0 };
-    const charge = billing.charge(userId, asker, command?.price);
+    const price = command?.price ?? billing.cost;
+    const charge = billing.charge(userId, asker, price);
     if (charge.ok) return charge;
     log.info('balance too low', {
       asker,
@@ -177,14 +194,16 @@ export class ChatBot {
       balance: billing.balance(userId),
       command: command?.name,
     });
-    if (charge.notify) this.say(asker, 'notice', billing.lowBalanceNotice(userId, command));
+    const notice = billing.lowBalanceNotice(userId, command && { name: command.name, price });
+    if (charge.notify) this.say(asker, 'notice', notice);
     return charge;
   }
 
   /**
    * Runs a command the asker may use, once they've paid for it, and tells them how it went;
    * a call to one they may not use is ignored, or, when they have commands, answered with those.
-   * A promise while a command that waits (on Claude, say) is still running.
+   * A command with its own prompt is queued for Claude like a mention. A promise while a command
+   * that waits (on Claude, say) is still running.
    */
   private onCommand(
     chat: IncomingChat,
@@ -204,7 +223,20 @@ export class ChatBot {
       return;
     }
     const charge = this.charge(chat, admin, command);
-    if (!charge.ok) return;
+    if (!charge.ok) return undefined;
+    if (command.prompt) {
+      const mention = {
+        asker,
+        userId,
+        paid: charge.paid,
+        question: args,
+        history: this.history.recent(),
+        template: command.prompt(),
+      };
+      log.info('command', { asker, userId, name, args, paid: charge.paid });
+      if (!this.enqueue(mention)) this.refund(mention);
+      return undefined;
+    }
     const failed = (err: unknown): CommandResult => {
       log.error('command failed', {
         name,
@@ -272,8 +304,8 @@ export class ChatBot {
   }
 
   private async answer(mention: Mention): Promise<void> {
-    const { ask, outbox, log, promptTemplate, transcript } = this.options;
-    const prompt = buildPrompt(promptTemplate, {
+    const { ask, outbox, log, promptTemplate, transcript, userTalk } = this.options;
+    const prompt = buildPrompt(mention.template ?? promptTemplate, {
       ...mention,
       singleLength: singleBudget(mention.asker, this.limits),
       maxLength: answerBudget(mention.asker, this.limits),
@@ -282,6 +314,8 @@ export class ChatBot {
       chatDir: this.options.record?.dir,
       persona: this.options.persona?.value,
       context: this.options.context?.(),
+      botTalk: this.options.botTalk?.recent(),
+      userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
     });
     log.debug('prompt', { prompt });
     try {
@@ -303,6 +337,10 @@ export class ChatBot {
         this.refund(mention);
       };
       for (const text of messages) outbox.push({ kind: 'reply', text, onFailed });
+      if (mention.userId) {
+        const { asker: nickname, question } = mention;
+        userTalk?.add(mention.userId, { nickname, question, answer: messages.join(' ') });
+      }
     } catch (err) {
       log.error('could not answer mention', {
         asker: mention.asker,

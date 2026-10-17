@@ -18,6 +18,8 @@ export interface OutgoingMessage {
 export interface OutboxOptions {
   send: SendChat;
   log: Log;
+  /** Told of each message DyHub sent, e.g. to remember what the bot has said. */
+  onSent?: (message: OutgoingMessage) => void;
   /** At least this long between two messages, so the account doesn't look like a spammer. */
   intervalMs?: number;
   now?: () => number;
@@ -87,12 +89,14 @@ export class Outbox {
     return KINDS.reduce((sum, kind) => sum + this.queues[kind].length, 0);
   }
 
-  private async sendOne({ text, kind, onFailed }: OutgoingMessage): Promise<void> {
+  private async sendOne(message: OutgoingMessage): Promise<void> {
+    const { text, kind, onFailed } = message;
     const { send, log } = this.options;
     try {
       const { echoed } = await send(text);
       log.info(`${kind} sent`, { text, echoed, waiting: this.waiting() });
       if (!echoed) log.warn(`${kind} did not show up in the room chat`, { text });
+      this.options.onSent?.(message);
     } catch (err) {
       log.error(`could not send ${kind}`, {
         text,

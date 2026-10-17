@@ -23,6 +23,10 @@ export interface PromptInput {
   botName?: string;
   /** Background on the room: who the streamer is, what's talked about, what to mind. */
   context?: string;
+  /** What the bot itself said in the room lately, one message a line. */
+  botTalk?: string;
+  /** The asker's past exchanges with the bot. */
+  userHistory?: string;
 }
 
 /**
@@ -32,13 +36,14 @@ export interface PromptInput {
  * mention's sender and text, `{{singleLength}}` what fits in one message and `{{maxLength}}` the
  * most the answer may use over several, `{{now}}` the time, `{{chatDir}}` the folder of chat
  * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{botName}}`
- * the bot's own nickname, and `{{context}}` the room's background under a heading (empty
- * without one).
+ * the bot's own nickname, `{{context}}` the room's background under a heading (empty
+ * without one), `{{botTalk}}` what the bot said lately and `{{userHistory}}` the asker's past
+ * exchanges with it (each `（暂无）` when there's none).
  */
 export function buildPrompt(template: string, input: PromptInput): string {
   const { history, transcript, asker, question, singleLength, maxLength, now, chatDir, persona } =
     input;
-  const { botName, context } = input;
+  const { botName, context, botTalk, userHistory } = input;
   const values: Record<string, string> = {
     history: history.map((line) => `${line.nickname}: ${line.content}`).join('\n') || '（暂无）',
     transcript:
@@ -57,6 +62,8 @@ export function buildPrompt(template: string, input: PromptInput): string {
     persona: persona ? `你的人设是${persona}` : '',
     botName: botName ?? '',
     context: context?.trim() ? `关于这个直播间的背景资料：\n\n${context.trim()}` : '',
+    botTalk: botTalk?.trim() || '（暂无）',
+    userHistory: userHistory?.trim() || '（暂无）',
   };
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => values[key] ?? match);
 }

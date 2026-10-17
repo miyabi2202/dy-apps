@@ -15,6 +15,7 @@ import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
 import { liveText, roomFiles } from './adapters/room-files';
+import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
 import { Billing } from './app/billing';
@@ -48,10 +49,17 @@ wallet.clear();
 const chatDir = join(dataDir, 'chat', roomId);
 mkdirSync(chatDir, { recursive: true });
 const record = new ChatLog(chatDir);
-// The room's context.md and auto_reply.md, read on every use so edits apply while it runs.
+// The room's context.md, auto_reply.md and song_id.md, read on every use so edits apply while it
+// runs; and what the bot said, overall and to each viewer, so it doesn't repeat itself.
 const talkTemplate = resolve(options.talkPromptFile);
-const files = roomFiles(join(dataDir, 'rooms', roomId), talkTemplate);
+const songIdTemplate = join(packageDir, 'song-id.md');
+const files = roomFiles(join(dataDir, 'rooms', roomId), {
+  autoReply: talkTemplate,
+  songId: songIdTemplate,
+});
 const context = liveText(files.context);
+const botTalk = botTalkFile(files.botTalk);
+const userTalk = userTalkFiles(files.users);
 const transcriber = options.asr
   ? new Transcriber({
       streamUrl: room.streamUrl,
@@ -73,7 +81,12 @@ const ask = claudeCli({
   systemPrompt: options.systemPrompt,
 });
 // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
-const outbox = new Outbox({ send: room.sendChat, log, intervalMs: options.sendIntervalMs });
+const outbox = new Outbox({
+  send: room.sendChat,
+  log,
+  intervalMs: options.sendIntervalMs,
+  onSent: ({ text }) => botTalk.add(text),
+});
 const screenshot = options.screenshot ? room.screenshot : undefined;
 // Says something to the streamer every --talk-minutes (changed with /自动回复间隔), and on
 // /回复, from the room's auto_reply.md.
@@ -88,6 +101,7 @@ const talker: Talker = new Talker({
   screenshot,
   persona,
   context,
+  botTalk,
   botName: options.botName,
   chatDir,
   maxLength: options.maxReplyLength,
@@ -106,8 +120,15 @@ const bot: ChatBot = new ChatBot({
   // Read again when config.json changes, so admins can be added or removed while it runs.
   admins: liveAdmins(resolve(options.configFile), { log }),
   persona,
-  commands: builtInCommands({ persona, billing, talker }),
+  commands: builtInCommands({
+    persona,
+    billing,
+    talker,
+    prompts: { songId: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')) },
+  }),
   context,
+  botTalk,
+  userTalk,
   maxPending: options.maxPending,
   log,
   promptTemplate: readFileSync(resolve(options.promptFile), 'utf8'),

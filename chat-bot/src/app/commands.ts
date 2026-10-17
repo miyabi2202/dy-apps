@@ -15,15 +15,25 @@ export interface CommandResult {
   reply: string;
 }
 
-/** Something viewers can tell the bot to do, as `@机器人/<name> <args>`. */
-export interface Command {
+/**
+ * Something viewers can tell the bot to do, as `@机器人/<name> <args>`: either `run` it, or ask
+ * Claude with its own `prompt` (the args as the question), answered like a mention.
+ */
+export type Command = {
   name: string;
   /** Only admins can run it; anyone else's call is ignored. */
   adminOnly: boolean;
-  /** Diamonds it costs a viewer, taken before it runs; admins never pay. */
-  price: number;
-  run(args: string): CommandResult | Promise<CommandResult>;
-}
+  /** Diamonds it costs a viewer, taken before it runs; a mention's price when not set. Admins
+   * never pay. */
+  price?: number;
+} & (
+  | { run(args: string): CommandResult | Promise<CommandResult>; prompt?: never }
+  | {
+      /** The prompt template (see buildPrompt), read each time so edits apply at once. */
+      prompt: () => string;
+      run?: never;
+    }
+);
 
 const done = (reply: string): CommandResult => ({ ok: true, reply });
 const failed = (reply: string): CommandResult => ({ ok: false, reply });
@@ -33,11 +43,14 @@ export function builtInCommands({
   persona,
   billing,
   talker,
+  prompts = {},
 }: {
   persona: Persona;
   billing?: Billing;
   /** For saying something to the streamer, now or every so often. */
   talker?: Pick<Talker, 'interval' | 'talkNow'>;
+  /** The prompts of the commands that ask Claude with their own. */
+  prompts?: { songId?: () => string };
 }): Command[] {
   return [
     {
@@ -83,5 +96,9 @@ export function builtInCommands({
         return done('已处理自动回复间隔请求');
       },
     },
+    // Anyone can ask, at a mention's price: Claude works out the song from the lyrics heard.
+    ...(prompts.songId
+      ? [{ name: '识歌', adminOnly: false, prompt: prompts.songId } satisfies Command]
+      : []),
   ];
 }

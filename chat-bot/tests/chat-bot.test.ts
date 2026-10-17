@@ -3,7 +3,7 @@ import { Billing } from '../src/app/billing';
 import { ChatBot } from '../src/app/chat-bot';
 import { builtInCommands, type Command } from '../src/app/commands';
 import { Outbox } from '../src/app/outbox';
-import type { Log } from '../src/app/ports';
+import type { Log, UserTalk } from '../src/app/ports';
 import type { Gift, IncomingChat } from '../src/core/room-events';
 import { Transcript } from '../src/core/transcript';
 import { Wallet, type Account } from '../src/core/wallet';
@@ -40,6 +40,8 @@ interface SetupOptions {
   persona?: string;
   /** Instead of the built-in ones. */
   commands?: Command[];
+  userTalk?: UserTalk;
+  botTalk?: string;
 }
 
 /** A wallet kept in memory, starting from `accounts`. */
@@ -93,6 +95,8 @@ function setup(options: SetupOptions = {}) {
     admins: new Set(options.admins),
     persona,
     commands: options.commands ?? builtInCommands({ persona, billing }),
+    userTalk: options.userTalk,
+    botTalk: options.botTalk === undefined ? undefined : { recent: () => options.botTalk ?? '' },
     historySize: options.historySize,
     maxReplyLength: options.maxReplyLength,
   });
@@ -406,5 +410,54 @@ test('admins can make the bot talk now and change how often it talks', async () 
   expect(sent).toEqual([
     '@管理 已处理自动回复间隔请求',
     '@管理 间隔要写成分钟数，0 表示关闭，用法：/自动回复间隔 3',
+  ]);
+});
+
+test("/识歌 asks Claude with its own prompt, at a mention's price, answered like a mention", async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
+  const persona = { value: '' };
+  const { settle, say, prompts, sent } = setup({
+    wallet,
+    cost: 1,
+    commands: builtInCommands({ persona, prompts: { songId: () => '识歌:{{question}}' } }),
+    answer: '这首是《aLIEz》',
+  });
+  say(chat('阿明', '@小助手 /识歌 日文的'));
+  say(chat('阿明', '@小助手 /识歌'));
+  await settle();
+
+  expect(prompts).toEqual(['识歌:日文的']);
+  expect(wallet.balance('u-阿明')).toBe(0);
+  expect(sent).toEqual([
+    '@阿明 你的余额不足，还剩0钻，指令「识歌」需要1钻（60秒内只提醒一次）',
+    '@阿明 这首是《aLIEz》',
+  ]);
+});
+
+test("remembers each viewer's exchanges and what the bot said, for the next prompt", async () => {
+  const talk = new Map<string, string[]>();
+  const userTalk: UserTalk = {
+    add: (userId, { nickname, question, answer }) =>
+      talk.set(userId, [
+        ...(talk.get(userId) ?? []),
+        `${nickname}问：${question}`,
+        `你答：${answer}`,
+      ]),
+    recent: (userId) => (talk.get(userId) ?? []).join('\n'),
+  };
+  const { settle, say, prompts } = setup({
+    userTalk,
+    botTalk: '你好呀',
+    template: '{{botTalk}}|{{userHistory}}|{{question}}',
+  });
+  say(chat('阿明', '@小助手 在吗'));
+  say(chat('阿明', '@小助手 还记得我吗'));
+  say(chat('小红', '@小助手 我呢'));
+  await settle();
+
+  expect(prompts).toEqual([
+    '你好呀|（暂无）|在吗',
+    '你好呀|阿明问：在吗\n你答：@阿明 你好呀|还记得我吗',
+    '你好呀|（暂无）|我呢',
   ]);
 });

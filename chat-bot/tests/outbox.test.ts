@@ -7,6 +7,7 @@ test('sends replies, then system messages, then notices, at least the interval a
   let now = 0;
   const sentAt: [string, number][] = [];
   const failed: string[] = [];
+  const delivered: string[] = [];
   const outbox = new Outbox({
     send: (text) => {
       sentAt.push([text, now]);
@@ -16,6 +17,7 @@ test('sends replies, then system messages, then notices, at least the interval a
         : Promise.resolve({ echoed: true });
     },
     log: silentLog,
+    onSent: ({ text }) => delivered.push(text),
     intervalMs: 10_000,
     now: () => now,
     sleep: (ms) => {
@@ -39,4 +41,5 @@ test('sends replies, then system messages, then notices, at least the interval a
     ['提醒', 44_000],
   ]);
   expect(failed).toEqual(['坏的']);
+  expect(delivered).toEqual(['一', '二', '系统', '提醒']);
 });

@@ -4,7 +4,7 @@ import type { ChatLine } from '../core/room-events';
 import type { Transcript } from '../core/transcript';
 import type { Persona } from './commands';
 import type { OutgoingMessage, Outbox } from './outbox';
-import type { AskClaude, Log, Screenshot } from './ports';
+import type { AskClaude, BotTalk, Log, Screenshot } from './ports';
 
 export interface TalkerOptions {
   ask: AskClaude;
@@ -22,6 +22,8 @@ export interface TalkerOptions {
   persona?: Persona;
   /** Background on the room for `{{context}}`, read each time. */
   context?: () => string;
+  /** What the bot has said in the room, for `{{botTalk}}`. */
+  botTalk?: Pick<BotTalk, 'recent'>;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
   botName: string;
   chatDir?: string;
@@ -127,6 +129,7 @@ export class Talker {
         chatDir: this.options.chatDir,
         persona: this.options.persona?.value,
         context: this.options.context?.(),
+        botTalk: this.options.botTalk?.recent(),
         botName: this.options.botName,
       });
       log.debug('talk prompt', { prompt });
