@@ -41,9 +41,13 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
             start: 100,
             end: 102.5,
             text: `从 ${url} 听到`,
-            // The second stream's line is sung.
+            // The first stream's line is said by someone linked up with the streamer, the
+            // second's is sung (so there's no telling whose voice).
             speech: url === 'url-2' ? 0.05 : 0.9,
             music: url === 'url-2' ? 0.9 : 0.05,
+            speaker: url === 'url-2' ? null : 1,
+            host: url === 'url-2' ? null : false,
+            voice: null,
           }),
         ],
         onLine,
@@ -61,6 +65,8 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
       text: '从 url-1 听到',
       speech: 0.9,
       music: 0.05,
+      speaker: 1,
+      host: false,
     },
     {
       start: 100_000,
@@ -71,7 +77,7 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
     },
   ]);
   expect(written).toBe(
-    '2026-10-16 08:00:00 [主播](speech) 从 url-1 听到\n' +
+    '2026-10-16 08:00:00 [连线](speech) 从 url-1 听到\n' +
       '2026-10-16 08:00:00 [主播](sing) 从 url-2 听到\n',
   );
 });

@@ -7,6 +7,17 @@ export interface TranscriptLine {
   /** How much it sounds like speech and like music, 0–1; a song, sung or played, scores high on music. */
   speech?: number;
   music?: number;
+  /** Which voice said it, numbered as heard; unknown for a sentence too short or sung. */
+  speaker?: number;
+  /** Whether that voice is the streamer's rather than someone they're linked up with (连线). */
+  host?: boolean;
+  /** How close its voiceprint was to that voice's, 0–1; unknown for a voice heard first. */
+  voice?: number;
+}
+
+/** Whether someone the streamer is linked up with (连线) said it, as far as voices tell. */
+export function isGuest(line: TranscriptLine): boolean {
+  return line.host === false;
 }
 
 /**
@@ -28,6 +39,9 @@ interface WorkerLine {
   text: string;
   speech?: number;
   music?: number;
+  speaker?: number | null;
+  host?: boolean | null;
+  voice?: number | null;
 }
 
 /** A line of the worker's output as a TranscriptLine, or null when it isn't a sentence. */
@@ -45,6 +59,9 @@ export function parseWorkerLine(text: string): TranscriptLine | null {
     text: line.text,
     ...(typeof line.speech === 'number' && { speech: line.speech }),
     ...(typeof line.music === 'number' && { music: line.music }),
+    ...(typeof line.speaker === 'number' && { speaker: line.speaker }),
+    ...(typeof line.host === 'boolean' && { host: line.host }),
+    ...(typeof line.voice === 'number' && { voice: line.voice }),
   };
 }
 

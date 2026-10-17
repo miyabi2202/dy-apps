@@ -175,14 +175,15 @@ test('drops the sources list web search adds', async () => {
   expect(sent).toEqual(['@阿明 大约41.89万亲密度']);
 });
 
-test('passes the last minutes of what the streamer said or sang, and a screenshot', async () => {
+test('passes the last minutes of what the streamer (or a guest) said or sang, and a screenshot', async () => {
   const transcript = new Transcript(30 * 60_000, () => NOW);
-  const said = (minutesAgo: number, text: string, speech = 0.8) => {
+  const said = (minutesAgo: number, text: string, speech = 0.8, host = true) => {
     const end = NOW - minutesAgo * 60_000;
-    transcript.add({ start: end - 3000, end, text, speech });
+    transcript.add({ start: end - 3000, end, text, speech, host });
   };
   said(8, '太早了');
   said(2, '吕布一开始是文官');
+  said(1.75, '你那边卡了', 0.8, false);
   said(1.5, '寒江陪烟火', 0.05);
   said(1, '谢谢点赞');
   const frame = new Uint8Array([0xff, 0xd8]);
@@ -195,7 +196,7 @@ test('passes the last minutes of what the streamer said or sang, and a screensho
   await settle();
 
   expect(prompts).toEqual([
-    '08:00:00\n07:57:57 吕布一开始是文官\n07:58:27 （唱）寒江陪烟火\n07:58:57 谢谢点赞',
+    '08:00:00\n07:57:57 吕布一开始是文官\n07:58:12 （连线）你那边卡了\n07:58:27 （唱）寒江陪烟火\n07:58:57 谢谢点赞',
   ]);
   expect(images).toEqual([frame]);
 });

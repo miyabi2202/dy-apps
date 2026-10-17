@@ -1,18 +1,24 @@
 """Live transcription worker for the chat bot.
 
 ffmpeg pulls a live stream's audio, fsmn-vad finds where each sentence starts and ends,
-FireRedASR2-AED transcribes it, and AST (an AudioSet classifier) scores how much it sounds like
-speech and like music, since a song gets transcribed as if the streamer said it. (AudioSet labels
-most songs Music and few of them Singing, so a song scores high on Music, not on Singing.) Each sentence is printed to stdout as one JSON line:
+FireRedASR2-AED transcribes it, AST (an AudioSet classifier) scores how much it sounds like
+speech and like music, since a song gets transcribed as if the streamer said it (AudioSet labels
+most songs Music and few of them Singing, so a song scores high on Music, not on Singing), and
+CAM++ voiceprints tell the streamer from whoever they're linked up with (连线). Each sentence is
+printed to stdout as one JSON line:
 
-    {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "speech": 0.93, "music": 0.02}
+    {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "speech": 0.93, "music": 0.02,
+     "speaker": 0, "host": true, "voice": 0.71}
 
-`start` and `end` are Unix times in seconds; `speech` and `music` are AST's 0–1 scores. The text
-has no punctuation: FireRedASR2-AED doesn't add any. Logs go to stderr. Audio never touches the disk:
+`start` and `end` are Unix times in seconds; `speech` and `music` are AST's 0–1 scores. `speaker`
+numbers the voices heard so far, `host` says whether it's the streamer's (see Voices), and `voice` is how close it was to that voice (null for a new one); all three are null
+for a sentence too short or sung, whose voiceprint can't be trusted. The text has no
+punctuation: FireRedASR2-AED doesn't add any. Logs go to stderr. Audio never touches the disk:
 only the sentence being spoken is held in memory. The worker exits when the stream ends; the
 bot restarts it with a fresh stream URL.
 
     uv run transcribe.py <stream url> [--device auto|cpu|mps|cuda] [--realtime] [--model-dir DIR]
+        [--same-voice 0.6]
 
 FireRedASR2-AED (4.7 GB) is downloaded into --model-dir on the first run. It needs a GPU (Apple's
 or CUDA) to keep up with a stream: on a CPU a sentence takes longer to transcribe than to say.
@@ -45,6 +51,16 @@ MAX_SENTENCE_MS = 15000
 # Restart the VAD's state this often, between sentences, so its buffers stay small.
 VAD_RESET_MS = 5 * 60 * 1000
 ASR_MODEL = "FireRedTeam/FireRedASR2-AED"
+# A sentence this close (cosine) to a voice heard before is that voice; otherwise a new one
+# (--same-voice). Synthetic voices scored 0.83–0.90 against themselves and up to 0.62 against
+# others (two Apple voices of the same sex); real voices over music may score lower against
+# themselves, so this is to be tuned from the logged `voice`.
+SAME_VOICE = 0.6
+# Shorter sentences give voiceprints too rough to sort.
+MIN_VOICE_SECONDS = 1.5
+# Below this speech score a line is sung (as in the bot's transcript.ts); singing changes a voice
+# too much for its voiceprint to match the same person talking.
+SUNG_BELOW_SPEECH = 0.2
 # On music the decoder can get stuck repeating a character; a sentence can't hold more than this
 # many tokens a second (Mandarin is about 4–6 characters a second, quick singing a bit more).
 MAX_TOKENS_PER_SECOND = 8
@@ -119,7 +135,50 @@ class VoiceClassifier:
         return round(float(scores[self.speech].max()), 2), round(float(scores[self.music].max()), 2)
 
 
-def load_models(device: str, model_dir: str) -> tuple[AutoModel, Recognizer, VoiceClassifier]:
+class Voices:
+    """
+    Tells voices apart as they come: each sentence's CAM++ voiceprint joins the closest voice heard
+    so far if it's close enough (moving that voice's average towards it), or starts a new voice.
+    The streamer is the first voice heard, until another has been heard for more than twice as
+    long: a guest speaking first is soon corrected, but an even back-and-forth doesn't keep
+    swapping who's who.
+    """
+
+    def __init__(self, same_voice: float):
+        self.same_voice = same_voice
+        # Small enough for the CPU, which leaves the GPU to the recognizer.
+        self.model = AutoModel(model="cam++", device="cpu", disable_update=True, log_level="ERROR")
+        self.centroids: list[np.ndarray] = []
+        self.seconds: list[float] = []
+        self.host: int | None = None
+
+    def __call__(self, audio: np.ndarray, speech: float) -> tuple[int | None, bool | None, float | None]:
+        seconds = len(audio) / RATE
+        if seconds < MIN_VOICE_SECONDS or speech < SUNG_BELOW_SPEECH:
+            return None, None, None
+        embedding = self.model.generate(input=audio, disable_pbar=True)[0]["spk_embedding"]
+        voiceprint = embedding.reshape(-1).float().cpu().numpy()
+        voiceprint /= np.linalg.norm(voiceprint)
+        similarities = [float(c @ voiceprint) for c in self.centroids]
+        best = int(np.argmax(similarities)) if similarities else -1
+        if best < 0 or similarities[best] < self.same_voice:
+            self.centroids.append(voiceprint)
+            self.seconds.append(seconds)
+            speaker, similarity = len(self.centroids) - 1, None
+        else:
+            weight = self.seconds[best]
+            centroid = self.centroids[best] * weight + voiceprint * seconds
+            self.centroids[best] = centroid / np.linalg.norm(centroid)
+            self.seconds[best] += seconds
+            speaker, similarity = best, round(similarities[best], 2)
+        if self.host is None or self.seconds[speaker] > 2 * self.seconds[self.host]:
+            self.host = speaker
+        return speaker, speaker == self.host, similarity
+
+
+def load_models(
+    device: str, model_dir: str, same_voice: float
+) -> tuple[AutoModel, Recognizer, VoiceClassifier, Voices]:
     vad = AutoModel(
         model="fsmn-vad",
         max_single_segment_time=MAX_SENTENCE_MS,
@@ -132,7 +191,7 @@ def load_models(device: str, model_dir: str) -> tuple[AutoModel, Recognizer, Voi
     silence = np.zeros(RATE, dtype=np.float32)
     asr(silence)
     voice(silence)
-    return vad, asr, voice
+    return vad, asr, voice, Voices(same_voice)
 
 
 def main() -> None:
@@ -140,6 +199,8 @@ def main() -> None:
     parser.add_argument("url")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--realtime", action="store_true", help="read input at its own speed (for testing with a file)")
+    parser.add_argument("--same-voice", type=float, default=SAME_VOICE,
+                        help="how close (0–1) a sentence's voiceprint must be to a voice heard before to count as it")
     parser.add_argument("--model-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedASR2-AED"))
     args = parser.parse_args()
 
@@ -149,7 +210,7 @@ def main() -> None:
         log("no GPU: transcription will fall behind the stream")
     # FunASR prints while loading; stdout is only for transcript lines.
     with contextlib.redirect_stdout(sys.stderr):
-        vad, asr, voice = load_models(device, args.model_dir)
+        vad, asr, voice, voices = load_models(device, args.model_dir, args.same_voice)
     logging.getLogger().setLevel(logging.WARNING)
 
     ffmpeg = subprocess.Popen(
@@ -175,6 +236,7 @@ def main() -> None:
         if not re.search(r"\w", text):
             return
         speech, music = voice(audio)
+        speaker, host, similarity = voices(audio, speech)
         now = time.time()
         duration = (end - beg) / 1000
         line = {
@@ -183,6 +245,9 @@ def main() -> None:
             "text": text,
             "speech": speech,
             "music": music,
+            "speaker": speaker,
+            "host": host,
+            "voice": similarity,
         }
         print(json.dumps(line, ensure_ascii=False), flush=True)
 

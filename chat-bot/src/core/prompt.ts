@@ -1,6 +1,6 @@
 import { clock } from './local-time';
 import type { ChatLine } from './room-events';
-import { isSung, type TranscriptLine } from './transcript';
+import { isGuest, isSung, type TranscriptLine } from './transcript';
 
 export interface PromptInput {
   /** Recent chat before the question, oldest first. */
@@ -27,7 +27,8 @@ export interface PromptInput {
 
 /**
  * Fills a prompt template: `{{history}}` becomes one `昵称: 内容` line per chat, `{{transcript}}`
- * one `HH:MM:SS 内容` line per sentence the streamer said (`HH:MM:SS （唱）内容` when sung), `{{asker}}` and `{{question}}` the
+ * one `HH:MM:SS 内容` line per sentence the streamer said (`HH:MM:SS （唱）内容` when sung, and
+ * `（连线）` before it when someone they're linked up with said it), `{{asker}}` and `{{question}}` the
  * mention's sender and text, `{{singleLength}}` what fits in one message and `{{maxLength}}` the
  * most the answer may use over several, `{{now}}` the time, `{{chatDir}}` the folder of chat
  * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{botName}}`
@@ -42,7 +43,10 @@ export function buildPrompt(template: string, input: PromptInput): string {
     history: history.map((line) => `${line.nickname}: ${line.content}`).join('\n') || '（暂无）',
     transcript:
       transcript
-        .map((line) => `${clock(line.start)} ${isSung(line) ? '（唱）' : ''}${line.text}`)
+        .map((line) => {
+          const marks = `${isGuest(line) ? '（连线）' : ''}${isSung(line) ? '（唱）' : ''}`;
+          return `${clock(line.start)} ${marks}${line.text}`;
+        })
         .join('\n') || '（暂无）',
     asker,
     question: question || '（只 @ 了你，没有说别的）',
