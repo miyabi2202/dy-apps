@@ -7,6 +7,7 @@ import {
   type Transcript,
   type TranscriptLine,
 } from '../core/transcript';
+import { done, failed, type Command } from './command';
 import type { BotTalk, Log, Screenshot } from './ports';
 
 export interface RoomStateOptions {
@@ -89,4 +90,18 @@ export class RoomState {
       return undefined;
     }
   }
+}
+
+/** `/修改人设 …`: changes who the bot plays, until it stops. */
+export function personaCommand(room: Pick<RoomState, 'persona'>): Command {
+  return {
+    name: '修改人设',
+    adminOnly: true,
+    price: 0,
+    run(args) {
+      if (!args) return failed('人设不能为空，用法：/修改人设 人设');
+      room.persona = args;
+      return done('已处理修改人设请求');
+    },
+  };
 }

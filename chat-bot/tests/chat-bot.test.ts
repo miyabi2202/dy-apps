@@ -2,9 +2,11 @@ import { ChatLog } from '../src/adapters/chat-log-files';
 import { fakeRoom } from './fake-room';
 import { Billing } from '../src/app/billing';
 import { ChatBot } from '../src/app/chat-bot';
-import { builtInCommands, type Command } from '../src/app/commands';
+import type { Command } from '../src/app/command';
 import { Outbox } from '../src/app/outbox';
 import type { Log, UserTalk } from '../src/app/ports';
+import { personaCommand } from '../src/app/room-state';
+import { songIdCommand } from '../src/app/song-id-command';
 import { ChatHistory } from '../src/core/chat-history';
 import type { Gift, IncomingChat } from '../src/core/room-events';
 import { Transcript } from '../src/core/transcript';
@@ -40,7 +42,7 @@ interface SetupOptions {
   chatLog?: ChatLog;
   admins?: string[];
   persona?: string;
-  /** Instead of the built-in ones. */
+  /** Instead of changing the persona and (with a wallet) the price. */
   commands?: Command[];
   userTalk?: UserTalk;
   botTalk?: string;
@@ -103,7 +105,7 @@ function setup(options: SetupOptions = {}) {
     billing,
     record: options.chatLog,
     admins: new Set(options.admins),
-    commands: options.commands ?? builtInCommands({ room, billing }),
+    commands: options.commands ?? [personaCommand(room), ...(billing?.commands() ?? [])],
     userTalk: options.userTalk,
     maxReplyLength: options.maxReplyLength,
   });
@@ -337,7 +339,14 @@ test('an admin changes the persona and the price, each confirmed with a system m
 
 test('ignores commands from anyone but an admin, and answers bad ones with how to use them', async () => {
   const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 5, spent: 0 } });
-  const { settle, say, prompts, sent } = setup({ wallet, admins: ['u-管理'] });
+  const admin = (name: string): Command => ({
+    name,
+    adminOnly: true,
+    price: 0,
+    run: () => ({ ok: false, reply: '收费要写成钻石数，用法：/修改收费 2' }),
+  });
+  const commands = ['修改人设', '修改收费', '回复', '自动回复间隔', '自动谢礼'].map(admin);
+  const { settle, say, prompts, sent } = setup({ wallet, admins: ['u-管理'], commands });
   say(chat('阿明', '@小助手 /修改收费 0'));
   say(chat('管理', '@小助手 /修改收费 两钻'));
   say(chat('管理', '@小助手 /删库'));
@@ -391,32 +400,17 @@ test('anyone can run a public command at its own price, and a failed one is refu
   ]);
 });
 
-test('admins can make the bot talk now and change how often it talks', async () => {
-  const calls: string[] = [];
-  const talker = {
-    interval: 0,
-    talkNow: () => {
-      calls.push('talkNow');
-      return Promise.resolve('主播今天好可爱');
-    },
-  };
-  const { settle, say, sent } = setup({
-    admins: ['u-管理'],
-    commands: builtInCommands({ room: fakeRoom(), talker }),
-  });
-  say(chat('管理', '@小助手 /回复'));
-  say(chat('管理', '@小助手 /自动回复间隔 5'));
-  say(chat('管理', '@小助手 /自动回复间隔 五'));
-  say(chat('阿明', '@小助手 /回复'));
+test('a command with nothing to say says nothing', async () => {
+  const wallet = memoryWallet({ 'u-管理': { nickname: '管理', gifted: 1, spent: 0 } });
+  const commands: Command[] = [
+    { name: '静音', adminOnly: false, price: 1, run: () => ({ ok: true, reply: '' }) },
+  ];
+  const { settle, say, sent } = setup({ wallet, commands });
+  say(chat('管理', '@小助手 /静音'));
   await settle();
 
-  expect(calls).toEqual(['talkNow']);
-  expect(talker.interval).toBe(5 * 60_000);
-  // /回复's message is the talker's own; the rest answer with a system message.
-  expect(sent).toEqual([
-    '@管理 已处理自动回复间隔请求',
-    '@管理 间隔要写成分钟数，0 表示关闭，用法：/自动回复间隔 3',
-  ]);
+  expect(sent).toEqual([]);
+  expect(wallet.balance('u-管理')).toBe(0);
 });
 
 test("/识歌 asks Claude with its own prompt, at a mention's price, answered like a mention", async () => {
@@ -424,7 +418,7 @@ test("/识歌 asks Claude with its own prompt, at a mention's price, answered li
   const { settle, say, prompts, sent } = setup({
     wallet,
     cost: 1,
-    commands: builtInCommands({ room: fakeRoom(), prompts: { songId: () => '识歌:{{question}}' } }),
+    commands: [songIdCommand(() => '识歌:{{question}}')],
     answer: '这首是《aLIEz》',
   });
   say(chat('阿明', '@小助手 /识歌 日文的'));
@@ -465,18 +459,4 @@ test("remembers each viewer's exchanges and what the bot said, for the next prom
     '你好呀|阿明问：在吗\n你答：@阿明 你好呀|还记得我吗',
     '你好呀|（暂无）|我呢',
   ]);
-});
-
-test('admins can set the gift thanks threshold', async () => {
-  const thanker = { threshold: 99999 };
-  const { settle, say, sent } = setup({
-    admins: ['u-管理'],
-    commands: builtInCommands({ room: fakeRoom(), thanker }),
-  });
-  say(chat('管理', '@小助手 /自动谢礼 100'));
-  say(chat('阿明', '@小助手 /自动谢礼 0'));
-  await settle();
-
-  expect(thanker.threshold).toBe(100);
-  expect(sent).toEqual(['@管理 已处理自动谢礼请求']);
 });

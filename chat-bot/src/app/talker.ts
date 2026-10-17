@@ -1,6 +1,7 @@
 import { errorMessage } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
 import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
+import { done, failed, type Command } from './command';
 import type { OutgoingMessage, Outbox } from './outbox';
 import type { AskClaude, Log } from './ports';
 import type { RoomState } from './room-state';
@@ -70,6 +71,31 @@ export class Talker {
   /** Says something now, whatever's going on, sent as `kind`; what it said, or null if nothing. */
   async talkNow(kind: OutgoingMessage['kind'] = 'reply'): Promise<string | null> {
     return this.say(kind);
+  }
+
+  /** `/回复` talks now, `/自动回复间隔 5` talks every 5 minutes from now on (0 never). */
+  commands(): Command[] {
+    return [
+      {
+        name: '回复',
+        adminOnly: true,
+        price: 0,
+        run: async () =>
+          // The message itself says it worked.
+          (await this.talkNow()) ? done('') : failed('没想好说什么，这次没有回复'),
+      },
+      {
+        name: '自动回复间隔',
+        adminOnly: true,
+        price: 0,
+        run: (args) => {
+          if (!/^\d+$/.test(args))
+            return failed('间隔要写成分钟数，0 表示关闭，用法：/自动回复间隔 3');
+          this.interval = Number(args) * 60_000;
+          return done('已处理自动回复间隔请求');
+        },
+      },
+    ];
   }
 
   /** Waits `ms` (forever when 0), or until woken: which of the two ended it. */

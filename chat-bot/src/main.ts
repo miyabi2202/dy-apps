@@ -20,10 +20,10 @@ import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
-import { builtInCommands } from './app/commands';
 import { GiftThanker } from './app/gift-thanker';
 import { Outbox } from './app/outbox';
-import { RoomState } from './app/room-state';
+import { personaCommand, RoomState } from './app/room-state';
+import { songIdCommand } from './app/song-id-command';
 import { Talker } from './app/talker';
 import { Transcriber } from './app/transcriber';
 import { parseCliOptions, USAGE } from './cli-options';
@@ -141,13 +141,13 @@ const bot = new ChatBot({
   billing,
   // Read again when config.json changes, so admins can be added or removed while it runs.
   admins: liveAdmins(resolve(options.configFile), { log }),
-  commands: builtInCommands({
-    room,
-    billing,
-    talker,
-    thanker,
-    prompts: { songId: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')) },
-  }),
+  commands: [
+    personaCommand(room),
+    ...billing.commands(),
+    ...talker.commands(),
+    ...thanker.commands(),
+    songIdCommand(liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8'))),
+  ],
   onGift: (gift) => thanker.onGift(gift),
   userTalk,
   maxPending: options.maxPending,

@@ -2,6 +2,7 @@ import { errorMessage } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
 import { DOUYIN_CHAT_LIMIT, replyMessages } from '../core/reply';
 import type { Gift } from '../core/room-events';
+import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
 import type { AskClaude, Log, UserTalk } from './ports';
 import type { RoomState } from './room-state';
@@ -61,6 +62,22 @@ export class GiftThanker {
     this.given.delete(gift.userId);
     const run = this.thank(gift, given, total).finally(() => this.running.delete(run));
     this.running.add(run);
+  }
+
+  /** `/自动谢礼 100`: changes the threshold, until the bot stops. */
+  commands(): Command[] {
+    return [
+      {
+        name: '自动谢礼',
+        adminOnly: true,
+        price: 0,
+        run: (args) => {
+          if (!/^\d+$/.test(args)) return failed('阈值要写成钻石数，用法：/自动谢礼 100');
+          this.threshold = Number(args);
+          return done('已处理自动谢礼请求');
+        },
+      },
+    ];
   }
 
   /** Resolves once every thanks under way has been written (or failed). */

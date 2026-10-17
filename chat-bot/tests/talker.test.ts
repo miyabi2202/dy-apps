@@ -107,3 +107,30 @@ test('talks at a new interval as soon as it changes, never at 0, and now when as
     { kind: 'talk', text: '第2句' },
   ]);
 });
+
+test('/回复 talks now, and /自动回复间隔 sets the interval in minutes', async () => {
+  const sent: { kind: string; text: string }[] = [];
+  const talker = new Talker({
+    ask: () => Promise.resolve('主播今天好可爱'),
+    outbox: { push: (message) => sent.push(message) },
+    promptTemplate: () => '',
+    intervalMs: 0,
+    room: fakeRoom(),
+    log: silentLog,
+  });
+  const run = (name: string, args: string) =>
+    talker
+      .commands()
+      .find((command) => command.name === name)
+      ?.run?.(args);
+
+  expect(await run('回复', '')).toEqual({ ok: true, reply: '' });
+  expect(sent).toEqual([{ kind: 'reply', text: '主播今天好可爱' }]);
+  expect(await run('自动回复间隔', '5')).toEqual({ ok: true, reply: '已处理自动回复间隔请求' });
+  expect(talker.interval).toBe(5 * MINUTE);
+  expect(await run('自动回复间隔', '五')).toEqual({
+    ok: false,
+    reply: '间隔要写成分钟数，0 表示关闭，用法：/自动回复间隔 3',
+  });
+  expect(talker.interval).toBe(5 * MINUTE);
+});

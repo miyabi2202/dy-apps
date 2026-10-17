@@ -1,5 +1,6 @@
 import type { Gift } from '../core/room-events';
 import type { Wallet } from '../core/wallet';
+import { done, failed, type Command } from './command';
 
 export interface BillingOptions {
   wallet: Wallet;
@@ -63,6 +64,22 @@ export class Billing {
 
   refund(userId: string | undefined, paid: number): void {
     if (userId && paid) this.options.wallet.refund(userId, paid);
+  }
+
+  /** `/修改收费 2`: changes the price of a mention, until the bot stops. */
+  commands(): Command[] {
+    return [
+      {
+        name: '修改收费',
+        adminOnly: true,
+        price: 0,
+        run: (args) => {
+          if (!/^\d+$/.test(args)) return failed('收费要写成钻石数，用法：/修改收费 2');
+          this.cost = Number(args);
+          return done('已处理修改收费请求');
+        },
+      },
+    ];
   }
 
   /**

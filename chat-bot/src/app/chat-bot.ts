@@ -14,7 +14,7 @@ import {
 } from '../core/reply';
 import type { ChatLine, Gift, IncomingChat } from '../core/room-events';
 import type { Billing, Charge } from './billing';
-import type { Command, CommandResult } from './commands';
+import type { Command, CommandResult } from './command';
 import type { Outbox } from './outbox';
 import type { Admins, AskClaude, Log, RoomEvents, RoomRecord, UserTalk } from './ports';
 import type { RoomState } from './room-state';

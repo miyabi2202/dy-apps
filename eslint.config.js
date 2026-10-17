@@ -128,6 +128,8 @@ export default tseslint.config(
     files: ['chat-bot/src/**/*.ts'],
     plugins: { 'import-x': importX },
     settings: {
+      // Modules with other extensions are skipped, which no-cycle needs to follow imports.
+      'import-x/extensions': ['.ts', '.js'],
       'import-x/resolver-next': [
         createNodeResolver({
           extensions: ['.ts', '.js'],
@@ -136,6 +138,8 @@ export default tseslint.config(
       ],
     },
     rules: {
+      // No two modules import each other, directly or through others.
+      'import-x/no-cycle': 'error',
       'import-x/no-restricted-paths': [
         'error',
         {
@@ -161,6 +165,11 @@ export default tseslint.config(
               from: './app',
               except: ['./ports.ts'],
               message: 'adapters implement app/ports.ts and never import the use cases.',
+            },
+            {
+              target: './app/ports.ts',
+              from: './app',
+              message: 'ports.ts describes the outside world in core types only.',
             },
           ],
         },

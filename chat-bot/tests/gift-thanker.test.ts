@@ -54,3 +54,20 @@ test('thanks a viewer once their gifts in 5 minutes pass the threshold, once a w
     },
   ]);
 });
+
+test('/自动谢礼 sets the threshold', async () => {
+  const thanker = new GiftThanker({
+    ask: () => Promise.resolve(''),
+    outbox: { push: () => {} },
+    promptTemplate: () => '',
+    threshold: 99999,
+    room: fakeRoom(),
+    log: silentLog,
+  });
+  const run = (args: string) => thanker.commands()[0]?.run?.(args);
+
+  expect(await run('100')).toEqual({ ok: true, reply: '已处理自动谢礼请求' });
+  expect(thanker.threshold).toBe(100);
+  expect(await run('很多')).toEqual({ ok: false, reply: '阈值要写成钻石数，用法：/自动谢礼 100' });
+  expect(thanker.threshold).toBe(100);
+});
