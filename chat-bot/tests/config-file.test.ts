@@ -17,19 +17,15 @@ test('reads admins and the persona, and rejects admins that are not user ids', (
 test('picks up admins added or removed while running, and keeps them through a broken edit', () => {
   const warnings: string[] = [];
   const log: Log = { debug() {}, info() {}, warn: (message) => warnings.push(message), error() {} };
-  let file = { text: '{"admins": ["1"]}', modifiedAt: 1 };
-  const admins = liveAdmins('config.json', {
-    log,
-    read: () => file.text,
-    modifiedAt: () => file.modifiedAt,
-  });
+  let file = '{"admins": ["1"]}';
+  const admins = liveAdmins('config.json', { log, read: () => file });
   expect(admins.has('1')).toBe(true);
 
-  file = { text: '{"admins": ["2"]}', modifiedAt: 2 };
+  file = '{"admins": ["2"]}';
   expect(admins.has('1')).toBe(false);
   expect(admins.has('2')).toBe(true);
 
-  file = { text: '{"admins": ["2", ', modifiedAt: 3 };
+  file = '{"admins": ["2", ';
   expect(admins.has('2')).toBe(true);
   expect(admins.has('2')).toBe(true);
   expect(warnings).toEqual(['could not read the admins, keeping the last ones']);

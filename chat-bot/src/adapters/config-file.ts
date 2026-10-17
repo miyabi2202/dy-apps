@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import type { Admins, Log } from '../app/ports';
 
 /** The bot's settings that live in `config.json` rather than on the command line. */
@@ -28,26 +28,25 @@ function isUserIdList(value: unknown): value is string[] {
 export interface LiveAdminsOptions {
   log: Log;
   read?: (path: string) => string;
-  /** When the file last changed. */
-  modifiedAt?: (path: string) => number;
 }
 
 /**
- * The config file's admins, read again whenever the file changes, so admins can be added or
- * removed while the bot runs. A file that can't be read or checked keeps the last good list.
+ * The config file's admins, so admins can be added or removed while the bot runs: each check
+ * reads the file (it's tiny, and checks only come with mentions) and parses it again when its
+ * text differs from last time. A file that can't be read or checked keeps the last good list.
  */
 export function liveAdmins(
   path: string,
-  { log, read, modifiedAt = (p) => statSync(p).mtimeMs }: LiveAdminsOptions,
+  { log, read = (p) => readFileSync(p, 'utf8') }: LiveAdminsOptions,
 ): Admins {
   let admins = new Set<string>();
-  let seen: number | null = null;
+  let seen: string | null = null;
   const refresh = () => {
     try {
-      const changed = modifiedAt(path);
-      if (changed === seen) return;
-      seen = changed;
-      const next = new Set(readConfig(path, read).admins);
+      const text = read(path);
+      if (text === seen) return;
+      seen = text;
+      const next = new Set(readConfig(path, () => text).admins);
       if (next.size !== admins.size || [...next].some((id) => !admins.has(id))) {
         log.info('admins', { admins: [...next] });
       }
