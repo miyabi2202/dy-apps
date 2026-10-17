@@ -45,6 +45,11 @@ MAX_SENTENCE_MS = 15000
 # Restart the VAD's state this often, between sentences, so its buffers stay small.
 VAD_RESET_MS = 5 * 60 * 1000
 ASR_MODEL = "FireRedTeam/FireRedASR2-AED"
+# On music the decoder can get stuck repeating a character; a sentence can't hold more than this
+# many tokens a second (Mandarin is about 4–6 characters a second, quick singing a bit more).
+MAX_TOKENS_PER_SECOND = 8
+# Six or more of the same character or short phrase (up to 4) in a row are cut down to three.
+REPEAT = re.compile(r"(.{1,4}?)\1{5,}")
 AST_MODEL = "MIT/ast-finetuned-audioset-10-10-0.4593"
 # AudioSet classes that count as each kind of voice.
 SPEECH_LABELS = {"Speech", "Male speech, man speaking", "Female speech, woman speaking",
@@ -86,12 +91,14 @@ class Recognizer:
         feats, lengths, *_ = self.features([(RATE, pcm)], ["sentence"])
         if feats is None:
             return ""
+        max_len = 4 + int(len(audio) / RATE * MAX_TOKENS_PER_SECOND)
         with torch.no_grad():
             hyps = self.model.transcribe(
                 feats.to(self.device), lengths.to(self.device), beam_size=3, nbest=1,
-                decode_max_len=0, softmax_smoothing=1.25, length_penalty=0.6, eos_penalty=1.0)
+                decode_max_len=max_len, softmax_smoothing=1.25, length_penalty=0.6, eos_penalty=1.0)
         ids = [int(i) for i in hyps[0][0]["yseq"].cpu()]
-        return re.sub(r"<blank>|<sil>", "", self.tokenizer.detokenize(ids)).strip()
+        text = re.sub(r"<blank>|<sil>", "", self.tokenizer.detokenize(ids)).strip()
+        return REPEAT.sub(r"\1\1\1", text)
 
 
 class VoiceClassifier:
