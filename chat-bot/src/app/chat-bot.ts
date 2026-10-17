@@ -1,6 +1,6 @@
 import { ChatHistory } from '../core/chat-history';
 import { chatRecord, giftRecord } from '../core/chat-record';
-import { parseCommand, type Command } from '../core/command';
+import { parseCommand, type CommandCall } from '../core/command';
 import { isFromBot, questionFor, type BotIdentity } from '../core/mention';
 import { buildPrompt } from '../core/prompt';
 import {
@@ -13,8 +13,9 @@ import {
 import type { ChatLine, IncomingChat } from '../core/room-events';
 import type { Transcript } from '../core/transcript';
 import type { Billing, Charge } from './billing';
+import type { Command, Persona } from './commands';
 import type { Outbox } from './outbox';
-import type { AskClaude, Log, RoomEvents, RoomRecord, Screenshot } from './ports';
+import type { Admins, AskClaude, Log, RoomEvents, RoomRecord, Screenshot } from './ports';
 
 export interface ChatBotOptions {
   events: RoomEvents;
@@ -45,10 +46,13 @@ export interface ChatBotOptions {
   record?: RoomRecord;
   /** Charges for mentions from what viewers gift. Without it, mentions are free. */
   billing?: Billing;
-  /** User ids of the admins: their mentions are free, and only they can run commands. */
-  admins?: ReadonlySet<string>;
-  /** Who the bot plays, for `{{persona}}`; admins can change it with `/修改人设`. */
-  persona?: string;
+  /** User ids of the admins: their mentions and commands are free, and only they can run the
+   * admin-only commands. */
+  admins?: Admins;
+  /** Who the bot plays, for `{{persona}}`; commands may change it. */
+  persona?: Persona;
+  /** What a mention starting with `/` can run. */
+  commands?: readonly Command[];
 }
 
 interface Mention {
@@ -67,8 +71,10 @@ interface Mention {
  * billing, a viewer who can't pay gets a fixed notice, put in the outbox straight away rather
  * than waiting behind the questions for Claude.
  *
- * An admin's mention starting with `/` is a command instead (`/修改人设 …`, `/修改收费 2`): it
- * takes effect at once and the bot confirms with a system message. Anyone else's is ignored.
+ * A mention starting with `/` runs one of `commands` instead (`/修改人设 …`): paid for like a
+ * question but at the command's own price, it takes effect at once and the bot says how it went
+ * in a system message. Admin-only commands, and commands nobody has, are ignored from anyone but
+ * an admin, unless they have commands of their own to be told about.
  */
 export class ChatBot {
   private readonly history: ChatHistory;
@@ -77,11 +83,11 @@ export class ChatBot {
   private readonly limits: ReplyLimits;
   private readonly maxPending: number;
   private readonly now: () => number;
-  private persona: string;
+  private readonly commands: ReadonlyMap<string, Command>;
 
   constructor(private readonly options: ChatBotOptions) {
     this.history = new ChatHistory(options.historySize ?? 100);
-    this.persona = options.persona ?? '';
+    this.commands = new Map((options.commands ?? []).map((command) => [command.name, command]));
     this.limits = { maxLength: options.maxReplyLength ?? 49, maxParts: options.maxReplyParts ?? 5 };
     this.maxPending = options.maxPending ?? 20;
     this.now = options.now ?? Date.now;
@@ -116,66 +122,81 @@ export class ChatBot {
     while (this.busy) await new Promise((resolve) => setTimeout(resolve, 10));
   }
 
-  /**
-   * Runs an admin's command, or charges the asker (admins are free) and queues the question, or
-   * queues a notice when they can't pay.
-   */
+  /** Runs the command the mention gives, or charges the asker and queues the question. */
   private onMention(chat: IncomingChat, question: string): void {
-    const { billing, log, outbox } = this.options;
+    const { log } = this.options;
     const { nickname: asker, userId } = chat;
     log.info('mention', { asker, userId, question });
-    const admin = userId !== undefined && !!this.options.admins?.has(userId);
-    const command = parseCommand(question);
-    if (command) {
-      if (admin) this.runCommand(asker, command);
-      else log.info('command from a non-admin, ignored', { asker, userId, ...command });
+    const admin = this.isAdmin(userId);
+    const call = parseCommand(question);
+    if (call) {
+      this.onCommand(chat, call, admin);
       return;
     }
-    const charge: Charge =
-      admin || !billing ? { ok: true, paid: 0 } : billing.charge(userId, asker);
-    if (!charge.ok) {
-      log.info('balance too low', { asker, userId, balance: billing?.balance(userId) });
-      if (charge.notify && billing) {
-        const notice = billing.lowBalanceNotice(userId);
-        outbox.push({
-          kind: 'notice',
-          text: oneMessage(asker, notice, this.limits.maxLength) ?? `@${asker} ${notice}`,
-        });
-      }
-      return;
-    }
+    const charge = this.charge(chat, admin);
+    if (!charge.ok) return;
     const mention = { asker, userId, paid: charge.paid, question, history: this.history.recent() };
     if (!this.enqueue(mention)) this.refund(mention);
   }
 
-  /** Carries out an admin's command and tells them how it went, as a system message. */
-  private runCommand(asker: string, command: Command): void {
-    const { log, outbox } = this.options;
-    const result = this.applyCommand(command);
-    log.info('command', { asker, ...command, result });
-    outbox.push({
-      kind: 'system',
-      text: oneMessage(asker, result, this.limits.maxLength) ?? `@${asker} ${result}`,
-    });
+  private isAdmin(userId: string | undefined): boolean {
+    return userId !== undefined && !!this.options.admins?.has(userId);
   }
 
-  /** What the bot says back about a command. */
-  private applyCommand({ name, args }: Command): string {
-    switch (name) {
-      case '修改人设':
-        if (!args) return '人设不能为空，用法：/修改人设 人设';
-        this.persona = args;
-        return '已处理修改人设请求';
-      case '修改收费': {
-        const { billing } = this.options;
-        if (!/^\d+$/.test(args)) return '收费要写成钻石数，用法：/修改收费 2';
-        if (!billing) return '这次运行没有开收费，改不了';
-        billing.cost = Number(args);
-        return '已处理修改收费请求';
+  /**
+   * Takes the price of a mention, or of `command`, from the asker, nothing from an admin; when
+   * they can't pay, queues a notice and says so.
+   */
+  private charge(
+    { nickname: asker, userId }: IncomingChat,
+    admin: boolean,
+    command?: Command,
+  ): Charge {
+    const { billing, log } = this.options;
+    if (admin || !billing) return { ok: true, paid: 0 };
+    const charge = billing.charge(userId, asker, command?.price);
+    if (charge.ok) return charge;
+    log.info('balance too low', {
+      asker,
+      userId,
+      balance: billing.balance(userId),
+      command: command?.name,
+    });
+    if (charge.notify) this.say(asker, 'notice', billing.lowBalanceNotice(userId, command));
+    return charge;
+  }
+
+  /**
+   * Runs a command the asker may use, once they've paid for it, and tells them how it went;
+   * a call to one they may not use is ignored, or, when they have commands, answered with those.
+   */
+  private onCommand(chat: IncomingChat, { name, args }: CommandCall, admin: boolean): void {
+    const { log } = this.options;
+    const { nickname: asker, userId } = chat;
+    const command = this.commands.get(name);
+    if (!command || (command.adminOnly && !admin)) {
+      const usable = [...this.commands.values()].filter((c) => admin || !c.adminOnly);
+      log.info('no such command for them', { asker, userId, name, admin });
+      if (usable.length) {
+        const names = usable.map((c) => c.name).join('、');
+        this.say(asker, 'system', `没有指令「${name}」，可用的有：${names}`);
       }
-      default:
-        return `没有指令「${name}」，可用的有：修改人设、修改收费`;
+      return;
     }
+    const charge = this.charge(chat, admin, command);
+    if (!charge.ok) return;
+    const result = command.run(args);
+    log.info('command', { asker, userId, name, args, ...result, paid: charge.paid });
+    if (!result.ok && userId) this.refund({ asker, userId, paid: charge.paid });
+    this.say(asker, 'system', result.reply);
+  }
+
+  /** Queues `@asker text` to be sent. */
+  private say(asker: string, kind: 'system' | 'notice', text: string): void {
+    this.options.outbox.push({
+      kind,
+      text: oneMessage(asker, text, this.limits.maxLength) ?? `@${asker} ${text}`,
+    });
   }
 
   /** Queues a mention for Claude; false when the queue is full and it was dropped. */
@@ -204,7 +225,7 @@ export class ChatBot {
     }
   }
 
-  private refund(mention: Mention): void {
+  private refund(mention: Pick<Mention, 'asker' | 'userId' | 'paid'>): void {
     if (!mention.userId || !mention.paid) return;
     this.options.billing?.refund(mention.userId, mention.paid);
     this.options.log.info('refunded', { asker: mention.asker, diamonds: mention.paid });
@@ -219,7 +240,7 @@ export class ChatBot {
       transcript: transcript?.recent(this.options.transcriptMs ?? 5 * 60_000) ?? [],
       now: this.now(),
       chatDir: this.options.record?.dir,
-      persona: this.persona,
+      persona: this.options.persona?.value,
     });
     log.debug('prompt', { prompt });
     try {

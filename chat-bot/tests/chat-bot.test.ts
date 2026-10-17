@@ -1,6 +1,7 @@
 import { ChatLog } from '../src/adapters/chat-log-files';
 import { Billing } from '../src/app/billing';
 import { ChatBot } from '../src/app/chat-bot';
+import { builtInCommands, type Command } from '../src/app/commands';
 import { Outbox } from '../src/app/outbox';
 import type { Log } from '../src/app/ports';
 import type { Gift, IncomingChat } from '../src/core/room-events';
@@ -37,6 +38,8 @@ interface SetupOptions {
   chatLog?: ChatLog;
   admins?: string[];
   persona?: string;
+  /** Instead of the built-in ones. */
+  commands?: Command[];
 }
 
 /** A wallet kept in memory, starting from `accounts`. */
@@ -63,6 +66,8 @@ function setup(options: SetupOptions = {}) {
     sleep: () => Promise.resolve(),
   });
   const images: (Uint8Array | undefined)[] = [];
+  const billing = options.wallet && new Billing({ wallet: options.wallet, cost: options.cost });
+  const persona = { value: options.persona ?? '' };
   const bot = new ChatBot({
     events: {
       onChat: (handler) => (onChat = handler),
@@ -83,10 +88,11 @@ function setup(options: SetupOptions = {}) {
     transcript: options.transcript,
     screenshot: options.screenshot,
     now: () => NOW,
-    billing: options.wallet && new Billing({ wallet: options.wallet, cost: options.cost }),
+    billing,
     record: options.chatLog,
     admins: new Set(options.admins),
-    persona: options.persona,
+    persona,
+    commands: options.commands ?? builtInCommands({ persona, billing }),
     historySize: options.historySize,
     maxReplyLength: options.maxReplyLength,
   });
@@ -327,5 +333,45 @@ test('ignores commands from anyone but an admin, and answers bad ones with how t
   expect(sent).toEqual([
     '@管理 收费要写成钻石数，用法：/修改收费 2',
     '@管理 没有指令「删库」，可用的有：修改人设、修改收费',
+  ]);
+});
+
+test('anyone can run a public command at its own price, and a failed one is refunded', async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 5, spent: 0 } });
+  const ran: string[] = [];
+  const commands: Command[] = [
+    {
+      name: '点歌',
+      adminOnly: false,
+      price: 2,
+      run: (args) => {
+        ran.push(args);
+        return args ? { ok: true, reply: `已点歌：${args}` } : { ok: false, reply: '要写歌名' };
+      },
+    },
+    {
+      name: '清空',
+      adminOnly: true,
+      price: 0,
+      run: () => ({ ok: true, reply: '已清空' }),
+    },
+  ];
+  const { settle, say, sent } = setup({ wallet, admins: ['u-管理'], commands });
+  say(chat('阿明', '@小助手 /点歌 晴天'));
+  say(chat('阿明', '@小助手 /点歌'));
+  say(chat('阿明', '@小助手 /清空'));
+  say(chat('阿明', '@小助手 /点歌 稻香'));
+  say(chat('阿明', '@小助手 /点歌 七里香'));
+  await settle();
+
+  // 5 diamonds: 晴天 (2), the empty one (2, refunded), 稻香 (2), then 1 left for 七里香.
+  expect(ran).toEqual(['晴天', '', '稻香']);
+  expect(wallet.balance('u-阿明')).toBe(1);
+  expect(sent).toEqual([
+    '@阿明 已点歌：晴天',
+    '@阿明 要写歌名',
+    '@阿明 没有指令「清空」，可用的有：点歌',
+    '@阿明 已点歌：稻香',
+    '@阿明 你的余额不足，还剩1钻，指令「点歌」需要2钻（60秒内只提醒一次）',
   ]);
 });

@@ -43,11 +43,14 @@ export class Billing {
     return userId ? this.options.wallet.balance(userId) : 0;
   }
 
-  /** Takes the price of one mention from the asker, an anonymous one never able to pay. */
-  charge(userId: string | undefined, nickname: string): Charge {
-    if (this.cost <= 0) return { ok: true, paid: 0 };
-    if (userId && this.options.wallet.spend(userId, nickname, this.cost)) {
-      return { ok: true, paid: this.cost };
+  /**
+   * Takes `price` (a mention's cost unless given, e.g. a command's) from the asker; an anonymous
+   * one can never pay.
+   */
+  charge(userId: string | undefined, nickname: string, price = this.cost): Charge {
+    if (price <= 0) return { ok: true, paid: 0 };
+    if (userId && this.options.wallet.spend(userId, nickname, price)) {
+      return { ok: true, paid: price };
     }
     const key = userId ?? nickname;
     const last = this.noticedAt.get(key);
@@ -62,8 +65,14 @@ export class Billing {
     if (userId && paid) this.options.wallet.refund(userId, paid);
   }
 
-  /** What a viewer who can't pay is told, after the @, with what they have left. */
-  lowBalanceNotice(userId: string | undefined): string {
-    return `你的余额不足，还剩${this.balance(userId)}钻，每次@需要${this.cost}钻（${Math.round(this.noticeCooldownMs / 1000)}秒内只提醒一次）`;
+  /**
+   * What a viewer who can't pay is told, after the @, with what they have left: for a mention,
+   * or for `command` when given.
+   */
+  lowBalanceNotice(userId: string | undefined, command?: { name: string; price: number }): string {
+    const cost = command
+      ? `指令「${command.name}」需要${command.price}钻`
+      : `每次@需要${this.cost}钻`;
+    return `你的余额不足，还剩${this.balance(userId)}钻，${cost}（${Math.round(this.noticeCooldownMs / 1000)}秒内只提醒一次）`;
   }
 }

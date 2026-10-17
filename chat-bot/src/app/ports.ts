@@ -6,6 +6,11 @@ import type { ChatRecord } from '../core/chat-record';
 import type { Gift, IncomingChat } from '../core/room-events';
 
 /** The logger methods the bot uses; a winston logger fits. */
+/** Who the admins are, by user id; it may change while the bot runs. */
+export interface Admins {
+  has(userId: string): boolean;
+}
+
 export interface Log {
   debug(message: string, meta?: object): void;
   info(message: string, meta?: object): void;

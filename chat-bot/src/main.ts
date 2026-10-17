@@ -11,13 +11,14 @@ import { DyhubClient } from '@dy-apps/services';
 import { uvWorker } from './adapters/asr-worker';
 import { ChatLog } from './adapters/chat-log-files';
 import { claudeCli } from './adapters/claude-cli';
-import { readConfig } from './adapters/config-file';
+import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
+import { builtInCommands } from './app/commands';
 import { Outbox } from './app/outbox';
 import { Transcriber } from './app/transcriber';
 import { parseCliOptions, USAGE } from './cli-options';
@@ -54,6 +55,9 @@ const transcriber = options.asr
       spawnWorker: uvWorker(join(packageDir, 'asr')),
     })
   : null;
+const billing = new Billing({ wallet, cost: options.cost });
+// Who the bot plays; /修改人设 changes it for this run.
+const persona = { value: config.persona };
 const bot = new ChatBot({
   events: dyhubEvents(new DyhubClient({ port, roomId, retryMs: 5000 })),
   bot: { nickname: options.botName, userId: options.botId },
@@ -71,9 +75,11 @@ const bot = new ChatBot({
   transcript,
   transcriptMs: options.transcriptMs,
   record,
-  billing: new Billing({ wallet, cost: options.cost }),
-  admins: new Set(config.admins),
-  persona: config.persona,
+  billing,
+  // Read again when config.json changes, so admins can be added or removed while it runs.
+  admins: liveAdmins(resolve(options.configFile), { log }),
+  persona,
+  commands: builtInCommands({ persona, billing }),
   maxPending: options.maxPending,
   log,
   promptTemplate: readFileSync(resolve(options.promptFile), 'utf8'),
