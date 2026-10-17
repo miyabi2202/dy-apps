@@ -42,12 +42,13 @@ const log = createLogger(resolve(options.logsDir));
 const config = readConfig(resolve(options.configFile));
 const room = new DyhubRoomApi(port, roomId);
 const transcript = new Transcript();
+// Everything about the room lives in data/<房间号>/ (see roomFiles).
+const roomDir = join(resolve(options.dataDir), roomId);
 // Balances last one run: cleared on exit, and on start in case the last run didn't exit cleanly.
-const dataDir = resolve(options.dataDir);
-const wallet = new Wallet(jsonFileStorage(join(dataDir, `wallet-${roomId}.json`)));
+const wallet = new Wallet(jsonFileStorage(join(roomDir, 'wallet.json')));
 wallet.clear();
 // Everything said, chatted and gifted, 100 records a file; Claude may read this folder.
-const chatDir = join(dataDir, 'chat', roomId);
+const chatDir = join(roomDir, 'chat');
 mkdirSync(chatDir, { recursive: true });
 const record = new ChatLog(chatDir);
 // The prompts are shared by every room (a room's own auto_reply.md, song_id.md or gift_thanks.md
@@ -56,7 +57,7 @@ const record = new ChatLog(chatDir);
 const talkTemplate = resolve(options.talkPromptFile);
 const songIdTemplate = join(packageDir, 'song-id.md');
 const giftThanksTemplate = join(packageDir, 'gift-thanks.md');
-const files = roomFiles(join(dataDir, 'rooms', roomId));
+const files = roomFiles(roomDir);
 const context = liveText(files.context);
 const botTalk = botTalkFile(files.botTalk);
 const userTalk = userTalkFiles(files.users);

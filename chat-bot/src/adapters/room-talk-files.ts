@@ -34,7 +34,7 @@ function tail(read: (path: string) => string, path: string, keep: number): strin
   }
 }
 
-/** Everything the bot sent in the room, one message a line, in `bot_talk.txt`. */
+/** Everything the bot sent in the room, one message a line, in `bot_logs.md`. */
 export function botTalkFile(path: string, options: TalkFileOptions = {}): BotTalk {
   const { keep = 40, now, append, read } = { ...defaults, ...options };
   return {
@@ -44,13 +44,13 @@ export function botTalkFile(path: string, options: TalkFileOptions = {}): BotTal
 }
 
 /**
- * Each viewer's exchanges with the bot in `<dir>/<user id>.txt`, two lines each:
+ * Each viewer's exchanges with the bot in `<dir>/<user id>/talk.txt`, two lines each:
  * `日期 时间 昵称问：…` and `日期 时间 你答：…`.
  */
 export function userTalkFiles(dir: string, options: TalkFileOptions = {}): UserTalk {
   const { keep = 20, now, append, read } = { ...defaults, ...options };
   // User ids are digits; anything else is kept out of the path.
-  const file = (userId: string) => join(dir, `${userId.replace(/[^\w-]/g, '_')}.txt`);
+  const file = (userId: string) => join(dir, userId.replace(/[^\w-]/g, '_'), 'talk.txt');
   return {
     add(userId, { nickname, question, answer }: Exchange) {
       const ms = now();

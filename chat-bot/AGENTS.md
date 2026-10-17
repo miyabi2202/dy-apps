@@ -29,9 +29,9 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
 
 - In someone else's room, the bot answers anyone who @s it, in public, as the user's account, and, when turned on (`--talk-minutes`, `/自动回复间隔`), says something unprompted every few minutes; gift thanks (`--thanks-threshold`, `/自动谢礼`) are off by default too. Say so when starting it there.
 - Read `chat-bot/logs/chat-bot.log` (JSON lines: every chat, prompt, answer, gift and transcript line) to answer questions like 「刚才机器人回了什么」 or 「谁送了礼物」.
-- The room's chat record is in `chat-bot/data/chat/<房间号>/*.txt`, one line per speech (`[主播](speech)`, or `(sing)` when sung), chat or gift (`[昵称#uid](gift)`), 100 lines a file; it's kept across runs.
-- The prompts (`chat-bot/prompt.md`, `talk.md`, `song-id.md`, `gift-thanks.md`) are shared by every room, and each room's `chat-bot/data/rooms/<房间号>/context.md` (background on the room, in every prompt) holds what's particular to it; a room can override a prompt with its own `auto_reply.md`, `song_id.md` or `gift_thanks.md` there. All are read on every use: edit them to change the bot while it runs, no restart needed. `bot_talk.txt` there has everything the bot sent, and `users/<uid>.txt` each viewer's exchanges with it.
-- Balances are in `chat-bot/data/wallet-<房间号>.json` (`gifted` − `spent` per user id) while the bot runs. Don't edit them unless the user asks.
+- The room's chat record is in `chat-bot/data/<房间号>/chat/*.txt`, one line per speech (`[主播](speech)`, or `(sing)` when sung), chat or gift (`[昵称#uid](gift)`), 100 lines a file; it's kept across runs.
+- The prompts (`chat-bot/prompt.md`, `talk.md`, `song-id.md`, `gift-thanks.md`) are shared by every room, and each room's `chat-bot/data/<房间号>/context.md` (background on the room, in every prompt) holds what's particular to it; a room can override a prompt with its own `auto_reply.md`, `song_id.md` or `gift_thanks.md` there. All are read on every use: edit them to change the bot while it runs, no restart needed. `bot_logs.md` there has everything the bot sent, and `<uid>/talk.txt` each viewer's exchanges with it.
+- Balances are in `chat-bot/data/<房间号>/wallet.json` (`gifted` − `spent` per user id) while the bot runs. Don't edit them unless the user asks.
 
 ## Stop
 

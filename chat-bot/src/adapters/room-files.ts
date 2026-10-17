@@ -13,14 +13,16 @@ export interface RoomFiles {
   giftThanks: string;
   /** Everything the bot sent in the room. */
   botTalk: string;
-  /** A folder of each viewer's exchanges with the bot. */
+  /** Where each viewer's folder of exchanges with the bot goes. */
   users: string;
 }
 
 /**
- * The room's files in `dir`, with an empty `context.md` created when missing. The prompts are
- * shared by every room (chat-bot/talk.md and so on); a room only has its own `auto_reply.md`,
- * `song_id.md` or `gift_thanks.md` when someone puts one there to override it.
+ * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and `wallet.json`): an
+ * empty `context.md` created when missing, `bot_logs.md`, and a `<user id>/` folder for each
+ * viewer the bot talked with. The prompts are shared by every room (chat-bot/talk.md and so on);
+ * a room only has its own `auto_reply.md`, `song_id.md` or `gift_thanks.md` when someone puts
+ * one there to override it.
  */
 export function roomFiles(dir: string): RoomFiles {
   mkdirSync(dir, { recursive: true });
@@ -29,8 +31,8 @@ export function roomFiles(dir: string): RoomFiles {
     autoReply: join(dir, 'auto_reply.md'),
     songId: join(dir, 'song_id.md'),
     giftThanks: join(dir, 'gift_thanks.md'),
-    botTalk: join(dir, 'bot_talk.txt'),
-    users: join(dir, 'users'),
+    botTalk: join(dir, 'bot_logs.md'),
+    users: dir,
   };
   if (!existsSync(files.context)) writeFileSync(files.context, '');
   return files;
