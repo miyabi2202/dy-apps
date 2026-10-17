@@ -4,6 +4,7 @@
  */
 import type { ChatRecord } from '../core/chat-record';
 import type { Gift, IncomingChat } from '../core/room-events';
+import type { Exchange } from '../core/talk-record';
 
 /** Who the admins are, by user id; it may change while the bot runs. */
 export interface Admins {
@@ -17,12 +18,7 @@ export interface BotTalk {
   recent(): string;
 }
 
-/** One @ and how the bot answered it. */
-export interface Exchange {
-  nickname: string;
-  question: string;
-  answer: string;
-}
+export type { Exchange };
 
 /** Each viewer's past exchanges with the bot, by user id, so a regular gets continuity. */
 export interface UserTalk {

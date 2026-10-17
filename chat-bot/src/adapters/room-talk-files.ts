@@ -1,7 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { BotTalk, Exchange, UserTalk } from '../app/ports';
-import { localDateTime } from '../core/local-time';
+import type { BotTalk, UserTalk } from '../app/ports';
+import { exchangeLines, lastLines, talkLine } from '../core/talk-record';
 
 export interface TalkFileOptions {
   /** How many of the latest lines `recent` gives, to keep prompts from growing without end. */
@@ -20,15 +20,10 @@ const defaults = {
   read: (path: string) => readFileSync(path, 'utf8'),
 };
 
-/** One line, `日期 时间 text`, with line breaks flattened. */
-function line(ms: number, text: string): string {
-  return `${localDateTime(ms)} ${text.replace(/[\r\n]+/g, ' ')}\n`;
-}
-
 /** The last `keep` lines of `path`, or nothing when it can't be read yet. */
 function tail(read: (path: string) => string, path: string, keep: number): string {
   try {
-    return read(path).trimEnd().split('\n').slice(-keep).join('\n');
+    return lastLines(read(path), keep);
   } catch {
     return '';
   }
@@ -38,24 +33,18 @@ function tail(read: (path: string) => string, path: string, keep: number): strin
 export function botTalkFile(path: string, options: TalkFileOptions = {}): BotTalk {
   const { keep = 40, now, append, read } = { ...defaults, ...options };
   return {
-    add: (text) => append(path, line(now(), text)),
+    add: (text) => append(path, talkLine(now(), text)),
     recent: () => tail(read, path, keep),
   };
 }
 
-/**
- * Each viewer's exchanges with the bot in `<dir>/<user id>/talk.txt`, two lines each:
- * `日期 时间 昵称问：…` and `日期 时间 你答：…`.
- */
+/** Each viewer's exchanges with the bot in `<dir>/<user id>/talk.txt` (see exchangeLines). */
 export function userTalkFiles(dir: string, options: TalkFileOptions = {}): UserTalk {
   const { keep = 20, now, append, read } = { ...defaults, ...options };
   // User ids are digits; anything else is kept out of the path.
   const file = (userId: string) => join(dir, userId.replace(/[^\w-]/g, '_'), 'talk.txt');
   return {
-    add(userId, { nickname, question, answer }: Exchange) {
-      const ms = now();
-      append(file(userId), line(ms, `${nickname}问：${question}`) + line(ms, `你答：${answer}`));
-    },
+    add: (userId, exchange) => append(file(userId), exchangeLines(now(), exchange)),
     recent: (userId) => tail(read, file(userId), keep),
   };
 }

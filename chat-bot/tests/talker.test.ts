@@ -1,6 +1,7 @@
 import type { Log } from '../src/app/ports';
+import { fakeRoom } from './fake-room';
 import { Talker } from '../src/app/talker';
-import type { ChatLine } from '../src/core/room-events';
+import { ChatHistory } from '../src/core/chat-history';
 import { Transcript } from '../src/core/transcript';
 
 const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
@@ -9,7 +10,7 @@ const MINUTE = 60_000;
 test('says one message each interval from what is going on, and stays quiet in a quiet room', async () => {
   let now = 0;
   const transcript = new Transcript(Infinity, () => now);
-  const chat: ChatLine[] = [];
+  const history = new ChatHistory(100);
   const prompts: string[] = [];
   const sent: { kind: string; text: string }[] = [];
   const answers = ['主播这首歌唱得好有感觉，是原唱的调吗？\n\nSources:\n- x', '我也想吃火锅'];
@@ -17,7 +18,7 @@ test('says one message each interval from what is going on, and stays quiet in a
   const rounds = [
     () => transcript.add({ start: now - 3000, end: now, text: '寒江陪烟火', speech: 0.05 }),
     () => {}, // nothing said or chatted
-    () => chat.push({ ts: now, nickname: '阿明', content: '今晚吃火锅' }),
+    () => history.add({ ts: now, nickname: '阿明', content: '今晚吃火锅' }),
   ];
   let talker: Talker | null = null;
   talker = new Talker({
@@ -28,11 +29,8 @@ test('says one message each interval from what is going on, and stays quiet in a
     outbox: { push: (message) => sent.push(message) },
     promptTemplate: () => '{{botName}}|{{transcript}}|{{history}}',
     intervalMs: 3 * MINUTE,
-    recentChat: () => chat,
-    transcript,
-    botName: '小助手',
+    room: fakeRoom({ history, transcript, now: () => now }),
     log: silentLog,
-    now: () => now,
     sleep: (ms) => {
       now += ms;
       const round = rounds.shift();
@@ -56,7 +54,7 @@ test('says one message each interval from what is going on, and stays quiet in a
 
 test('talks at a new interval as soon as it changes, never at 0, and now when asked', async () => {
   let now = 0;
-  const chat: ChatLine[] = [];
+  const history = new ChatHistory(100);
   const sent: { kind: string; text: string }[] = [];
   const contexts = ['主播是猫猫', '主播今天生日'];
   const prompts: string[] = [];
@@ -70,18 +68,15 @@ test('talks at a new interval as soon as it changes, never at 0, and now when as
     outbox: { push: (message) => sent.push(message) },
     promptTemplate: () => '{{context}}',
     intervalMs: 0,
-    recentChat: () => chat,
-    context: () => contexts.shift() ?? '',
-    botName: '小助手',
+    room: fakeRoom({ history, context: () => contexts.shift() ?? '', now: () => now }),
     log: silentLog,
-    now: () => now,
     // Each sleep waits until the test lets it end.
     sleep: (ms) => {
       sleeps.push(ms);
       return new Promise((resolve) => {
         finishSleep = () => {
           now += ms;
-          chat.push({ ts: now, nickname: '阿明', content: '在吗' });
+          history.add({ ts: now, nickname: '阿明', content: '在吗' });
           resolve();
         };
       });
@@ -111,4 +106,31 @@ test('talks at a new interval as soon as it changes, never at 0, and now when as
     { kind: 'reply', text: '第1句' },
     { kind: 'talk', text: '第2句' },
   ]);
+});
+
+test('/回复 talks now, and /自动回复间隔 sets the interval in minutes', async () => {
+  const sent: { kind: string; text: string }[] = [];
+  const talker = new Talker({
+    ask: () => Promise.resolve('主播今天好可爱'),
+    outbox: { push: (message) => sent.push(message) },
+    promptTemplate: () => '',
+    intervalMs: 0,
+    room: fakeRoom(),
+    log: silentLog,
+  });
+  const run = (name: string, args: string) =>
+    talker
+      .commands()
+      .find((command) => command.name === name)
+      ?.run?.(args);
+
+  expect(await run('回复', '')).toEqual({ ok: true, reply: '' });
+  expect(sent).toEqual([{ kind: 'reply', text: '主播今天好可爱' }]);
+  expect(await run('自动回复间隔', '5')).toEqual({ ok: true, reply: '已处理自动回复间隔请求' });
+  expect(talker.interval).toBe(5 * MINUTE);
+  expect(await run('自动回复间隔', '五')).toEqual({
+    ok: false,
+    reply: '间隔要写成分钟数，0 表示关闭，用法：/自动回复间隔 3',
+  });
+  expect(talker.interval).toBe(5 * MINUTE);
 });

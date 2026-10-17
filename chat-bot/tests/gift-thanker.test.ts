@@ -1,6 +1,8 @@
 import { GiftThanker } from '../src/app/gift-thanker';
 import type { Exchange, Log } from '../src/app/ports';
-import type { ChatLine, Gift } from '../src/core/room-events';
+import { ChatHistory } from '../src/core/chat-history';
+import type { Gift } from '../src/core/room-events';
+import { fakeRoom } from './fake-room';
 
 const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 const MINUTE = 60_000;
@@ -14,10 +16,9 @@ test('thanks a viewer once their gifts in 5 minutes pass the threshold, once a w
   const prompts: string[] = [];
   const sent: { kind: string; text: string }[] = [];
   const exchanges: Exchange[] = [];
-  const chat: ChatLine[] = [
-    { ts: 1, userId: 'u-阿明', nickname: '阿明', content: '今天加班好累' },
-    { ts: 2, userId: 'u-小红', nickname: '小红', content: '主播唱得好' },
-  ];
+  const history = new ChatHistory(100);
+  history.add({ ts: 1, userId: 'u-阿明', nickname: '阿明', content: '今天加班好累' });
+  history.add({ ts: 2, userId: 'u-小红', nickname: '小红', content: '主播唱得好' });
   const thanker = new GiftThanker({
     ask: ({ prompt }) => {
       prompts.push(prompt);
@@ -26,10 +27,9 @@ test('thanks a viewer once their gifts in 5 minutes pass the threshold, once a w
     outbox: { push: (message) => sent.push(message) },
     promptTemplate: () => '{{asker}}|{{question}}|{{userChat}}|{{userHistory}}',
     threshold: 20,
-    recentChat: () => chat,
+    room: fakeRoom({ history, now: () => now }),
     userTalk: { add: (_userId, exchange) => exchanges.push(exchange), recent: () => '' },
     log: silentLog,
-    now: () => now,
   });
 
   thanker.onGift(gift('阿明', '玫瑰', 10));
@@ -53,4 +53,21 @@ test('thanks a viewer once their gifts in 5 minutes pass the threshold, once a w
       answer: '@阿明 谢谢阿明的玫瑰，加班辛苦啦',
     },
   ]);
+});
+
+test('/自动谢礼 sets the threshold', async () => {
+  const thanker = new GiftThanker({
+    ask: () => Promise.resolve(''),
+    outbox: { push: () => {} },
+    promptTemplate: () => '',
+    threshold: 99999,
+    room: fakeRoom(),
+    log: silentLog,
+  });
+  const run = (args: string) => thanker.commands()[0]?.run?.(args);
+
+  expect(await run('100')).toEqual({ ok: true, reply: '已处理自动谢礼请求' });
+  expect(thanker.threshold).toBe(100);
+  expect(await run('很多')).toEqual({ ok: false, reply: '阈值要写成钻石数，用法：/自动谢礼 100' });
+  expect(thanker.threshold).toBe(100);
 });

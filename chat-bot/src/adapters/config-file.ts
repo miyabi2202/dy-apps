@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Admins, Log } from '../app/ports';
+import { errorMessage } from '../core/errors';
 
 /** The bot's settings that live in `config.json` rather than on the command line. */
 export interface BotConfig {
@@ -53,7 +54,7 @@ export function liveAdmins(
       admins = next;
     } catch (err) {
       log.warn('could not read the admins, keeping the last ones', {
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
     }
   };

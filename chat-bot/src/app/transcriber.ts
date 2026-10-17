@@ -1,4 +1,5 @@
 import { speechRecord } from '../core/chat-record';
+import { errorMessage } from '../core/errors';
 import { parseWorkerLine, type Transcript } from '../core/transcript';
 import type { Log, RoomRecord, SpawnWorker, StreamUrl, Worker } from './ports';
 
@@ -73,7 +74,7 @@ export class Transcriber {
       return await worker.exited;
     } catch (err) {
       log.error('could not start the transcriber', {
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
       return null;
     } finally {

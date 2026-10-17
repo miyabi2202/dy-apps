@@ -1,9 +1,11 @@
+import { errorMessage } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
-import { replyMessages } from '../core/reply';
-import type { ChatLine, Gift } from '../core/room-events';
-import type { Persona } from './commands';
+import { DOUYIN_CHAT_LIMIT, replyMessages } from '../core/reply';
+import type { Gift } from '../core/room-events';
+import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
-import type { AskClaude, BotTalk, Log, UserTalk } from './ports';
+import type { AskClaude, Log, UserTalk } from './ports';
+import type { RoomState } from './room-state';
 
 export interface GiftThankerOptions {
   ask: AskClaude;
@@ -13,18 +15,13 @@ export interface GiftThankerOptions {
   /** Thank someone whose gifts within `windowMs` come to more than this many diamonds. */
   threshold: number;
   windowMs?: number;
-  /** The room's recent chat, oldest first. */
-  recentChat: () => ChatLine[];
+  /** The chat and the rest of what the prompt knows about the room. */
+  room: RoomState;
   /** Each viewer's past exchanges with the bot; the thanks is added to the giver's. */
   userTalk?: UserTalk;
-  botTalk?: Pick<BotTalk, 'recent'>;
-  context?: () => string;
-  persona?: Persona;
-  chatDir?: string;
   /** Douyin's chat length limit. */
   maxLength?: number;
   log: Log;
-  now?: () => number;
 }
 
 interface Given {
@@ -44,17 +41,15 @@ export class GiftThanker {
   private readonly given = new Map<string, Given[]>();
   private readonly thankedAt = new Map<string, number>();
   private readonly running = new Set<Promise<void>>();
-  private readonly now: () => number;
 
   constructor(private readonly options: GiftThankerOptions) {
     this.threshold = options.threshold;
     this.windowMs = options.windowMs ?? 5 * 60_000;
-    this.now = options.now ?? Date.now;
   }
 
   /** Counts a gift, and thanks the giver once their window's gifts pass the threshold. */
   onGift(gift: Gift): void {
-    const now = this.now();
+    const now = this.options.room.now();
     const since = now - this.windowMs;
     const given = [...(this.given.get(gift.userId) ?? []), { at: now, gift }].filter(
       (g) => g.at > since,
@@ -69,34 +64,44 @@ export class GiftThanker {
     this.running.add(run);
   }
 
+  /** `/自动谢礼 100`: changes the threshold, until the bot stops. */
+  commands(): Command[] {
+    return [
+      {
+        name: '自动谢礼',
+        adminOnly: true,
+        price: 0,
+        run: (args) => {
+          if (!/^\d+$/.test(args)) return failed('阈值要写成钻石数，用法：/自动谢礼 100');
+          this.threshold = Number(args);
+          return done('已处理自动谢礼请求');
+        },
+      },
+    ];
+  }
+
   /** Resolves once every thanks under way has been written (or failed). */
   async idle(): Promise<void> {
     while (this.running.size) await Promise.all(this.running);
   }
 
   private async thank({ userId, nickname }: Gift, given: Given[], total: number): Promise<void> {
-    const { ask, outbox, log, maxLength = 49 } = this.options;
+    const { ask, outbox, room, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
     const counts = new Map<string, number>();
     for (const { gift } of given) counts.set(gift.name, (counts.get(gift.name) ?? 0) + gift.count);
     const gifts = [...counts].map(([name, count]) => `${name}×${count}`).join('、');
-    const history = this.options.recentChat();
     const question = `刚刚送了 ${gifts}，一共 ${total} 钻`;
     const limits = { maxLength, maxParts: 1 };
     try {
+      const input = room.promptInput();
       const prompt = buildPrompt(this.options.promptTemplate(), {
-        history,
-        transcript: [],
+        ...input,
         asker: nickname,
         question,
         singleLength: maxLength - [...`@${nickname} `].length,
         maxLength,
-        now: this.now(),
-        chatDir: this.options.chatDir,
-        persona: this.options.persona?.value,
-        context: this.options.context?.(),
-        botTalk: this.options.botTalk?.recent(),
         userHistory: this.options.userTalk?.recent(userId),
-        userChat: history
+        userChat: input.history
           .filter((chat) => chat.userId === userId)
           .map((chat) => chat.content)
           .join('\n'),
@@ -113,7 +118,7 @@ export class GiftThanker {
     } catch (err) {
       log.error('could not thank', {
         nickname,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
     }
   }
