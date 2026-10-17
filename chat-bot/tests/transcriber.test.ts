@@ -41,8 +41,9 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
             start: 100,
             end: 102.5,
             text: `从 ${url} 听到`,
-            // The first stream's line is said by someone linked up with the streamer, the
-            // second's is sung (so there's no telling whose voice).
+            // The first stream's line is said in Mandarin by someone linked up with the
+            // streamer, the second's is a Japanese song (so there's no telling whose voice).
+            lang: url === 'url-2' ? 'ja' : 'zh',
             speech: url === 'url-2' ? 0.05 : 0.9,
             music: url === 'url-2' ? 0.9 : 0.05,
             speaker: url === 'url-2' ? null : 1,
@@ -63,6 +64,7 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
       start: 100_000,
       end: 102_500,
       text: '从 url-1 听到',
+      lang: 'zh',
       speech: 0.9,
       music: 0.05,
       speaker: 1,
@@ -72,6 +74,7 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
       start: 100_000,
       end: 102_500,
       text: '从 url-2 听到',
+      lang: 'ja',
       speech: 0.05,
       music: 0.9,
     },

@@ -22,7 +22,7 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
 5. **Confirm it's working** from the bot's output, and tell the user:
    - `dyhub ready` within seconds: connected to the room's chat.
    - `transcribing {"url": …}`: DyHub has the stream. If it never comes, the room isn't live.
-   - `heard {"text": …}` within about 2 minutes: speech recognition is running (the first sentence waits for the models to load). The first run ever downloads about 5 GB of models first.
+   - `heard {"text": …}` within about 2 minutes: speech recognition is running (the first sentence waits for the models to load). The first run ever downloads about 10 GB of models first.
    - `gift {…}` lines as viewers send gifts, with their new balance.
 
 ## While it runs

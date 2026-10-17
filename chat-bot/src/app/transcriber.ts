@@ -63,8 +63,8 @@ export class Transcriber {
         if (!line) return;
         transcript.add(line);
         this.options.record?.add(speechRecord(line));
-        const { text: heard, speech, music, speaker, host, voice } = line;
-        log.info('heard', { text: heard, speech, music, speaker, host, voice });
+        const { text: heard, lang, speech, music, speaker, host, voice } = line;
+        log.info('heard', { text: heard, lang, speech, music, speaker, host, voice });
       },
       onLog: (text) => log.debug('asr', { text }),
     });
