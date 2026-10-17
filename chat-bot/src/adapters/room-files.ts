@@ -1,15 +1,15 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** The files someone can edit for one room, to change the bot there while it runs. */
 export interface RoomFiles {
   /** Background on the room, for the prompts' `{{context}}`. */
   context: string;
-  /** The prompt for what the bot says unprompted. */
+  /** This room's own prompt for what the bot says unprompted, if someone writes one. */
   autoReply: string;
-  /** The prompt for /识歌. */
+  /** This room's own prompt for /识歌, if someone writes one. */
   songId: string;
-  /** The prompt for thanking big givers. */
+  /** This room's own prompt for thanking big givers, if someone writes one. */
   giftThanks: string;
   /** Everything the bot sent in the room. */
   botTalk: string;
@@ -18,13 +18,11 @@ export interface RoomFiles {
 }
 
 /**
- * The room's files in `dir`, the editable ones created when missing: an empty `context.md`, and
- * `auto_reply.md`, `song_id.md` and `gift_thanks.md` as copies of the defaults to start from.
+ * The room's files in `dir`, with an empty `context.md` created when missing. The prompts are
+ * shared by every room (chat-bot/talk.md and so on); a room only has its own `auto_reply.md`,
+ * `song_id.md` or `gift_thanks.md` when someone puts one there to override it.
  */
-export function roomFiles(
-  dir: string,
-  defaults: { autoReply: string; songId: string; giftThanks: string },
-): RoomFiles {
+export function roomFiles(dir: string): RoomFiles {
   mkdirSync(dir, { recursive: true });
   const files = {
     context: join(dir, 'context.md'),
@@ -35,9 +33,6 @@ export function roomFiles(
     users: join(dir, 'users'),
   };
   if (!existsSync(files.context)) writeFileSync(files.context, '');
-  if (!existsSync(files.autoReply)) copyFileSync(defaults.autoReply, files.autoReply);
-  if (!existsSync(files.songId)) copyFileSync(defaults.songId, files.songId);
-  if (!existsSync(files.giftThanks)) copyFileSync(defaults.giftThanks, files.giftThanks);
   return files;
 }
 

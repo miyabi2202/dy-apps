@@ -50,16 +50,13 @@ wallet.clear();
 const chatDir = join(dataDir, 'chat', roomId);
 mkdirSync(chatDir, { recursive: true });
 const record = new ChatLog(chatDir);
-// The room's context.md, auto_reply.md and song_id.md, read on every use so edits apply while it
-// runs; and what the bot said, overall and to each viewer, so it doesn't repeat itself.
+// The prompts are shared by every room (a room's own auto_reply.md, song_id.md or gift_thanks.md
+// overrides one), and the room's context.md; all read on every use so edits apply while it runs.
+// Plus what the bot said, overall and to each viewer, so it doesn't repeat itself.
 const talkTemplate = resolve(options.talkPromptFile);
 const songIdTemplate = join(packageDir, 'song-id.md');
 const giftThanksTemplate = join(packageDir, 'gift-thanks.md');
-const files = roomFiles(join(dataDir, 'rooms', roomId), {
-  autoReply: talkTemplate,
-  songId: songIdTemplate,
-  giftThanks: giftThanksTemplate,
-});
+const files = roomFiles(join(dataDir, 'rooms', roomId));
 const context = liveText(files.context);
 const botTalk = botTalkFile(files.botTalk);
 const userTalk = userTalkFiles(files.users);
