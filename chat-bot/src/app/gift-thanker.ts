@@ -1,5 +1,6 @@
+import { errorMessage } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
-import { replyMessages } from '../core/reply';
+import { DOUYIN_CHAT_LIMIT, replyMessages } from '../core/reply';
 import type { ChatLine, Gift } from '../core/room-events';
 import type { Persona } from './commands';
 import type { Outbox } from './outbox';
@@ -75,7 +76,7 @@ export class GiftThanker {
   }
 
   private async thank({ userId, nickname }: Gift, given: Given[], total: number): Promise<void> {
-    const { ask, outbox, log, maxLength = 49 } = this.options;
+    const { ask, outbox, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
     const counts = new Map<string, number>();
     for (const { gift } of given) counts.set(gift.name, (counts.get(gift.name) ?? 0) + gift.count);
     const gifts = [...counts].map(([name, count]) => `${name}×${count}`).join('、');
@@ -113,7 +114,7 @@ export class GiftThanker {
     } catch (err) {
       log.error('could not thank', {
         nickname,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
     }
   }

@@ -1,4 +1,5 @@
 import type { Log, SendChat } from './ports';
+import { errorMessage } from '../core/errors';
 
 /** What a message is, most urgent first: the order waiting messages go out in. */
 const KINDS = ['reply', 'system', 'notice', 'talk'] as const;
@@ -100,7 +101,7 @@ export class Outbox {
     } catch (err) {
       log.error(`could not send ${kind}`, {
         text,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
       onFailed?.();
     }

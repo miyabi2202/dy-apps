@@ -1,6 +1,8 @@
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { isRoomId, parsePort } from '@dy-apps/services';
+import { DOUYIN_CHAT_LIMIT } from './core/reply';
+import { DEFAULT_TRANSCRIPT_WINDOW_MS } from './core/transcript';
 
 export const USAGE =
   'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
@@ -53,14 +55,17 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'bot-id': { type: 'string' },
       prompt: { type: 'string', default: join(packageDir, 'prompt.md') },
       history: { type: 'string', default: '100' },
-      'max-reply': { type: 'string', default: '49' },
+      'max-reply': { type: 'string', default: String(DOUYIN_CHAT_LIMIT) },
       'max-parts': { type: 'string', default: '5' },
       tools: { type: 'string', default: 'WebSearch,WebFetch,Read,Glob,Grep' },
       model: { type: 'string', default: 'opus' },
       system: { type: 'string', default: '你是一个抖音直播间的机器人' },
       logs: { type: 'string', default: join(packageDir, 'logs') },
       asr: { type: 'boolean', default: true },
-      'transcript-minutes': { type: 'string', default: '5' },
+      'transcript-minutes': {
+        type: 'string',
+        default: String(DEFAULT_TRANSCRIPT_WINDOW_MS / 60_000),
+      },
       // Off by default: most streams don't need Claude to see the video (lessons with a board do).
       screenshot: { type: 'boolean', default: false },
       cost: { type: 'string', default: '1' },

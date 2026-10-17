@@ -1,3 +1,6 @@
+/** Douyin's chat length limit, in characters. */
+export const DOUYIN_CHAT_LIMIT = 49;
+
 /** Where a long reply would rather be cut: after the end of a sentence or clause. */
 const BREAK_AFTER = new Set([...'。！？；，、：.!?;,: ）)】」']);
 

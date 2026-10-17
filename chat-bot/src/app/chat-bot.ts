@@ -1,17 +1,19 @@
 import { ChatHistory } from '../core/chat-history';
 import { chatRecord, giftRecord } from '../core/chat-record';
 import { parseCommand, type CommandCall } from '../core/command';
+import { errorMessage } from '../core/errors';
 import { isFromBot, questionFor, type BotIdentity } from '../core/mention';
 import { buildPrompt } from '../core/prompt';
 import {
   answerBudget,
+  DOUYIN_CHAT_LIMIT,
   oneMessage,
   replyMessages,
   singleBudget,
   type ReplyLimits,
 } from '../core/reply';
 import type { ChatLine, Gift, IncomingChat } from '../core/room-events';
-import type { Transcript } from '../core/transcript';
+import { DEFAULT_TRANSCRIPT_WINDOW_MS, type Transcript } from '../core/transcript';
 import type { Billing, Charge } from './billing';
 import type { Command, CommandResult, Persona } from './commands';
 import type { Outbox } from './outbox';
@@ -110,7 +112,10 @@ export class ChatBot {
   constructor(private readonly options: ChatBotOptions) {
     this.history = new ChatHistory(options.historySize ?? 100);
     this.commands = new Map((options.commands ?? []).map((command) => [command.name, command]));
-    this.limits = { maxLength: options.maxReplyLength ?? 49, maxParts: options.maxReplyParts ?? 5 };
+    this.limits = {
+      maxLength: options.maxReplyLength ?? DOUYIN_CHAT_LIMIT,
+      maxParts: options.maxReplyParts ?? 5,
+    };
     this.maxPending = options.maxPending ?? 20;
     this.now = options.now ?? Date.now;
   }
@@ -243,7 +248,7 @@ export class ChatBot {
     const failed = (err: unknown): CommandResult => {
       log.error('command failed', {
         name,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
       return { ok: false, reply: `指令「${name}」出错了，没有完成` };
     };
@@ -312,7 +317,8 @@ export class ChatBot {
       ...mention,
       singleLength: singleBudget(mention.asker, this.limits),
       maxLength: answerBudget(mention.asker, this.limits),
-      transcript: transcript?.recent(this.options.transcriptMs ?? 5 * 60_000) ?? [],
+      transcript:
+        transcript?.recent(this.options.transcriptMs ?? DEFAULT_TRANSCRIPT_WINDOW_MS) ?? [],
       now: this.now(),
       chatDir: this.options.record?.dir,
       persona: this.options.persona?.value,
@@ -348,7 +354,7 @@ export class ChatBot {
       log.error('could not answer mention', {
         asker: mention.asker,
         question: mention.question,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
       this.refund(mention);
     }
@@ -360,7 +366,7 @@ export class ChatBot {
       return await this.options.screenshot?.();
     } catch (err) {
       this.options.log.warn('no screenshot', {
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
       return undefined;
     }

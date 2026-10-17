@@ -1,3 +1,6 @@
+/** How far back the prompts' `{{transcript}}` goes unless set otherwise. */
+export const DEFAULT_TRANSCRIPT_WINDOW_MS = 5 * 60_000;
+
 /** One sentence the streamer said, as the transcription worker heard it. */
 export interface TranscriptLine {
   /** When it started and ended, in ms since the epoch. */

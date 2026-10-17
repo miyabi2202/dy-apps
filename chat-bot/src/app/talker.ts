@@ -1,7 +1,8 @@
+import { errorMessage } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
-import { plainMessage } from '../core/reply';
+import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
 import type { ChatLine } from '../core/room-events';
-import type { Transcript } from '../core/transcript';
+import { DEFAULT_TRANSCRIPT_WINDOW_MS, type Transcript } from '../core/transcript';
 import type { Persona } from './commands';
 import type { OutgoingMessage, Outbox } from './outbox';
 import type { AskClaude, BotTalk, Log, Screenshot } from './ports';
@@ -112,11 +113,14 @@ export class Talker {
   }
 
   private recentTranscript() {
-    return this.options.transcript?.recent(this.options.transcriptMs ?? 5 * 60_000) ?? [];
+    return (
+      this.options.transcript?.recent(this.options.transcriptMs ?? DEFAULT_TRANSCRIPT_WINDOW_MS) ??
+      []
+    );
   }
 
   private async say(kind: OutgoingMessage['kind']): Promise<string | null> {
-    const { ask, outbox, log, maxLength = 49 } = this.options;
+    const { ask, outbox, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
     try {
       const prompt = buildPrompt(this.options.promptTemplate(), {
         history: this.options.recentChat(),
@@ -143,7 +147,7 @@ export class Talker {
       outbox.push({ kind, text });
       return text;
     } catch (err) {
-      log.error('could not talk', { error: err instanceof Error ? err.message : String(err) });
+      log.error('could not talk', { error: errorMessage(err) });
       return null;
     }
   }
@@ -154,7 +158,7 @@ export class Talker {
       return await this.options.screenshot?.();
     } catch (err) {
       this.options.log.warn('no screenshot', {
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
       return undefined;
     }
