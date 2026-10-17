@@ -1,5 +1,6 @@
 import { ChatHistory } from '../src/core/chat-history';
 import { Transcript } from '../src/core/transcript';
+import { screenshotCommand } from '../src/app/room-state';
 import { fakeRoom } from './fake-room';
 
 const NOW = Date.UTC(2026, 9, 16, 8, 0, 0);
@@ -42,4 +43,31 @@ test('gives every prompt the room as it is now: chat, recent speech, persona, co
   room.persona = '小猫';
   context = '主播今天生日';
   expect(room.promptInput()).toMatchObject({ persona: '小猫', context: '主播今天生日' });
+});
+
+test('screenshots go to Claude only while on, and admins switch them with /截图', async () => {
+  const frame = new Uint8Array([0xff, 0xd8]);
+  let taken = 0;
+  const room = fakeRoom({
+    screenshot: () => {
+      taken++;
+      return Promise.resolve(frame);
+    },
+    screenshotsOn: false,
+  });
+  const command = screenshotCommand(room);
+  if (!command.run) throw new Error('/截图 runs code');
+
+  expect(await room.screenshot()).toBeUndefined();
+  expect(command.run('1')).toEqual({ ok: true, reply: '已处理截图请求' });
+  expect(await room.screenshot()).toBe(frame);
+  expect(command.run('2')).toEqual({
+    ok: false,
+    reply: '要写 0（关闭）或 1（打开），用法：/截图 1',
+  });
+  expect(command.run('0')).toEqual({ ok: true, reply: '已处理截图请求' });
+  expect(await room.screenshot()).toBeUndefined();
+  // DyHub isn't even asked while screenshots are off.
+  expect(taken).toBe(1);
+  expect(command.adminOnly).toBe(true);
 });

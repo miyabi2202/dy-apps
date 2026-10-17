@@ -23,8 +23,10 @@ export interface RoomStateOptions {
   context?: () => string;
   /** What the bot has said in the room, for `{{botTalk}}`. */
   botTalk?: Pick<BotTalk, 'recent'>;
-  /** A JPEG of the live video, sent to Claude with a prompt. */
+  /** A JPEG of the live video, sent to Claude with a prompt while screenshots are on. */
   screenshot?: Screenshot;
+  /** Whether to start with screenshots on (when there's a `screenshot`); /截图 switches it. */
+  screenshotsOn?: boolean;
   /** The folder of the room's chat record files, for `{{chatDir}}`. */
   chatDir?: string;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
@@ -44,9 +46,11 @@ export class RoomState {
   persona: string;
   readonly botName: string;
   private readonly clock: () => number;
+  private screenshotsOn: boolean;
 
   constructor(private readonly options: RoomStateOptions) {
     this.persona = options.persona ?? '';
+    this.screenshotsOn = options.screenshotsOn ?? true;
     this.botName = options.botName;
     this.clock = options.now ?? Date.now;
   }
@@ -81,8 +85,23 @@ export class RoomState {
     };
   }
 
-  /** The live video, or nothing when there's no screenshot to be had: prompting goes on. */
+  /** Whether prompts get the live video; admins switch it while the bot runs. */
+  get screenshots(): boolean {
+    return this.screenshotsOn;
+  }
+
+  set screenshots(on: boolean) {
+    if (on === this.screenshotsOn) return;
+    this.screenshotsOn = on;
+    this.options.log.info('screenshot', { enabled: on });
+  }
+
+  /**
+   * The live video, or nothing while screenshots are off (without asking DyHub) or when there's
+   * no screenshot to be had: prompting goes on.
+   */
   async screenshot(): Promise<Uint8Array | undefined> {
+    if (!this.screenshotsOn) return undefined;
     try {
       return await this.options.screenshot?.();
     } catch (err) {
@@ -102,6 +121,20 @@ export function personaCommand(room: Pick<RoomState, 'persona'>): Command {
       if (!args) return failed('人设不能为空，用法：/修改人设 人设');
       room.persona = args;
       return done('已处理修改人设请求');
+    },
+  };
+}
+
+/** `/截图 1` or `/截图 0`: turns screenshots on or off, until the bot stops. */
+export function screenshotCommand(room: Pick<RoomState, 'screenshots'>): Command {
+  return {
+    name: '截图',
+    adminOnly: true,
+    price: 0,
+    run(args) {
+      if (args !== '0' && args !== '1') return failed('要写 0（关闭）或 1（打开），用法：/截图 1');
+      room.screenshots = args === '1';
+      return done('已处理截图请求');
     },
   };
 }

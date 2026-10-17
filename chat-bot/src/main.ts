@@ -24,7 +24,7 @@ import { GiftThanker } from './app/gift-thanker';
 import { MentionAnswerer } from './app/mention-answerer';
 import { Outbox } from './app/outbox';
 import { RoomFeed } from './app/room-feed';
-import { personaCommand, RoomState } from './app/room-state';
+import { personaCommand, RoomState, screenshotCommand } from './app/room-state';
 import { songIdCommand } from './app/song-id-command';
 import { Talker } from './app/talker';
 import { Transcriber } from './app/transcriber';
@@ -105,7 +105,9 @@ const room = new RoomState({
   persona: config.persona,
   context,
   botTalk,
-  screenshot: options.screenshot ? roomApi.screenshot : undefined,
+  // Off unless --screenshot; /截图 switches it while the bot runs.
+  screenshot: roomApi.screenshot,
+  screenshotsOn: options.screenshot,
   chatDir,
   botName: options.botName,
   log,
@@ -171,6 +173,7 @@ const bot = new ChatBot({
     ...billing.commands(),
     ...talker.commands(),
     ...thanker.commands(),
+    screenshotCommand(room),
     songIdCommand(liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8'))),
   ],
   maxReplyLength: options.maxReplyLength,
