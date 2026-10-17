@@ -9,6 +9,18 @@ export interface TranscriptLine {
   music?: number;
 }
 
+/**
+ * Below this speech score a line is taken as sung. On a singing stream, sung lines scored at most
+ * 0.12 and talk at least 0.36; the music score can't tell them apart, since talk over backing
+ * music scores 0.6–0.7 on it too.
+ */
+const SUNG_BELOW_SPEECH = 0.2;
+
+/** Whether the streamer sang the line rather than said it; unknown without a speech score. */
+export function isSung(line: TranscriptLine): boolean {
+  return line.speech !== undefined && line.speech < SUNG_BELOW_SPEECH;
+}
+
 /** A line the transcription worker prints: one sentence, times in seconds. */
 interface WorkerLine {
   start: number;
