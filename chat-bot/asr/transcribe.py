@@ -1,27 +1,32 @@
 """Live transcription worker for the chat bot.
 
 ffmpeg pulls a live stream's audio, fsmn-vad finds where each sentence starts and ends,
-FireRedASR2-AED transcribes it, AST (an AudioSet classifier) scores how much it sounds like
-speech and like music, since a song gets transcribed as if the streamer said it (AudioSet labels
-most songs Music and few of them Singing, so a song scores high on Music, not on Singing), and
-CAM++ voiceprints tell the streamer from whoever they're linked up with (连线). Each sentence is
-printed to stdout as one JSON line:
+FireRedLID tells which language it's in, FireRedASR2-AED transcribes it (Mandarin, Chinese
+dialects, English and the rest) or SenseVoiceSmall does (Japanese and Korean, which
+FireRedASR2-AED doesn't know: it hears a Japanese song as romaji, <unk>s or loops), AST (an
+AudioSet classifier) scores how much it sounds like speech and like music, since a song gets
+transcribed as if the streamer said it (AudioSet labels most songs Music and few of them Singing,
+so a song scores high on Music, not on Singing), and CAM++ voiceprints tell the streamer from
+whoever they're linked up with (连线). Each sentence is printed to stdout as one JSON line:
 
-    {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "speech": 0.93, "music": 0.02,
-     "speaker": 0, "host": true, "voice": 0.71}
+    {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "lang": "zh", "speech": 0.93,
+     "music": 0.02, "speaker": 0, "host": true, "voice": 0.71}
 
-`start` and `end` are Unix times in seconds; `speech` and `music` are AST's 0–1 scores. `speaker`
-numbers the voices heard so far, `host` says whether it's the streamer's (see Voices), and `voice` is how close it was to that voice (null for a new one); all three are null
-for a sentence too short or sung, whose voiceprint can't be trusted. The text has no
-punctuation: FireRedASR2-AED doesn't add any. Logs go to stderr. Audio never touches the disk:
-only the sentence being spoken is held in memory. The worker exits when the stream ends; the
-bot restarts it with a fresh stream URL.
+`start` and `end` are Unix times in seconds; `lang` is FireRedLID's language code ("zh", "en",
+"ja", "ko", …), null for a sentence under 2 s, which skips it and is taken for Mandarin (only a
+sentence LID is at least 0.8 sure is Japanese or Korean goes to SenseVoiceSmall); `speech` and `music` are AST's 0–1 scores. `speaker` numbers the voices heard so
+far, `host` says whether it's the streamer's (see Voices), and `voice` is how close it was to that
+voice (null for a new one); all three are null for a sentence too short or sung, whose voiceprint
+can't be trusted. FireRedASR2-AED's text has no punctuation; SenseVoiceSmall's has. Logs go to
+stderr. Audio never touches the disk: only the sentence being spoken is held in memory. The
+worker exits when the stream ends; the bot restarts it with a fresh stream URL.
 
     uv run transcribe.py <stream url> [--device auto|cpu|mps|cuda] [--realtime] [--model-dir DIR]
-        [--same-voice 0.6]
+        [--lid-dir DIR] [--same-voice 0.6]
 
-FireRedASR2-AED (4.7 GB) is downloaded into --model-dir on the first run. It needs a GPU (Apple's
-or CUDA) to keep up with a stream: on a CPU a sentence takes longer to transcribe than to say.
+FireRedASR2-AED (4.7 GB) is downloaded into --model-dir and FireRedLID (3.5 GB) into --lid-dir on
+the first run, SenseVoiceSmall (0.9 GB) into FunASR's cache. They need a GPU (Apple's or CUDA) to
+keep up with a stream: on a CPU a sentence takes longer to transcribe than to say.
 """
 
 import argparse
@@ -39,6 +44,9 @@ import torch
 from fireredasr2s.fireredasr2.asr import load_fireredasr_aed_model
 from fireredasr2s.fireredasr2.data.asr_feat import ASRFeatExtractor
 from fireredasr2s.fireredasr2.tokenizer.aed_tokenizer import ChineseCharEnglishSpmTokenizer
+from fireredasr2s.fireredlid.data.feat import FeatExtractor as LidFeatExtractor
+from fireredasr2s.fireredlid.lid import load_fireredlid_model
+from fireredasr2s.fireredlid.tokenizer.lid_tokenizer import LidTokenizer
 from funasr import AutoModel
 from huggingface_hub import snapshot_download
 from transformers import ASTFeatureExtractor, ASTForAudioClassification
@@ -64,8 +72,19 @@ SUNG_BELOW_SPEECH = 0.2
 # On music the decoder can get stuck repeating a character; a sentence can't hold more than this
 # many tokens a second (Mandarin is about 4–6 characters a second, quick singing a bit more).
 MAX_TOKENS_PER_SECOND = 8
-# Six or more of the same character or short phrase (up to 4) in a row are cut down to three.
-REPEAT = re.compile(r"(.{1,4}?)\1{5,}")
+# Six or more of the same character or phrase (up to 12 characters, as in "HELLO HELLO …") in a
+# row, spaces between them or not, are cut down to three.
+REPEAT = re.compile(r"(\S.{0,11}?)(?:\s*\1){5,}")
+LID_MODEL = "FireRedTeam/FireRedLID"
+# Languages FireRedASR2-AED doesn't know (it hears Japanese as romaji, <unk>s or loops), which go
+# to SenseVoiceSmall instead.
+SENSEVOICE_LANGS = {"ja", "ko"}
+# Language ID is unreliable on short sentences (under ~1.5 s it guessed ko, pt, fa… for Japanese
+# and Mandarin alike), so shorter ones skip it and go to FireRedASR2-AED, as Mandarin.
+MIN_LID_SECONDS = 2.0
+# And a sentence only goes to SenseVoice when LID is this sure (sung Japanese of 2 s or more
+# scored 0.85–1.0); otherwise FireRedASR2-AED.
+MIN_LID_CONFIDENCE = 0.8
 AST_MODEL = "MIT/ast-finetuned-audioset-10-10-0.4593"
 # AudioSet classes that count as each kind of voice.
 SPEECH_LABELS = {"Speech", "Male speech, man speaking", "Female speech, woman speaking",
@@ -113,8 +132,64 @@ class Recognizer:
                 feats.to(self.device), lengths.to(self.device), beam_size=3, nbest=1,
                 decode_max_len=max_len, softmax_smoothing=1.25, length_penalty=0.6, eos_penalty=1.0)
         ids = [int(i) for i in hyps[0][0]["yseq"].cpu()]
-        text = re.sub(r"<blank>|<sil>", "", self.tokenizer.detokenize(ids)).strip()
-        return REPEAT.sub(r"\1\1\1", text)
+        return collapse_repeats(re.sub(r"<blank>|<sil>", "", self.tokenizer.detokenize(ids)).strip())
+
+
+def collapse_repeats(text: str) -> str:
+    """Cuts each REPEAT run down to its first three, keeping the spaces between them."""
+
+    def first_three(match: re.Match) -> str:
+        unit, run, end = match[1], match[0], 0
+        for _ in range(3):
+            end = run.index(unit, end) + len(unit)
+        return run[:end]
+
+    return REPEAT.sub(first_three, text)
+
+
+class LanguageId:
+    """FireRedLID: which language a sentence is in, as its code ("zh", "en", "ja", …), and how sure."""
+
+    def __init__(self, model_dir: str, device: str):
+        if not os.path.exists(os.path.join(model_dir, "model.pth.tar")):
+            log(f"downloading {LID_MODEL} into {model_dir}")
+            snapshot_download(LID_MODEL, local_dir=model_dir)
+        self.device = device
+        self.features = LidFeatExtractor(os.path.join(model_dir, "cmvn.ark"))
+        # Loaded by hand: its FireRedLid class only runs on CUDA or the CPU.
+        self.model = load_fireredlid_model(os.path.join(model_dir, "model.pth.tar")).to(device).eval()
+        self.tokenizer = LidTokenizer(os.path.join(model_dir, "dict.txt"))
+
+    def __call__(self, audio: np.ndarray) -> tuple[str | None, float]:
+        pcm = (audio * 32768).clip(-32768, 32767).astype(np.int16)
+        feats, lengths, *_ = self.features([(RATE, pcm)], ["sentence"])
+        if feats is None:
+            return None, 0.0
+        with torch.no_grad():
+            hyps = self.model.process(
+                feats.to(self.device), lengths.to(self.device), beam_size=3, nbest=1, decode_max_len=2,
+                softmax_smoothing=1.25, length_penalty=0.6, eos_penalty=1.0)
+        # A language and maybe its dialect or accent, like "zh mandarin"; the language is enough.
+        hyp = hyps[0][0]
+        words = self.tokenizer.detokenize([int(i) for i in hyp["yseq"].cpu()]).split()
+        return (words[0] if words else None), float(hyp["confidence"].cpu().item())
+
+
+class SenseVoice:
+    """SenseVoiceSmall, for the languages FireRedASR2-AED doesn't know (SENSEVOICE_LANGS)."""
+
+    def __init__(self, device: str):
+        # On an Apple GPU a sentence took 40 ms, on the CPU 800 ms.
+        self.model = AutoModel(model="iic/SenseVoiceSmall", device=device, disable_update=True, log_level="ERROR")
+
+    def __call__(self, audio: np.ndarray, lang: str) -> str:
+        result = self.model.generate(input=audio, language=lang, use_itn=True, disable_pbar=True)
+        # Its text starts with tags like <|ja|><|NEUTRAL|><|Speech|><|withitn|>.
+        text = re.sub(r"<\|[^|]*\|>", "", result[0]["text"] if result else "").strip()
+        if lang == "ja":
+            # It sometimes spaces Japanese out word by word ("次 の 曲 は"); Japanese has no spaces.
+            text = re.sub(r"(?<=[^\x00-\x7f])\s+(?=[^\x00-\x7f])", "", text)
+        return collapse_repeats(text)
 
 
 class VoiceClassifier:
@@ -177,8 +252,8 @@ class Voices:
 
 
 def load_models(
-    device: str, model_dir: str, same_voice: float
-) -> tuple[AutoModel, Recognizer, VoiceClassifier, Voices]:
+    device: str, model_dir: str, lid_dir: str, same_voice: float
+) -> tuple[AutoModel, Recognizer, LanguageId, SenseVoice, VoiceClassifier, Voices]:
     vad = AutoModel(
         model="fsmn-vad",
         max_single_segment_time=MAX_SENTENCE_MS,
@@ -186,12 +261,16 @@ def load_models(
         log_level="ERROR",
     )
     asr = Recognizer(model_dir, device)
+    lid = LanguageId(lid_dir, device)
+    sensevoice = SenseVoice(device)
     voice = VoiceClassifier(device)
     # The first run on a GPU compiles kernels; do it before the stream starts.
     silence = np.zeros(RATE, dtype=np.float32)
     asr(silence)
+    lid(silence)
+    sensevoice(silence, "ja")
     voice(silence)
-    return vad, asr, voice, Voices(same_voice)
+    return vad, asr, lid, sensevoice, voice, Voices(same_voice)
 
 
 def main() -> None:
@@ -202,6 +281,7 @@ def main() -> None:
     parser.add_argument("--same-voice", type=float, default=SAME_VOICE,
                         help="how close (0–1) a sentence's voiceprint must be to a voice heard before to count as it")
     parser.add_argument("--model-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedASR2-AED"))
+    parser.add_argument("--lid-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedLID"))
     args = parser.parse_args()
 
     device = pick_device(args.device)
@@ -210,7 +290,8 @@ def main() -> None:
         log("no GPU: transcription will fall behind the stream")
     # FunASR prints while loading; stdout is only for transcript lines.
     with contextlib.redirect_stdout(sys.stderr):
-        vad, asr, voice, voices = load_models(device, args.model_dir, args.same_voice)
+        vad, asr, lid, sensevoice, voice, voices = load_models(
+            device, args.model_dir, args.lid_dir, args.same_voice)
     logging.getLogger().setLevel(logging.WARNING)
 
     ffmpeg = subprocess.Popen(
@@ -232,7 +313,10 @@ def main() -> None:
         audio = buf[(beg - buf_ms) * RATE // 1000 : (end - buf_ms) * RATE // 1000]
         if len(audio) < RATE // 4:
             return
-        text = asr(audio)
+        # Short sentences skip language ID (unknown `lang`) and are taken for Mandarin.
+        lang, sure = lid(audio) if len(audio) >= MIN_LID_SECONDS * RATE else (None, 0.0)
+        use_sensevoice = lang in SENSEVOICE_LANGS and sure >= MIN_LID_CONFIDENCE
+        text = sensevoice(audio, lang) if use_sensevoice else asr(audio)
         if not re.search(r"\w", text):
             return
         speech, music = voice(audio)
@@ -243,6 +327,7 @@ def main() -> None:
             "start": round(now - duration, 2),
             "end": round(now, 2),
             "text": text,
+            "lang": lang,
             "speech": speech,
             "music": music,
             "speaker": speaker,

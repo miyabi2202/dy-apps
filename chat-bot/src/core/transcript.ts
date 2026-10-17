@@ -4,6 +4,8 @@ export interface TranscriptLine {
   start: number;
   end: number;
   text: string;
+  /** The language it was heard as ("zh", "en", "ja", …), which picked the recognizer. */
+  lang?: string;
   /** How much it sounds like speech and like music, 0–1; a song, sung or played, scores high on music. */
   speech?: number;
   music?: number;
@@ -37,6 +39,7 @@ interface WorkerLine {
   start: number;
   end: number;
   text: string;
+  lang?: string | null;
   speech?: number;
   music?: number;
   speaker?: number | null;
@@ -57,6 +60,7 @@ export function parseWorkerLine(text: string): TranscriptLine | null {
     start: line.start * 1000,
     end: line.end * 1000,
     text: line.text,
+    ...(typeof line.lang === 'string' && { lang: line.lang }),
     ...(typeof line.speech === 'number' && { speech: line.speech }),
     ...(typeof line.music === 'number' && { music: line.music }),
     ...(typeof line.speaker === 'number' && { speaker: line.speaker }),
