@@ -21,6 +21,7 @@ import { createLogger } from './adapters/winston-logger';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { builtInCommands } from './app/commands';
+import { GiftThanker } from './app/gift-thanker';
 import { Outbox } from './app/outbox';
 import { Talker } from './app/talker';
 import { Transcriber } from './app/transcriber';
@@ -53,9 +54,11 @@ const record = new ChatLog(chatDir);
 // runs; and what the bot said, overall and to each viewer, so it doesn't repeat itself.
 const talkTemplate = resolve(options.talkPromptFile);
 const songIdTemplate = join(packageDir, 'song-id.md');
+const giftThanksTemplate = join(packageDir, 'gift-thanks.md');
 const files = roomFiles(join(dataDir, 'rooms', roomId), {
   autoReply: talkTemplate,
   songId: songIdTemplate,
+  giftThanks: giftThanksTemplate,
 });
 const context = liveText(files.context);
 const botTalk = botTalkFile(files.botTalk);
@@ -107,6 +110,21 @@ const talker: Talker = new Talker({
   maxLength: options.maxReplyLength,
   log,
 });
+// Thanks a viewer whose gifts in 5 minutes pass --thanks-threshold (changed with /自动谢礼).
+const thanker: GiftThanker = new GiftThanker({
+  ask,
+  outbox,
+  promptTemplate: liveText(files.giftThanks, () => readFileSync(giftThanksTemplate, 'utf8')),
+  threshold: options.thanksThreshold,
+  recentChat: () => bot.recentChat(),
+  userTalk,
+  botTalk,
+  context,
+  persona,
+  chatDir,
+  maxLength: options.maxReplyLength,
+  log,
+});
 const bot: ChatBot = new ChatBot({
   events: dyhubEvents(new DyhubClient({ port, roomId, retryMs: 5000 })),
   bot: { nickname: options.botName, userId: options.botId },
@@ -124,8 +142,10 @@ const bot: ChatBot = new ChatBot({
     persona,
     billing,
     talker,
+    thanker,
     prompts: { songId: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')) },
   }),
+  onGift: (gift) => thanker.onGift(gift),
   context,
   botTalk,
   userTalk,
@@ -147,6 +167,7 @@ log.info('starting', {
   admins: config.admins,
   persona: config.persona,
   talkMinutes: options.talkMs / 60_000,
+  thanksThreshold: options.thanksThreshold,
 });
 bot.start();
 void transcriber?.run();

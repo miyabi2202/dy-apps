@@ -340,7 +340,7 @@ test('ignores commands from anyone but an admin, and answers bad ones with how t
   expect(wallet.balance('u-阿明')).toBe(5);
   expect(sent).toEqual([
     '@管理 收费要写成钻石数，用法：/修改收费 2',
-    '@管理 没有指令「删库」，可用的有：修改人设、修改收费、回复、自动回复间隔',
+    '@管理 没有指令「删库」，可用的有：修改人设、修改收费、回复、自动回复间隔、自动谢礼',
   ]);
 });
 
@@ -460,4 +460,19 @@ test("remembers each viewer's exchanges and what the bot said, for the next prom
     '你好呀|阿明问：在吗\n你答：@阿明 你好呀|还记得我吗',
     '你好呀|（暂无）|我呢',
   ]);
+});
+
+test('admins can set the gift thanks threshold', async () => {
+  const thanker = { threshold: 99999 };
+  const persona = { value: '' };
+  const { settle, say, sent } = setup({
+    admins: ['u-管理'],
+    commands: builtInCommands({ persona, thanker }),
+  });
+  say(chat('管理', '@小助手 /自动谢礼 100'));
+  say(chat('阿明', '@小助手 /自动谢礼 0'));
+  await settle();
+
+  expect(thanker.threshold).toBe(100);
+  expect(sent).toEqual(['@管理 已处理自动谢礼请求']);
 });

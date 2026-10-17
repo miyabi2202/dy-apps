@@ -10,7 +10,7 @@ import {
   singleBudget,
   type ReplyLimits,
 } from '../core/reply';
-import type { ChatLine, IncomingChat } from '../core/room-events';
+import type { ChatLine, Gift, IncomingChat } from '../core/room-events';
 import type { Transcript } from '../core/transcript';
 import type { Billing, Charge } from './billing';
 import type { Command, CommandResult, Persona } from './commands';
@@ -69,6 +69,8 @@ export interface ChatBotOptions {
   /** Each viewer's past exchanges with the bot: answers are added, and `{{userHistory}}` is
    * the asker's. */
   userTalk?: UserTalk;
+  /** Told of every gift worth diamonds, e.g. to thank big givers. */
+  onGift?: (gift: Gift) => void;
 }
 
 interface Mention {
@@ -129,6 +131,7 @@ export class ChatBot {
       if (gift.diamonds <= 0) return;
       billing?.credit(gift);
       log.info('gift', { ...gift, balance: billing?.balance(gift.userId) });
+      this.options.onGift?.(gift);
     });
     events.connect();
   }

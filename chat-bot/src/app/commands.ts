@@ -1,4 +1,5 @@
 import type { Billing } from './billing';
+import type { GiftThanker } from './gift-thanker';
 import type { Talker } from './talker';
 
 /** Who the bot plays, shared by the commands that change it and the prompts that use it. */
@@ -44,6 +45,7 @@ export function builtInCommands({
   billing,
   talker,
   prompts = {},
+  thanker,
 }: {
   persona: Persona;
   billing?: Billing;
@@ -51,6 +53,8 @@ export function builtInCommands({
   talker?: Pick<Talker, 'interval' | 'talkNow'>;
   /** The prompts of the commands that ask Claude with their own. */
   prompts?: { songId?: () => string };
+  /** For thanking big givers. */
+  thanker?: Pick<GiftThanker, 'threshold'>;
 }): Command[] {
   return [
     {
@@ -94,6 +98,17 @@ export function builtInCommands({
         if (!talker) return failed('这次运行没有开自动回复，改不了');
         talker.interval = Number(args) * 60_000;
         return done('已处理自动回复间隔请求');
+      },
+    },
+    {
+      name: '自动谢礼',
+      adminOnly: true,
+      price: 0,
+      run(args) {
+        if (!/^\d+$/.test(args)) return failed('阈值要写成钻石数，用法：/自动谢礼 100');
+        if (!thanker) return failed('这次运行没有开自动谢礼，改不了');
+        thanker.threshold = Number(args);
+        return done('已处理自动谢礼请求');
       },
     },
     // Anyone can ask, at a mention's price: Claude works out the song from the lyrics heard.

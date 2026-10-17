@@ -7,8 +7,8 @@ export const USAGE =
   '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
-  '       [--send-interval 10] [--data data/] [--config config.json] [--talk-minutes 3]\n' +
-  '       [--talk-prompt talk.md]';
+  '       [--send-interval 10] [--data data/] [--config config.json] [--talk-minutes 0]\n' +
+  '       [--talk-prompt talk.md] [--thanks-threshold 99999]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -37,6 +37,8 @@ export interface CliOptions {
   /** How often the bot says something unprompted; 0 never. */
   talkMs: number;
   talkPromptFile: string;
+  /** Thank a viewer whose gifts in 5 minutes come to more than this many diamonds. */
+  thanksThreshold: number;
 }
 
 /** `args` (without node and the script) as options, or null when they're unusable. */
@@ -68,8 +70,11 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'send-interval': { type: 'string', default: '10' },
       data: { type: 'string', default: join(packageDir, 'data') },
       config: { type: 'string', default: join(packageDir, 'config.json') },
-      'talk-minutes': { type: 'string', default: '3' },
+      // Off by default; /自动回复间隔 turns it on while the bot runs.
+      'talk-minutes': { type: 'string', default: '0' },
       'talk-prompt': { type: 'string', default: join(packageDir, 'talk.md') },
+      // So high it's off by default; /自动谢礼 lowers it while the bot runs.
+      'thanks-threshold': { type: 'string', default: '99999' },
     },
   });
   const roomId = values.room ?? '';
@@ -99,5 +104,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     configFile: values.config,
     talkMs: Number(values['talk-minutes']) * 60_000,
     talkPromptFile: values['talk-prompt'],
+    thanksThreshold: Number(values['thanks-threshold']),
   };
 }
