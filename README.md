@@ -50,7 +50,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   config.json             #   admins (user ids) and the starting persona
   src/main.ts             #   entry: real objects wired by hand (options parsed in cli-options.ts)
   src/core/               #   pure logic: mentions, prompt, reply splitting, wallet, chat record format
-  src/app/                #   use cases: ChatBot, commands, Billing, Outbox, Transcriber; ports.ts for the outside
+  src/app/                #   use cases: ChatBot, RoomState (what prompts know about the room), commands, Billing, Outbox, Transcriber; ports.ts for the outside
   src/adapters/           #   DyHub, the Claude CLI, the ASR process, files and logging
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + CAM++
   logs/  data/            #   winston logs; data/<房间号>/ per room: chat/, <user id>/, bot_logs.md, context.md, wallet.json (not in git)

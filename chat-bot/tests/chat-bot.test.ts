@@ -1,9 +1,11 @@
 import { ChatLog } from '../src/adapters/chat-log-files';
+import { fakeRoom } from './fake-room';
 import { Billing } from '../src/app/billing';
 import { ChatBot } from '../src/app/chat-bot';
 import { builtInCommands, type Command } from '../src/app/commands';
 import { Outbox } from '../src/app/outbox';
 import type { Log, UserTalk } from '../src/app/ports';
+import { ChatHistory } from '../src/core/chat-history';
 import type { Gift, IncomingChat } from '../src/core/room-events';
 import { Transcript } from '../src/core/transcript';
 import { Wallet, type Account } from '../src/core/wallet';
@@ -69,7 +71,16 @@ function setup(options: SetupOptions = {}) {
   });
   const images: (Uint8Array | undefined)[] = [];
   const billing = options.wallet && new Billing({ wallet: options.wallet, cost: options.cost });
-  const persona = { value: options.persona ?? '' };
+  const history = new ChatHistory(options.historySize ?? 100);
+  const room = fakeRoom({
+    history,
+    transcript: options.transcript,
+    screenshot: options.screenshot,
+    persona: options.persona,
+    chatDir: options.chatLog?.dir,
+    botTalk: options.botTalk === undefined ? undefined : { recent: () => options.botTalk ?? '' },
+    now: () => NOW,
+  });
   const bot = new ChatBot({
     events: {
       onChat: (handler) => (onChat = handler),
@@ -87,17 +98,13 @@ function setup(options: SetupOptions = {}) {
     outbox,
     log: silentLog,
     promptTemplate: () => options.template ?? TEMPLATE,
-    transcript: options.transcript,
-    screenshot: options.screenshot,
-    now: () => NOW,
+    room,
+    history,
     billing,
     record: options.chatLog,
     admins: new Set(options.admins),
-    persona,
-    commands: options.commands ?? builtInCommands({ persona, billing }),
+    commands: options.commands ?? builtInCommands({ room, billing }),
     userTalk: options.userTalk,
-    botTalk: options.botTalk === undefined ? undefined : { recent: () => options.botTalk ?? '' },
-    historySize: options.historySize,
     maxReplyLength: options.maxReplyLength,
   });
   bot.start();
@@ -393,10 +400,9 @@ test('admins can make the bot talk now and change how often it talks', async () 
       return Promise.resolve('主播今天好可爱');
     },
   };
-  const persona = { value: '' };
   const { settle, say, sent } = setup({
     admins: ['u-管理'],
-    commands: builtInCommands({ persona, talker }),
+    commands: builtInCommands({ room: fakeRoom(), talker }),
   });
   say(chat('管理', '@小助手 /回复'));
   say(chat('管理', '@小助手 /自动回复间隔 5'));
@@ -415,11 +421,10 @@ test('admins can make the bot talk now and change how often it talks', async () 
 
 test("/识歌 asks Claude with its own prompt, at a mention's price, answered like a mention", async () => {
   const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
-  const persona = { value: '' };
   const { settle, say, prompts, sent } = setup({
     wallet,
     cost: 1,
-    commands: builtInCommands({ persona, prompts: { songId: () => '识歌:{{question}}' } }),
+    commands: builtInCommands({ room: fakeRoom(), prompts: { songId: () => '识歌:{{question}}' } }),
     answer: '这首是《aLIEz》',
   });
   say(chat('阿明', '@小助手 /识歌 日文的'));
@@ -464,10 +469,9 @@ test("remembers each viewer's exchanges and what the bot said, for the next prom
 
 test('admins can set the gift thanks threshold', async () => {
   const thanker = { threshold: 99999 };
-  const persona = { value: '' };
   const { settle, say, sent } = setup({
     admins: ['u-管理'],
-    commands: builtInCommands({ persona, thanker }),
+    commands: builtInCommands({ room: fakeRoom(), thanker }),
   });
   say(chat('管理', '@小助手 /自动谢礼 100'));
   say(chat('阿明', '@小助手 /自动谢礼 0'));

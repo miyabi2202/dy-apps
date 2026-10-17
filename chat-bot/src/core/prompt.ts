@@ -2,17 +2,12 @@ import { clock } from './local-time';
 import type { ChatLine } from './room-events';
 import { isGuest, isSung, type TranscriptLine } from './transcript';
 
-export interface PromptInput {
+/** What every prompt knows about the room as it is now. */
+export interface RoomPromptInput {
   /** Recent chat before the question, oldest first. */
   history: readonly ChatLine[];
   /** What the streamer said lately, oldest first. */
   transcript: readonly TranscriptLine[];
-  asker: string;
-  question: string;
-  /** How many characters fit in one message. */
-  singleLength: number;
-  /** How many characters the answer may use at most, over several messages. */
-  maxLength: number;
   /** The current time, ms since the epoch. */
   now: number;
   /** The folder of the room's chat record files. */
@@ -25,11 +20,22 @@ export interface PromptInput {
   context?: string;
   /** What the bot itself said in the room lately, one message a line. */
   botTalk?: string;
+}
+
+/** The room plus what's particular to one prompt: who asked what, and how long the answer may be. */
+export type PromptInput = RoomPromptInput & {
+  /** Who the prompt is about; empty for what the bot says on its own. */
+  asker?: string;
+  question?: string;
+  /** How many characters fit in one message. */
+  singleLength: number;
+  /** How many characters the answer may use at most, over several messages. */
+  maxLength: number;
   /** The asker's past exchanges with the bot. */
   userHistory?: string;
   /** The asker's own recent messages in the chat, one a line. */
   userChat?: string;
-}
+};
 
 /**
  * Fills a prompt template: `{{history}}` becomes one `昵称: 内容` line per chat, `{{transcript}}`
@@ -44,9 +50,8 @@ export interface PromptInput {
  * none).
  */
 export function buildPrompt(template: string, input: PromptInput): string {
-  const { history, transcript, asker, question, singleLength, maxLength, now, chatDir, persona } =
-    input;
-  const { botName, context, botTalk, userHistory, userChat } = input;
+  const { history, transcript, singleLength, maxLength, now, chatDir, persona } = input;
+  const { asker = '', question = '', botName, context, botTalk, userHistory, userChat } = input;
   const values: Record<string, string> = {
     history: history.map((line) => `${line.nickname}: ${line.content}`).join('\n') || '（暂无）',
     transcript:

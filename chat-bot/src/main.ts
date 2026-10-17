@@ -23,9 +23,11 @@ import { ChatBot } from './app/chat-bot';
 import { builtInCommands } from './app/commands';
 import { GiftThanker } from './app/gift-thanker';
 import { Outbox } from './app/outbox';
+import { RoomState } from './app/room-state';
 import { Talker } from './app/talker';
 import { Transcriber } from './app/transcriber';
 import { parseCliOptions, USAGE } from './cli-options';
+import { ChatHistory } from './core/chat-history';
 import { Transcript } from './core/transcript';
 import { Wallet } from './core/wallet';
 
@@ -40,7 +42,7 @@ const { roomId, port } = options;
 
 const log = createLogger(resolve(options.logsDir));
 const config = readConfig(resolve(options.configFile));
-const room = new DyhubRoomApi(port, roomId);
+const roomApi = new DyhubRoomApi(port, roomId);
 const transcript = new Transcript();
 // Everything about the room lives in data/<房间号>/ (see roomFiles).
 const roomDir = join(resolve(options.dataDir), roomId);
@@ -63,7 +65,7 @@ const botTalk = botTalkFile(files.botTalk);
 const userTalk = userTalkFiles(files.users);
 const transcriber = options.asr
   ? new Transcriber({
-      streamUrl: room.streamUrl,
+      streamUrl: roomApi.streamUrl,
       transcript,
       record,
       log,
@@ -71,8 +73,6 @@ const transcriber = options.asr
     })
   : null;
 const billing = new Billing({ wallet, cost: options.cost });
-// Who the bot plays; /修改人设 changes it for this run.
-const persona = { value: config.persona };
 // An empty working directory, so Claude Code picks up no project's CLAUDE.md or settings.
 const ask = claudeCli({
   cwd: tmpdir(),
@@ -83,7 +83,7 @@ const ask = claudeCli({
 });
 // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
 const outbox = new Outbox({
-  send: room.sendChat,
+  send: roomApi.sendChat,
   log,
   intervalMs: options.sendIntervalMs,
   onSent: ({ text }) => botTalk.add(text),
@@ -93,69 +93,66 @@ const outbox = new Outbox({
 const mentionPrompt = resolve(options.promptFile);
 const firstMentionTemplate = readFileSync(mentionPrompt, 'utf8');
 const mentionTemplate = liveText(mentionPrompt, () => firstMentionTemplate);
-const screenshot = options.screenshot ? room.screenshot : undefined;
+const history = new ChatHistory(options.historySize);
+// What the room looks like now, for every prompt. The bot plays config.persona until
+// /修改人设 changes it for this run.
+const room = new RoomState({
+  history,
+  transcript,
+  transcriptMs: options.transcriptMs,
+  persona: config.persona,
+  context,
+  botTalk,
+  screenshot: options.screenshot ? roomApi.screenshot : undefined,
+  chatDir,
+  botName: options.botName,
+  log,
+});
 // Says something to the streamer every --talk-minutes (changed with /自动回复间隔), and on
 // /回复, from the room's auto_reply.md.
-const talker: Talker = new Talker({
+const talker = new Talker({
   ask,
   outbox,
   promptTemplate: liveText(files.autoReply, () => readFileSync(talkTemplate, 'utf8')),
   intervalMs: options.talkMs,
-  recentChat: () => bot.recentChat(),
-  transcript,
-  transcriptMs: options.transcriptMs,
-  screenshot,
-  persona,
-  context,
-  botTalk,
-  botName: options.botName,
-  chatDir,
+  room,
   maxLength: options.maxReplyLength,
   log,
 });
 // Thanks a viewer whose gifts in 5 minutes pass --thanks-threshold (changed with /自动谢礼).
-const thanker: GiftThanker = new GiftThanker({
+const thanker = new GiftThanker({
   ask,
   outbox,
   promptTemplate: liveText(files.giftThanks, () => readFileSync(giftThanksTemplate, 'utf8')),
   threshold: options.thanksThreshold,
-  recentChat: () => bot.recentChat(),
+  room,
   userTalk,
-  botTalk,
-  context,
-  persona,
-  chatDir,
   maxLength: options.maxReplyLength,
   log,
 });
-const bot: ChatBot = new ChatBot({
+const bot = new ChatBot({
   events: dyhubEvents(new DyhubClient({ port, roomId, retryMs: 5000 })),
   bot: { nickname: options.botName, userId: options.botId },
   ask,
   outbox,
-  screenshot,
-  transcript,
-  transcriptMs: options.transcriptMs,
+  room,
+  history,
   record,
   billing,
   // Read again when config.json changes, so admins can be added or removed while it runs.
   admins: liveAdmins(resolve(options.configFile), { log }),
-  persona,
   commands: builtInCommands({
-    persona,
+    room,
     billing,
     talker,
     thanker,
     prompts: { songId: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')) },
   }),
   onGift: (gift) => thanker.onGift(gift),
-  context,
-  botTalk,
   userTalk,
   maxPending: options.maxPending,
   log,
   promptTemplate: mentionTemplate,
-  historySize: options.historySize,
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
 });

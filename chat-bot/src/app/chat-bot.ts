@@ -1,4 +1,4 @@
-import { ChatHistory } from '../core/chat-history';
+import type { ChatHistory } from '../core/chat-history';
 import { chatRecord, giftRecord } from '../core/chat-record';
 import { parseCommand, type CommandCall } from '../core/command';
 import { errorMessage } from '../core/errors';
@@ -13,20 +13,11 @@ import {
   type ReplyLimits,
 } from '../core/reply';
 import type { ChatLine, Gift, IncomingChat } from '../core/room-events';
-import { DEFAULT_TRANSCRIPT_WINDOW_MS, type Transcript } from '../core/transcript';
 import type { Billing, Charge } from './billing';
-import type { Command, CommandResult, Persona } from './commands';
+import type { Command, CommandResult } from './commands';
 import type { Outbox } from './outbox';
-import type {
-  Admins,
-  AskClaude,
-  BotTalk,
-  Log,
-  RoomEvents,
-  RoomRecord,
-  Screenshot,
-  UserTalk,
-} from './ports';
+import type { Admins, AskClaude, Log, RoomEvents, RoomRecord, UserTalk } from './ports';
+import type { RoomState } from './room-state';
 
 export interface ChatBotOptions {
   events: RoomEvents;
@@ -34,18 +25,13 @@ export interface ChatBotOptions {
   ask: AskClaude;
   /** Where replies and notices go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
-  /** A JPEG of the live video, sent to Claude with each question. */
-  screenshot?: Screenshot;
-  /** What the streamer has said, for `{{transcript}}`. */
-  transcript?: Transcript;
-  /** How far back `{{transcript}}` goes. */
-  transcriptMs?: number;
+  /** What the room looks like now, for every prompt. */
+  room: RoomState;
+  /** The room's recent chat: every chat is added to it, after any mention in it is handled. */
+  history: ChatHistory;
   log: Log;
   /** The prompt (see buildPrompt for what it can fill in), read each time so edits apply at once. */
   promptTemplate: () => string;
-  now?: () => number;
-  /** How many recent chats to remember and pass to Claude. */
-  historySize?: number;
   /** Douyin's chat length limit: the prompt asks for less, and longer replies are cut to it. */
   maxReplyLength?: number;
   /** A long answer goes out as up to this many messages, `@asker (1/3) …`. */
@@ -60,14 +46,8 @@ export interface ChatBotOptions {
   /** User ids of the admins: their mentions and commands are free, and only they can run the
    * admin-only commands. */
   admins?: Admins;
-  /** Who the bot plays, for `{{persona}}`; commands may change it. */
-  persona?: Persona;
   /** What a mention starting with `/` can run. */
   commands?: readonly Command[];
-  /** Background on the room for `{{context}}`, read each time so edits apply at once. */
-  context?: () => string;
-  /** What the bot has said in the room, for `{{botTalk}}`. */
-  botTalk?: Pick<BotTalk, 'recent'>;
   /** Each viewer's past exchanges with the bot: answers are added, and `{{userHistory}}` is
    * the asker's. */
   userTalk?: UserTalk;
@@ -99,25 +79,21 @@ interface Mention {
  * an admin, unless they have commands of their own to be told about.
  */
 export class ChatBot {
-  private readonly history: ChatHistory;
   private readonly pending: Mention[] = [];
   private busy = false;
   /** Commands still running, like one waiting for Claude. */
   private readonly running = new Set<Promise<void>>();
   private readonly limits: ReplyLimits;
   private readonly maxPending: number;
-  private readonly now: () => number;
   private readonly commands: ReadonlyMap<string, Command>;
 
   constructor(private readonly options: ChatBotOptions) {
-    this.history = new ChatHistory(options.historySize ?? 100);
     this.commands = new Map((options.commands ?? []).map((command) => [command.name, command]));
     this.limits = {
       maxLength: options.maxReplyLength ?? DOUYIN_CHAT_LIMIT,
       maxParts: options.maxReplyParts ?? 5,
     };
     this.maxPending = options.maxPending ?? 20;
-    this.now = options.now ?? Date.now;
   }
 
   start(): void {
@@ -129,7 +105,7 @@ export class ChatBot {
       const { bot } = this.options;
       const question = isFromBot(chat, bot) ? null : questionFor(chat, bot);
       if (question !== null) this.onMention(chat, question);
-      this.history.add(chat);
+      this.options.history.add(chat);
     });
     events.onGift((gift) => {
       record?.add(giftRecord(gift));
@@ -143,11 +119,6 @@ export class ChatBot {
 
   stop(): void {
     this.options.events.close();
-  }
-
-  /** The room's recent chat, oldest first. */
-  recentChat(): ChatLine[] {
-    return this.history.recent();
   }
 
   /** Resolves once Claude has answered every queued mention, and every command has finished. */
@@ -174,7 +145,13 @@ export class ChatBot {
     }
     const charge = this.charge(chat, admin);
     if (!charge.ok) return;
-    const mention = { asker, userId, paid: charge.paid, question, history: this.history.recent() };
+    const mention = {
+      asker,
+      userId,
+      paid: charge.paid,
+      question,
+      history: this.options.history.recent(),
+    };
     if (!this.enqueue(mention)) this.refund(mention);
   }
 
@@ -238,7 +215,7 @@ export class ChatBot {
         userId,
         paid: charge.paid,
         question: args,
-        history: this.history.recent(),
+        history: this.options.history.recent(),
         template: command.prompt(),
       };
       log.info('command', { asker, userId, name, args, paid: charge.paid });
@@ -312,26 +289,23 @@ export class ChatBot {
   }
 
   private async answer(mention: Mention): Promise<void> {
-    const { ask, outbox, log, promptTemplate, transcript, userTalk } = this.options;
+    const { ask, outbox, room, log, promptTemplate, userTalk } = this.options;
     const prompt = buildPrompt(mention.template ?? promptTemplate(), {
-      ...mention,
+      ...room.promptInput(),
+      // The chat as it was when they asked, not what came after.
+      history: mention.history,
+      asker: mention.asker,
+      question: mention.question,
       singleLength: singleBudget(mention.asker, this.limits),
       maxLength: answerBudget(mention.asker, this.limits),
-      transcript:
-        transcript?.recent(this.options.transcriptMs ?? DEFAULT_TRANSCRIPT_WINDOW_MS) ?? [],
-      now: this.now(),
-      chatDir: this.options.record?.dir,
-      persona: this.options.persona?.value,
-      context: this.options.context?.(),
-      botTalk: this.options.botTalk?.recent(),
       userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
     });
     log.debug('prompt', { prompt });
     try {
-      const image = await this.screenshot();
-      const started = this.now();
+      const image = await room.screenshot();
+      const started = room.now();
       const answer = await ask({ prompt, image });
-      log.info('claude answered', { answer, ms: this.now() - started, image: !!image });
+      log.info('claude answered', { answer, ms: room.now() - started, image: !!image });
       const messages = replyMessages(mention.asker, answer, this.limits);
       if (!messages.length) {
         log.warn('claude gave an empty answer', { asker: mention.asker });
@@ -357,18 +331,6 @@ export class ChatBot {
         error: errorMessage(err),
       });
       this.refund(mention);
-    }
-  }
-
-  /** The live video, or nothing when there's no screenshot to be had: answering goes on. */
-  private async screenshot(): Promise<Uint8Array | undefined> {
-    try {
-      return await this.options.screenshot?.();
-    } catch (err) {
-      this.options.log.warn('no screenshot', {
-        error: errorMessage(err),
-      });
-      return undefined;
     }
   }
 }

@@ -1,11 +1,7 @@
 import type { Billing } from './billing';
 import type { GiftThanker } from './gift-thanker';
+import type { RoomState } from './room-state';
 import type { Talker } from './talker';
-
-/** Who the bot plays, shared by the commands that change it and the prompts that use it. */
-export interface Persona {
-  value: string;
-}
 
 /**
  * What a command came to: `reply` is what the bot says back, nothing when empty (the command
@@ -41,13 +37,14 @@ const failed = (reply: string): CommandResult => ({ ok: false, reply });
 
 /** The commands the bot starts with. */
 export function builtInCommands({
-  persona,
+  room,
   billing,
   talker,
   prompts = {},
   thanker,
 }: {
-  persona: Persona;
+  /** Who the bot plays. */
+  room: Pick<RoomState, 'persona'>;
   billing?: Billing;
   /** For saying something to the streamer, now or every so often. */
   talker?: Pick<Talker, 'interval' | 'talkNow'>;
@@ -63,7 +60,7 @@ export function builtInCommands({
       price: 0,
       run(args) {
         if (!args) return failed('人设不能为空，用法：/修改人设 人设');
-        persona.value = args;
+        room.persona = args;
         return done('已处理修改人设请求');
       },
     },

@@ -1,11 +1,9 @@
 import { errorMessage } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
 import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
-import type { ChatLine } from '../core/room-events';
-import { DEFAULT_TRANSCRIPT_WINDOW_MS, type Transcript } from '../core/transcript';
-import type { Persona } from './commands';
 import type { OutgoingMessage, Outbox } from './outbox';
-import type { AskClaude, BotTalk, Log, Screenshot } from './ports';
+import type { AskClaude, Log } from './ports';
+import type { RoomState } from './room-state';
 
 export interface TalkerOptions {
   ask: AskClaude;
@@ -14,24 +12,11 @@ export interface TalkerOptions {
   promptTemplate: () => string;
   /** Say something this often; 0 never, until changed. */
   intervalMs: number;
-  /** The room's recent chat, oldest first. */
-  recentChat: () => ChatLine[];
-  transcript?: Transcript;
-  /** How far back `{{transcript}}` goes. */
-  transcriptMs?: number;
-  screenshot?: Screenshot;
-  persona?: Persona;
-  /** Background on the room for `{{context}}`, read each time. */
-  context?: () => string;
-  /** What the bot has said in the room, for `{{botTalk}}`. */
-  botTalk?: Pick<BotTalk, 'recent'>;
-  /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
-  botName: string;
-  chatDir?: string;
+  /** The chat, transcript and the rest of what the prompt knows about the room. */
+  room: RoomState;
   /** Douyin's chat length limit. */
   maxLength?: number;
   log: Log;
-  now?: () => number;
   /** Waits `ms`; tests pass one that doesn't. */
   sleep?: (ms: number) => Promise<void>;
 }
@@ -49,12 +34,10 @@ export class Talker {
   private intervalMs: number;
   /** Ends the current wait early, when the interval changes or the talker stops. */
   private wake: () => void = () => {};
-  private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(private readonly options: TalkerOptions) {
     this.intervalMs = options.intervalMs;
-    this.now = options.now ?? Date.now;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   }
 
@@ -99,12 +82,11 @@ export class Talker {
 
   /** The scheduled talk, unless the room has been quiet for `intervalMs`. */
   private async talk(intervalMs: number): Promise<void> {
-    const since = this.now() - intervalMs;
-    const transcript = this.recentTranscript();
-    const { botName } = this.options;
+    const { room } = this.options;
+    const since = room.now() - intervalMs;
     if (
-      !transcript.some((line) => line.end > since) &&
-      !this.options.recentChat().some((chat) => chat.ts > since && chat.nickname !== botName)
+      !room.recentTranscript().some((line) => line.end > since) &&
+      !room.recentChat().some((chat) => chat.ts > since && chat.nickname !== room.botName)
     ) {
       this.options.log.info('room quiet, not talking');
       return;
@@ -112,32 +94,16 @@ export class Talker {
     await this.say('talk');
   }
 
-  private recentTranscript() {
-    return (
-      this.options.transcript?.recent(this.options.transcriptMs ?? DEFAULT_TRANSCRIPT_WINDOW_MS) ??
-      []
-    );
-  }
-
   private async say(kind: OutgoingMessage['kind']): Promise<string | null> {
-    const { ask, outbox, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
+    const { ask, outbox, room, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
     try {
       const prompt = buildPrompt(this.options.promptTemplate(), {
-        history: this.options.recentChat(),
-        transcript: this.recentTranscript(),
-        asker: '',
-        question: '',
+        ...room.promptInput(),
         singleLength: maxLength,
         maxLength,
-        now: this.now(),
-        chatDir: this.options.chatDir,
-        persona: this.options.persona?.value,
-        context: this.options.context?.(),
-        botTalk: this.options.botTalk?.recent(),
-        botName: this.options.botName,
       });
       log.debug('talk prompt', { prompt });
-      const image = await this.screenshot();
+      const image = await room.screenshot();
       const text = plainMessage(await ask({ prompt, image }), maxLength);
       if (!text) {
         log.warn('claude had nothing to say');
@@ -149,18 +115,6 @@ export class Talker {
     } catch (err) {
       log.error('could not talk', { error: errorMessage(err) });
       return null;
-    }
-  }
-
-  /** The live video, or nothing when there's no screenshot to be had. */
-  private async screenshot(): Promise<Uint8Array | undefined> {
-    try {
-      return await this.options.screenshot?.();
-    } catch (err) {
-      this.options.log.warn('no screenshot', {
-        error: errorMessage(err),
-      });
-      return undefined;
     }
   }
 }
