@@ -42,7 +42,7 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
             end: 102.5,
             text: `从 ${url} 听到`,
             speech: 0.9,
-            singing: 0.05,
+            music: 0.05,
           }),
         ],
         onLine,
@@ -59,14 +59,14 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
       end: 102_500,
       text: '从 url-1 听到',
       speech: 0.9,
-      singing: 0.05,
+      music: 0.05,
     },
     {
       start: 100_000,
       end: 102_500,
       text: '从 url-2 听到',
       speech: 0.9,
-      singing: 0.05,
+      music: 0.05,
     },
   ]);
   expect(written).toBe(

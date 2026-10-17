@@ -2,12 +2,12 @@
 
 ffmpeg pulls a live stream's audio, fsmn-vad finds where each sentence starts and ends,
 FireRedASR2-AED transcribes it, and AST (an AudioSet classifier) scores how much it sounds like
-speech and like singing, since a song in the background gets transcribed as if the streamer said
-it. Each sentence is printed to stdout as one JSON line:
+speech and like music, since a song gets transcribed as if the streamer said it. (AudioSet labels
+most songs Music and few of them Singing, so a song scores high on Music, not on Singing.) Each sentence is printed to stdout as one JSON line:
 
-    {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "speech": 0.93, "singing": 0.02}
+    {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "speech": 0.93, "music": 0.02}
 
-`start` and `end` are Unix times in seconds; `speech` and `singing` are AST's 0–1 scores. The text
+`start` and `end` are Unix times in seconds; `speech` and `music` are AST's 0–1 scores. The text
 has no punctuation: FireRedASR2-AED doesn't add any. Logs go to stderr. Audio never touches the disk:
 only the sentence being spoken is held in memory. The worker exits when the stream ends; the
 bot restarts it with a fresh stream URL.
@@ -49,8 +49,8 @@ AST_MODEL = "MIT/ast-finetuned-audioset-10-10-0.4593"
 # AudioSet classes that count as each kind of voice.
 SPEECH_LABELS = {"Speech", "Male speech, man speaking", "Female speech, woman speaking",
                  "Child speech, kid speaking", "Conversation", "Narration, monologue"}
-SINGING_LABELS = {"Singing", "Choir", "Male singing", "Female singing", "Child singing",
-                  "Synthetic singing", "Rapping", "Humming"}
+MUSIC_LABELS = {"Music", "Song", "Background music", "Singing", "Choir", "Male singing",
+                "Female singing", "Child singing", "Synthetic singing", "Rapping", "Humming"}
 
 
 def log(message: str) -> None:
@@ -95,7 +95,7 @@ class Recognizer:
 
 
 class VoiceClassifier:
-    """Scores a sentence's audio for speech and for singing, each the top of its AudioSet classes."""
+    """Scores a sentence's audio for speech and for music, each the top of its AudioSet classes."""
 
     def __init__(self, device: str):
         self.device = device
@@ -103,13 +103,13 @@ class VoiceClassifier:
         self.model = ASTForAudioClassification.from_pretrained(AST_MODEL).to(device).eval()
         ids = self.model.config.label2id
         self.speech = [ids[label] for label in SPEECH_LABELS]
-        self.singing = [ids[label] for label in SINGING_LABELS]
+        self.music = [ids[label] for label in MUSIC_LABELS]
 
     def __call__(self, audio: np.ndarray) -> tuple[float, float]:
         inputs = self.features(audio, sampling_rate=RATE, return_tensors="pt")["input_values"]
         with torch.no_grad():
             scores = self.model(inputs.to(self.device)).logits[0].sigmoid().cpu()
-        return round(float(scores[self.speech].max()), 2), round(float(scores[self.singing].max()), 2)
+        return round(float(scores[self.speech].max()), 2), round(float(scores[self.music].max()), 2)
 
 
 def load_models(device: str, model_dir: str) -> tuple[AutoModel, Recognizer, VoiceClassifier]:
@@ -167,7 +167,7 @@ def main() -> None:
         text = asr(audio)
         if not re.search(r"\w", text):
             return
-        speech, singing = voice(audio)
+        speech, music = voice(audio)
         now = time.time()
         duration = (end - beg) / 1000
         line = {
@@ -175,7 +175,7 @@ def main() -> None:
             "end": round(now, 2),
             "text": text,
             "speech": speech,
-            "singing": singing,
+            "music": music,
         }
         print(json.dumps(line, ensure_ascii=False), flush=True)
 

@@ -4,9 +4,9 @@ export interface TranscriptLine {
   start: number;
   end: number;
   text: string;
-  /** How much it sounds like speech and like singing, 0–1; a background song scores high on singing. */
+  /** How much it sounds like speech and like music, 0–1; a song, sung or played, scores high on music. */
   speech?: number;
-  singing?: number;
+  music?: number;
 }
 
 /** A line the transcription worker prints: one sentence, times in seconds. */
@@ -15,7 +15,7 @@ interface WorkerLine {
   end: number;
   text: string;
   speech?: number;
-  singing?: number;
+  music?: number;
 }
 
 /** A line of the worker's output as a TranscriptLine, or null when it isn't a sentence. */
@@ -32,7 +32,7 @@ export function parseWorkerLine(text: string): TranscriptLine | null {
     end: line.end * 1000,
     text: line.text,
     ...(typeof line.speech === 'number' && { speech: line.speech }),
-    ...(typeof line.singing === 'number' && { singing: line.singing }),
+    ...(typeof line.music === 'number' && { music: line.music }),
   };
 }
 
