@@ -4,10 +4,6 @@ export interface TranscriptLine {
   start: number;
   end: number;
   text: string;
-  /** Background music was playing (often true under speech too, so only a hint). */
-  bgm: boolean;
-  /** SenseVoice's guess, like `HAPPY` or `NEUTRAL`. */
-  emotion: string | null;
   /** How much it sounds like speech and like singing, 0–1; a background song scores high on singing. */
   speech?: number;
   singing?: number;
@@ -18,8 +14,6 @@ interface WorkerLine {
   start: number;
   end: number;
   text: string;
-  bgm?: boolean;
-  emotion?: string | null;
   speech?: number;
   singing?: number;
 }
@@ -37,8 +31,6 @@ export function parseWorkerLine(text: string): TranscriptLine | null {
     start: line.start * 1000,
     end: line.end * 1000,
     text: line.text,
-    bgm: line.bgm === true,
-    emotion: line.emotion ?? null,
     ...(typeof line.speech === 'number' && { speech: line.speech }),
     ...(typeof line.singing === 'number' && { singing: line.singing }),
   };

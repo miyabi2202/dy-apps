@@ -22,14 +22,14 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
 5. **Confirm it's working** from the bot's output, and tell the user:
    - `dyhub ready` within seconds: connected to the room's chat.
    - `transcribing {"url": …}`: DyHub has the stream. If it never comes, the room isn't live.
-   - `heard {"text": …}` within about 2 minutes: speech recognition is running (the first sentence waits for the models to load). The first run ever downloads about 1 GB of models first.
+   - `heard {"text": …}` within about 2 minutes: speech recognition is running (the first sentence waits for the models to load). The first run ever downloads about 5 GB of models first.
    - `gift {…}` lines as viewers send gifts, with their new balance.
 
 ## While it runs
 
 - In someone else's room, the bot answers anyone who @s it, in public, as the user's account. Say so when starting it there.
 - Read `chat-bot/logs/chat-bot.log` (JSON lines: every chat, prompt, answer, gift and transcript line) to answer questions like 「刚才机器人回了什么」 or 「谁送了礼物」.
-- The room's chat record is in `chat-bot/data/chat/<房间号>/*.txt`, one line per speech (`[主播](speech)(情绪)`), chat or gift (`[昵称#uid](gift)`), 100 lines a file; it's kept across runs.
+- The room's chat record is in `chat-bot/data/chat/<房间号>/*.txt`, one line per speech (`[主播](speech)`), chat or gift (`[昵称#uid](gift)`), 100 lines a file; it's kept across runs.
 - Balances are in `chat-bot/data/wallet-<房间号>.json` (`gifted` − `spent` per user id) while the bot runs. Don't edit them unless the user asks.
 
 ## Stop

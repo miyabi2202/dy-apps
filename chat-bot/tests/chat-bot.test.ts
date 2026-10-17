@@ -173,7 +173,7 @@ test('passes the last minutes of what the streamer said, and a screenshot', asyn
   const transcript = new Transcript(30 * 60_000, () => NOW);
   const said = (minutesAgo: number, text: string) => {
     const end = NOW - minutesAgo * 60_000;
-    transcript.add({ start: end - 3000, end, text, bgm: false, emotion: null });
+    transcript.add({ start: end - 3000, end, text });
   };
   said(8, '太早了');
   said(2, '吕布一开始是文官');

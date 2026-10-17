@@ -1,12 +1,24 @@
 [project]
 name = "dy-apps-chat-bot-asr"
 version = "0.1.0"
-description = "Live transcription worker for the chat bot: ffmpeg + fsmn-vad + SenseVoice + AST."
-requires-python = ">=3.10,<3.14"
+description = "Live transcription worker for the chat bot: ffmpeg + fsmn-vad + FireRedASR2-AED + AST."
+requires-python = ">=3.11,<3.14"
 dependencies = [
+  "fireredasr2s",
   "funasr>=1.2",
+  "huggingface_hub",
+  # FireRedASR2's feature extractor uses it but its package doesn't list it.
+  "kaldi_native_fbank>=1.15",
   "numpy",
   "torch>=2.4",
   "torchaudio>=2.4",
   "transformers>=4.40",
 ]
+
+[tool.uv.sources]
+# Not on PyPI; pinned to a commit.
+fireredasr2s = { git = "https://github.com/FireRedTeam/FireRedASR2S", rev = "4e7d9aaf4482a47cec1724807026b9b151926eb5" }
+
+[tool.uv]
+# fireredasr2s pins exact versions of these (torch==2.10.0, …); ours win.
+override-dependencies = ["torch>=2.4", "torchaudio>=2.4", "transformers>=4.40", "numpy"]

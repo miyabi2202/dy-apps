@@ -41,8 +41,6 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
             start: 100,
             end: 102.5,
             text: `从 ${url} 听到`,
-            bgm: true,
-            emotion: 'HAPPY',
             speech: 0.9,
             singing: 0.05,
           }),
@@ -60,8 +58,6 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
       start: 100_000,
       end: 102_500,
       text: '从 url-1 听到',
-      bgm: true,
-      emotion: 'HAPPY',
       speech: 0.9,
       singing: 0.05,
     },
@@ -69,14 +65,12 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
       start: 100_000,
       end: 102_500,
       text: '从 url-2 听到',
-      bgm: true,
-      emotion: 'HAPPY',
       speech: 0.9,
       singing: 0.05,
     },
   ]);
   expect(written).toBe(
-    '2026-10-16 08:00:00 [主播](speech)(HAPPY) 从 url-1 听到\n' +
-      '2026-10-16 08:00:00 [主播](speech)(HAPPY) 从 url-2 听到\n',
+    '2026-10-16 08:00:00 [主播](speech) 从 url-1 听到\n' +
+      '2026-10-16 08:00:00 [主播](speech) 从 url-2 听到\n',
   );
 });

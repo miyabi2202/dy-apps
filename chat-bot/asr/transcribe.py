@@ -1,24 +1,28 @@
 """Live transcription worker for the chat bot.
 
-ffmpeg pulls a live stream's audio, fsmn-vad finds where each sentence starts and ends, and
-SenseVoice transcribes it, and AST (an AudioSet classifier) scores how much it sounds like speech
-and like singing, since SenseVoice transcribes a song in the background as if the streamer said
+ffmpeg pulls a live stream's audio, fsmn-vad finds where each sentence starts and ends,
+FireRedASR2-AED transcribes it, and AST (an AudioSet classifier) scores how much it sounds like
+speech and like singing, since a song in the background gets transcribed as if the streamer said
 it. Each sentence is printed to stdout as one JSON line:
 
-    {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "bgm": false, "emotion": "HAPPY",
-     "speech": 0.93, "singing": 0.02}
+    {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "speech": 0.93, "singing": 0.02}
 
-`start` and `end` are Unix times in seconds; `speech` and `singing` are AST's 0–1 scores. Logs go to stderr. Audio never touches the disk:
+`start` and `end` are Unix times in seconds; `speech` and `singing` are AST's 0–1 scores. The text
+has no punctuation: FireRedASR2-AED doesn't add any. Logs go to stderr. Audio never touches the disk:
 only the sentence being spoken is held in memory. The worker exits when the stream ends; the
 bot restarts it with a fresh stream URL.
 
-    uv run transcribe.py <stream url> [--device auto|cpu|mps|cuda] [--realtime]
+    uv run transcribe.py <stream url> [--device auto|cpu|mps|cuda] [--realtime] [--model-dir DIR]
+
+FireRedASR2-AED (4.7 GB) is downloaded into --model-dir on the first run. It needs a GPU (Apple's
+or CUDA) to keep up with a stream: on a CPU a sentence takes longer to transcribe than to say.
 """
 
 import argparse
 import contextlib
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -26,7 +30,11 @@ import time
 
 import numpy as np
 import torch
+from fireredasr2s.fireredasr2.asr import load_fireredasr_aed_model
+from fireredasr2s.fireredasr2.data.asr_feat import ASRFeatExtractor
+from fireredasr2s.fireredasr2.tokenizer.aed_tokenizer import ChineseCharEnglishSpmTokenizer
 from funasr import AutoModel
+from huggingface_hub import snapshot_download
 from transformers import ASTFeatureExtractor, ASTForAudioClassification
 
 RATE = 16000
@@ -36,8 +44,7 @@ CHUNK_BYTES = RATE * CHUNK_MS // 1000 * 2  # s16le
 MAX_SENTENCE_MS = 15000
 # Restart the VAD's state this often, between sentences, so its buffers stay small.
 VAD_RESET_MS = 5 * 60 * 1000
-TAG = re.compile(r"<\|([^|]*)\|>")
-EMOTIONS = {"HAPPY", "SAD", "ANGRY", "NEUTRAL", "FEARFUL", "DISGUSTED", "SURPRISED"}
+ASR_MODEL = "FireRedTeam/FireRedASR2-AED"
 AST_MODEL = "MIT/ast-finetuned-audioset-10-10-0.4593"
 # AudioSet classes that count as each kind of voice.
 SPEECH_LABELS = {"Speech", "Male speech, man speaking", "Female speech, woman speaking",
@@ -60,6 +67,33 @@ def pick_device(name: str) -> str:
     return "cpu"
 
 
+class Recognizer:
+    """FireRedASR2-AED: a sentence's audio to its text, decoded as its own inference script does."""
+
+    def __init__(self, model_dir: str, device: str):
+        if not os.path.exists(os.path.join(model_dir, "model.pth.tar")):
+            log(f"downloading {ASR_MODEL} into {model_dir}")
+            snapshot_download(ASR_MODEL, local_dir=model_dir)
+        self.device = device
+        self.features = ASRFeatExtractor(os.path.join(model_dir, "cmvn.ark"))
+        self.model = load_fireredasr_aed_model(os.path.join(model_dir, "model.pth.tar")).to(device).eval()
+        self.tokenizer = ChineseCharEnglishSpmTokenizer(
+            os.path.join(model_dir, "dict.txt"), os.path.join(model_dir, "train_bpe1000.model"))
+
+    def __call__(self, audio: np.ndarray) -> str:
+        # Its features expect 16-bit sample values.
+        pcm = (audio * 32768).clip(-32768, 32767).astype(np.int16)
+        feats, lengths, *_ = self.features([(RATE, pcm)], ["sentence"])
+        if feats is None:
+            return ""
+        with torch.no_grad():
+            hyps = self.model.transcribe(
+                feats.to(self.device), lengths.to(self.device), beam_size=3, nbest=1,
+                decode_max_len=0, softmax_smoothing=1.25, length_penalty=0.6, eos_penalty=1.0)
+        ids = [int(i) for i in hyps[0][0]["yseq"].cpu()]
+        return re.sub(r"<blank>|<sil>", "", self.tokenizer.detokenize(ids)).strip()
+
+
 class VoiceClassifier:
     """Scores a sentence's audio for speech and for singing, each the top of its AudioSet classes."""
 
@@ -78,18 +112,19 @@ class VoiceClassifier:
         return round(float(scores[self.speech].max()), 2), round(float(scores[self.singing].max()), 2)
 
 
-def load_models(device: str) -> tuple[AutoModel, AutoModel, VoiceClassifier]:
+def load_models(device: str, model_dir: str) -> tuple[AutoModel, Recognizer, VoiceClassifier]:
     vad = AutoModel(
         model="fsmn-vad",
         max_single_segment_time=MAX_SENTENCE_MS,
         disable_update=True,
         log_level="ERROR",
     )
-    asr = AutoModel(model="iic/SenseVoiceSmall", device=device, disable_update=True, log_level="ERROR")
-    # The first run on a GPU compiles kernels; do it before the stream starts.
-    asr.generate(input=np.zeros(RATE, dtype=np.float32), language="zh", use_itn=True, disable_pbar=True)
+    asr = Recognizer(model_dir, device)
     voice = VoiceClassifier(device)
-    voice(np.zeros(RATE, dtype=np.float32))
+    # The first run on a GPU compiles kernels; do it before the stream starts.
+    silence = np.zeros(RATE, dtype=np.float32)
+    asr(silence)
+    voice(silence)
     return vad, asr, voice
 
 
@@ -98,13 +133,16 @@ def main() -> None:
     parser.add_argument("url")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--realtime", action="store_true", help="read input at its own speed (for testing with a file)")
+    parser.add_argument("--model-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedASR2-AED"))
     args = parser.parse_args()
 
     device = pick_device(args.device)
     log(f"loading models on {device}")
+    if device == "cpu":
+        log("no GPU: transcription will fall behind the stream")
     # FunASR prints while loading; stdout is only for transcript lines.
     with contextlib.redirect_stdout(sys.stderr):
-        vad, asr, voice = load_models(device)
+        vad, asr, voice = load_models(device, args.model_dir)
     logging.getLogger().setLevel(logging.WARNING)
 
     ffmpeg = subprocess.Popen(
@@ -126,9 +164,7 @@ def main() -> None:
         audio = buf[(beg - buf_ms) * RATE // 1000 : (end - buf_ms) * RATE // 1000]
         if len(audio) < RATE // 4:
             return
-        raw = asr.generate(input=audio, language="zh", use_itn=True, disable_pbar=True)[0]["text"]
-        tags = set(TAG.findall(raw))
-        text = TAG.sub("", raw).strip()
+        text = asr(audio)
         if not re.search(r"\w", text):
             return
         speech, singing = voice(audio)
@@ -138,8 +174,6 @@ def main() -> None:
             "start": round(now - duration, 2),
             "end": round(now, 2),
             "text": text,
-            "bgm": "BGM" in tags,
-            "emotion": next((t for t in tags if t in EMOTIONS), None),
             "speech": speech,
             "singing": singing,
         }
