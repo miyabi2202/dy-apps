@@ -34,7 +34,7 @@ export interface CliOptions {
   dataDir: string;
   /** Admins and the starting persona. */
   configFile: string;
-  /** How often the bot joins in the chat unprompted; 0 never. */
+  /** How often the bot says something unprompted; 0 never. */
   talkMs: number;
   talkPromptFile: string;
 }
