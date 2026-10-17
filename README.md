@@ -44,6 +44,7 @@ frontend/                 # @dy-apps/frontend: the one package
   tsconfig.json           #   stays here so editors and ESLint find it
 chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (see "Chat bot" below)
   prompt.md               #   the prompt sent to Claude: {{history}}, {{transcript}}, {{asker}}, {{question}}, …
+  config.json             #   admins (user ids) and the starting persona
   src/main.ts             #   entry: real objects wired by hand (options parsed in cli-options.ts)
   src/core/               #   pure logic: mentions, prompt, reply splitting, wallet, chat record format
   src/app/                #   use cases: ChatBot, Billing, Outbox, Transcriber; ports.ts for the outside
@@ -101,7 +102,9 @@ Status: both apps pick fake data or a live room in their 数据来源 panel. The
 - **What's on screen**, with `--screenshot` (off by default; most streams don't need it, lessons with a board do): DyHub's `GET /api/rooms/:roomId/screenshot` (the player only, as a JPEG) goes to Claude with each question.
 - **Long answers**: Claude is asked to answer in one message. When it can't, the answer is split after punctuation into up to `--max-parts` messages, `@昵称 (1/3) …`. The @ uses the whole nickname when the message fits, and its first 3 characters when that's what it takes to fit, or when the answer is split.
 - **Chat record**: everything the streamer says (with SenseVoice's emotion), every chat message and every gift goes into `data/chat/<房间号>/<ms>.txt`, one record per line, 100 lines per file, named by its first record's time: `2026-10-16 16:47:22 [雅#7664182420958889017](gift) 送出 人气票×1（1钻）`, or `[主播](speech)(NEUTRAL) …` for the streamer. Lines rather than JSON halve what Claude spends reading them. Claude gets the folder (`--add-dir`) and is told in the prompt (`{{chatDir}}`) that it's the room's chat record, to read when the recent lines in the prompt aren't enough. Its file tools aren't pre-approved, so they reach only that folder: Claude Code denies reads anywhere else when nobody is there to approve them. The record is kept across runs.
-- **Paying with gifts**: every gift a viewer sends in the room adds its diamonds (抖币) to their balance, and each @mention costs `--cost` diamonds. A viewer who can't pay gets `@昵称 你的余额不足，每次@需要1钻（60秒内只提醒一次）` instead of an answer, at most once a minute; a mention that fails is refunded. Balances last one run: they're written to `data/wallet-<房间号>.json` (`gifted` and `spent` per user id) as they change, and cleared when the bot exits (and when it starts, in case it didn't exit cleanly). Gift events need DyHub logged in.
+- **Paying with gifts**: every gift a viewer sends in the room adds its diamonds (抖币) to their balance, and each @mention costs `--cost` diamonds. A viewer who can't pay gets `@昵称 你的余额不足，还剩0钻，每次@需要1钻（60秒内只提醒一次）` instead of an answer, at most once a minute; a mention that fails is refunded. Balances last one run: they're written to `data/wallet-<房间号>.json` (`gifted` and `spent` per user id) as they change, and cleared when the bot exits (and when it starts, in case it didn't exit cleanly). Gift events need DyHub logged in.
+- **Admins and commands**: `chat-bot/config.json` lists the admins' user ids (`"admins": ["7664182420958889017"]`) and the starting persona (`"persona"`, which `{{persona}}` turns into `你的人设是…`). Admins ask for free, and only they can run commands, by @ing the bot with a `/` first: `@机器人/修改人设 爱讲冷笑话的小猫` or `@机器人 /修改收费 2` (the space before the argument can be an ASCII or a full-width one). The bot answers `@昵称 已处理修改人设请求` (or 收费), or how to use the command when it's wrong; anyone else's commands are ignored. Changes last until the bot stops. In a private room (私密直播间) Douyin hides every viewer's user id, so admins aren't recognised there.
+- **What goes out first**: the bot sends one message at a time (`--send-interval`), from three queues: replies, then system messages (command results), then low-balance notices.
 
 It needs DyHub running with the browser collector and logged in (网页登录) as the bot's account, Claude Code's `claude`, `ffmpeg` and [uv](https://docs.astral.sh/uv/) on `PATH`. The first run downloads the speech models (about 1 GB) into `~/.cache/modelscope`. From `chat-bot/`:
 
@@ -124,11 +127,12 @@ Other options:
 | `--cost`               | `1`                                 | Diamonds per @mention; `0` makes them free                                                              |
 | `--test`               |                                     | Test mode: the same as `--cost 0`                                                                       |
 | `--queue`              | `20`                                | Paid questions waiting for Claude; more are dropped and refunded. Low-balance notices don't wait        |
-| `--send-interval`      | `10`                                | Seconds between two messages the bot sends; waiting replies go before waiting notices                   |
+| `--send-interval`      | `10`                                | Seconds between two messages the bot sends; replies go first, then system messages, then notices        |
 | `--no-asr`             |                                     | Don't transcribe the streamer                                                                           |
 | `--transcript-minutes` | `5`                                 | How far back `{{transcript}}` goes                                                                      |
 | `--screenshot`         |                                     | Send Claude a screenshot of the live video with each question                                           |
 | `--logs` / `--data`    | `logs/` / `data/`                   | Where logs and balances go                                                                              |
+| `--config`             | `config.json`                       | Admins and the starting persona                                                                         |
 
 The console shows info and up (mentions, gifts, what was heard, replies); `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.
 

@@ -11,6 +11,7 @@ import { DyhubClient } from '@dy-apps/services';
 import { uvWorker } from './adapters/asr-worker';
 import { ChatLog } from './adapters/chat-log-files';
 import { claudeCli } from './adapters/claude-cli';
+import { readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
 import { jsonFileStorage } from './adapters/wallet-file';
@@ -33,6 +34,7 @@ if (!options) {
 const { roomId, port } = options;
 
 const log = createLogger(resolve(options.logsDir));
+const config = readConfig(resolve(options.configFile));
 const room = new DyhubRoomApi(port, roomId);
 const transcript = new Transcript();
 // Balances last one run: cleared on exit, and on start in case the last run didn't exit cleanly.
@@ -70,6 +72,8 @@ const bot = new ChatBot({
   transcriptMs: options.transcriptMs,
   record,
   billing: new Billing({ wallet, cost: options.cost }),
+  admins: new Set(config.admins),
+  persona: config.persona,
   maxPending: options.maxPending,
   log,
   promptTemplate: readFileSync(resolve(options.promptFile), 'utf8'),
@@ -85,6 +89,8 @@ log.info('starting', {
   asr: options.asr,
   screenshot: options.screenshot,
   cost: options.cost,
+  admins: config.admins,
+  persona: config.persona,
 });
 bot.start();
 void transcriber?.run();

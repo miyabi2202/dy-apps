@@ -1,5 +1,6 @@
 import { ChatHistory } from '../core/chat-history';
 import { chatRecord, giftRecord } from '../core/chat-record';
+import { parseCommand, type Command } from '../core/command';
 import { isFromBot, questionFor, type BotIdentity } from '../core/mention';
 import { buildPrompt } from '../core/prompt';
 import {
@@ -11,7 +12,7 @@ import {
 } from '../core/reply';
 import type { ChatLine, IncomingChat } from '../core/room-events';
 import type { Transcript } from '../core/transcript';
-import type { Billing } from './billing';
+import type { Billing, Charge } from './billing';
 import type { Outbox } from './outbox';
 import type { AskClaude, Log, RoomEvents, RoomRecord, Screenshot } from './ports';
 
@@ -44,6 +45,10 @@ export interface ChatBotOptions {
   record?: RoomRecord;
   /** Charges for mentions from what viewers gift. Without it, mentions are free. */
   billing?: Billing;
+  /** User ids of the admins: their mentions are free, and only they can run commands. */
+  admins?: ReadonlySet<string>;
+  /** Who the bot plays, for `{{persona}}`; admins can change it with `/修改人设`. */
+  persona?: string;
 }
 
 interface Mention {
@@ -61,6 +66,9 @@ interface Mention {
  * answers one mention at a time, in order, without waiting for earlier answers to go out. With
  * billing, a viewer who can't pay gets a fixed notice, put in the outbox straight away rather
  * than waiting behind the questions for Claude.
+ *
+ * An admin's mention starting with `/` is a command instead (`/修改人设 …`, `/修改收费 2`): it
+ * takes effect at once and the bot confirms with a system message. Anyone else's is ignored.
  */
 export class ChatBot {
   private readonly history: ChatHistory;
@@ -69,9 +77,11 @@ export class ChatBot {
   private readonly limits: ReplyLimits;
   private readonly maxPending: number;
   private readonly now: () => number;
+  private persona: string;
 
   constructor(private readonly options: ChatBotOptions) {
     this.history = new ChatHistory(options.historySize ?? 100);
+    this.persona = options.persona ?? '';
     this.limits = { maxLength: options.maxReplyLength ?? 49, maxParts: options.maxReplyParts ?? 5 };
     this.maxPending = options.maxPending ?? 20;
     this.now = options.now ?? Date.now;
@@ -106,16 +116,27 @@ export class ChatBot {
     while (this.busy) await new Promise((resolve) => setTimeout(resolve, 10));
   }
 
-  /** Charges the asker and queues the question, or queues a notice when they can't pay. */
+  /**
+   * Runs an admin's command, or charges the asker (admins are free) and queues the question, or
+   * queues a notice when they can't pay.
+   */
   private onMention(chat: IncomingChat, question: string): void {
     const { billing, log, outbox } = this.options;
     const { nickname: asker, userId } = chat;
     log.info('mention', { asker, userId, question });
-    const charge = billing?.charge(userId, asker) ?? { ok: true, paid: 0 };
+    const admin = userId !== undefined && !!this.options.admins?.has(userId);
+    const command = parseCommand(question);
+    if (command) {
+      if (admin) this.runCommand(asker, command);
+      else log.info('command from a non-admin, ignored', { asker, userId, ...command });
+      return;
+    }
+    const charge: Charge =
+      admin || !billing ? { ok: true, paid: 0 } : billing.charge(userId, asker);
     if (!charge.ok) {
       log.info('balance too low', { asker, userId, balance: billing?.balance(userId) });
       if (charge.notify && billing) {
-        const notice = billing.lowBalanceNotice();
+        const notice = billing.lowBalanceNotice(userId);
         outbox.push({
           kind: 'notice',
           text: oneMessage(asker, notice, this.limits.maxLength) ?? `@${asker} ${notice}`,
@@ -125,6 +146,36 @@ export class ChatBot {
     }
     const mention = { asker, userId, paid: charge.paid, question, history: this.history.recent() };
     if (!this.enqueue(mention)) this.refund(mention);
+  }
+
+  /** Carries out an admin's command and tells them how it went, as a system message. */
+  private runCommand(asker: string, command: Command): void {
+    const { log, outbox } = this.options;
+    const result = this.applyCommand(command);
+    log.info('command', { asker, ...command, result });
+    outbox.push({
+      kind: 'system',
+      text: oneMessage(asker, result, this.limits.maxLength) ?? `@${asker} ${result}`,
+    });
+  }
+
+  /** What the bot says back about a command. */
+  private applyCommand({ name, args }: Command): string {
+    switch (name) {
+      case '修改人设':
+        if (!args) return '人设不能为空，用法：/修改人设 人设';
+        this.persona = args;
+        return '已处理修改人设请求';
+      case '修改收费': {
+        const { billing } = this.options;
+        if (!/^\d+$/.test(args)) return '收费要写成钻石数，用法：/修改收费 2';
+        if (!billing) return '这次运行没有开收费，改不了';
+        billing.cost = Number(args);
+        return '已处理修改收费请求';
+      }
+      default:
+        return `没有指令「${name}」，可用的有：修改人设、修改收费`;
+    }
   }
 
   /** Queues a mention for Claude; false when the queue is full and it was dropped. */
@@ -168,6 +219,7 @@ export class ChatBot {
       transcript: transcript?.recent(this.options.transcriptMs ?? 5 * 60_000) ?? [],
       now: this.now(),
       chatDir: this.options.record?.dir,
+      persona: this.persona,
     });
     log.debug('prompt', { prompt });
     try {

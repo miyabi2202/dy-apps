@@ -35,6 +35,8 @@ interface SetupOptions {
   cost?: number;
   ask?: () => Promise<string>;
   chatLog?: ChatLog;
+  admins?: string[];
+  persona?: string;
 }
 
 /** A wallet kept in memory, starting from `accounts`. */
@@ -83,6 +85,8 @@ function setup(options: SetupOptions = {}) {
     now: () => NOW,
     billing: options.wallet && new Billing({ wallet: options.wallet, cost: options.cost }),
     record: options.chatLog,
+    admins: new Set(options.admins),
+    persona: options.persona,
     historySize: options.historySize,
     maxReplyLength: options.maxReplyLength,
   });
@@ -218,7 +222,7 @@ test('tells a viewer who cannot pay, once a minute, without asking Claude', asyn
   await settle();
 
   expect(prompts).toEqual([]);
-  expect(sent).toEqual(['@阿明 你的余额不足，每次@需要1钻（60秒内只提醒一次）']);
+  expect(sent).toEqual(['@阿明 你的余额不足，还剩0钻，每次@需要1钻（60秒内只提醒一次）']);
 });
 
 test('gives the diamond back when the mention cannot be answered', async () => {
@@ -275,8 +279,53 @@ test('a low-balance notice goes out while Claude is still answering someone else
   say(chat('小红', '@小助手 我没钱'));
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  expect(sent).toEqual(['@小红 你的余额不足，每次@需要1钻（60秒内只提醒一次）']);
+  expect(sent).toEqual(['@小红 你的余额不足，还剩0钻，每次@需要1钻（60秒内只提醒一次）']);
   finish('想好了');
   await settle();
-  expect(sent).toEqual(['@小红 你的余额不足，每次@需要1钻（60秒内只提醒一次）', '@阿明 想好了']);
+  expect(sent).toEqual([
+    '@小红 你的余额不足，还剩0钻，每次@需要1钻（60秒内只提醒一次）',
+    '@阿明 想好了',
+  ]);
+});
+
+test('an admin changes the persona and the price, each confirmed with a system message', async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 2, spent: 0 } });
+  const { settle, say, prompts, sent } = setup({
+    wallet,
+    admins: ['u-管理'],
+    persona: '数学老师',
+    template: '{{persona}}|{{question}}',
+  });
+  say(chat('管理', '@小助手 第一问'));
+  say(chat('管理', '@小助手/修改人设 爱讲冷笑话的小猫'));
+  say(chat('管理', '@小助手 /修改收费\u30002'));
+  say(chat('阿明', '@小助手 第二问'));
+  await settle();
+
+  // Admins ask for free; 阿明's 2 diamonds now pay for one mention.
+  expect(prompts).toEqual(['你的人设是数学老师|第一问', '你的人设是爱讲冷笑话的小猫|第二问']);
+  expect(wallet.balance('u-阿明')).toBe(0);
+  // Commands take effect at once; the answers wait for Claude.
+  expect(sent).toEqual([
+    '@管理 已处理修改人设请求',
+    '@管理 已处理修改收费请求',
+    '@管理 你好呀',
+    '@阿明 你好呀',
+  ]);
+});
+
+test('ignores commands from anyone but an admin, and answers bad ones with how to use them', async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 5, spent: 0 } });
+  const { settle, say, prompts, sent } = setup({ wallet, admins: ['u-管理'] });
+  say(chat('阿明', '@小助手 /修改收费 0'));
+  say(chat('管理', '@小助手 /修改收费 两钻'));
+  say(chat('管理', '@小助手 /删库'));
+  await settle();
+
+  expect(prompts).toEqual([]);
+  expect(wallet.balance('u-阿明')).toBe(5);
+  expect(sent).toEqual([
+    '@管理 收费要写成钻石数，用法：/修改收费 2',
+    '@管理 没有指令「删库」，可用的有：修改人设、修改收费',
+  ]);
 });

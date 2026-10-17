@@ -22,7 +22,8 @@ export type Charge =
  * so at most once per `noticeCooldownMs`.
  */
 export class Billing {
-  readonly cost: number;
+  /** Admins can change it while the bot runs. */
+  cost: number;
   readonly noticeCooldownMs: number;
   /** When each viewer was last told their balance is too low. */
   private readonly noticedAt = new Map<string, number>();
@@ -61,8 +62,8 @@ export class Billing {
     if (userId && paid) this.options.wallet.refund(userId, paid);
   }
 
-  /** What a viewer who can't pay is told, after the @. */
-  lowBalanceNotice(): string {
-    return `你的余额不足，每次@需要${this.cost}钻（${Math.round(this.noticeCooldownMs / 1000)}秒内只提醒一次）`;
+  /** What a viewer who can't pay is told, after the @, with what they have left. */
+  lowBalanceNotice(userId: string | undefined): string {
+    return `你的余额不足，还剩${this.balance(userId)}钻，每次@需要${this.cost}钻（${Math.round(this.noticeCooldownMs / 1000)}秒内只提醒一次）`;
   }
 }

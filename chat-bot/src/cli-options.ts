@@ -7,7 +7,7 @@ export const USAGE =
   '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
-  '       [--send-interval 10] [--data data/]';
+  '       [--send-interval 10] [--data data/] [--config config.json]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -31,6 +31,8 @@ export interface CliOptions {
   maxPending: number;
   sendIntervalMs: number;
   dataDir: string;
+  /** Admins and the starting persona. */
+  configFile: string;
 }
 
 /** `args` (without node and the script) as options, or null when they're unusable. */
@@ -61,6 +63,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       queue: { type: 'string', default: '20' },
       'send-interval': { type: 'string', default: '10' },
       data: { type: 'string', default: join(packageDir, 'data') },
+      config: { type: 'string', default: join(packageDir, 'config.json') },
     },
   });
   const roomId = values.room ?? '';
@@ -87,5 +90,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     maxPending: Number(values.queue),
     sendIntervalMs: Number(values['send-interval']) * 1000,
     dataDir: values.data,
+    configFile: values.config,
   };
 }

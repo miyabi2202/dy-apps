@@ -1,10 +1,16 @@
 import type { Log, SendChat } from './ports';
 
+/** What a message is, most urgent first: the order waiting messages go out in. */
+const KINDS = ['reply', 'system', 'notice'] as const;
+
 /** One message waiting to go out. */
 export interface OutgoingMessage {
   text: string;
-  /** An answer to a question, or a notice like "balance too low": replies go first. */
-  kind: 'reply' | 'notice';
+  /**
+   * An answer to a question, a system message like "已处理修改人设请求", or a notice like
+   * "balance too low": replies go first, then system messages, then notices.
+   */
+  kind: (typeof KINDS)[number];
   /** Called when DyHub couldn't send it, e.g. to refund the question it answers. */
   onFailed?: () => void;
 }
@@ -20,12 +26,16 @@ export interface OutboxOptions {
 
 /**
  * Every message the bot says goes through here: queued, then sent one at a time, at least
- * `intervalMs` apart. Replies and notices wait in two queues, each in order, and a waiting reply
- * always goes before a waiting notice. Whoever made the message doesn't wait for it to go out.
+ * `intervalMs` apart. Each kind waits in its own queue, in order, and a waiting reply always goes
+ * before a waiting system message, which goes before a waiting notice. Whoever made the message
+ * doesn't wait for it to go out.
  */
 export class Outbox {
-  private readonly replies: OutgoingMessage[] = [];
-  private readonly notices: OutgoingMessage[] = [];
+  private readonly queues = {
+    reply: [] as OutgoingMessage[],
+    system: [] as OutgoingMessage[],
+    notice: [] as OutgoingMessage[],
+  };
   private sending = false;
   private lastSentAt = -Infinity;
   private readonly intervalMs: number;
@@ -39,7 +49,7 @@ export class Outbox {
   }
 
   push(message: OutgoingMessage): void {
-    (message.kind === 'reply' ? this.replies : this.notices).push(message);
+    this.queues[message.kind].push(message);
     this.options.log.debug('queued to send', { ...message, waiting: this.waiting() });
     void this.drain();
   }
@@ -65,11 +75,15 @@ export class Outbox {
   }
 
   private next(): OutgoingMessage | undefined {
-    return this.replies.shift() ?? this.notices.shift();
+    for (const kind of KINDS) {
+      const message = this.queues[kind].shift();
+      if (message) return message;
+    }
+    return undefined;
   }
 
   private waiting(): number {
-    return this.replies.length + this.notices.length;
+    return KINDS.reduce((sum, kind) => sum + this.queues[kind].length, 0);
   }
 
   private async sendOne({ text, kind, onFailed }: OutgoingMessage): Promise<void> {
