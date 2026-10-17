@@ -1,14 +1,14 @@
 import type { Log, SendChat } from './ports';
 
 /** What a message is, most urgent first: the order waiting messages go out in. */
-const KINDS = ['reply', 'system', 'notice'] as const;
+const KINDS = ['reply', 'system', 'notice', 'talk'] as const;
 
 /** One message waiting to go out. */
 export interface OutgoingMessage {
   text: string;
   /**
-   * An answer to a question, a system message like "已处理修改人设请求", or a notice like
-   * "balance too low": replies go first, then system messages, then notices.
+   * An answer to a question, a system message like "已处理修改人设请求", a notice like "balance
+   * too low", or something the bot says unprompted: in that order when several wait.
    */
   kind: (typeof KINDS)[number];
   /** Called when DyHub couldn't send it, e.g. to refund the question it answers. */
@@ -35,6 +35,7 @@ export class Outbox {
     reply: [] as OutgoingMessage[],
     system: [] as OutgoingMessage[],
     notice: [] as OutgoingMessage[],
+    talk: [] as OutgoingMessage[],
   };
   private sending = false;
   private lastSentAt = -Infinity;

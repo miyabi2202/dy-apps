@@ -54,9 +54,7 @@ export function answerBudget(asker: string, limits: ReplyLimits): number {
  */
 export function replyMessages(asker: string, answer: string, limits: ReplyLimits): string[] {
   const tags = [`@${asker}`, shortTag(asker)];
-  // Web search makes Claude add a sources list; it has no place in a chat message.
-  const body = answer.split(/\n\s*(?:Sources|来源)\s*[:：]/)[0] ?? '';
-  let text = body.replace(/\s+/g, ' ').trim();
+  let text = oneLine(answer);
   // Claude sees the bot's earlier `@…` replies in the chat and often starts with the @ itself,
   // with the whole name or the short one.
   for (
@@ -77,6 +75,22 @@ export function replyMessages(asker: string, answer: string, limits: ReplyLimits
   }
   const parts = splitText(text, size, limits.maxParts);
   return parts.map((part, i) => `${shortTag(asker)} (${i + 1}/${parts.length}) ${part}`);
+}
+
+/** Claude's answer on one line, without the sources list web search makes it add. */
+function oneLine(answer: string): string {
+  const body = answer.split(/\n\s*(?:Sources|来源)\s*[:：]/)[0] ?? '';
+  return body.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Something Claude wrote to say to the room unprompted, as one message: on one line, cut after
+ * punctuation to fit `maxLength`. Null when Claude said nothing.
+ */
+export function plainMessage(answer: string, maxLength: number): string | null {
+  const text = oneLine(answer);
+  if (!text) return null;
+  return splitText(text, maxLength, 1)[0] ?? null;
 }
 
 /** Up to `maxParts` pieces of at most `size` characters, cut after punctuation when it can. */

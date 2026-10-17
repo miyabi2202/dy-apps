@@ -117,6 +117,11 @@ export class ChatBot {
     this.options.events.close();
   }
 
+  /** The room's recent chat, oldest first. */
+  recentChat(): ChatLine[] {
+    return this.history.recent();
+  }
+
   /** Resolves once Claude has answered every queued mention (or failed to). */
   async idle(): Promise<void> {
     while (this.busy) await new Promise((resolve) => setTimeout(resolve, 10));

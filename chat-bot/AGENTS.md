@@ -27,7 +27,7 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
 
 ## While it runs
 
-- In someone else's room, the bot answers anyone who @s it, in public, as the user's account. Say so when starting it there.
+- In someone else's room, the bot answers anyone who @s it, in public, as the user's account, and says something unprompted every 3 minutes (`--talk-minutes 0` turns that off). Say so when starting it there.
 - Read `chat-bot/logs/chat-bot.log` (JSON lines: every chat, prompt, answer, gift and transcript line) to answer questions like 「刚才机器人回了什么」 or 「谁送了礼物」.
 - The room's chat record is in `chat-bot/data/chat/<房间号>/*.txt`, one line per speech (`[主播](speech)`, or `(sing)` when sung), chat or gift (`[昵称#uid](gift)`), 100 lines a file; it's kept across runs.
 - Balances are in `chat-bot/data/wallet-<房间号>.json` (`gifted` − `spent` per user id) while the bot runs. Don't edit them unless the user asks.

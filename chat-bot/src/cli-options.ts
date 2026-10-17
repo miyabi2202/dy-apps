@@ -7,7 +7,8 @@ export const USAGE =
   '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
-  '       [--send-interval 10] [--data data/] [--config config.json]';
+  '       [--send-interval 10] [--data data/] [--config config.json] [--talk-minutes 3]\n' +
+  '       [--talk-prompt talk.md]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -33,6 +34,9 @@ export interface CliOptions {
   dataDir: string;
   /** Admins and the starting persona. */
   configFile: string;
+  /** How often the bot says something unprompted; 0 never. */
+  talkMs: number;
+  talkPromptFile: string;
 }
 
 /** `args` (without node and the script) as options, or null when they're unusable. */
@@ -64,6 +68,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'send-interval': { type: 'string', default: '10' },
       data: { type: 'string', default: join(packageDir, 'data') },
       config: { type: 'string', default: join(packageDir, 'config.json') },
+      'talk-minutes': { type: 'string', default: '3' },
+      'talk-prompt': { type: 'string', default: join(packageDir, 'talk.md') },
     },
   });
   const roomId = values.room ?? '';
@@ -91,5 +97,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     sendIntervalMs: Number(values['send-interval']) * 1000,
     dataDir: values.data,
     configFile: values.config,
+    talkMs: Number(values['talk-minutes']) * 60_000,
+    talkPromptFile: values['talk-prompt'],
   };
 }

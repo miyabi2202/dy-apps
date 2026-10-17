@@ -20,6 +20,7 @@ import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { builtInCommands } from './app/commands';
 import { Outbox } from './app/outbox';
+import { Talker } from './app/talker';
 import { Transcriber } from './app/transcriber';
 import { parseCliOptions, USAGE } from './cli-options';
 import { Transcript } from './core/transcript';
@@ -58,20 +59,23 @@ const transcriber = options.asr
 const billing = new Billing({ wallet, cost: options.cost });
 // Who the bot plays; /修改人设 changes it for this run.
 const persona = { value: config.persona };
+// An empty working directory, so Claude Code picks up no project's CLAUDE.md or settings.
+const ask = claudeCli({
+  cwd: tmpdir(),
+  tools: options.tools,
+  readDirs: [chatDir],
+  model: options.model,
+  systemPrompt: options.systemPrompt,
+});
+// Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
+const outbox = new Outbox({ send: room.sendChat, log, intervalMs: options.sendIntervalMs });
+const screenshot = options.screenshot ? room.screenshot : undefined;
 const bot = new ChatBot({
   events: dyhubEvents(new DyhubClient({ port, roomId, retryMs: 5000 })),
   bot: { nickname: options.botName, userId: options.botId },
-  // An empty working directory, so Claude Code picks up no project's CLAUDE.md or settings.
-  ask: claudeCli({
-    cwd: tmpdir(),
-    tools: options.tools,
-    readDirs: [chatDir],
-    model: options.model,
-    systemPrompt: options.systemPrompt,
-  }),
-  // Every reply and notice waits here, and goes out at least --send-interval seconds apart.
-  outbox: new Outbox({ send: room.sendChat, log, intervalMs: options.sendIntervalMs }),
-  screenshot: options.screenshot ? room.screenshot : undefined,
+  ask,
+  outbox,
+  screenshot,
   transcript,
   transcriptMs: options.transcriptMs,
   record,
@@ -87,6 +91,25 @@ const bot = new ChatBot({
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
 });
+// Says something to the streamer every --talk-minutes, unprompted.
+const talker =
+  options.talkMs > 0
+    ? new Talker({
+        ask,
+        outbox,
+        promptTemplate: readFileSync(resolve(options.talkPromptFile), 'utf8'),
+        intervalMs: options.talkMs,
+        recentChat: () => bot.recentChat(),
+        transcript,
+        transcriptMs: options.transcriptMs,
+        screenshot,
+        persona,
+        botName: options.botName,
+        chatDir,
+        maxLength: options.maxReplyLength,
+        log,
+      })
+    : null;
 
 log.info('starting', {
   roomId,
@@ -97,14 +120,17 @@ log.info('starting', {
   cost: options.cost,
   admins: config.admins,
   persona: config.persona,
+  talkMinutes: options.talkMs / 60_000,
 });
 bot.start();
 void transcriber?.run();
+void talker?.run();
 
 const shutdown = () => {
   log.info('stopping');
   bot.stop();
   transcriber?.stop();
+  talker?.stop();
   wallet.clear();
   log.on('finish', () => process.exit(0));
   log.end();
