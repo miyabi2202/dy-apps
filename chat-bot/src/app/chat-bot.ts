@@ -39,8 +39,8 @@ export interface ChatBotOptions {
   /** How far back `{{transcript}}` goes. */
   transcriptMs?: number;
   log: Log;
-  /** The prompt; see buildPrompt for what it can fill in. */
-  promptTemplate: string;
+  /** The prompt (see buildPrompt for what it can fill in), read each time so edits apply at once. */
+  promptTemplate: () => string;
   now?: () => number;
   /** How many recent chats to remember and pass to Claude. */
   historySize?: number;
@@ -308,7 +308,7 @@ export class ChatBot {
 
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, log, promptTemplate, transcript, userTalk } = this.options;
-    const prompt = buildPrompt(mention.template ?? promptTemplate, {
+    const prompt = buildPrompt(mention.template ?? promptTemplate(), {
       ...mention,
       singleLength: singleBudget(mention.asker, this.limits),
       maxLength: answerBudget(mention.asker, this.limits),

@@ -88,6 +88,11 @@ const outbox = new Outbox({
   intervalMs: options.sendIntervalMs,
   onSent: ({ text }) => botTalk.add(text),
 });
+// The mention prompt is read at start, so a missing file stops the bot at once, and then on every
+// use; a read that fails later keeps the text from the start.
+const mentionPrompt = resolve(options.promptFile);
+const firstMentionTemplate = readFileSync(mentionPrompt, 'utf8');
+const mentionTemplate = liveText(mentionPrompt, () => firstMentionTemplate);
 const screenshot = options.screenshot ? room.screenshot : undefined;
 // Says something to the streamer every --talk-minutes (changed with /自动回复间隔), and on
 // /回复, from the room's auto_reply.md.
@@ -149,7 +154,7 @@ const bot: ChatBot = new ChatBot({
   userTalk,
   maxPending: options.maxPending,
   log,
-  promptTemplate: readFileSync(resolve(options.promptFile), 'utf8'),
+  promptTemplate: mentionTemplate,
   historySize: options.historySize,
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,

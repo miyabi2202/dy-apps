@@ -86,7 +86,7 @@ function setup(options: SetupOptions = {}) {
     },
     outbox,
     log: silentLog,
-    promptTemplate: options.template ?? TEMPLATE,
+    promptTemplate: () => options.template ?? TEMPLATE,
     transcript: options.transcript,
     screenshot: options.screenshot,
     now: () => NOW,
