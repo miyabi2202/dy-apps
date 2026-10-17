@@ -26,7 +26,7 @@ test('says one message each interval from what is going on, and stays quiet in a
       return Promise.resolve(answers.shift() ?? '');
     },
     outbox: { push: (message) => sent.push(message) },
-    promptTemplate: '{{botName}}|{{transcript}}|{{history}}',
+    promptTemplate: () => '{{botName}}|{{transcript}}|{{history}}',
     intervalMs: 3 * MINUTE,
     recentChat: () => chat,
     transcript,
@@ -51,5 +51,64 @@ test('says one message each interval from what is going on, and stays quiet in a
   expect(sent).toEqual([
     { kind: 'talk', text: '主播这首歌唱得好有感觉，是原唱的调吗？' },
     { kind: 'talk', text: '我也想吃火锅' },
+  ]);
+});
+
+test('talks at a new interval as soon as it changes, never at 0, and now when asked', async () => {
+  let now = 0;
+  const chat: ChatLine[] = [];
+  const sent: { kind: string; text: string }[] = [];
+  const contexts = ['主播是猫猫', '主播今天生日'];
+  const prompts: string[] = [];
+  const sleeps: number[] = [];
+  let finishSleep: () => void = () => {};
+  const talker = new Talker({
+    ask: ({ prompt }) => {
+      prompts.push(prompt);
+      return Promise.resolve(`第${prompts.length}句`);
+    },
+    outbox: { push: (message) => sent.push(message) },
+    promptTemplate: () => '{{context}}',
+    intervalMs: 0,
+    recentChat: () => chat,
+    context: () => contexts.shift() ?? '',
+    botName: '小助手',
+    log: silentLog,
+    now: () => now,
+    // Each sleep waits until the test lets it end.
+    sleep: (ms) => {
+      sleeps.push(ms);
+      return new Promise((resolve) => {
+        finishSleep = () => {
+          now += ms;
+          chat.push({ ts: now, nickname: '阿明', content: '在吗' });
+          resolve();
+        };
+      });
+    },
+  });
+  const running = talker.run();
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  // At 0 it doesn't wait on a timer at all.
+  await tick();
+  expect(sleeps).toEqual([]);
+  // /回复 talks now, as a reply, whatever the interval; the context is read each time.
+  expect(await talker.talkNow()).toBe('第1句');
+  talker.interval = 3 * MINUTE;
+  await tick();
+  expect(sleeps).toEqual([3 * MINUTE]);
+  finishSleep();
+  await tick();
+  talker.stop();
+  await running;
+
+  expect(prompts).toEqual([
+    '关于这个直播间的背景资料：\n\n主播是猫猫',
+    '关于这个直播间的背景资料：\n\n主播今天生日',
+  ]);
+  expect(sent).toEqual([
+    { kind: 'reply', text: '第1句' },
+    { kind: 'talk', text: '第2句' },
   ]);
 });

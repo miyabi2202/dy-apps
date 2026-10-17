@@ -335,7 +335,7 @@ test('ignores commands from anyone but an admin, and answers bad ones with how t
   expect(wallet.balance('u-阿明')).toBe(5);
   expect(sent).toEqual([
     '@管理 收费要写成钻石数，用法：/修改收费 2',
-    '@管理 没有指令「删库」，可用的有：修改人设、修改收费',
+    '@管理 没有指令「删库」，可用的有：修改人设、修改收费、回复、自动回复间隔',
   ]);
 });
 
@@ -376,5 +376,34 @@ test('anyone can run a public command at its own price, and a failed one is refu
     '@阿明 没有指令「清空」，可用的有：点歌',
     '@阿明 已点歌：稻香',
     '@阿明 你的余额不足，还剩1钻，指令「点歌」需要2钻（60秒内只提醒一次）',
+  ]);
+});
+
+test('admins can make the bot talk now and change how often it talks', async () => {
+  const calls: string[] = [];
+  const talker = {
+    interval: 0,
+    talkNow: () => {
+      calls.push('talkNow');
+      return Promise.resolve('主播今天好可爱');
+    },
+  };
+  const persona = { value: '' };
+  const { settle, say, sent } = setup({
+    admins: ['u-管理'],
+    commands: builtInCommands({ persona, talker }),
+  });
+  say(chat('管理', '@小助手 /回复'));
+  say(chat('管理', '@小助手 /自动回复间隔 5'));
+  say(chat('管理', '@小助手 /自动回复间隔 五'));
+  say(chat('阿明', '@小助手 /回复'));
+  await settle();
+
+  expect(calls).toEqual(['talkNow']);
+  expect(talker.interval).toBe(5 * 60_000);
+  // /回复's message is the talker's own; the rest answer with a system message.
+  expect(sent).toEqual([
+    '@管理 已处理自动回复间隔请求',
+    '@管理 间隔要写成分钟数，0 表示关闭，用法：/自动回复间隔 3',
   ]);
 });

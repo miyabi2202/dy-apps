@@ -13,7 +13,7 @@ import {
 import type { ChatLine, IncomingChat } from '../core/room-events';
 import type { Transcript } from '../core/transcript';
 import type { Billing, Charge } from './billing';
-import type { Command, Persona } from './commands';
+import type { Command, CommandResult, Persona } from './commands';
 import type { Outbox } from './outbox';
 import type { Admins, AskClaude, Log, RoomEvents, RoomRecord, Screenshot } from './ports';
 
@@ -53,6 +53,8 @@ export interface ChatBotOptions {
   persona?: Persona;
   /** What a mention starting with `/` can run. */
   commands?: readonly Command[];
+  /** Background on the room for `{{context}}`, read each time so edits apply at once. */
+  context?: () => string;
 }
 
 interface Mention {
@@ -80,6 +82,8 @@ export class ChatBot {
   private readonly history: ChatHistory;
   private readonly pending: Mention[] = [];
   private busy = false;
+  /** Commands still running, like one waiting for Claude. */
+  private readonly running = new Set<Promise<void>>();
   private readonly limits: ReplyLimits;
   private readonly maxPending: number;
   private readonly now: () => number;
@@ -122,9 +126,11 @@ export class ChatBot {
     return this.history.recent();
   }
 
-  /** Resolves once Claude has answered every queued mention (or failed to). */
+  /** Resolves once Claude has answered every queued mention, and every command has finished. */
   async idle(): Promise<void> {
-    while (this.busy) await new Promise((resolve) => setTimeout(resolve, 10));
+    while (this.busy || this.running.size) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
   }
 
   /** Runs the command the mention gives, or charges the asker and queues the question. */
@@ -135,7 +141,11 @@ export class ChatBot {
     const admin = this.isAdmin(userId);
     const call = parseCommand(question);
     if (call) {
-      this.onCommand(chat, call, admin);
+      const pending = this.onCommand(chat, call, admin);
+      if (pending) {
+        const run = pending.finally(() => this.running.delete(run));
+        this.running.add(run);
+      }
       return;
     }
     const charge = this.charge(chat, admin);
@@ -174,8 +184,13 @@ export class ChatBot {
   /**
    * Runs a command the asker may use, once they've paid for it, and tells them how it went;
    * a call to one they may not use is ignored, or, when they have commands, answered with those.
+   * A promise while a command that waits (on Claude, say) is still running.
    */
-  private onCommand(chat: IncomingChat, { name, args }: CommandCall, admin: boolean): void {
+  private onCommand(
+    chat: IncomingChat,
+    { name, args }: CommandCall,
+    admin: boolean,
+  ): Promise<void> | undefined {
     const { log } = this.options;
     const { nickname: asker, userId } = chat;
     const command = this.commands.get(name);
@@ -190,10 +205,30 @@ export class ChatBot {
     }
     const charge = this.charge(chat, admin, command);
     if (!charge.ok) return;
-    const result = command.run(args);
-    log.info('command', { asker, userId, name, args, ...result, paid: charge.paid });
-    if (!result.ok && userId) this.refund({ asker, userId, paid: charge.paid });
-    this.say(asker, 'system', result.reply);
+    const failed = (err: unknown): CommandResult => {
+      log.error('command failed', {
+        name,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { ok: false, reply: `指令「${name}」出错了，没有完成` };
+    };
+    const finish = (result: CommandResult) => {
+      log.info('command', { asker, userId, name, args, ...result, paid: charge.paid });
+      if (!result.ok && userId) this.refund({ asker, userId, paid: charge.paid });
+      if (result.reply) this.say(asker, 'system', result.reply);
+    };
+    let result: CommandResult | Promise<CommandResult>;
+    try {
+      result = command.run(args);
+    } catch (err) {
+      result = failed(err);
+    }
+    // A command that answers at once is done at once, so its refund and reply keep their order.
+    if (!(result instanceof Promise)) {
+      finish(result);
+      return undefined;
+    }
+    return result.catch(failed).then(finish);
   }
 
   /** Queues `@asker text` to be sent. */
@@ -246,6 +281,7 @@ export class ChatBot {
       now: this.now(),
       chatDir: this.options.record?.dir,
       persona: this.options.persona?.value,
+      context: this.options.context?.(),
     });
     log.debug('prompt', { prompt });
     try {

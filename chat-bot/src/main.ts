@@ -14,6 +14,7 @@ import { claudeCli } from './adapters/claude-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
+import { liveText, roomFiles } from './adapters/room-files';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
 import { Billing } from './app/billing';
@@ -47,6 +48,10 @@ wallet.clear();
 const chatDir = join(dataDir, 'chat', roomId);
 mkdirSync(chatDir, { recursive: true });
 const record = new ChatLog(chatDir);
+// The room's context.md and auto_reply.md, read on every use so edits apply while it runs.
+const talkTemplate = resolve(options.talkPromptFile);
+const files = roomFiles(join(dataDir, 'rooms', roomId), talkTemplate);
+const context = liveText(files.context);
 const transcriber = options.asr
   ? new Transcriber({
       streamUrl: room.streamUrl,
@@ -70,7 +75,25 @@ const ask = claudeCli({
 // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
 const outbox = new Outbox({ send: room.sendChat, log, intervalMs: options.sendIntervalMs });
 const screenshot = options.screenshot ? room.screenshot : undefined;
-const bot = new ChatBot({
+// Says something to the streamer every --talk-minutes (changed with /自动回复间隔), and on
+// /回复, from the room's auto_reply.md.
+const talker: Talker = new Talker({
+  ask,
+  outbox,
+  promptTemplate: liveText(files.autoReply, () => readFileSync(talkTemplate, 'utf8')),
+  intervalMs: options.talkMs,
+  recentChat: () => bot.recentChat(),
+  transcript,
+  transcriptMs: options.transcriptMs,
+  screenshot,
+  persona,
+  context,
+  botName: options.botName,
+  chatDir,
+  maxLength: options.maxReplyLength,
+  log,
+});
+const bot: ChatBot = new ChatBot({
   events: dyhubEvents(new DyhubClient({ port, roomId, retryMs: 5000 })),
   bot: { nickname: options.botName, userId: options.botId },
   ask,
@@ -83,7 +106,8 @@ const bot = new ChatBot({
   // Read again when config.json changes, so admins can be added or removed while it runs.
   admins: liveAdmins(resolve(options.configFile), { log }),
   persona,
-  commands: builtInCommands({ persona, billing }),
+  commands: builtInCommands({ persona, billing, talker }),
+  context,
   maxPending: options.maxPending,
   log,
   promptTemplate: readFileSync(resolve(options.promptFile), 'utf8'),
@@ -91,25 +115,6 @@ const bot = new ChatBot({
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
 });
-// Says something to the streamer every --talk-minutes, unprompted.
-const talker =
-  options.talkMs > 0
-    ? new Talker({
-        ask,
-        outbox,
-        promptTemplate: readFileSync(resolve(options.talkPromptFile), 'utf8'),
-        intervalMs: options.talkMs,
-        recentChat: () => bot.recentChat(),
-        transcript,
-        transcriptMs: options.transcriptMs,
-        screenshot,
-        persona,
-        botName: options.botName,
-        chatDir,
-        maxLength: options.maxReplyLength,
-        log,
-      })
-    : null;
 
 log.info('starting', {
   roomId,
@@ -124,13 +129,13 @@ log.info('starting', {
 });
 bot.start();
 void transcriber?.run();
-void talker?.run();
+void talker.run();
 
 const shutdown = () => {
   log.info('stopping');
   bot.stop();
   transcriber?.stop();
-  talker?.stop();
+  talker.stop();
   wallet.clear();
   log.on('finish', () => process.exit(0));
   log.end();
