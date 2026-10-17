@@ -91,7 +91,7 @@ const bot = new ChatBot({
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
 });
-// Says something to the streamer every --talk-minutes, unprompted.
+// Joins in the viewers' chat every --talk-minutes, unprompted.
 const talker =
   options.talkMs > 0
     ? new Talker({
@@ -100,9 +100,6 @@ const talker =
         promptTemplate: readFileSync(resolve(options.talkPromptFile), 'utf8'),
         intervalMs: options.talkMs,
         recentChat: () => bot.recentChat(),
-        transcript,
-        transcriptMs: options.transcriptMs,
-        screenshot,
         persona,
         botName: options.botName,
         chatDir,

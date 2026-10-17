@@ -1,10 +1,9 @@
 import { buildPrompt } from '../core/prompt';
 import { plainMessage } from '../core/reply';
 import type { ChatLine } from '../core/room-events';
-import type { Transcript } from '../core/transcript';
 import type { Persona } from './commands';
 import type { Outbox } from './outbox';
-import type { AskClaude, Log, Screenshot } from './ports';
+import type { AskClaude, Log } from './ports';
 
 export interface TalkerOptions {
   ask: AskClaude;
@@ -15,11 +14,8 @@ export interface TalkerOptions {
   intervalMs: number;
   /** The room's recent chat, oldest first. */
   recentChat: () => ChatLine[];
-  transcript?: Transcript;
-  /** How far back `{{transcript}}` goes. */
-  transcriptMs?: number;
-  screenshot?: Screenshot;
   persona?: Persona;
+  /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
   botName: string;
   chatDir?: string;
   /** Douyin's chat length limit. */
@@ -31,10 +27,9 @@ export interface TalkerOptions {
 }
 
 /**
- * Every `intervalMs`, has Claude say something to the streamer unprompted, as fits what's going
- * on: from what the streamer said and sang and the chat lately, and the video when there's a
- * screenshot. It stays quiet when nothing was said or chatted since the last time, since the
- * stream is then likely off. Its messages go out after everything else waiting.
+ * Every `intervalMs`, has Claude join in the room's chat unprompted: one message that picks up
+ * what viewers have been chatting about, not what the streamer says. It stays quiet when nobody
+ * but the bot chatted since the last time. Its messages go out after everything else waiting.
  */
 export class Talker {
   private stopped = false;
@@ -60,19 +55,17 @@ export class Talker {
   }
 
   private async talk(): Promise<void> {
-    const { ask, outbox, log, intervalMs, maxLength = 49 } = this.options;
+    const { ask, outbox, log, intervalMs, botName, maxLength = 49 } = this.options;
     const now = this.now();
-    const transcript =
-      this.options.transcript?.recent(this.options.transcriptMs ?? 5 * 60_000) ?? [];
     const history = this.options.recentChat();
     const since = now - intervalMs;
-    if (!transcript.some((line) => line.end > since) && !history.some((chat) => chat.ts > since)) {
-      log.info('room quiet, not talking');
+    if (!history.some((chat) => chat.ts > since && chat.nickname !== botName)) {
+      log.info('chat quiet, not talking');
       return;
     }
     const prompt = buildPrompt(this.options.promptTemplate, {
       history,
-      transcript,
+      transcript: [],
       asker: '',
       question: '',
       singleLength: maxLength,
@@ -80,12 +73,11 @@ export class Talker {
       now,
       chatDir: this.options.chatDir,
       persona: this.options.persona?.value,
-      botName: this.options.botName,
+      botName,
     });
     log.debug('talk prompt', { prompt });
     try {
-      const image = await this.screenshot();
-      const text = plainMessage(await ask({ prompt, image }), maxLength);
+      const text = plainMessage(await ask({ prompt }), maxLength);
       if (!text) {
         log.warn('claude had nothing to say');
         return;
@@ -94,18 +86,6 @@ export class Talker {
       outbox.push({ kind: 'talk', text });
     } catch (err) {
       log.error('could not talk', { error: err instanceof Error ? err.message : String(err) });
-    }
-  }
-
-  /** The live video, or nothing when there's no screenshot to be had. */
-  private async screenshot(): Promise<Uint8Array | undefined> {
-    try {
-      return await this.options.screenshot?.();
-    } catch (err) {
-      this.options.log.warn('no screenshot', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return undefined;
     }
   }
 }
