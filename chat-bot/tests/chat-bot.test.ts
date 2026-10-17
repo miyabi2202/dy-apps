@@ -1,113 +1,63 @@
-import { ChatLog } from '../src/adapters/chat-log-files';
-import { fakeRoom } from './fake-room';
 import { Billing } from '../src/app/billing';
 import { ChatBot } from '../src/app/chat-bot';
 import type { Command } from '../src/app/command';
-import { Outbox } from '../src/app/outbox';
-import type { Log, UserTalk } from '../src/app/ports';
+import { MentionAnswerer, type Mention } from '../src/app/mention-answerer';
+import { RoomFeed } from '../src/app/room-feed';
 import { personaCommand } from '../src/app/room-state';
 import { songIdCommand } from '../src/app/song-id-command';
 import { ChatHistory } from '../src/core/chat-history';
-import type { Gift, IncomingChat } from '../src/core/room-events';
-import { Transcript } from '../src/core/transcript';
 import { Wallet, type Account } from '../src/core/wallet';
+import { fakeRoom } from './fake-room';
+import { BOT, chat, fakeEvents, fakeOutbox, gift, memoryWallet, silentLog } from './fakes';
 
-const BOT = { nickname: '小助手', userId: 'bot-1' };
-const NOW = Date.UTC(2026, 9, 16, 8, 0, 0);
 const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{singleLength}})';
-
-let nextId = 0;
-function chat(
-  nickname: string,
-  content: string,
-  mentions: IncomingChat['mentions'] = [],
-): IncomingChat {
-  nextId++;
-  const userId = nickname === BOT.nickname ? BOT.userId : `u-${nickname}`;
-  return { ts: nextId, userId, nickname, content, mentions };
-}
-
-const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 
 interface SetupOptions {
   answer?: string;
   historySize?: number;
-  maxReplyLength?: number;
   template?: string;
-  transcript?: Transcript;
-  screenshot?: () => Promise<Uint8Array>;
   wallet?: Wallet;
   cost?: number;
   ask?: () => Promise<string>;
-  chatLog?: ChatLog;
   admins?: string[];
   persona?: string;
   /** Instead of changing the persona and (with a wallet) the price. */
   commands?: Command[];
-  userTalk?: UserTalk;
-  botTalk?: string;
+  /** Instead of the real answerer. */
+  answerer?: Pick<MentionAnswerer, 'ask' | 'idle'>;
 }
 
-/** A wallet kept in memory, starting from `accounts`. */
-function memoryWallet(accounts: Record<string, Account> = {}) {
-  return new Wallet({ load: () => structuredClone(accounts), save: () => {} });
-}
-
-function gift(nickname: string, count: number, diamondCount: number): Gift {
-  return { userId: `u-${nickname}`, nickname, name: '玫瑰', count, diamonds: count * diamondCount };
-}
-
+/** The whole bot on fake events, Claude and outbox; mentions are answered by the real answerer. */
 function setup(options: SetupOptions = {}) {
-  let onChat: (chat: IncomingChat) => void = () => {};
-  let onGift: (gift: Gift) => void = () => {};
+  const { events, say, give } = fakeEvents();
   const prompts: string[] = [];
-  const sent: string[] = [];
-  // Sends at once: spacing is the outbox's own test.
-  const outbox = new Outbox({
-    send: (text) => {
-      sent.push(text);
-      return Promise.resolve({ echoed: true });
-    },
-    log: silentLog,
-    sleep: () => Promise.resolve(),
-  });
-  const images: (Uint8Array | undefined)[] = [];
-  const billing = options.wallet && new Billing({ wallet: options.wallet, cost: options.cost });
+  const { outbox, sent } = fakeOutbox();
   const history = new ChatHistory(options.historySize ?? 100);
-  const room = fakeRoom({
-    history,
-    transcript: options.transcript,
-    screenshot: options.screenshot,
-    persona: options.persona,
-    chatDir: options.chatLog?.dir,
-    botTalk: options.botTalk === undefined ? undefined : { recent: () => options.botTalk ?? '' },
-    now: () => NOW,
-  });
+  const room = fakeRoom({ history, persona: options.persona });
+  const billing = options.wallet && new Billing({ wallet: options.wallet, cost: options.cost });
+  const answerer =
+    options.answerer ??
+    new MentionAnswerer({
+      ask: ({ prompt }) => {
+        prompts.push(prompt);
+        return options.ask ? options.ask() : Promise.resolve(options.answer ?? '你好呀');
+      },
+      outbox,
+      room,
+      log: silentLog,
+      promptTemplate: () => options.template ?? TEMPLATE,
+      billing,
+    });
+  const feed = new RoomFeed({ events, bot: BOT, history, log: silentLog, billing });
   const bot = new ChatBot({
-    events: {
-      onChat: (handler) => (onChat = handler),
-      onGift: (handler) => (onGift = handler),
-      onStatus: () => {},
-      connect: () => {},
-      close: () => {},
-    },
-    bot: BOT,
-    ask: ({ prompt, image }) => {
-      prompts.push(prompt);
-      images.push(image);
-      return options.ask ? options.ask() : Promise.resolve(options.answer ?? '你好呀');
-    },
+    feed,
+    answerer,
+    room,
     outbox,
     log: silentLog,
-    promptTemplate: () => options.template ?? TEMPLATE,
-    room,
-    history,
     billing,
-    record: options.chatLog,
     admins: new Set(options.admins),
     commands: options.commands ?? [personaCommand(room), ...(billing?.commands() ?? [])],
-    userTalk: options.userTalk,
-    maxReplyLength: options.maxReplyLength,
   });
   bot.start();
   return {
@@ -117,24 +67,12 @@ function setup(options: SetupOptions = {}) {
       await bot.idle();
       await outbox.idle();
     },
-    say: (event: IncomingChat) => onChat(event),
-    give: (event: Gift) => onGift(event),
+    say,
+    give,
     prompts,
-    images,
     sent,
   };
 }
-
-test('answers an @mention with the chat before it, and replies to the asker', async () => {
-  const { settle, say, prompts, sent } = setup();
-  say(chat('阿明', '主播好'));
-  say(chat('小红', '今天讲什么'));
-  say(chat('阿明', '@小助手 这题怎么做', [{ text: '@小助手', userId: 'bot-1' }]));
-  await settle();
-
-  expect(prompts).toEqual(['阿明: 主播好\n小红: 今天讲什么\n---\n阿明: 这题怎么做 (45)']);
-  expect(sent).toEqual(['@阿明 你好呀']);
-});
 
 test('passes only the most recent chats', async () => {
   const { settle, say, prompts } = setup({ historySize: 2 });
@@ -145,83 +83,36 @@ test('passes only the most recent chats', async () => {
   expect(prompts[0]).toBe('阿明: 二\n阿明: 三\n---\n小红: hi (45)');
 });
 
-test('ignores chat that does not mention the bot, and its own messages', async () => {
-  const { settle, say, prompts } = setup();
-  say(chat('阿明', '@别人 你好', [{ text: '@别人', userId: 'u-x' }]));
-  say(chat('小助手', '@小助手 自己提到自己'));
-  await settle();
-
-  expect(prompts).toEqual([]);
-});
-
-test('matches a picked @mention by user id even when the nickname text differs', async () => {
-  const { settle, say, prompts } = setup();
-  say(chat('阿明', '@旧昵称 在吗', [{ text: '@旧昵称', userId: 'bot-1' }]));
-  await settle();
-
-  expect(prompts).toHaveLength(1);
-});
-
-test('puts the reply on one line and cuts it to the length limit', async () => {
-  const { settle, say, sent } = setup({ answer: '  第一行\n第二行很长很长  ', maxReplyLength: 10 });
-  say(chat('阿明', '@小助手 说说'));
-  await settle();
-
-  expect(sent).toEqual(['@阿明 第一行 第二']);
-});
-
-test('does not repeat the @ when Claude already starts with it', async () => {
-  const { settle, say, sent } = setup({ answer: '@阿明 @阿明 等于2' });
-  say(chat('阿明', '@小助手 1+1'));
-  await settle();
-
-  expect(sent).toEqual(['@阿明 等于2']);
-});
-
-test('drops the sources list web search adds', async () => {
-  const { settle, say, sent } = setup({
-    answer: '大约41.89万亲密度\n\nSources:\n- [jb51](https://jb51.net)',
-  });
-  say(chat('阿明', '@小助手 16级灯牌'));
-  await settle();
-
-  expect(sent).toEqual(['@阿明 大约41.89万亲密度']);
-});
-
-test('passes the last minutes of what the streamer (or a guest) said or sang, and a screenshot', async () => {
-  const transcript = new Transcript(30 * 60_000, () => NOW);
-  const said = (minutesAgo: number, text: string, speech = 0.8, host = true) => {
-    const end = NOW - minutesAgo * 60_000;
-    transcript.add({ start: end - 3000, end, text, speech, host });
-  };
-  said(8, '太早了');
-  said(2, '吕布一开始是文官');
-  said(1.75, '你那边卡了', 0.8, false);
-  said(1.5, '寒江陪烟火', 0.05);
-  said(1, '谢谢点赞');
-  const frame = new Uint8Array([0xff, 0xd8]);
-  const { settle, say, prompts, images } = setup({
-    template: '{{now}}\n{{transcript}}',
-    transcript,
-    screenshot: () => Promise.resolve(frame),
-  });
-  say(chat('阿明', '@小助手 主播在讲什么'));
-  await settle();
-
-  expect(prompts).toEqual([
-    '08:00:00\n07:57:57 吕布一开始是文官\n07:58:12 （连线）你那边卡了\n07:58:27 （唱）寒江陪烟火\n07:58:57 谢谢点赞',
-  ]);
-  expect(images).toEqual([frame]);
-});
-
-test('answers without a picture when the screenshot fails', async () => {
-  const { settle, say, sent, images } = setup({
-    screenshot: () => Promise.reject(new Error('房间未连接')),
+test('drops a mention the answerer cannot take, and gives the diamond back', async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
+  const asked: Mention[] = [];
+  const { settle, say } = setup({
+    wallet,
+    answerer: {
+      ask: (mention) => {
+        asked.push(mention);
+        return false;
+      },
+      idle: () => Promise.resolve(),
+    },
   });
   say(chat('阿明', '@小助手 在吗'));
   await settle();
 
-  expect(images).toEqual([undefined]);
+  expect(asked).toEqual([
+    { asker: '阿明', userId: 'u-阿明', paid: 1, question: '在吗', history: [] },
+  ]);
+  expect(wallet.balance('u-阿明')).toBe(1);
+});
+
+test('answers an @mention with the chat before it, and replies to the asker', async () => {
+  const { settle, say, prompts, sent } = setup();
+  say(chat('阿明', '主播好'));
+  say(chat('小红', '今天讲什么'));
+  say(chat('阿明', '@小助手 这题怎么做', [{ text: '@小助手', userId: 'bot-1' }]));
+  await settle();
+
+  expect(prompts).toEqual(['阿明: 主播好\n小红: 今天讲什么\n---\n阿明: 这题怎么做 (45)']);
   expect(sent).toEqual(['@阿明 你好呀']);
 });
 
@@ -248,19 +139,6 @@ test('tells a viewer who cannot pay, once a minute, without asking Claude', asyn
   expect(sent).toEqual(['@阿明 你的余额不足，还剩0钻，每次@需要1钻（60秒内只提醒一次）']);
 });
 
-test('gives the diamond back when the mention cannot be answered', async () => {
-  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
-  const { settle, say, sent } = setup({
-    wallet,
-    ask: () => Promise.reject(new Error('claude timed out')),
-  });
-  say(chat('阿明', '@小助手 在吗'));
-  await settle();
-
-  expect(sent).toEqual([]);
-  expect(wallet.balance('u-阿明')).toBe(1);
-});
-
 test('clearing the wallet forgets every balance', () => {
   const saved: Record<string, Account>[] = [];
   const wallet = new Wallet({
@@ -271,24 +149,6 @@ test('clearing the wallet forgets every balance', () => {
 
   expect(wallet.balance('u-阿明')).toBe(0);
   expect(saved).toEqual([{}]);
-});
-
-test('records chat and gifts, and points Claude at the record folder', async () => {
-  let written = '';
-  const chatLog = new ChatLog('/data/chat/1', {
-    now: () => NOW,
-    append: (_path, text) => (written += text),
-  });
-  const { settle, say, give, prompts } = setup({ chatLog, template: '{{chatDir}}' });
-  give(gift('阿明', 2, 10));
-  say(chat('阿明', '@小助手 记得我送了什么吗'));
-  await settle();
-
-  expect(written).toBe(
-    '2026-10-16 08:00:00 [阿明#u-阿明](gift) 送出 玫瑰×2（20钻）\n' +
-      '2026-10-16 08:00:00 [阿明#u-阿明](chat) @小助手 记得我送了什么吗\n',
-  );
-  expect(prompts).toEqual(['/data/chat/1']);
 });
 
 test('a low-balance notice goes out while Claude is still answering someone else', async () => {
@@ -430,33 +290,5 @@ test("/识歌 asks Claude with its own prompt, at a mention's price, answered li
   expect(sent).toEqual([
     '@阿明 你的余额不足，还剩0钻，指令「识歌」需要1钻（60秒内只提醒一次）',
     '@阿明 这首是《aLIEz》',
-  ]);
-});
-
-test("remembers each viewer's exchanges and what the bot said, for the next prompt", async () => {
-  const talk = new Map<string, string[]>();
-  const userTalk: UserTalk = {
-    add: (userId, { nickname, question, answer }) =>
-      talk.set(userId, [
-        ...(talk.get(userId) ?? []),
-        `${nickname}问：${question}`,
-        `你答：${answer}`,
-      ]),
-    recent: (userId) => (talk.get(userId) ?? []).join('\n'),
-  };
-  const { settle, say, prompts } = setup({
-    userTalk,
-    botTalk: '你好呀',
-    template: '{{botTalk}}|{{userHistory}}|{{question}}',
-  });
-  say(chat('阿明', '@小助手 在吗'));
-  say(chat('阿明', '@小助手 还记得我吗'));
-  say(chat('小红', '@小助手 我呢'));
-  await settle();
-
-  expect(prompts).toEqual([
-    '你好呀|（暂无）|在吗',
-    '你好呀|阿明问：在吗\n你答：@阿明 你好呀|还记得我吗',
-    '你好呀|（暂无）|我呢',
   ]);
 });

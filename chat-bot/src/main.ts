@@ -21,7 +21,9 @@ import { createLogger } from './adapters/winston-logger';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { GiftThanker } from './app/gift-thanker';
+import { MentionAnswerer } from './app/mention-answerer';
 import { Outbox } from './app/outbox';
+import { RoomFeed } from './app/room-feed';
 import { personaCommand, RoomState } from './app/room-state';
 import { songIdCommand } from './app/song-id-command';
 import { Talker } from './app/talker';
@@ -130,14 +132,37 @@ const thanker = new GiftThanker({
   maxLength: options.maxReplyLength,
   log,
 });
-const bot = new ChatBot({
+// Listens to the room: records chat and gifts, credits gifts, and tells the bot of mentions
+// and the thanker of gifts.
+const feed = new RoomFeed({
   events: dyhubEvents(new DyhubClient({ port, roomId, retryMs: 5000 })),
   bot: { nickname: options.botName, userId: options.botId },
+  history,
+  log,
+  record,
+  billing,
+});
+feed.onGift((gift) => thanker.onGift(gift));
+// Answers each paid question with Claude, one at a time.
+const answerer = new MentionAnswerer({
   ask,
   outbox,
   room,
-  history,
-  record,
+  log,
+  promptTemplate: mentionTemplate,
+  billing,
+  userTalk,
+  maxPending: options.maxPending,
+  maxReplyLength: options.maxReplyLength,
+  maxReplyParts: options.maxReplyParts,
+});
+// Decides what a mention is (a question, or a command) and charges for it.
+const bot = new ChatBot({
+  feed,
+  answerer,
+  room,
+  outbox,
+  log,
   billing,
   // Read again when config.json changes, so admins can be added or removed while it runs.
   admins: liveAdmins(resolve(options.configFile), { log }),
@@ -148,13 +173,7 @@ const bot = new ChatBot({
     ...thanker.commands(),
     songIdCommand(liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8'))),
   ],
-  onGift: (gift) => thanker.onGift(gift),
-  userTalk,
-  maxPending: options.maxPending,
-  log,
-  promptTemplate: mentionTemplate,
   maxReplyLength: options.maxReplyLength,
-  maxReplyParts: options.maxReplyParts,
 });
 
 log.info('starting', {
