@@ -49,7 +49,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   gift-thanks.md          #   the prompt for thanking big givers
   config.json             #   admins (user ids) and the starting persona
   src/main.ts             #   entry: real objects wired by hand (options parsed in cli-options.ts)
-  src/core/               #   pure logic: mentions, prompt, reply splitting, wallet, chat record format
+  src/core/               #   pure logic: mentions, prompt, reply splitting, wallet, chat record and talk record formats
   src/app/                #   use cases: ChatBot, RoomState (what prompts know about the room), commands (each feature offers its own), Billing, Outbox, Transcriber; ports.ts for the outside
   src/adapters/           #   DyHub, the Claude CLI, the ASR process, files and logging
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + CAM++
