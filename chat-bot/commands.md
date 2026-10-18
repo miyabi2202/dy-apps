@@ -14,6 +14,8 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/截图 <0\|1>`         | admins | free                                   | Screenshots of the live video off (0) or on (1) for every prompt; off by default unless `--screenshot` | `已处理截图请求`; anything else → `要写 0（关闭）或 1（打开），用法：/截图 1`       |
 | `/识歌 [提示]`         | anyone | a mention's (`--cost`, or `/修改收费`) | Names the song being sung or played, from `song-id.md` (the hint is passed on)                         | The answer, like a reply to a mention                                               |
 
+The streamer can also run `/回复` by voice, for free, by saying `--wake-word` (`我想吃鱼了` by default; see `src/app/wake-word.ts`).
+
 All changes last until the bot stops; a restart goes back to the command-line options and `config.json`.
 
 ## How a command is handled

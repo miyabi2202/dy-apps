@@ -10,7 +10,7 @@ export const USAGE =
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--talk-minutes 0]\n' +
-  '       [--talk-prompt talk.md] [--thanks-threshold 99999]';
+  '       [--talk-prompt talk.md] [--thanks-threshold 99999] [--wake-word 我想吃鱼了]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -41,6 +41,8 @@ export interface CliOptions {
   talkPromptFile: string;
   /** Thank a viewer whose gifts in 5 minutes come to more than this many diamonds. */
   thanksThreshold: number;
+  /** What the streamer says to have the bot talk now; empty for never. */
+  wakeWord: string;
 }
 
 /** `args` (without node and the script) as options, or null when they're unusable. */
@@ -80,6 +82,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'talk-prompt': { type: 'string', default: join(packageDir, 'talk.md') },
       // So high it's off by default; /自动谢礼 lowers it while the bot runs.
       'thanks-threshold': { type: 'string', default: '99999' },
+      // --wake-word '' turns it off.
+      'wake-word': { type: 'string', default: '我想吃鱼了' },
     },
   });
   const roomId = values.room ?? '';
@@ -110,5 +114,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     talkMs: Number(values['talk-minutes']) * 60_000,
     talkPromptFile: values['talk-prompt'],
     thanksThreshold: Number(values['thanks-threshold']),
+    wakeWord: values['wake-word'],
   };
 }

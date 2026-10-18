@@ -28,6 +28,7 @@ import { personaCommand, RoomState, screenshotCommand } from './app/room-state';
 import { songIdCommand } from './app/song-id-command';
 import { Talker } from './app/talker';
 import { Transcriber } from './app/transcriber';
+import { WakeWord } from './app/wake-word';
 import { parseCliOptions, USAGE } from './cli-options';
 import { ChatHistory } from './core/chat-history';
 import { Transcript } from './core/transcript';
@@ -65,12 +66,15 @@ const files = roomFiles(roomDir);
 const context = liveText(files.context);
 const botTalk = botTalkFile(files.botTalk);
 const userTalk = userTalkFiles(files.users);
+// The streamer saying --wake-word makes the bot talk now, like /回复, for free.
+let wakeWord: WakeWord | null = null;
 const transcriber = options.asr
   ? new Transcriber({
       streamUrl: roomApi.streamUrl,
       transcript,
       record,
       log,
+      onLine: (line) => wakeWord?.hear(line),
       spawnWorker: uvWorker(join(packageDir, 'asr')),
     })
   : null;
@@ -123,6 +127,7 @@ const talker = new Talker({
   maxLength: options.maxReplyLength,
   log,
 });
+wakeWord = new WakeWord({ phrase: options.wakeWord, wake: () => talker.talkNow(), log });
 // Thanks a viewer whose gifts in 5 minutes pass --thanks-threshold (changed with /自动谢礼).
 const thanker = new GiftThanker({
   ask,
@@ -190,6 +195,7 @@ log.info('starting', {
   persona: config.persona,
   talkMinutes: options.talkMs / 60_000,
   thanksThreshold: options.thanksThreshold,
+  wakeWord: options.wakeWord,
 });
 bot.start();
 void transcriber?.run();

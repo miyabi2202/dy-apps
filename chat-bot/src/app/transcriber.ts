@@ -1,6 +1,6 @@
 import { speechRecord } from '../core/chat-record';
 import { errorMessage } from '../core/errors';
-import { parseWorkerLine, type Transcript } from '../core/transcript';
+import { parseWorkerLine, type Transcript, type TranscriptLine } from '../core/transcript';
 import type { Log, RoomRecord, SpawnWorker, StreamUrl, Worker } from './ports';
 
 export interface TranscriberOptions {
@@ -9,6 +9,8 @@ export interface TranscriberOptions {
   /** Where each sentence is also recorded, as said by 主播. */
   record?: RoomRecord;
   log: Log;
+  /** Called with each sentence as it's heard. */
+  onLine?: (line: TranscriptLine) => void;
   spawnWorker: SpawnWorker;
   /** Wait this long before asking for the stream again after it ends or isn't there. */
   retryMs?: number;
@@ -66,6 +68,7 @@ export class Transcriber {
         this.options.record?.add(speechRecord(line));
         const { text: heard, lang, speech, music, speaker, host, voice } = line;
         log.info('heard', { text: heard, lang, speech, music, speaker, host, voice });
+        this.options.onLine?.(line);
       },
       onLog: (text) => log.debug('asr', { text }),
     });
