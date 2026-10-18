@@ -47,10 +47,14 @@ test('says the intro, then the praise, from one search-backed answer', async () 
   expect(asked[0]!.prompt).not.toContain('谁在唱');
 });
 
-test('says nothing it left empty, and nothing for an answer that is not json', async () => {
+test('says nothing without an intro, nor for an answer that is not json', async () => {
   const empty = setUp(JSON.stringify({ intro: '', praise: '高音好稳' }));
   await empty.intro.introduce({ title: '安静', artist: '' });
-  expect(empty.pushed).toEqual(['高音好稳']);
+  expect(empty.pushed).toEqual([]);
+
+  const noPraise = setUp(JSON.stringify({ intro: '这首是 2008 年的歌', praise: '' }));
+  await noPraise.intro.introduce({ title: '安静', artist: '' });
+  expect(noPraise.pushed).toEqual(['这首是 2008 年的歌']);
 
   const broken = setUp('这首歌很好听');
   await broken.intro.introduce({ title: '安静', artist: '' });

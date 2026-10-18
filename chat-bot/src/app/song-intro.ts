@@ -26,7 +26,8 @@ const MAX_TURNS = 8;
 /**
  * After a song was named (by /识歌 or on its own), says two more messages to the room: one about
  * the song, from what Claude finds searching for it, then one praising the streamer's singing,
- * from what they sang. One prompt writes both, so they don't repeat each other.
+ * from what they sang. One prompt writes both, so they don't repeat each other. When nothing
+ * was found about the song, neither is said.
  */
 export class SongIntro {
   constructor(private readonly options: SongIntroOptions) {}
@@ -54,6 +55,8 @@ export class SongIntro {
         return;
       }
       log.info('song intro', { title, ...answer });
+      // Without anything found about the song, nothing is said, praise included.
+      if (!plainMessage(answer.intro, maxLength)) return;
       for (const message of [answer.intro, answer.praise]) {
         const said = plainMessage(message, maxLength);
         if (said) outbox.push({ kind: 'talk', text: said });
