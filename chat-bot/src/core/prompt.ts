@@ -65,12 +65,14 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
   const { mentionCost, screenshots, talkMinutes, thanksThreshold, wakeWord } = settings;
   return [
     '直播间现在的设置（管理员可以用指令修改）：',
-    `- 每次 @ 你：${mentionCost > 0 ? `${mentionCost} 钻（用送礼得到的钻石付）` : '免费'}`,
+    `- 每次 @ 你：${mentionCost > 0 ? `${mentionCost} 钻，用观众给主播送过的礼物抵（不会另外扣观众的钱）` : '免费'}`,
     `- 截图：${screenshots ? '开（你能看到直播画面）' : '关（你看不到直播画面）'}`,
     `- 自动回复：${talkMinutes > 0 ? `每 ${talkMinutes} 分钟主动对主播说一句` : '关闭'}`,
     `- 自动谢礼：${thanksThreshold >= THANKS_OFF_FROM ? '关闭' : `5 分钟内送礼超过 ${thanksThreshold} 钻的观众会收到感谢`}`,
     `- 唤醒词：${wakeWord ? `「${wakeWord}」（主播说出来，你就会主动说一句，不收费）` : '无'}`,
-    ...(asker && askerBalance !== undefined ? [`- ${asker} 的余额：${askerBalance} 钻`] : []),
+    ...(asker && askerBalance !== undefined
+      ? [`- ${asker} 送的礼物还剩：${askerBalance} 钻可用`]
+      : []),
   ].join('\n');
 }
 

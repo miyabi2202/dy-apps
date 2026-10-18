@@ -136,7 +136,7 @@ test('tells a viewer who cannot pay, once a minute, without asking Claude', asyn
   await settle();
 
   expect(prompts).toEqual([]);
-  expect(sent).toEqual(['@阿明 你的余额不足，还剩0钻，每次@需要1钻（60秒内只提醒一次）']);
+  expect(sent).toEqual(['@阿明 @我要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱）']);
 });
 
 test('clearing the wallet forgets every balance', () => {
@@ -162,11 +162,11 @@ test('a low-balance notice goes out while Claude is still answering someone else
   say(chat('小红', '@小助手 我没钱'));
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  expect(sent).toEqual(['@小红 你的余额不足，还剩0钻，每次@需要1钻（60秒内只提醒一次）']);
+  expect(sent).toEqual(['@小红 @我要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱）']);
   finish('想好了');
   await settle();
   expect(sent).toEqual([
-    '@小红 你的余额不足，还剩0钻，每次@需要1钻（60秒内只提醒一次）',
+    '@小红 @我要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱）',
     '@阿明 想好了',
   ]);
 });
@@ -256,7 +256,7 @@ test('anyone can run a public command at its own price, and a failed one is refu
     '@阿明 要写歌名',
     '@阿明 没有指令「清空」，可用的有：点歌',
     '@阿明 已点歌：稻香',
-    '@阿明 你的余额不足，还剩1钻，指令「点歌」需要2钻（60秒内只提醒一次）',
+    '@阿明 「点歌」要先给主播送礼：每次2钻，你送的还剩1钻（不另外扣钱）',
   ]);
 });
 
@@ -293,7 +293,7 @@ test("/识歌 asks its own model with its own prompt, at a mention's price, answ
   expect(prompts).toEqual([]);
   expect(wallet.balance('u-阿明')).toBe(0);
   expect(sent).toEqual([
-    '@阿明 你的余额不足，还剩0钻，指令「识歌」需要1钻（60秒内只提醒一次）',
+    '@阿明 「识歌」要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱）',
     '@阿明 这首是《aLIEz》',
   ]);
 });

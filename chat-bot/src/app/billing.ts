@@ -83,13 +83,13 @@ export class Billing {
   }
 
   /**
-   * What a viewer who can't pay is told, after the @, with what they have left: for a mention,
-   * or for `command` when given.
+   * What a viewer who can't pay is told, after the @: that it's paid with the gifts they send the
+   * streamer, never charged on top (viewers took 余额 for their own Douyin balance), what it costs,
+   * and what they have left; for a mention, or for `command` when given.
    */
   lowBalanceNotice(userId: string | undefined, command?: { name: string; price: number }): string {
-    const cost = command
-      ? `指令「${command.name}」需要${command.price}钻`
-      : `每次@需要${this.cost}钻`;
-    return `你的余额不足，还剩${this.balance(userId)}钻，${cost}（${Math.round(this.noticeCooldownMs / 1000)}秒内只提醒一次）`;
+    const what = command ? `「${command.name}」` : '@我';
+    const price = command ? command.price : this.cost;
+    return `${what}要先给主播送礼：每次${price}钻，你送的还剩${this.balance(userId)}钻（不另外扣钱）`;
   }
 }
