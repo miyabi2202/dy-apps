@@ -80,30 +80,3 @@ test('gives the prompt only the song being sung now, not the one before a pause'
   if (!identify?.prompt) throw new Error('/识歌 should have its own prompt');
   expect(identify.pickTranscript?.([at(0, 'a'), at(120, 'b')]).map((l) => l.text)).toEqual(['b']);
 });
-
-test('/识冷门歌 always asks Codex with its own prompt, and is only there with Codex', async () => {
-  const askedBy: string[] = [];
-  const model = (name: string) => () => {
-    askedBy.push(name);
-    return Promise.resolve('');
-  };
-  const options = {
-    prompt: () => 'claude prompt',
-    rarePrompt: () => 'rare prompt',
-    claude: model('claude'),
-    log: silentLog,
-  };
-  const songId = new SongId({ ...options, codex: model('codex') });
-  await songId.commands()[1]?.run?.('claude');
-  const rare = songId.commands().find((command) => command.name === '识冷门歌');
-  if (!rare?.prompt) throw new Error('/识冷门歌 should have its own prompt');
-
-  await rare.ask?.({ prompt: '' });
-  expect(rare.prompt()).toBe('rare prompt');
-  expect(rare.adminOnly).toBe(false);
-  expect(askedBy).toEqual(['codex']);
-  expect(new SongId(options).commands().map((command) => command.name)).toEqual([
-    '识歌',
-    '识歌模型',
-  ]);
-});

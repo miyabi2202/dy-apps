@@ -66,7 +66,6 @@ const record = new ChatLog(chatDir);
 const talkTemplate = resolve(options.talkPromptFile);
 const songIdTemplate = join(packageDir, 'song-id.md');
 const songIdWebTemplate = join(packageDir, 'song-id-web.md');
-const songIdRareTemplate = join(packageDir, 'song-id-rare.md');
 const giftThanksTemplate = join(packageDir, 'gift-thanks.md');
 const files = roomFiles(roomDir);
 const context = liveText(files.context);
@@ -186,11 +185,10 @@ const answerer = new MentionAnswerer({
 });
 // Codex reads its working directory, so it gets an empty one.
 const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
-// /识歌: Codex, which searches with Google (or Claude, with /识歌模型); /识冷门歌: Codex, harder.
+// /识歌: Codex, which searches with Google (or Claude, with /识歌模型).
 const songId = new SongId({
   prompt: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
   webPrompt: liveText(files.songIdWeb, () => readFileSync(songIdWebTemplate, 'utf8')),
-  rarePrompt: liveText(files.songIdRare, () => readFileSync(songIdRareTemplate, 'utf8')),
   claude: ask,
   codex: options.codex
     ? codexCli({
