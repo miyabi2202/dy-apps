@@ -133,7 +133,7 @@ Other options:
 | `--max-reply`          | `49`                                | Reply length; Douyin's limit is under 50, and `{{maxLength}}` is what's left after `@asker `            |
 | `--max-parts`          | `5`                                 | A long answer is split into up to this many messages                                                    |
 | `--model`              | `opus`                              | Claude model                                                                                            |
-| `--system`             | `你是一个抖音直播间的机器人`        | Added to Claude Code's system prompt                                                                    |
+| `--system`             | `你是一个抖音直播间的机器人。…`     | Added to Claude Code's system prompt (the default: send only the message, no reasoning)                 |
 | `--tools`              | `WebSearch,WebFetch,Read,Glob,Grep` | Claude Code's built-in tools, comma-separated; `''` for none. File tools read only `data/<房间号>/chat` |
 | `--cost`               | `1`                                 | Diamonds per @mention; `0` makes them free                                                              |
 | `--test`               |                                     | Test mode: the same as `--cost 0`                                                                       |
