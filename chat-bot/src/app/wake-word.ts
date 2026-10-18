@@ -1,3 +1,4 @@
+import { soundsLike, syllables } from '../core/sounds-like';
 import { isGuest, isSung, type TranscriptLine } from '../core/transcript';
 import type { Log } from './ports';
 
@@ -12,30 +13,27 @@ export interface WakeWordOptions {
   log: Log;
 }
 
-/** Punctuation and spaces, which the recognizer may put anywhere in the phrase. */
-const IGNORED = /[\s\p{P}]/gu;
-
 /**
  * Wakes the bot when the streamer says the phrase: a spoken line (not sung, not the guest they're
- * linked up with) that contains it. Once woken it ignores the phrase for `cooldownMs`, so saying
+ * linked up with) with something that sounds like it (see soundsLike), so the recognizer getting
+ * a character wrong doesn't matter. Once woken it ignores the phrase for `cooldownMs`, so saying
  * it twice, or talking about it, doesn't make the bot talk over and over.
  */
 export class WakeWord {
-  private readonly phrase: string;
+  private readonly phrase: string[];
   private readonly cooldownMs: number;
   private readonly now: () => number;
   private lastWoken = -Infinity;
 
   constructor(private readonly options: WakeWordOptions) {
-    this.phrase = options.phrase.replace(IGNORED, '');
+    this.phrase = syllables(options.phrase);
     this.cooldownMs = options.cooldownMs ?? 60_000;
     this.now = options.now ?? Date.now;
   }
 
   /** Each line the streamer says, as it's heard. */
   hear(line: TranscriptLine): void {
-    if (!this.phrase || isSung(line) || isGuest(line)) return;
-    if (!line.text.replace(IGNORED, '').includes(this.phrase)) return;
+    if (isSung(line) || isGuest(line) || !soundsLike(line.text, this.phrase)) return;
     const now = this.now();
     if (now - this.lastWoken < this.cooldownMs) return;
     this.lastWoken = now;

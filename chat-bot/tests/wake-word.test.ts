@@ -24,7 +24,7 @@ test('wakes on the streamer saying the phrase, not singing it or a guest, then r
   say('我想吃 鱼了');
   expect(woken).toBe(1);
   now += 30_000;
-  say('我想吃 鱼了'); // line too short for the voiceprint: no host either way
+  say('我想吃余了'); // misheard, and too short for the voiceprint: no host either way
   expect(woken).toBe(2);
 });
 

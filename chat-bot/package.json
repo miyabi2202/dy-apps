@@ -10,6 +10,7 @@
     "test": "jest -c jest.config.js"
   },
   "dependencies": {
+    "pinyin-pro": "3.29.4",
     "winston": "^3.19.0"
   },
   "devDependencies": {
