@@ -9,12 +9,16 @@ import {
 } from '../core/reply';
 import type { ChatLine } from '../core/room-events';
 import type { Billing } from './billing';
+import type { PromptOptions } from './command';
 import type { Outbox } from './outbox';
 import type { AskClaude, Log, UserTalk } from './ports';
 import type { RoomState } from './room-state';
 
-/** A question for Claude, paid for by `userId` unless they're an admin or it's free. */
-export interface Mention {
+/**
+ * A question for Claude, paid for by `userId` unless they're an admin or it's free; a command's
+ * own prompt may come with its PromptOptions.
+ */
+export interface Mention extends PromptOptions {
   asker: string;
   /** Who paid for it, and how much, to give back if it can't be answered. */
   userId?: string;
@@ -121,22 +125,37 @@ export class MentionAnswerer {
 
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, room, log, promptTemplate, userTalk } = this.options;
-    const prompt = buildPrompt(mention.template ?? promptTemplate(), {
-      ...room.promptInput(),
-      history: mention.history,
-      asker: mention.asker,
-      question: mention.question,
-      singleLength: singleBudget(mention.asker, this.limits),
-      maxLength: answerBudget(mention.asker, this.limits),
-      userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
-      askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
-    });
-    log.debug('prompt', { prompt });
     try {
-      const image = await room.screenshot();
-      const started = room.now();
-      const answer = await ask({ prompt, image });
-      log.info('claude answered', { answer, ms: room.now() - started, image: !!image });
+      // A lookup that fails just leaves it to Claude. Without one, the prompt is built at once,
+      // from the room as it was when the mention's turn came.
+      const prepared = mention.prepare
+        ? await mention.prepare().catch((err: unknown) => {
+            log.warn('could not prepare the answer', { error: errorMessage(err) });
+            return null;
+          })
+        : null;
+      let answer: string;
+      if (prepared && 'answer' in prepared) {
+        answer = prepared.answer;
+        log.info('answered without claude', { asker: mention.asker, answer });
+      } else {
+        const prompt = buildPrompt(mention.template ?? promptTemplate(), {
+          ...room.promptInput(),
+          history: mention.history,
+          asker: mention.asker,
+          question: mention.question,
+          singleLength: singleBudget(mention.asker, this.limits),
+          maxLength: answerBudget(mention.asker, this.limits),
+          userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
+          askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
+          lookup: prepared?.lookup,
+        });
+        log.debug('prompt', { prompt });
+        const image = await room.screenshot();
+        const started = room.now();
+        answer = await ask({ prompt, image, tools: mention.tools, maxTurns: mention.maxTurns });
+        log.info('claude answered', { answer, ms: room.now() - started, image: !!image });
+      }
       const messages = replyMessages(mention.asker, answer, this.limits);
       if (!messages.length) {
         log.warn('claude gave an empty answer', { asker: mention.asker });

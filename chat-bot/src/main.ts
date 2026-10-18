@@ -13,6 +13,7 @@ import { ChatLog } from './adapters/chat-log-files';
 import { claudeCli } from './adapters/claude-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
+import { jLyricSearch } from './adapters/j-lyric';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
 import { liveSection, liveText, roomFiles } from './adapters/room-files';
 import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
@@ -34,7 +35,7 @@ import { WakeWord } from './app/wake-word';
 import { parseCliOptions, USAGE } from './cli-options';
 import { ChatHistory } from './core/chat-history';
 import type { RoomSettings } from './core/prompt';
-import { Transcript } from './core/transcript';
+import { isSung, Transcript } from './core/transcript';
 import { Wallet } from './core/wallet';
 
 const packageDir = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -198,7 +199,19 @@ const bot = new ChatBot({
     ...thanker.commands(),
     ...wakeWord.commands(),
     screenshotCommand(room),
-    songIdCommand(liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8'))),
+    songIdCommand(
+      liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
+      // j-lyric first, so a Japanese song whose lyrics were heard well is named without Claude.
+      {
+        search: jLyricSearch(),
+        sungLines: () =>
+          room
+            .recentTranscript()
+            .filter(isSung)
+            .map((line) => line.text),
+        log,
+      },
+    ),
     // Only when listening to the stream.
     ...(transcriber ? [musicCommand(() => transcriber.identifyMusic(), log)] : []),
   ],

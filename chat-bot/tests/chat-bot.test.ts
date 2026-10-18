@@ -278,7 +278,7 @@ test("/识歌 asks Claude with its own prompt, at a mention's price, answered li
   const { settle, say, prompts, sent } = setup({
     wallet,
     cost: 1,
-    commands: [songIdCommand(() => '识歌:{{question}}')],
+    commands: [songIdCommand(() => '识歌:{{question}}', { sungLines: () => [], log: silentLog })],
     answer: '这首是《aLIEz》',
   });
   say(chat('阿明', '@小助手 /识歌 日文的'));

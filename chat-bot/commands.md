@@ -115,7 +115,7 @@ Turns screenshots of the live video on (`1`) or off (`0`); while on, every promp
 
 ### /识歌
 
-Names the song being sung or played, from the lyrics heard lately, with `song-id.md` (or the room's `song_id.md`) as the prompt; Claude searches a few lines of the lyrics. Anything after it is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails.
+Names the song being sung or played, from the lyrics heard lately. First the bot itself searches [j-lyric](https://j-lyric.net/)'s lyrics with 7-character pieces of the last 5 Japanese lines sung (up to 12, at once): when one song is found by at least 2 pieces and twice as many as any other, it answers with it straight away, in about 8 seconds and without Claude. Otherwise Claude works it out with `song-id.md` (or the room's `song_id.md`) as the prompt, told what the search found (`{{lookup}}`), with web search and fetch only and at most 12 turns (more is given up on and refunded). Anything after the command is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails.
 
 ```text
 @默认关闭 /识歌

@@ -39,3 +39,21 @@ test('pre-approves the web tools but not the file tools, which only reach the gi
   expect(after('--allowedTools')).toBe('WebSearch,WebFetch');
   expect(after('--add-dir')).toBe('/data/chat/1');
 });
+
+test('a question can narrow the tools (no folders without file tools) and cap the turns', () => {
+  let args: readonly string[] = [];
+  const spawnProcess = ((_command: string, a: readonly string[]) => {
+    args = a;
+    throw new Error('not really running claude');
+  }) as unknown as typeof spawn;
+  const ask = claudeCli({ readDirs: ['/data/chat/1'], spawnProcess });
+  void ask({ prompt: 'hi', tools: ['WebSearch', 'WebFetch'], maxTurns: 12 }).catch(() => {});
+
+  const after = (flag: string) => args[args.indexOf(flag) + 1];
+  expect(after('--tools')).toBe('WebSearch,WebFetch');
+  expect(args).not.toContain('--add-dir');
+  expect(after('--max-turns')).toBe('12');
+
+  void ask({ prompt: 'hi' }).catch(() => {});
+  expect(args).not.toContain('--max-turns');
+});

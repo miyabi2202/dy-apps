@@ -79,27 +79,34 @@ export function claudeCli({
   systemPrompt,
   spawnProcess = spawn,
 }: ClaudeCliOptions = {}): AskClaude {
-  const toolList = tools.join(',');
-  const preApproved = tools.filter((tool) => !FILE_TOOLS.has(tool)).join(',');
-  const args = [
-    '-p',
-    '--input-format',
-    'stream-json',
-    '--output-format',
-    'stream-json',
-    '--verbose',
-    '--tools',
-    toolList,
-    ...(preApproved ? ['--allowedTools', preApproved] : []),
-    ...readDirs.flatMap((dir) => ['--add-dir', dir]),
-    '--strict-mcp-config',
-    '--no-session-persistence',
-    ...(model ? ['--model', model] : []),
-    ...(systemPrompt ? ['--append-system-prompt', systemPrompt] : []),
-  ];
+  const argsFor = (question: Question) => {
+    const allowed = question.tools ?? tools;
+    const preApproved = allowed.filter((tool) => !FILE_TOOLS.has(tool)).join(',');
+    const readsFiles = allowed.some((tool) => FILE_TOOLS.has(tool));
+    return [
+      '-p',
+      '--input-format',
+      'stream-json',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--tools',
+      allowed.join(','),
+      ...(preApproved ? ['--allowedTools', preApproved] : []),
+      ...(readsFiles ? readDirs.flatMap((dir) => ['--add-dir', dir]) : []),
+      '--strict-mcp-config',
+      '--no-session-persistence',
+      ...(model ? ['--model', model] : []),
+      ...(systemPrompt ? ['--append-system-prompt', systemPrompt] : []),
+      ...(question.maxTurns ? ['--max-turns', String(question.maxTurns)] : []),
+    ];
+  };
   return (question) =>
     new Promise((resolve, reject) => {
-      const child = spawnProcess(command, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawnProcess(command, argsFor(question), {
+        cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       let stdout = '';
       let stderr = '';
       const timer = setTimeout(() => {
