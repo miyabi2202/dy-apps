@@ -202,8 +202,8 @@ const songId = new SongId({
   codex: options.codex
     ? codexCli({
         model: options.codex,
-        // Low gave up after one round of searching about half the time.
-        effort: 'medium',
+        // Enough with song-id-web.md, which has it search at least 3 rounds: 9 of 9 found.
+        effort: 'low',
         cwd: emptyDir,
         systemPrompt: options.systemPrompt,
       })

@@ -86,18 +86,28 @@ export function replyMessages(asker: string, answer: string, limits: ReplyLimits
  * or at the very end, after the message; a 弹幕： inside a sentence isn't one.
  */
 const MESSAGE_MARK =
-  /(?:^|\n|(?<=[。！？!?～~…]))[ \t]*\**弹幕\**[ \t]*[:：][ \t]*\**|\**弹幕\**[ \t]*[:：][ \t]*\**\s*$/g;
+  /(?:^|(?<=[。！？!?～~…]))[ \t]*\**弹幕\**[ \t]*[:：][ \t]*\**|\**弹幕\**[ \t]*[:：][ \t]*\**\s*$/g;
 
-/** What to send of Claude's answer: the last non-empty part between `弹幕：` marks, if any. */
+/**
+ * What to send of Claude's answer: on the last line with a `弹幕：` mark, what follows the first
+ * one, without any later ones (`弹幕：A！弹幕：B` is one message, A！B); when nothing follows it,
+ * the last line before it. The whole answer when there's no mark.
+ */
 function marked(answer: string): string {
-  const parts: string[] = [];
-  let from = 0;
-  for (const mark of answer.matchAll(MESSAGE_MARK)) {
-    parts.push(answer.slice(from, mark.index));
-    from = mark.index + mark[0].length;
+  const lines = answer.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i] ?? '';
+    const [first] = line.matchAll(MESSAGE_MARK);
+    if (!first) continue;
+    const after = line
+      .slice(first.index + first[0].length)
+      .replace(MESSAGE_MARK, '')
+      .trim();
+    if (after) return after;
+    const before = [...lines.slice(0, i), line.slice(0, first.index)];
+    return before.filter((text) => text.trim()).at(-1) ?? '';
   }
-  parts.push(answer.slice(from));
-  return parts.filter((part) => part.trim()).at(-1) ?? '';
+  return answer;
 }
 
 /**

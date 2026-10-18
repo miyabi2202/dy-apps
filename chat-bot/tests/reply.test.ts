@@ -72,4 +72,8 @@ test('finds the 弹幕： mark after a sentence on the same line, or at the end,
   expect(replyMessages('雅', '没认出来，求提示歌名～\n\n弹幕：', wide)).toEqual([
     '@雅 没认出来，求提示歌名～',
   ]);
+  // Two marks on the line are one message.
+  expect(replyMessages('雅', '弹幕：是中岛美嘉的《ALWAYS》！弹幕：唱得好好听～', wide)).toEqual([
+    '@雅 是中岛美嘉的《ALWAYS》！唱得好好听～',
+  ]);
 });
