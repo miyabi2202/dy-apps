@@ -148,6 +148,7 @@ Other options:
 | `--talk-prompt`        | `talk.md`                           | The prompt for that (a room's own `auto_reply.md` overrides it)                                         |
 | `--thanks-threshold`   | `99999`                             | Thank a viewer whose gifts in 5 minutes pass this many diamonds (`/自动谢礼` changes it)                |
 | `--wake-words`         | `wake-words.json`                   | Each room's wake word and the default one (`/设置唤醒词` writes this room's)                            |
+| `--codex`              | `gpt-6-luna`                        | The Codex model `/识歌` asks first (run `codex login` once); `''` to leave Codex out                    |
 | `--gemini`             | `gemini-3.8-flash-high`             | The Gemini model `/识歌` asks through `agy` (run `agy` once to log in); `''` for Claude only            |
 
 The console shows info and up (mentions, gifts, what was heard, replies); `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; DyHub shows it as the `user.id` of the bot's own chat messages.

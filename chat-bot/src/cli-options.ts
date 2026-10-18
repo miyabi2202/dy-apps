@@ -11,7 +11,7 @@ export const USAGE =
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--talk-minutes 0]\n' +
   '       [--talk-prompt talk.md] [--thanks-threshold 99999] [--wake-words wake-words.json]\n' +
-  '       [--gemini gemini-3.8-flash-high]';
+  '       [--codex gpt-6-luna] [--gemini gemini-3.8-flash-high]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -44,7 +44,9 @@ export interface CliOptions {
   thanksThreshold: number;
   /** Each room's wake word, and the default one, which /设置唤醒词 writes to. */
   wakeWordsFile: string;
-  /** The Gemini model /识歌 asks through agy; empty for Claude only. */
+  /** The Codex model /识歌 asks first; empty for none. */
+  codex: string;
+  /** The Gemini model /识歌 can ask through agy; empty for none. */
   gemini: string;
 }
 
@@ -92,8 +94,9 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       // So high it's off by default; /自动谢礼 lowers it while the bot runs.
       'thanks-threshold': { type: 'string', default: '99999' },
       'wake-words': { type: 'string', default: join(packageDir, 'wake-words.json') },
-      // /识歌 asks Gemini through agy (Antigravity's CLI), which searches with Google; '' for
-      // Claude only.
+      // /识歌 asks Codex (fast and cheap at low effort), or Gemini through agy (Antigravity's
+      // CLI), or Claude; '' leaves one out.
+      codex: { type: 'string', default: 'gpt-6-luna' },
       gemini: { type: 'string', default: 'gemini-3.8-flash-high' },
     },
   });
@@ -126,6 +129,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     talkPromptFile: values['talk-prompt'],
     thanksThreshold: Number(values['thanks-threshold']),
     wakeWordsFile: values['wake-words'],
+    codex: values.codex,
     gemini: values.gemini,
   };
 }

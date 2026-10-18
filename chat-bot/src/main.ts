@@ -12,6 +12,7 @@ import { uvWorker } from './adapters/asr-worker';
 import { ChatLog } from './adapters/chat-log-files';
 import { agyCli } from './adapters/agy-cli';
 import { claudeCli } from './adapters/claude-cli';
+import { codexCli } from './adapters/codex-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { jLyricSearch } from './adapters/j-lyric';
@@ -183,10 +184,10 @@ const answerer = new MentionAnswerer({
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
 });
-// agy reads its working directory, so it gets an empty one.
-const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agy-'));
+// Codex and agy read their working directory, so they get an empty one.
+const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 // /识歌: j-lyric first, so a Japanese song whose lyrics were heard well is named at once; then
-// Gemini (agy, searching with Google) when it's installed, else Claude; /识歌模型 switches.
+// Codex, which searches with Google (Gemini through agy, or Claude, with /识歌模型).
 const songId = new SongId({
   prompt: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
   search: jLyricSearch(),
@@ -196,6 +197,15 @@ const songId = new SongId({
       .filter(isSung)
       .map((line) => line.text),
   claude: ask,
+  codex: options.codex
+    ? codexCli({
+        model: options.codex,
+        // Low gave up after one round of searching about half the time.
+        effort: 'medium',
+        cwd: emptyDir,
+        systemPrompt: options.systemPrompt,
+      })
+    : undefined,
   gemini: options.gemini
     ? agyCli({ model: options.gemini, cwd: emptyDir, systemPrompt: options.systemPrompt })
     : undefined,

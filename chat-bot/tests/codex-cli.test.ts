@@ -1,0 +1,50 @@
+import type { spawn } from 'node:child_process';
+import { codexCli, codexResult } from '../src/adapters/codex-cli';
+
+const events = (...lines: object[]) => lines.map((line) => JSON.stringify(line)).join('\n');
+
+test('reads the last message, and fails on a failed turn or no message', () => {
+  const message = (text: string) => ({
+    type: 'item.completed',
+    item: { type: 'agent_message', text },
+  });
+  expect(
+    codexResult(
+      events(
+        { type: 'thread.started' },
+        message('我先搜一下。'),
+        { type: 'item.completed', item: { type: 'web_search' } },
+        message(' 搜到了\n弹幕：ALWAYS / 中島美嘉 '),
+        { type: 'turn.completed' },
+      ),
+    ),
+  ).toBe('搜到了\n弹幕：ALWAYS / 中島美嘉');
+  expect(() => codexResult(events({ type: 'turn.failed', error: { message: 'quota' } }))).toThrow(
+    'codex failed: quota',
+  );
+  expect(() => codexResult(events({ type: 'turn.completed' }))).toThrow('no answer');
+});
+
+test("runs read-only without the user's config, searching live, with the model and effort", () => {
+  let args: readonly string[] = [];
+  const spawnProcess = ((_command: string, a: readonly string[]) => {
+    args = a;
+    throw new Error('not really running codex');
+  }) as unknown as typeof spawn;
+  void codexCli({ model: 'gpt-6-luna', effort: 'low', systemPrompt: '你是机器人', spawnProcess })({
+    prompt: '这是什么歌',
+  }).catch(() => {});
+
+  expect(args).toEqual(
+    expect.arrayContaining([
+      '--ephemeral',
+      '--ignore-user-config',
+      '--ignore-rules',
+      'web_search="live"',
+      'model_reasoning_effort="low"',
+    ]),
+  );
+  expect(args[args.indexOf('--sandbox') + 1]).toBe('read-only');
+  expect(args[args.indexOf('--model') + 1]).toBe('gpt-6-luna');
+  expect(args.at(-1)).toBe('你是机器人\n\n这是什么歌');
+});

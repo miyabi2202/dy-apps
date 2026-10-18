@@ -59,3 +59,17 @@ test('sends only what follows the last 弹幕： mark, so Claude’s thinking be
   expect(replyMessages('雅', '这条弹幕：很有意思', wide)).toEqual(['@雅 这条弹幕：很有意思']);
   expect(plainMessage('想想说什么好\n弹幕：主播这首好好听', 49)).toBe('主播这首好好听');
 });
+
+test('finds the 弹幕： mark after a sentence on the same line, or at the end, as other models write it', () => {
+  const wide = { maxLength: 49, maxParts: 5 };
+  expect(replyMessages('雅', '原唱是 nachi。弹幕：这首是《サクラ・ホライズン》！', wide)).toEqual([
+    '@雅 这首是《サクラ・ホライズン》！',
+  ]);
+  // A mark at the end, after the message.
+  expect(replyMessages('雅', '弹幕：听着像《サクラ・ホライズン》，不太确定诶弹幕：', wide)).toEqual(
+    ['@雅 听着像《サクラ・ホライズン》，不太确定诶'],
+  );
+  expect(replyMessages('雅', '没认出来，求提示歌名～\n\n弹幕：', wide)).toEqual([
+    '@雅 没认出来，求提示歌名～',
+  ]);
+});

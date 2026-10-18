@@ -82,17 +82,30 @@ export function replyMessages(asker: string, answer: string, limits: ReplyLimits
 
 /**
  * Where Claude is told to mark the message to send (`弹幕：…`), after whatever thinking it writes
- * first; bold (`**弹幕：**`) counts too.
+ * first; bold (`**弹幕：**`) counts too. Other models put it after a sentence on the same line,
+ * or at the very end, after the message; a 弹幕： inside a sentence isn't one.
  */
-const MESSAGE_MARK = /(?:^|\n)[ \t]*\**弹幕\**[ \t]*[:：][ \t]*\**/g;
+const MESSAGE_MARK =
+  /(?:^|\n|(?<=[。！？!?～~…]))[ \t]*\**弹幕\**[ \t]*[:：][ \t]*\**|\**弹幕\**[ \t]*[:：][ \t]*\**\s*$/g;
+
+/** What to send of Claude's answer: the last non-empty part between `弹幕：` marks, if any. */
+function marked(answer: string): string {
+  const parts: string[] = [];
+  let from = 0;
+  for (const mark of answer.matchAll(MESSAGE_MARK)) {
+    parts.push(answer.slice(from, mark.index));
+    from = mark.index + mark[0].length;
+  }
+  parts.push(answer.slice(from));
+  return parts.filter((part) => part.trim()).at(-1) ?? '';
+}
 
 /**
- * Claude's answer on one line: only what follows the last `弹幕：` mark when there is one (the
- * whole answer when there isn't), and without the sources list web search makes it add.
+ * Claude's answer on one line: only what it marked to send (see marked), and without the sources
+ * list web search makes it add.
  */
 function oneLine(answer: string): string {
-  const mark = [...answer.matchAll(MESSAGE_MARK)].at(-1);
-  const message = mark ? answer.slice(mark.index + mark[0].length) : answer;
+  const message = marked(answer);
   const body = message.split(/\n\s*(?:Sources|来源)\s*[:：]/)[0] ?? '';
   return body.replace(/\s+/g, ' ').trim();
 }
