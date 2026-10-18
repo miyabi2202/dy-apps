@@ -133,7 +133,7 @@ export class Talker {
 
   /** Asks the judge about what's new since it last looked, and talks if it's about the bot. */
   private async check(): Promise<void> {
-    const { judge, room, log, quietMs = 60_000, reactionMs = 20_000 } = this.options;
+    const { judge, room, log, quietMs = 60_000, reactionMs = 10_000 } = this.options;
     const now = room.now();
     if (!judge || this.threshold >= 1) {
       this.seen = now;

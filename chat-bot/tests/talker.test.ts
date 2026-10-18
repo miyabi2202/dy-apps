@@ -79,9 +79,9 @@ test('asks Jev about what is new, waits for the room to react, then talks, and k
   expect(judged).toEqual([
     '(1) 00:00:20 [阿明] 今晚吃火锅',
     '(1) 00:00:40 [小红] 这机器人好笨啊',
-    '(1) 00:01:20 [阿明] 机器人你几岁',
+    '(1) 00:01:10 [阿明] 机器人你几岁',
   ]);
-  expect(prompts[0]).toBe('有人说到你：小红 说「这机器人好笨啊」。|00:00:58 这机器人好笨啊哈哈哈');
+  expect(prompts[0]).toBe('有人说到你：小红 说「这机器人好笨啊」。|00:00:48 这机器人好笨啊哈哈哈');
   expect(sent).toEqual([
     { kind: 'talk', text: '我才不笨，我只是在省电' },
     { kind: 'talk', text: '我刚出生两天' },
@@ -173,7 +173,7 @@ test('with a picker, answers each one it picks like a mention, the streamer by t
 
   expect(picks[0]).toContain('(1)  00:00:20 [阿明] 今晚吃火锅');
   expect(picks[0]).toContain('(2)★ 00:00:20 [小红] 机器人你几岁了');
-  expect(picks[0]).toContain('(3)  00:00:40 [主播] 机器人你也说两句');
+  expect(picks[0]).toContain('(3)  00:00:30 [主播] 机器人你也说两句');
   expect(replies).toEqual([
     { nickname: '小红', userId: 'u-小红', question: '机器人你几岁了', heard: 'chat' },
     { nickname: '虾虾', userId: 's-1', question: '机器人你也说两句', heard: 'speech' },
@@ -198,7 +198,7 @@ test('the picker may answer nobody, and gets no streamer line while the streamer
   );
   await talker.run();
 
-  expect(picks[0]).toContain('     00:00:40 [主播] 机器人你也说两句');
+  expect(picks[0]).toContain('     00:00:30 [主播] 机器人你也说两句');
   expect(picks[0]).not.toContain('(2)');
   expect(replies).toEqual([]);
 });
