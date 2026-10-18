@@ -12,6 +12,8 @@ export interface SongIdOptions {
   prompt: () => string;
   /** Codex's, which searches with Google rather than fetch lyrics pages. */
   webPrompt?: () => string;
+  /** Codex's for `/识冷门歌`: a fragment per search, and every result page opened. */
+  rarePrompt?: () => string;
   /** Claude, with web search and fetch. */
   claude: AskClaude;
   /** Codex, which searches the web live (Google among others). */
@@ -35,19 +37,23 @@ export class SongId {
     this.engine = SONG_ID_ENGINES.find((engine) => options[engine]) ?? 'claude';
   }
 
-  /** `/识歌` for anyone, at a mention's price; `/识歌模型 codex|claude` for admins. */
+  /**
+   * `/识歌` for anyone, at a mention's price; `/识歌模型 codex|claude` for admins; and with Codex
+   * and a rarePrompt, `/识冷门歌` for anyone, always Codex.
+   */
   commands(): Command[] {
-    const { prompt, webPrompt = prompt, log } = this.options;
-    return [
+    const { prompt, webPrompt = prompt, rarePrompt, codex, log } = this.options;
+    // Only the song being sung now, not the one before it.
+    const pickTranscript = (lines: Parameters<typeof currentSong>[0]) => currentSong(lines);
+    const commands: Command[] = [
       {
         name: '识歌',
         adminOnly: false,
         prompt: () => (this.engine === 'claude' ? prompt() : webPrompt()),
-        // Only the song being sung now, not the one before it.
-        pickTranscript: (lines) => currentSong(lines),
+        pickTranscript,
         tools: ['WebSearch', 'WebFetch'],
         maxTurns: SONG_ID_MAX_TURNS,
-        ask: (question) => this.identify(question),
+        ask: (question) => this.identify(question, this.engine),
       },
       {
         name: '识歌模型',
@@ -66,22 +72,32 @@ export class SongId {
         },
       },
     ];
+    if (codex && rarePrompt) {
+      commands.push({
+        name: '识冷门歌',
+        adminOnly: false,
+        prompt: rarePrompt,
+        pickTranscript,
+        ask: (question) => this.identify(question, 'codex'),
+      });
+    }
+    return commands;
   }
 
   /**
-   * Asks the current model, for an answer in SONG_ANSWER_SCHEMA's shape: its message is what's
+   * Asks `engine`, for an answer in SONG_ANSWER_SCHEMA's shape: its message is what's
    * sent, and the song it named is logged. An answer that isn't that shape is sent as it is.
    */
-  private async identify(question: Question): Promise<string> {
-    const model = this.options[this.engine] ?? this.options.claude;
+  private async identify(question: Question, engine: SongIdEngine): Promise<string> {
+    const model = this.options[engine] ?? this.options.claude;
     const text = await model({ ...question, schema: SONG_ANSWER_SCHEMA });
     const answer = parseSongAnswer(text);
     if (!answer) {
-      this.options.log.warn('song id answer is not json', { engine: this.engine, text });
+      this.options.log.warn('song id answer is not json', { engine, text });
       return text;
     }
     this.options.log.info('song identified', {
-      engine: this.engine,
+      engine,
       title: answer.title,
       artist: answer.artist,
     });

@@ -17,6 +17,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/截图 <0\|1>`              | Send Claude the live video or not                  | yes         |
 | `/识歌 [提示]`              | Name the song the streamer sings, from its lyrics  | no          |
 | `/识歌模型 <codex\|claude>` | Who looks songs up for `/识歌`                     | yes         |
+| `/识冷门歌 [提示]`          | `/识歌`, searching harder for little-known songs   | no          |
 | `/识别背景音乐`             | Name the recording playing, from its sound         | no          |
 
 Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
@@ -128,6 +129,15 @@ Names the song being sung or played, from the lyrics heard lately. Only the song
 
 Lyrics are only as good as speech recognition, so it does best on Chinese and English, and seldom finds a Japanese or German song. For a recording playing in the background, `/识别背景音乐` is surer.
 
+### /识冷门歌
+
+`/识歌` for a little-known song (古风, 同人, a net singer's) that `/识歌` didn't find: always Codex, with `song-id-rare.md` (a room's own `song_id_rare.md` overrides it). It quotes one fragment per search, since a misheard word in a second quoted fragment empties the results, and opens the song pages it finds (MP3 sites like 放屁网 have the lyrics but only the title shows in the results), naming a song only once it has checked the lyrics there. It takes longer (about 25–50 s) and still misses now and then: it found 《如我如野》 2 times in 3. Otherwise like `/识歌`: same price, current song only, JSON answer. Only there when the bot has Codex.
+
+```text
+@默认关闭 /识冷门歌
+→ @雅 这首是《如我如野》，原唱小爱的妈。
+```
+
 ### /识歌模型
 
 Who works out `/识歌`: `codex` (OpenAI's Codex CLI, `gpt-6-luna`, which searches the web live; the default, unless the bot started with `--codex ''`) or `claude`. Codex finds lyrics Claude's web search doesn't, but can't see the screenshot. Until the bot stops.
@@ -168,15 +178,15 @@ Commands are logged as `command` in `logs/chat-bot.log`.
 
 Each feature offers its own commands, and `src/main.ts` hands them all to `ChatBot` in the order the help list shows them:
 
-| Command            | Defined in                                                                             |
-| ------------------ | -------------------------------------------------------------------------------------- |
-| 修改人设, 截图     | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
-| 修改收费           | `Billing.commands()` in `src/app/billing.ts`                                           |
-| 回复, 自动回复间隔 | `Talker.commands()` in `src/app/talker.ts`                                             |
-| 自动谢礼           | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
-| 设置唤醒词         | `WakeWord.commands()` in `src/app/wake-word.ts`                                        |
-| 识歌               | `songIdCommand` in `src/app/song-id-command.ts`                                        |
-| 识别背景音乐       | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
+| Command                  | Defined in                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| 修改人设, 截图           | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
+| 修改收费                 | `Billing.commands()` in `src/app/billing.ts`                                           |
+| 回复, 自动回复间隔       | `Talker.commands()` in `src/app/talker.ts`                                             |
+| 自动谢礼                 | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
+| 设置唤醒词               | `WakeWord.commands()` in `src/app/wake-word.ts`                                        |
+| 识歌, 识歌模型, 识冷门歌 | `SongId.commands()` in `src/app/song-id-command.ts`                                    |
+| 识别背景音乐             | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
 
 The `Command` type and the `done` / `failed` helpers are in `src/app/command.ts`.
 
