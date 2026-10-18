@@ -40,6 +40,6 @@ test("keeps each viewer's exchanges in their own file", () => {
   expect(talk.recent('456')).toBe('');
 
   talk.add('111111-苦***-31', { nickname: '苦***', question: '在吗', answer: '@苦*** 在呢' });
-  expect([...files.keys()]).toContain('/r/111111-苦___-31/talk.txt');
+  expect([...files.keys()]).toContain('/r/2a22d64de9249833/talk.txt');
   expect(talk.recent('111111-香***-31')).toBe('');
 });

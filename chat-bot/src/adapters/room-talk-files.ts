@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { BotTalk, UserTalk } from '../app/ports';
@@ -38,12 +39,19 @@ export function botTalkFile(path: string, options: TalkFileOptions = {}): BotTal
   };
 }
 
+/**
+ * The folder name for a user id: the id when it's digits, else (a 私密 viewer's `111111-苦***-31`)
+ * a hash of it.
+ */
+function folderOf(userId: string): string {
+  if (/^\d+$/.test(userId)) return userId;
+  return createHash('sha256').update(userId).digest('hex').slice(0, 16);
+}
+
 /** Each viewer's exchanges with the bot in `<dir>/<user id>/talk.txt` (see exchangeLines). */
 export function userTalkFiles(dir: string, options: TalkFileOptions = {}): UserTalk {
   const { keep = 20, now, append, read } = { ...defaults, ...options };
-  // User ids are digits, or a 私密 viewer's `111111-苦***-31`: what a path can't hold becomes _.
-  const file = (userId: string) =>
-    join(dir, userId.replace(/[\\/:*?"<>|.\p{Cc}]/gu, '_'), 'talk.txt');
+  const file = (userId: string) => join(dir, folderOf(userId), 'talk.txt');
   return {
     add: (userId, exchange) => append(file(userId), exchangeLines(now(), exchange)),
     recent: (userId) => tail(read, file(userId), keep),
