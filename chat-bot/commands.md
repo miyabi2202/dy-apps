@@ -4,20 +4,123 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 ## The commands
 
-| Command                | Who    | Price                                  | What it does                                                                                                                                                            | Says back                                                                                 |
-| ---------------------- | ------ | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `/修改人设 <人设>`     | admins | free                                   | Who the bot plays: prompts get `你的人设是<人设>`                                                                                                                       | `已处理修改人设请求`; empty → `人设不能为空，用法：/修改人设 人设`                        |
-| `/修改收费 <钻>`       | admins | free                                   | Diamonds per @ (0 = free)                                                                                                                                               | `已处理修改收费请求`; not a number → `收费要写成钻石数，用法：/修改收费 2`                |
-| `/回复`                | admins | free                                   | Says something to the streamer now, from `talk.md`, whatever's going on                                                                                                 | The message itself (sent as a reply); nothing to say → `没想好说什么，这次没有回复`       |
-| `/自动回复间隔 <分钟>` | admins | free                                   | How often the bot talks unprompted (0 = never)                                                                                                                          | `已处理自动回复间隔请求`; not a number → usage                                            |
-| `/自动谢礼 <钻>`       | admins | free                                   | Thank a viewer whose gifts in 5 minutes pass this many diamonds (99999 by default, so off)                                                                              | `已处理自动谢礼请求`; not a number → usage                                                |
-| `/设置唤醒词 <词>`     | admins | free                                   | This room's wake word, which the streamer says to make the bot talk now (like `/回复`, for free); saved in `wake-words.json` under the room id, so it lasts across runs | `已处理设置唤醒词请求`; no Chinese in it → `唤醒词要有中文，用法：/设置唤醒词 我想吃鱼了` |
-| `/截图 <0\|1>`         | admins | free                                   | Screenshots of the live video off (0) or on (1) for every prompt; off by default unless `--screenshot`                                                                  | `已处理截图请求`; anything else → `要写 0（关闭）或 1（打开），用法：/截图 1`             |
-| `/识歌 [提示]`         | anyone | a mention's (`--cost`, or `/修改收费`) | Names the song being sung or played, from `song-id.md` (the hint is passed on)                                                                                          | The answer, like a reply to a mention                                                     |
+| Command                | What it does                                       |
+| ---------------------- | -------------------------------------------------- |
+| `/修改人设 <人设>`     | Change who the bot plays                           |
+| `/修改收费 <钻>`       | Change what an @ costs                             |
+| `/回复`                | Have the bot say something to the streamer now     |
+| `/自动回复间隔 <分钟>` | How often the bot talks unprompted                 |
+| `/自动谢礼 <钻>`       | Thank viewers who give more than this in 5 minutes |
+| `/设置唤醒词 <词>`     | The words the streamer says to make the bot talk   |
+| `/截图 <0\|1>`         | Send Claude the live video or not                  |
+| `/识歌 [提示]`         | Name the song being sung or played                 |
 
-The streamer can also run `/回复` by voice, for free, by saying the room's wake word (see `src/app/wake-word.ts`).
+All but `/识歌` are for admins only, and free. `/识歌` is for anyone, and costs what an @ does. Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
 
-All changes but `/设置唤醒词` last until the bot stops; a restart goes back to the command-line options and `config.json`.
+### /修改人设
+
+Sets who the bot plays: every prompt gets `你的人设是<人设>`. It starts as `persona` in `config.json`.
+
+```text
+@默认关闭 /修改人设 爱讲冷笑话的小猫
+→ 已处理修改人设请求
+
+@默认关闭 /修改人设
+→ 人设不能为空，用法：/修改人设 人设
+```
+
+### /修改收费
+
+Sets how many diamonds a viewer pays per @ (and per `/识歌`); `0` makes them free. It starts at `--cost`.
+
+```text
+@默认关闭 /修改收费 2
+→ 已处理修改收费请求
+
+@默认关闭 /修改收费 两个
+→ 收费要写成钻石数，用法：/修改收费 2
+```
+
+### /回复
+
+Has the bot say one thing to the streamer now, from `talk.md` (or the room's `auto_reply.md`), whatever's going on. The streamer can do the same by saying the wake word (see `/设置唤醒词`).
+
+```text
+@默认关闭 /回复
+→ 这首歌副歌好好听，主播能再唱一遍吗？
+
+（Claude had nothing to say）
+→ 没想好说什么，这次没有回复
+```
+
+### /自动回复间隔
+
+How often, in minutes, the bot says something unprompted, counting from now; `0` turns it off. It starts at `--talk-minutes` (0). The bot stays quiet when nothing was said or chatted since last time.
+
+```text
+@默认关闭 /自动回复间隔 5
+→ 已处理自动回复间隔请求
+
+@默认关闭 /自动回复间隔 0
+→ 已处理自动回复间隔请求
+
+@默认关闭 /自动回复间隔 半小时
+→ 间隔要写成分钟数，0 表示关闭，用法：/自动回复间隔 3
+```
+
+### /自动谢礼
+
+Thanks a viewer, with an @ from `gift-thanks.md`, when their gifts within 5 minutes pass this many diamonds. It starts at `--thanks-threshold` (99999, so in effect off). A viewer is thanked at most once in 5 minutes.
+
+```text
+@默认关闭 /自动谢礼 100
+→ 已处理自动谢礼请求
+
+@默认关闭 /自动谢礼 一百
+→ 阈值要写成钻石数，用法：/自动谢礼 100
+
+（雅 sends gifts worth 120 diamonds）
+→ @雅 谢谢你的礼物，陪主播听歌的时光更暖了
+```
+
+### /设置唤醒词
+
+Sets this room's wake word: when the streamer says it (spoken, not sung, and not by a linked-up guest), the bot talks as on `/回复`, for free, and then ignores it for a minute. It's matched by sound, so 我想吃余了 counts for 我想吃鱼了. It's saved in `wake-words.json` under the room id, so it lasts across runs; rooms without their own use `default` (`我想吃鱼了`). Set a room's to `""` in that file to turn it off there.
+
+```text
+@默认关闭 /设置唤醒词 小猫饿了
+→ 已处理设置唤醒词请求
+
+（主播：哎，小猫饿啦）
+→ 这首歌唱完要不要聊聊今天吃了什么？
+
+@默认关闭 /设置唤醒词 hello
+→ 唤醒词要有中文，用法：/设置唤醒词 我想吃鱼了
+```
+
+### /截图
+
+Turns screenshots of the live video on (`1`) or off (`0`); while on, every prompt gets one, for streams where Claude needs to see the screen (a board, a game). Off unless the bot started with `--screenshot`.
+
+```text
+@默认关闭 /截图 1
+→ 已处理截图请求
+
+@默认关闭 /截图 开
+→ 要写 0（关闭）或 1（打开），用法：/截图 1
+```
+
+### /识歌
+
+Names the song being sung or played, from what was heard lately, with `song-id.md` (or the room's `song_id.md`) as the prompt; Claude searches a few lines of the lyrics. Anything after it is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails.
+
+```text
+@默认关闭 /识歌
+→ @雅 应该是A-Lin的《无人知晓的我》，副歌那句对得上
+
+@默认关闭 /识歌 好像是日语歌
+→ @雅 听起来像泽野弘之的……
+```
 
 ## How a command is handled
 
