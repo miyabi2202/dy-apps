@@ -31,7 +31,26 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
 - Read `chat-bot/logs/chat-bot.log` (JSON lines: every chat, prompt, answer, gift and transcript line) to answer questions like 「刚才机器人回了什么」 or 「谁送了礼物」.
 - The room's chat record is in `chat-bot/data/<房间号>/chat/*.txt`, one line per speech (`[主播](speech)`, or `(sing)` when sung), chat or gift (`[昵称#uid](gift)`), 100 lines a file; it's kept across runs.
 - The prompts (`chat-bot/prompt.md`, `auto-reply.md`, `song-id.md`, `song-id-web.md`, `gift-thanks.md`) are shared by every room, and each room's `chat-bot/data/<房间号>/context.md` (background on the room, in every prompt) holds what's particular to it; a room can override a prompt with its own `auto_reply.md`, `song_id.md`, `song_id_web.md` or `gift_thanks.md` there. All are read on every use: edit them to change the bot while it runs, no restart needed. `bot_logs.md` there has everything the bot sent, and `<uid>/talk.txt` each viewer's exchanges with it.
-- Balances are in `chat-bot/data/<房间号>/wallet.json` (`gifted` − `spent` per user id) while the bot runs. In a 私密 room viewers all come with user id `111111` and a nickname like `苦***`: set `"private": true` in the room's `room_config.json` (created with `false`, read again when it changes, no restart needed) and the bot tells them apart by that nickname and their wealth level (`111111-苦***-31`), so two with the same first character and level share a balance. Don't edit them unless the user asks.
+- Balances are in `chat-bot/data/<房间号>/wallet.json` (`gifted` − `spent` per user id) while the bot runs. In a 私密 room they're kept per viewer as below. Don't edit them unless the user asks.
+
+## 私密 (anonymous) rooms
+
+In a 私密 room Douyin hides who viewers are. Every viewer's chat, gift, like and entry comes with:
+
+- user id `111111`, the same for everyone, and no `secUid`;
+- the nickname's first character and `***` (`苦***`, `🌈***`);
+- the same default avatar (only the CDN host differs);
+- their wealth level (`payLevel`), and no fan club.
+
+The bot's own account still comes with its real id and nickname.
+
+How the bot tells viewers apart: set `"private": true` in the room's `data/<房间号>/room_config.json` (created with `false`, read again when it changes, no restart needed). Then `userIdOf` in `src/adapters/dyhub-events.ts` turns id `111111` into `111111-<nickname>-<wealth level>`, like `111111-苦***-31`, and everything keyed by user id (balances, each viewer's talk with the bot, gift thanks) uses that. A viewer's `talk.txt` folder is named by a hash of it (`src/adapters/room-talk-files.ts`). Known limits: two viewers with the same first character and wealth level are one viewer to the bot, and a viewer whose level goes up (by sending gifts) becomes a new one; both are accepted for now. Telling a 私密 room automatically (every viewer coming as `111111`) is for later.
+
+**Every feature must work in a 私密 room, at least in its basics.** When you add or change a feature:
+
+- Key viewers by the user id the adapter gives (never by `111111`, the raw nickname or the avatar), and don't assume ids are digits.
+- Don't rely on a viewer's full nickname, avatar, `secUid` or fan club; with only `苦***`, the feature should still do its job (answer an @, thank a gift, charge and refund the right viewer).
+- Add a test with 私密 viewers (id `111111`, a `X***` nickname, a wealth level) when the feature handles users.
 
 ## Stop
 
