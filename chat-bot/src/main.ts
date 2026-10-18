@@ -14,7 +14,7 @@ import { claudeCli } from './adapters/claude-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
-import { liveText, roomFiles } from './adapters/room-files';
+import { liveSection, liveText, roomFiles } from './adapters/room-files';
 import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
 import { wakeWordFile } from './adapters/wake-word-file';
 import { jsonFileStorage } from './adapters/wallet-file';
@@ -32,6 +32,7 @@ import { Transcriber } from './app/transcriber';
 import { WakeWord } from './app/wake-word';
 import { parseCliOptions, USAGE } from './cli-options';
 import { ChatHistory } from './core/chat-history';
+import type { RoomSettings } from './core/prompt';
 import { Transcript } from './core/transcript';
 import { Wallet } from './core/wallet';
 
@@ -102,8 +103,11 @@ const mentionPrompt = resolve(options.promptFile);
 const firstMentionTemplate = readFileSync(mentionPrompt, 'utf8');
 const mentionTemplate = liveText(mentionPrompt, () => firstMentionTemplate);
 const history = new ChatHistory(options.historySize);
+// Each room's wake word, read again when the file changes; /设置唤醒词 writes this room's.
+const wakeWords = wakeWordFile(resolve(options.wakeWordsFile), roomId, { log });
 // What the room looks like now, for every prompt. The bot plays config.persona until
-// /修改人设 changes it for this run.
+// /修改人设 changes it for this run. The prompts also get the settings admins can change, and
+// the list of commands from commands.md, so the bot can tell viewers what it can do.
 const room = new RoomState({
   history,
   transcript,
@@ -116,6 +120,13 @@ const room = new RoomState({
   screenshotsOn: options.screenshot,
   chatDir,
   botName: options.botName,
+  settings: (): Omit<RoomSettings, 'screenshots'> => ({
+    mentionCost: billing.cost,
+    talkMinutes: talker.interval / 60_000,
+    thanksThreshold: thanker.threshold,
+    wakeWord: wakeWords.get(),
+  }),
+  commands: liveSection(join(packageDir, 'commands.md'), 'The commands'),
   log,
 });
 // Says something to the streamer every --talk-minutes (changed with /自动回复间隔), and on
@@ -130,7 +141,7 @@ const talker = new Talker({
   log,
 });
 wakeWord = new WakeWord({
-  words: wakeWordFile(resolve(options.wakeWordsFile), roomId, { log }),
+  words: wakeWords,
   wake: () => talker.talkNow(),
   log,
 });

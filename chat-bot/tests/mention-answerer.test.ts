@@ -1,5 +1,6 @@
 import { Billing } from '../src/app/billing';
 import { MentionAnswerer, type Mention } from '../src/app/mention-answerer';
+import type { RoomStateOptions } from '../src/app/room-state';
 import type { UserTalk } from '../src/app/ports';
 import { Transcript } from '../src/core/transcript';
 import { fakeRoom } from './fake-room';
@@ -20,6 +21,8 @@ interface SetupOptions {
   persona?: string;
   userTalk?: UserTalk;
   botTalk?: string;
+  settings?: RoomStateOptions['settings'];
+  commands?: () => string;
 }
 
 function setup(options: SetupOptions = {}) {
@@ -32,6 +35,9 @@ function setup(options: SetupOptions = {}) {
     persona: options.persona,
     chatDir: options.chatDir,
     botTalk: options.botTalk === undefined ? undefined : { recent: () => options.botTalk ?? '' },
+    settings: options.settings,
+    commands: options.commands,
+    screenshotsOn: !!options.screenshot,
     now: () => NOW,
   });
   const answerer = new MentionAnswerer({
@@ -151,6 +157,35 @@ test('points Claude at the record folder, and tells it who it plays', async () =
   await ask();
 
   expect(prompts).toEqual(['/data/chat/1|你的人设是数学老师']);
+});
+
+test("tells Claude the room settings, the asker's balance and the commands", async () => {
+  const settings = { mentionCost: 2, talkMinutes: 0, thanksThreshold: 100, wakeWord: '我想吃鱼了' };
+  const { ask, prompts } = setup({
+    template: '{{settings}}\n---\n{{commands}}',
+    wallet: memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 10, spent: 3 } }),
+    settings: () => settings,
+    commands: () => '## The commands\n\n/识歌',
+  });
+  await ask({ userId: 'u-阿明' });
+  settings.thanksThreshold = 99999;
+  settings.wakeWord = '';
+  await ask({ userId: 'u-阿明' });
+
+  expect(prompts).toEqual([
+    [
+      '直播间现在的设置（管理员可以用指令修改）：',
+      '- 每次 @ 你：2 钻（用送礼得到的钻石付）',
+      '- 截图：关（你看不到直播画面）',
+      '- 自动回复：关闭',
+      '- 自动谢礼：5 分钟内送礼超过 100 钻的观众会收到感谢',
+      '- 唤醒词：「我想吃鱼了」（主播说出来，你就会主动说一句，不收费）',
+      '- 阿明 的余额：7 钻',
+      '---',
+      '## The commands\n\n/识歌',
+    ].join('\n'),
+    expect.stringContaining('- 自动谢礼：关闭\n- 唤醒词：无\n'),
+  ]);
 });
 
 test('gives the diamond back when the mention cannot be answered', async () => {

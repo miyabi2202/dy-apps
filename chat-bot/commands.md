@@ -4,6 +4,8 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 ## The commands
 
+<!-- prompt.md and talk.md get this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
+
 | Command                | What it does                                       |
 | ---------------------- | -------------------------------------------------- |
 | `/修改人设 <人设>`     | Change who the bot plays                           |

@@ -46,8 +46,9 @@ export interface MentionAnswererOptions {
   log: Log;
   /** The prompt (see buildPrompt for what it can fill in), read each time so edits apply at once. */
   promptTemplate: () => string;
-  /** Gives back what a mention cost when it can't be answered. */
-  billing?: Pick<Billing, 'refund'>;
+  /** Gives back what a mention cost when it can't be answered, and tells the prompt the asker's
+   * balance. */
+  billing?: Pick<Billing, 'refund' | 'balance'>;
   /** Each viewer's past exchanges with the bot: answers are added, and `{{userHistory}}` is
    * the asker's. */
   userTalk?: UserTalk;
@@ -128,6 +129,7 @@ export class MentionAnswerer {
       singleLength: singleBudget(mention.asker, this.limits),
       maxLength: answerBudget(mention.asker, this.limits),
       userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
+      askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
     });
     log.debug('prompt', { prompt });
     try {

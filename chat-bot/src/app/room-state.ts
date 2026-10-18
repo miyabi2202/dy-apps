@@ -1,6 +1,6 @@
 import type { ChatHistory } from '../core/chat-history';
 import { errorMessage } from '../core/errors';
-import type { RoomPromptInput } from '../core/prompt';
+import type { RoomPromptInput, RoomSettings } from '../core/prompt';
 import type { ChatLine } from '../core/room-events';
 import {
   DEFAULT_TRANSCRIPT_WINDOW_MS,
@@ -31,6 +31,10 @@ export interface RoomStateOptions {
   chatDir?: string;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
   botName: string;
+  /** The rest of the room's settings, kept by the features they belong to, for `{{settings}}`. */
+  settings?: () => Omit<RoomSettings, 'screenshots'>;
+  /** The commands viewers can run, for `{{commands}}`, read each time so edits apply at once. */
+  commands?: () => string;
   log: Log;
   now?: () => number;
 }
@@ -72,7 +76,7 @@ export class RoomState {
 
   /** The room's part of a prompt (see buildPrompt), as it is now. */
   promptInput(): RoomPromptInput {
-    const { chatDir, context, botTalk } = this.options;
+    const { chatDir, context, botTalk, settings, commands } = this.options;
     return {
       history: this.recentChat(),
       transcript: this.recentTranscript(),
@@ -82,6 +86,8 @@ export class RoomState {
       botName: this.botName,
       context: context?.(),
       botTalk: botTalk?.recent(),
+      settings: settings && { ...settings(), screenshots: this.screenshotsOn },
+      commands: commands?.(),
     };
   }
 

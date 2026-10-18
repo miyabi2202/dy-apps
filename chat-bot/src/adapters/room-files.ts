@@ -51,3 +51,18 @@ export function liveText(path: string, fallback: () => string = () => ''): () =>
     }
   };
 }
+
+/**
+ * The `## heading` section of a Markdown file, heading included, read each time it's called like
+ * liveText; empty when the file or the section is missing.
+ */
+export function liveSection(path: string, heading: string): () => string {
+  const read = liveText(path);
+  return () => {
+    const text = `\n${read()}`;
+    const start = text.indexOf(`\n## ${heading}\n`);
+    if (start < 0) return '';
+    const end = text.indexOf('\n## ', start + 1);
+    return text.slice(start, end < 0 ? undefined : end).trim();
+  };
+}
