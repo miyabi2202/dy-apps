@@ -7,8 +7,9 @@ export interface RoomFiles {
   context: string;
   /** This room's own prompt for what the bot says unprompted, if someone writes one. */
   autoReply: string;
-  /** This room's own prompt for /识歌, if someone writes one. */
+  /** This room's own prompts for /识歌, Claude's and the web-searching models', if someone writes one. */
   songId: string;
+  songIdWeb: string;
   /** This room's own prompt for thanking big givers, if someone writes one. */
   giftThanks: string;
   /** Everything the bot sent in the room. */
@@ -21,8 +22,8 @@ export interface RoomFiles {
  * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and `wallet.json`): an
  * empty `context.md` created when missing, `bot_logs.md`, and a `<user id>/` folder for each
  * viewer the bot talked with. The prompts are shared by every room (chat-bot/talk.md and so on);
- * a room only has its own `auto_reply.md`, `song_id.md` or `gift_thanks.md` when someone puts
- * one there to override it.
+ * a room only has its own `auto_reply.md`, `song_id.md`, `song_id_web.md` or `gift_thanks.md`
+ * when someone puts one there to override it.
  */
 export function roomFiles(dir: string): RoomFiles {
   mkdirSync(dir, { recursive: true });
@@ -30,6 +31,7 @@ export function roomFiles(dir: string): RoomFiles {
     context: join(dir, 'context.md'),
     autoReply: join(dir, 'auto_reply.md'),
     songId: join(dir, 'song_id.md'),
+    songIdWeb: join(dir, 'song_id_web.md'),
     giftThanks: join(dir, 'gift_thanks.md'),
     botTalk: join(dir, 'bot_logs.md'),
     users: dir,

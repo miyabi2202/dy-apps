@@ -7,8 +7,10 @@ export const SONG_ID_ENGINES = ['codex', 'gemini', 'claude'] as const;
 export type SongIdEngine = (typeof SONG_ID_ENGINES)[number];
 
 export interface SongIdOptions {
-  /** The prompt (see buildPrompt), read each time so edits apply at once. */
+  /** Claude's prompt (see buildPrompt), read each time so edits apply at once. */
   prompt: () => string;
+  /** Codex's and Gemini's, which search with Google rather than fetch lyrics pages. */
+  webPrompt?: () => string;
   /** Searches a lyrics site with a fragment of the lyrics. */
   search?: LyricsSearch;
   /** What the streamer sang lately, oldest first. */
@@ -42,12 +44,12 @@ export class SongId {
 
   /** `/识歌` for anyone, at a mention's price; `/识歌模型 codex|gemini|claude` for admins. */
   commands(): Command[] {
-    const { prompt, claude, log } = this.options;
+    const { prompt, webPrompt = prompt, claude, log } = this.options;
     return [
       {
         name: '识歌',
         adminOnly: false,
-        prompt,
+        prompt: () => (this.engine === 'claude' ? prompt() : webPrompt()),
         prepare: () => this.lookUpLyrics(),
         tools: ['WebSearch', 'WebFetch'],
         maxTurns: SONG_ID_MAX_TURNS,

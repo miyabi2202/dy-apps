@@ -67,6 +67,7 @@ const record = new ChatLog(chatDir);
 // Plus what the bot said, overall and to each viewer, so it doesn't repeat itself.
 const talkTemplate = resolve(options.talkPromptFile);
 const songIdTemplate = join(packageDir, 'song-id.md');
+const songIdWebTemplate = join(packageDir, 'song-id-web.md');
 const giftThanksTemplate = join(packageDir, 'gift-thanks.md');
 const files = roomFiles(roomDir);
 const context = liveText(files.context);
@@ -190,6 +191,7 @@ const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 // Codex, which searches with Google (Gemini through agy, or Claude, with /识歌模型).
 const songId = new SongId({
   prompt: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
+  webPrompt: liveText(files.songIdWeb, () => readFileSync(songIdWebTemplate, 'utf8')),
   search: jLyricSearch(),
   sungLines: () =>
     room

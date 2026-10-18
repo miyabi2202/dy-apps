@@ -51,7 +51,8 @@ test('/识歌模型 switches between Codex, Gemini and Claude, Codex first when 
     return Promise.resolve('');
   };
   const songId = new SongId({
-    prompt: () => '',
+    prompt: () => 'claude prompt',
+    webPrompt: () => 'web prompt',
     sungLines: () => [],
     claude: model('claude'),
     codex: model('codex'),
@@ -63,10 +64,12 @@ test('/识歌模型 switches between Codex, Gemini and Claude, Codex first when 
   const ask = () => identify.ask?.({ prompt: '' });
 
   await ask();
+  expect(identify.prompt()).toBe('web prompt');
   expect(switchModel.run('Gemini')).toEqual({ ok: true, reply: '已处理识歌模型请求' });
   await ask();
   expect(switchModel.run('claude')).toEqual({ ok: true, reply: '已处理识歌模型请求' });
   await ask();
+  expect(identify.prompt()).toBe('claude prompt');
   expect(switchModel.run('gpt')).toEqual({
     ok: false,
     reply: '要写 codex、gemini 或 claude，用法：/识歌模型 codex',
