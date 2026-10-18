@@ -8,13 +8,11 @@ const HIDDEN_ID = '111111';
 /**
  * Who sent an event. In a 私密 room (`hidden`), viewers all share HIDDEN_ID and the same default avatar, and show only
  * their nickname's first character (`苦***`), so they're told apart by that and their wealth level,
- * taken not to change while the bot runs. The nickname goes in as hex code points, so the id
- * stays a safe file name (each viewer's talk.txt is in a folder named by it).
+ * taken not to change while the bot runs: `111111-苦***-31`.
  */
 export function userIdOf({ id, nickname, payLevel }: DyhubUser, hidden: boolean): string {
   if (!hidden || id !== HIDDEN_ID) return id;
-  const name = [...nickname].map((ch) => ch.codePointAt(0)!.toString(16)).join('_');
-  return `${HIDDEN_ID}-${name}-${payLevel ?? 0}`;
+  return `${HIDDEN_ID}-${nickname}-${payLevel ?? 0}`;
 }
 
 export function chatFrom(event: DyhubCommentEvent, hidden = false): IncomingChat {

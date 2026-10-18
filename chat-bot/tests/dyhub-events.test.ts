@@ -50,11 +50,11 @@ test('in a 私密 room, viewers, who all share one id, are told apart by nicknam
   const hidden = (nickname: string, payLevel?: number) => ({ id: '111111', nickname, payLevel });
   const userIdOf = (user: DyhubUser) => idIn(user, true);
 
-  expect(userIdOf(hidden('苦***', 31))).toBe('111111-82e6_2a_2a_2a-31');
-  expect(userIdOf(hidden('🌈***', 21))).toBe('111111-1f308_2a_2a_2a-21');
+  expect(userIdOf(hidden('苦***', 31))).toBe('111111-苦***-31');
+  expect(userIdOf(hidden('🌈***', 21))).toBe('111111-🌈***-21');
   expect(userIdOf(hidden('🌈***', 23))).not.toBe(userIdOf(hidden('🌈***', 21)));
   expect(userIdOf(hidden('香***', 31))).not.toBe(userIdOf(hidden('苦***', 31)));
-  expect(userIdOf(hidden('用***'))).toBe('111111-7528_2a_2a_2a-0');
+  expect(userIdOf(hidden('用***'))).toBe('111111-用***-0');
   expect(userIdOf({ id: 'u-阿明', nickname: '阿明', payLevel: 21 })).toBe('u-阿明');
 });
 

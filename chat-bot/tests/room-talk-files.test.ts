@@ -38,4 +38,8 @@ test("keeps each viewer's exchanges in their own file", () => {
     '2026-10-17 15:00:00 阿明问：在吗\n2026-10-17 15:00:00 你答：@阿明 在呢',
   );
   expect(talk.recent('456')).toBe('');
+
+  talk.add('111111-苦***-31', { nickname: '苦***', question: '在吗', answer: '@苦*** 在呢' });
+  expect([...files.keys()]).toContain('/r/111111-苦___-31/talk.txt');
+  expect(talk.recent('111111-香***-31')).toBe('');
 });

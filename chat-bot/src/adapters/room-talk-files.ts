@@ -41,8 +41,9 @@ export function botTalkFile(path: string, options: TalkFileOptions = {}): BotTal
 /** Each viewer's exchanges with the bot in `<dir>/<user id>/talk.txt` (see exchangeLines). */
 export function userTalkFiles(dir: string, options: TalkFileOptions = {}): UserTalk {
   const { keep = 20, now, append, read } = { ...defaults, ...options };
-  // User ids are digits; anything else is kept out of the path.
-  const file = (userId: string) => join(dir, userId.replace(/[^\w-]/g, '_'), 'talk.txt');
+  // User ids are digits, or a 私密 viewer's `111111-苦***-31`: what a path can't hold becomes _.
+  const file = (userId: string) =>
+    join(dir, userId.replace(/[\\/:*?"<>|.\p{Cc}]/gu, '_'), 'talk.txt');
   return {
     add: (userId, exchange) => append(file(userId), exchangeLines(now(), exchange)),
     recent: (userId) => tail(read, file(userId), keep),
