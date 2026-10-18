@@ -2,10 +2,12 @@ import { errorMessage, OutOfCreditError } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
 import { relevanceRequest, roomLines, type RoomLine } from '../core/relevance';
 import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
+import { parseReplyPick, pickLines, pickPrompt, REPLY_PICK_SCHEMA } from '../core/reply-pick';
 import { parseTalkAnswer, TALK_ANSWER_SCHEMA } from '../core/talk-answer';
+import type { UnpromptedReply } from './chat-bot';
 import { done, failed, type Command } from './command';
 import type { OutgoingMessage, Outbox } from './outbox';
-import type { AskClaude, Judge, Log } from './ports';
+import type { AskClaude, FindStreamer, Judge, Log } from './ports';
 import type { RoomState } from './room-state';
 
 export interface TalkerOptions {
@@ -30,7 +32,23 @@ export interface TalkerOptions {
   reactionMs?: number;
   /** At least this long between two things it says unprompted, or after being asked to talk. */
   quietMs?: number;
+  /**
+   * Picks whom to answer (Codex, cheap): with it and `reply`, what's about the bot is answered
+   * through `reply`, to each one the picker picks, rather than with one message from `ask`.
+   */
+  picker?: AskClaude;
+  /** The picker's prompt (see pickPrompt), read each time so edits apply at once. */
+  pickTemplate?: () => string;
+  /** Answers one thing someone said to or about the bot, like a mention (ChatBot.replyUnprompted). */
+  reply?: (target: UnpromptedReply) => void;
+  /** Who the streamer is, so what they said can be answered as theirs; null while unknown. */
+  streamer?: () => Awaited<ReturnType<FindStreamer>>;
 }
+
+/** At most this many lines go to the picker, the newest. */
+const PICK_LINES = 40;
+/** At most this many are answered at once. */
+const MAX_PICKS = 3;
 
 /** The threshold set when the judge's account runs dry: off. */
 const OFF_FOR_NO_CREDIT = 10;
@@ -154,8 +172,80 @@ export class Talker {
     log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });
     this.talkedAt = now;
     if ((await this.wait(reactionMs)) === 'woken' || this.stopped) return;
-    await this.say('talk', followUp(best.line));
+    const { picker, reply } = this.options;
+    if (picker && reply) {
+      const about = fresh.filter((_, i) => (scores[`q${i + 1}`] ?? 0) >= this.threshold);
+      await this.pickAndReply(since, about, picker, reply);
+    } else await this.say('talk', followUp(best.line));
     this.talkedAt = room.now();
+  }
+
+  /**
+   * Has the picker choose, of what was said since `since`, what the bot should answer now (the
+   * room had time to react, so some may need no answer any more), and answers each through
+   * `reply`, as the chatter's or (said on the stream) the streamer's.
+   */
+  private async pickAndReply(
+    since: number,
+    about: readonly RoomLine[],
+    picker: AskClaude,
+    reply: (target: UnpromptedReply) => void,
+  ): Promise<void> {
+    const { room, log, pickTemplate, streamer: findStreamer } = this.options;
+    if (!pickTemplate) return;
+    const streamer = findStreamer?.() ?? null;
+    const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName).slice(
+      -PICK_LINES,
+    );
+    const key = (line: RoomLine) => `${line.ts} ${line.who} ${line.text}`;
+    const aboutKeys = new Set(about.map(key));
+    const { text, numbered } = pickLines(
+      lines,
+      (line) =>
+        line.candidate &&
+        line.ts > since &&
+        (line.userId !== undefined || (line.who === '主播' && streamer !== null)),
+      new Set(lines.filter((line) => aboutKeys.has(key(line)))),
+    );
+    if (!numbered.length) return;
+    const prompt = pickPrompt(pickTemplate(), {
+      lines: text,
+      botName: room.botName,
+      persona: room.persona,
+      botTalk: room.promptInput().botTalk ?? '',
+    });
+    let answer: string;
+    try {
+      answer = await picker({ prompt, schema: REPLY_PICK_SCHEMA });
+    } catch (err) {
+      log.warn('could not pick whom to answer', { error: errorMessage(err) });
+      return;
+    }
+    const pick = parseReplyPick(answer);
+    if (!pick) {
+      log.warn('reply pick is not json', { answer });
+      return;
+    }
+    const targets = new Map<string, UnpromptedReply>();
+    for (const n of pick.lines) {
+      const line = numbered[n - 1];
+      if (!line) continue;
+      const target: UnpromptedReply | null = line.userId
+        ? { nickname: line.who, userId: line.userId, question: line.text, heard: 'chat' }
+        : streamer && {
+            nickname: streamer.nickname,
+            userId: streamer.uid,
+            question: line.text,
+            heard: 'speech',
+          };
+      // One answer each, to what they said last.
+      if (target) targets.set(target.userId, target);
+    }
+    const picked = [...targets.values()].slice(0, MAX_PICKS);
+    log.info('picked whom to answer', {
+      picked: picked.map(({ nickname, question }) => ({ nickname, question })),
+    });
+    for (const target of picked) reply(target);
   }
 
   /**

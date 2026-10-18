@@ -16,6 +16,8 @@ export interface RoomFiles {
   giftThanks: string;
   /** This room's own prompt for what's said about a song once it's named, if someone writes one. */
   songIntro: string;
+  /** This room's own prompt for picking whom to answer unprompted, if someone writes one. */
+  replyPick: string;
   /** Everything the bot sent in the room. */
   botTalk: string;
   /** Where each viewer's folder of exchanges with the bot goes. */
@@ -42,8 +44,8 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = { private: false };
  * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and `wallet.json`): an
  * empty `context.md` and a default `room_config.json` created when missing, `bot_logs.md`, and a `<user id>/` folder for each
  * viewer the bot talked with. The prompts are shared by every room (chat-bot/auto-reply.md and so on);
- * a room only has its own `auto_reply.md`, `song_id.md`, `song_id_web.md`, `gift_thanks.md`
- * or `song_intro.md` when someone puts one there to override it.
+ * a room only has its own `auto_reply.md`, `song_id.md`, `song_id_web.md`, `gift_thanks.md`,
+ * `song_intro.md` or `reply_pick.md` when someone puts one there to override it.
  */
 export function roomFiles(dir: string): RoomFiles {
   mkdirSync(dir, { recursive: true });
@@ -54,6 +56,7 @@ export function roomFiles(dir: string): RoomFiles {
     songIdWeb: join(dir, 'song_id_web.md'),
     giftThanks: join(dir, 'gift_thanks.md'),
     songIntro: join(dir, 'song_intro.md'),
+    replyPick: join(dir, 'reply_pick.md'),
     botTalk: join(dir, 'bot_logs.md'),
     users: dir,
     config: join(dir, 'room_config.json'),

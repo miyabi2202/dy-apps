@@ -81,6 +81,7 @@ const songIdTemplate = join(packageDir, 'song-id.md');
 const songIdWebTemplate = join(packageDir, 'song-id-web.md');
 const giftThanksTemplate = join(packageDir, 'gift-thanks.md');
 const songIntroTemplate = join(packageDir, 'song-intro.md');
+const replyPickTemplate = join(packageDir, 'reply-pick.md');
 const files = roomFiles(roomDir);
 const context = liveText(files.context);
 // The room's room_config.json, read again when it changes: whether it's a 私密 room.
@@ -160,6 +161,11 @@ const room = new RoomState({
 const jevKey = process.env.JEV_API_KEY;
 if (!jevKey)
   log.warn('no JEV_API_KEY in chat-bot/.env: the bot only talks unprompted on the wake word');
+// Codex reads its working directory, so it gets an empty one.
+const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
+// Once Jev finds something about the bot, Codex (the cheap model, no web search) picks whom to
+// answer, and each is answered like a mention (charged, with their own talk.txt; the streamer's
+// too, by their uid). Without Codex, Claude says one message from auto-reply.md instead.
 const talker = new Talker({
   ask,
   outbox,
@@ -169,6 +175,19 @@ const talker = new Talker({
   room,
   maxLength: options.maxReplyLength,
   log,
+  picker: options.codex
+    ? codexCli({
+        model: options.codex,
+        effort: 'low',
+        webSearch: false,
+        cwd: emptyDir,
+        systemPrompt: options.systemPrompt,
+      })
+    : undefined,
+  pickTemplate: liveText(files.replyPick, () => readFileSync(replyPickTemplate, 'utf8')),
+  // The bot and the admins are made further down, before the talker runs.
+  reply: (target) => bot.replyUnprompted(target),
+  streamer: () => admins.current(),
 });
 wakeWord = new WakeWord({
   words: wakeWords,
@@ -210,8 +229,6 @@ const answerer = new MentionAnswerer({
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
 });
-// Codex reads its working directory, so it gets an empty one.
-const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 // /识歌: Codex, which searches with Google (or Claude, with /识歌模型).
 // Once a song is named, says something about it and praises the streamer's singing.
 const songIntro = new SongIntro({

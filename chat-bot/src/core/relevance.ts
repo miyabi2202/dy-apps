@@ -8,6 +8,8 @@ export interface RoomLine {
   ts: number;
   /** The chatter's nickname, 主播 or 连线. */
   who: string;
+  /** The chatter's user id, for a chat. */
+  userId?: string;
   text: string;
   /** Whether it may be about the bot: not the bot's own, not an @ of it (answered anyway), not sung. */
   candidate: boolean;
@@ -29,6 +31,7 @@ export function roomLines(
   const chats: RoomLine[] = chat.map((line) => ({
     ts: line.ts,
     who: line.nickname,
+    ...(line.userId && { userId: line.userId }),
     text: line.content,
     candidate: line.nickname !== botName && !line.content.includes(`@${botName}`),
   }));

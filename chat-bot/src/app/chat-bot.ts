@@ -39,7 +39,21 @@ interface Unpaid {
   chat: IncomingChat;
   question: string;
   at: number;
+  /** For what the bot would say to them unprompted, rather than an @. */
+  unprompted?: Unprompted;
 }
+
+/** What the bot heard someone say to or about it without an @, to answer unprompted. */
+export interface UnpromptedReply {
+  nickname: string;
+  userId: string;
+  /** What they said. */
+  question: string;
+  /** In the chat, or (the streamer) on the stream. */
+  heard: Unprompted;
+}
+
+type Unprompted = 'chat' | 'speech';
 
 /**
  * Decides what each @mention of the bot is: a question, paid for by the asker and handed to the
@@ -114,7 +128,32 @@ export class ChatBot {
     const { now = Date.now, waitForGiftMs = 5 * 60_000, log } = this.options;
     if (now() - unpaid.at > waitForGiftMs) return;
     log.info('answering after a gift', { asker: unpaid.chat.nickname, userId });
-    this.onMention(unpaid.chat, unpaid.question);
+    const { chat, question, unprompted } = unpaid;
+    if (unprompted) {
+      const { nickname } = chat;
+      this.replyUnprompted({ nickname, userId, question, heard: unprompted });
+    } else this.onMention(chat, question);
+  }
+
+  /**
+   * Answers what someone said to or about the bot without an @ (the talker picked it), like a
+   * mention: they pay for it (nothing for the streamer or an admin), and one who can't is told
+   * so, in other words, and answered once they send a gift.
+   */
+  replyUnprompted({ nickname, userId, question, heard }: UnpromptedReply): void {
+    const ts = (this.options.now ?? Date.now)();
+    const chat: IncomingChat = { ts, userId, nickname, content: question, mentions: [] };
+    this.options.log.info('unprompted', { asker: nickname, userId, question, heard });
+    const charge = this.charge(chat, question, this.isAdmin(userId), undefined, heard);
+    if (!charge.ok) return;
+    this.ask({
+      asker: nickname,
+      userId,
+      paid: charge.paid,
+      question,
+      history: this.options.room.recentChat(),
+      unprompted: heard,
+    });
   }
 
   private isAdmin(userId: string | undefined): boolean {
@@ -132,24 +171,37 @@ export class ChatBot {
 
   /**
    * Takes the price of a mention, or of `command`, from the asker, nothing from an admin; when
-   * they can't pay, queues a notice, keeps the mention (`question`) for when they send a gift,
-   * and says so.
+   * they can't pay, queues a notice, keeps the mention (`question`, or what the bot would say to
+   * them `unprompted`) for when they send a gift, and says so.
    */
-  private charge(chat: IncomingChat, question: string, admin: boolean, command?: Command): Charge {
+  private charge(
+    chat: IncomingChat,
+    question: string,
+    admin: boolean,
+    command?: Command,
+    unprompted?: Unprompted,
+  ): Charge {
     const { nickname: asker, userId } = chat;
     const { billing, log } = this.options;
     if (admin || !billing) return { ok: true, paid: 0 };
     const price = command?.price ?? billing.cost;
     const charge = billing.charge(userId, asker, price);
     if (charge.ok) return charge;
-    if (userId) this.unpaid.set(userId, { chat, question, at: (this.options.now ?? Date.now)() });
+    if (userId) {
+      const at = (this.options.now ?? Date.now)();
+      this.unpaid.set(userId, { chat, question, at, ...(unprompted && { unprompted }) });
+    }
     log.info('balance too low', {
       asker,
       userId,
       balance: billing.balance(userId),
       command: command?.name,
     });
-    const notice = billing.lowBalanceNotice(userId, command && { name: command.name, price });
+    const notice = billing.lowBalanceNotice(
+      userId,
+      command && { name: command.name, price },
+      !!unprompted,
+    );
     if (charge.notify) this.say(asker, 'notice', notice);
     return charge;
   }

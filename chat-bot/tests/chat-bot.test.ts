@@ -179,6 +179,62 @@ test('an unpaid mention is forgotten after 5 minutes', async () => {
   expect(wallet.balance('u-阿明')).toBe(1);
 });
 
+test('answers what someone said to it unprompted like a mention, charged, saying it was not an @', async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
+  const { bot, settle, prompts, sent } = setup({ wallet, cost: 1, template: '{{asked}}' });
+  bot.replyUnprompted({
+    nickname: '阿明',
+    userId: 'u-阿明',
+    question: '机器人几岁',
+    heard: 'chat',
+  });
+  await settle();
+
+  expect(prompts).toEqual([
+    '阿明 没有 @ 你，是在弹幕里说到了你或在跟你说话，你主动回 TA 一句：机器人几岁',
+  ]);
+  expect(sent).toEqual(['@阿明 你好呀']);
+  expect(wallet.balance('u-阿明')).toBe(0);
+});
+
+test('the streamer is answered for free, as said on the stream', async () => {
+  const wallet = memoryWallet();
+  const { bot, settle, prompts } = setup({ wallet, admins: ['s-1'], template: '{{asked}}' });
+  bot.replyUnprompted({
+    nickname: '虾虾',
+    userId: 's-1',
+    question: '机器人说两句',
+    heard: 'speech',
+  });
+  await settle();
+
+  expect(prompts[0]).toBe(
+    '主播 虾虾 没有 @ 你，是在直播里说到了你（语音识别，可能有错字），你主动回 TA 一句：机器人说两句',
+  );
+});
+
+test('someone who cannot pay for an unprompted answer is told in other words, and answered after a gift', async () => {
+  const wallet = memoryWallet();
+  const { bot, settle, give, prompts, sent } = setup({ wallet, cost: 1, template: '{{asked}}' });
+  bot.replyUnprompted({
+    nickname: '阿明',
+    userId: 'u-阿明',
+    question: '机器人几岁',
+    heard: 'chat',
+  });
+  await settle();
+  expect(sent).toEqual([
+    '@阿明 你在跟我说话吗？要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱），送了马上回你',
+  ]);
+
+  give(gift('阿明', 1, 1));
+  await settle();
+  expect(prompts).toEqual([
+    '阿明 没有 @ 你，是在弹幕里说到了你或在跟你说话，你主动回 TA 一句：机器人几岁',
+  ]);
+  expect(sent.at(-1)).toBe('@阿明 你好呀');
+});
+
 test('clearing the wallet forgets every balance', () => {
   const saved: Record<string, Account>[] = [];
   const wallet = new Wallet({

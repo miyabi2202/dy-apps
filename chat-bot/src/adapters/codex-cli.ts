@@ -17,6 +17,8 @@ export interface CodexCliOptions {
   cwd?: string;
   /** Put before every prompt, as codex has no system prompt option. */
   systemPrompt?: string;
+  /** Whether it may search the web (live); on unless turned off. */
+  webSearch?: boolean;
   spawnProcess?: typeof spawn;
 }
 
@@ -60,6 +62,7 @@ export function codexCli({
   timeoutMs = 120_000,
   cwd,
   systemPrompt,
+  webSearch = true,
   spawnProcess = spawn,
 }: CodexCliOptions = {}): AskClaude {
   return ({ prompt, schema }) =>
@@ -81,7 +84,7 @@ export function codexCli({
         ...(model ? ['--model', model] : []),
         ...(effort ? ['-c', `model_reasoning_effort="${effort}"`] : []),
         '-c',
-        'web_search="live"',
+        `web_search="${webSearch ? 'live' : 'disabled'}"`,
         '--json',
         ...(schemaFile ? ['--output-schema', schemaFile] : []),
         systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,

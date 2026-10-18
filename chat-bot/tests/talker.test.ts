@@ -1,6 +1,7 @@
 import type { Judge, Log } from '../src/app/ports';
 import { fakeRoom } from './fake-room';
 import { Talker, WOKEN, type TalkerOptions } from '../src/app/talker';
+import type { UnpromptedReply } from '../src/app/chat-bot';
 import { OutOfCreditError } from '../src/core/errors';
 import { ChatHistory } from '../src/core/chat-history';
 import { Transcript } from '../src/core/transcript';
@@ -52,7 +53,8 @@ function setup(rounds: (() => void)[], options: Partial<TalkerOptions> = {}) {
     },
     ...options,
   });
-  const chat = (nickname: string, content: string) => history.add({ ts: now, nickname, content });
+  const chat = (nickname: string, content: string, userId?: string) =>
+    history.add({ ts: now, nickname, content, ...(userId && { userId }) });
   const say = (text: string) => transcript.add({ start: now - 2000, end: now, text, speech: 0.8 });
   return { talker, prompts, sent, judged, answers, chat, say };
 }
@@ -144,4 +146,59 @@ test('when Jev runs out of money, says so in the room and turns itself off', asy
   expect(sent).toEqual([{ kind: 'system', text: '钱包烧干了，自动回复已关闭' }]);
   expect(talker.threshold).toBe(10);
   expect(asked).toBe(1);
+});
+
+test('with a picker, answers each one it picks like a mention, the streamer by their uid', async () => {
+  const picks: string[] = [];
+  const replies: UnpromptedReply[] = [];
+  const { talker, sent, chat, say } = setup(
+    [
+      () => {
+        chat('阿明', '今晚吃火锅', 'u-阿明');
+        chat('小红', '机器人你几岁了', 'u-小红');
+      },
+      () => say('机器人你也说两句'),
+    ],
+    {
+      picker: ({ prompt }) => {
+        picks.push(prompt);
+        return Promise.resolve(JSON.stringify({ lines: [2, 3, 2, 9] }));
+      },
+      pickTemplate: () => '{{botName}}\n{{lines}}',
+      reply: (target) => void replies.push(target),
+      streamer: () => ({ uid: 's-1', nickname: '虾虾' }),
+    },
+  );
+  await talker.run();
+
+  expect(picks[0]).toContain('(1)  00:00:20 [阿明] 今晚吃火锅');
+  expect(picks[0]).toContain('(2)★ 00:00:20 [小红] 机器人你几岁了');
+  expect(picks[0]).toContain('(3)  00:00:40 [主播] 机器人你也说两句');
+  expect(replies).toEqual([
+    { nickname: '小红', userId: 'u-小红', question: '机器人你几岁了', heard: 'chat' },
+    { nickname: '虾虾', userId: 's-1', question: '机器人你也说两句', heard: 'speech' },
+  ]);
+  expect(sent).toEqual([]);
+});
+
+test('the picker may answer nobody, and gets no streamer line while the streamer is unknown', async () => {
+  const picks: string[] = [];
+  const replies: UnpromptedReply[] = [];
+  const { talker, chat, say } = setup(
+    [() => chat('小红', '机器人你几岁了', 'u-小红'), () => say('机器人你也说两句')],
+    {
+      picker: ({ prompt }) => {
+        picks.push(prompt);
+        return Promise.resolve(JSON.stringify({ lines: [] }));
+      },
+      pickTemplate: () => '{{lines}}',
+      reply: (target) => void replies.push(target),
+      streamer: () => null,
+    },
+  );
+  await talker.run();
+
+  expect(picks[0]).toContain('     00:00:40 [主播] 机器人你也说两句');
+  expect(picks[0]).not.toContain('(2)');
+  expect(replies).toEqual([]);
 });

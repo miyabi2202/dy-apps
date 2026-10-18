@@ -60,6 +60,9 @@ export type PromptInput = RoomPromptInput & {
   userChat?: string;
   /** The asker's diamonds left to pay for @s with. */
   askerBalance?: number;
+  /** The asker didn't @ the bot: the bot heard them say something to or about it, in the chat or
+   * (the streamer) on the stream, and answers unprompted. */
+  unprompted?: 'chat' | 'speech';
 };
 
 /** `settings` as lines for the prompt, with `asker`'s balance when known. */
@@ -86,7 +89,8 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
  * Fills a prompt template: `{{history}}` becomes one `昵称: 内容` line per chat, `{{transcript}}`
  * one `HH:MM:SS 内容` line per sentence the streamer said (`HH:MM:SS （唱）内容` when sung, and
  * `（连线）` before it when someone they're linked up with said it), `{{asker}}` and `{{question}}` the
- * mention's sender and text, `{{singleLength}}` what fits in one message and `{{maxLength}}` the
+ * mention's sender and text, `{{asked}}` the two as a line saying they @ed the bot (or, when
+ * `unprompted`, that it heard them talk to or about it), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
  * most the answer may use over several, `{{now}}` the time, `{{chatDir}}` the folder of chat
  * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{botName}}`
  * the bot's own nickname, `{{context}}` the room's background under a heading (empty
@@ -98,7 +102,8 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
 export function buildPrompt(template: string, input: PromptInput): string {
   const { history, transcript, singleLength, maxLength, now, chatDir, persona } = input;
   const { asker = '', question = '', botName, context, botTalk, userHistory, userChat } = input;
-  const { settings, commands, askerBalance } = input;
+  const { settings, commands, askerBalance, unprompted } = input;
+  const said = question || '（只 @ 了你，没有说别的）';
   const values: Record<string, string> = {
     history: history.map((line) => `${line.nickname}: ${line.content}`).join('\n') || '（暂无）',
     transcript:
@@ -109,7 +114,13 @@ export function buildPrompt(template: string, input: PromptInput): string {
         })
         .join('\n') || '（暂无）',
     asker,
-    question: question || '（只 @ 了你，没有说别的）',
+    question: said,
+    asked:
+      unprompted === 'speech'
+        ? `主播 ${asker} 没有 @ 你，是在直播里说到了你（语音识别，可能有错字），你主动回 TA 一句：${said}`
+        : unprompted === 'chat'
+          ? `${asker} 没有 @ 你，是在弹幕里说到了你或在跟你说话，你主动回 TA 一句：${said}`
+          : `${asker} @ 了你：${said}`,
     singleLength: String(singleLength),
     maxLength: String(maxLength),
     now: clock(now),

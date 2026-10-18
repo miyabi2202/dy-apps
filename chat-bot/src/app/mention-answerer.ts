@@ -28,6 +28,8 @@ export interface Mention extends PromptOptions {
   history: ChatLine[];
   /** A command's own prompt template instead of the usual one. */
   template?: string;
+  /** Not an @: the bot heard the asker talk to or about it, in the chat or on the stream. */
+  unprompted?: 'chat' | 'speech';
 }
 
 /** Gives `mention`'s price back to whoever paid it, if anything was paid. */
@@ -137,6 +139,7 @@ export class MentionAnswerer {
         maxLength: answerBudget(mention.asker, this.limits),
         userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
         askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
+        unprompted: mention.unprompted,
       });
       log.debug('prompt', { prompt });
       const image = await room.screenshot();

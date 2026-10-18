@@ -18,12 +18,17 @@ export interface StreamerAdminOptions {
  * again every `retryMs` until it answers (DyHub reads the room page a little after connecting).
  */
 export class StreamerAdmin implements Admins {
-  private streamer: string | null = null;
+  private streamer: { uid: string; nickname: string } | null = null;
 
   constructor(private readonly options: StreamerAdminOptions) {}
 
   has(userId: string): boolean {
-    return userId === this.streamer || this.options.admins.has(userId);
+    return userId === this.streamer?.uid || this.options.admins.has(userId);
+  }
+
+  /** The streamer, once found. */
+  current(): { uid: string; nickname: string } | null {
+    return this.streamer;
   }
 
   start(): void {
@@ -42,7 +47,7 @@ export class StreamerAdmin implements Admins {
         })
         .then((streamer) => {
           if (!streamer) return schedule(ask, retryMs);
-          this.streamer = streamer.uid;
+          this.streamer = streamer;
           log.info('streamer is an admin', streamer);
           onFound?.(streamer);
         })
