@@ -156,7 +156,7 @@ Names the recording playing in the stream, from the last 15 s of its audio, by i
 `ChatBot` (`src/app/chat-bot.ts`) parses the mention (`src/core/command.ts`), then:
 
 1. **Who may run it.** A command that doesn't exist, or is admin-only and the asker isn't an admin, is ignored, unless the asker has commands they may run, in which case the bot lists them: `没有指令「x」，可用的有：…`.
-2. **Charge.** Admins never pay. Anyone else pays the command's `price`, or a mention's price when it has none. Someone who can't pay gets the low-balance notice (at most once a minute).
+2. **Charge.** Admins never pay. Anyone else pays the command's `price`, or a mention's price when it has none. Someone who can't pay gets the low-balance notice (at most once a minute), and their call waits: a gift from them within 5 minutes pays for it and runs it at once.
 3. **Run.** A command either:
    - **runs code** (`run(args)`): it returns `{ ok, reply }`; `reply` goes out as a system message (sent after replies, before notices), and a failed one (`ok: false`) is refunded. A `run` may be async (`/回复` waits for Claude).
    - **asks Claude with its own prompt** (`prompt: () => string`): the args become the question and it's answered exactly like a mention (queued for Claude, split into messages, refunded if it fails), from that template instead of `prompt.md`.

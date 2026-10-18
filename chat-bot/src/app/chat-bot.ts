@@ -1,7 +1,7 @@
 import { parseCommand, type CommandCall } from '../core/command';
 import { errorMessage } from '../core/errors';
 import { DOUYIN_CHAT_LIMIT, oneMessage } from '../core/reply';
-import type { IncomingChat } from '../core/room-events';
+import type { Gift, IncomingChat } from '../core/room-events';
 import type { Billing, Charge } from './billing';
 import type { Command, CommandResult } from './command';
 import { refundMention, type Mention, type MentionAnswerer } from './mention-answerer';
@@ -12,7 +12,7 @@ import type { RoomState } from './room-state';
 
 export interface ChatBotOptions {
   /** Where the mentions come from, and the thing to start and stop. */
-  feed: Pick<RoomFeed, 'onMention' | 'start' | 'stop'>;
+  feed: Pick<RoomFeed, 'onMention' | 'onGift' | 'start' | 'stop'>;
   /** Answers the questions the bot has been paid for. */
   answerer: Pick<MentionAnswerer, 'ask' | 'idle'>;
   /** The chat before a question goes with it to the answerer. */
@@ -29,6 +29,16 @@ export interface ChatBotOptions {
   commands?: readonly Command[];
   /** Douyin's chat length limit, for the bot's own messages. */
   maxReplyLength?: number;
+  /** A mention its asker couldn't pay for is answered if they send a gift within this long. */
+  waitForGiftMs?: number;
+  now?: () => number;
+}
+
+/** A mention waiting for its asker to send a gift and pay for it. */
+interface Unpaid {
+  chat: IncomingChat;
+  question: string;
+  at: number;
 }
 
 /**
@@ -38,13 +48,16 @@ export interface ChatBotOptions {
  * system message. Admin-only commands, and commands nobody has, are ignored from anyone but an
  * admin, unless they have commands of their own to be told about. With billing, a viewer who
  * can't pay gets a fixed notice, put in the outbox straight away rather than waiting behind the
- * questions for Claude.
+ * questions for Claude, and their mention (the last one) waits: a gift from them within
+ * `waitForGiftMs` (5 minutes) pays for it and has it answered at once.
  */
 export class ChatBot {
   /** Commands still running, like one waiting for Claude. */
   private readonly running = new Set<Promise<void>>();
   private readonly commands: ReadonlyMap<string, Command>;
   private readonly maxLength: number;
+  /** Each viewer's last mention they couldn't pay for, by user id. */
+  private readonly unpaid = new Map<string, Unpaid>();
 
   constructor(private readonly options: ChatBotOptions) {
     this.commands = new Map((options.commands ?? []).map((command) => [command.name, command]));
@@ -53,6 +66,7 @@ export class ChatBot {
 
   start(): void {
     this.options.feed.onMention((chat, question) => this.onMention(chat, question));
+    this.options.feed.onGift((gift) => this.onGift(gift));
     this.options.feed.start();
   }
 
@@ -74,14 +88,14 @@ export class ChatBot {
     const admin = this.isAdmin(userId);
     const call = parseCommand(question);
     if (call) {
-      const pending = this.onCommand(chat, call, admin);
+      const pending = this.onCommand(chat, question, call, admin);
       if (pending) {
         const run = pending.finally(() => this.running.delete(run));
         this.running.add(run);
       }
       return;
     }
-    const charge = this.charge(chat, admin);
+    const charge = this.charge(chat, question, admin);
     if (!charge.ok) return;
     this.ask({
       asker,
@@ -90,6 +104,17 @@ export class ChatBot {
       question,
       history: this.options.room.recentChat(),
     });
+  }
+
+  /** Answers the giver's unpaid mention, now that they may be able to pay for it. */
+  private onGift({ userId }: Gift): void {
+    const unpaid = this.unpaid.get(userId);
+    if (!unpaid) return;
+    this.unpaid.delete(userId);
+    const { now = Date.now, waitForGiftMs = 5 * 60_000, log } = this.options;
+    if (now() - unpaid.at > waitForGiftMs) return;
+    log.info('answering after a gift', { asker: unpaid.chat.nickname, userId });
+    this.onMention(unpaid.chat, unpaid.question);
   }
 
   private isAdmin(userId: string | undefined): boolean {
@@ -107,18 +132,17 @@ export class ChatBot {
 
   /**
    * Takes the price of a mention, or of `command`, from the asker, nothing from an admin; when
-   * they can't pay, queues a notice and says so.
+   * they can't pay, queues a notice, keeps the mention (`question`) for when they send a gift,
+   * and says so.
    */
-  private charge(
-    { nickname: asker, userId }: IncomingChat,
-    admin: boolean,
-    command?: Command,
-  ): Charge {
+  private charge(chat: IncomingChat, question: string, admin: boolean, command?: Command): Charge {
+    const { nickname: asker, userId } = chat;
     const { billing, log } = this.options;
     if (admin || !billing) return { ok: true, paid: 0 };
     const price = command?.price ?? billing.cost;
     const charge = billing.charge(userId, asker, price);
     if (charge.ok) return charge;
+    if (userId) this.unpaid.set(userId, { chat, question, at: (this.options.now ?? Date.now)() });
     log.info('balance too low', {
       asker,
       userId,
@@ -138,6 +162,7 @@ export class ChatBot {
    */
   private onCommand(
     chat: IncomingChat,
+    question: string,
     { name, args }: CommandCall,
     admin: boolean,
   ): Promise<void> | undefined {
@@ -153,7 +178,7 @@ export class ChatBot {
       }
       return;
     }
-    const charge = this.charge(chat, admin, command);
+    const charge = this.charge(chat, question, admin, command);
     if (!charge.ok) return undefined;
     if (command.prompt) {
       log.info('command', { asker, userId, name, args, paid: charge.paid });

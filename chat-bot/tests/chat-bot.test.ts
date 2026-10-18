@@ -25,6 +25,7 @@ interface SetupOptions {
   commands?: Command[];
   /** Instead of the real answerer. */
   answerer?: Pick<MentionAnswerer, 'ask' | 'idle'>;
+  now?: () => number;
 }
 
 /** The whole bot on fake events, Claude and outbox; mentions are answered by the real answerer. */
@@ -58,6 +59,7 @@ function setup(options: SetupOptions = {}) {
     billing,
     admins: new Set(options.admins),
     commands: options.commands ?? [personaCommand(room), ...(billing?.commands() ?? [])],
+    now: options.now,
   });
   bot.start();
   return {
@@ -136,7 +138,45 @@ test('tells a viewer who cannot pay, once a minute, without asking Claude', asyn
   await settle();
 
   expect(prompts).toEqual([]);
-  expect(sent).toEqual(['@阿明 @我要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱）']);
+  expect(sent).toEqual([
+    '@阿明 @我要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱），送了马上回你',
+  ]);
+});
+
+test("a viewer who couldn't pay is answered once they send a gift, within 5 minutes", async () => {
+  let now = 0;
+  const wallet = memoryWallet();
+  const { settle, say, give, prompts, sent } = setup({ wallet, cost: 2, now: () => now });
+  say(chat('阿明', '@小助手 第一问'));
+  say(chat('阿明', '@小助手 第二问'));
+  give(gift('阿明', 1, 1));
+  await settle();
+  expect(prompts).toEqual([]);
+
+  now = 4 * 60_000;
+  give(gift('阿明', 1, 1));
+  await settle();
+  expect(prompts).toHaveLength(1);
+  expect(prompts[0]).toContain('阿明: 第二问');
+  expect(sent.at(-1)).toBe('@阿明 你好呀');
+  expect(wallet.balance('u-阿明')).toBe(0);
+
+  give(gift('阿明', 2, 1));
+  await settle();
+  expect(prompts).toHaveLength(1);
+});
+
+test('an unpaid mention is forgotten after 5 minutes', async () => {
+  let now = 0;
+  const wallet = memoryWallet();
+  const { settle, say, give, prompts } = setup({ wallet, cost: 1, now: () => now });
+  say(chat('阿明', '@小助手 在吗'));
+  now = 5 * 60_000 + 1;
+  give(gift('阿明', 1, 1));
+  await settle();
+
+  expect(prompts).toEqual([]);
+  expect(wallet.balance('u-阿明')).toBe(1);
 });
 
 test('clearing the wallet forgets every balance', () => {
@@ -162,11 +202,13 @@ test('a low-balance notice goes out while Claude is still answering someone else
   say(chat('小红', '@小助手 我没钱'));
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  expect(sent).toEqual(['@小红 @我要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱）']);
+  expect(sent).toEqual([
+    '@小红 @我要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱），送了马上回你',
+  ]);
   finish('想好了');
   await settle();
   expect(sent).toEqual([
-    '@小红 @我要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱）',
+    '@小红 @我要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱），送了马上回你',
     '@阿明 想好了',
   ]);
 });
@@ -256,7 +298,7 @@ test('anyone can run a public command at its own price, and a failed one is refu
     '@阿明 要写歌名',
     '@阿明 没有指令「清空」，可用的有：点歌',
     '@阿明 已点歌：稻香',
-    '@阿明 「点歌」要先给主播送礼：每次2钻，你送的还剩1钻（不另外扣钱）',
+    '@阿明 「点歌」要先给主播送礼：每次2钻，你送的还剩1钻（不另外扣钱），送了马上回你',
   ]);
 });
 
@@ -293,7 +335,7 @@ test("/识歌 asks its own model with its own prompt, at a mention's price, answ
   expect(prompts).toEqual([]);
   expect(wallet.balance('u-阿明')).toBe(0);
   expect(sent).toEqual([
-    '@阿明 「识歌」要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱）',
+    '@阿明 「识歌」要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱），送了马上回你',
     '@阿明 这首是《aLIEz》',
   ]);
 });
