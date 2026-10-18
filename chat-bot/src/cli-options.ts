@@ -9,7 +9,7 @@ export const USAGE =
   '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
-  '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 0.6]\n' +
+  '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
   '       [--auto-reply-prompt auto-reply.md] [--thanks-threshold 99999] [--wake-words wake-words.json]\n' +
   '       [--codex gpt-6-luna]';
 
@@ -86,8 +86,9 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'send-interval': { type: 'string', default: '10' },
       data: { type: 'string', default: join(packageDir, 'data') },
       config: { type: 'string', default: join(packageDir, 'config.json') },
-      // Jev's score at which the bot joins in when someone talks about it; /自动回复阈值 changes it.
-      'auto-reply-threshold': { type: 'string', default: '0.6' },
+      // Jev's score at which the bot joins in when someone talks about it: 1, off, by default;
+      // /自动回复阈值 0.6 turns it on while the bot runs.
+      'auto-reply-threshold': { type: 'string', default: '1' },
       'auto-reply-prompt': { type: 'string', default: join(packageDir, 'auto-reply.md') },
       // So high it's off by default; /自动谢礼 lowers it while the bot runs.
       'thanks-threshold': { type: 'string', default: '99999' },
