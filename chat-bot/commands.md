@@ -17,6 +17,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/识歌 [提示]`              | Name the song the streamer sings, from its lyrics  | no          |
 | `/识歌模型 <codex\|claude>` | Who looks songs up for `/识歌`                     | yes         |
 | `/识别背景音乐`             | Name the recording playing, from its sound         | no          |
+| `/自动识歌 <0\|1>`          | Name the songs the streamer sings, unasked         | yes         |
 
 Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
 
@@ -127,6 +128,17 @@ Who works out `/识歌`: `codex` (OpenAI's Codex CLI, `gpt-6-luna`, which search
 → 要写 codex 或 claude，用法：/识歌模型 codex
 ```
 
+### /自动识歌
+
+Has the bot name the songs the streamer sings without anyone asking, as `/识歌` would, and say it in the room (no @). It counts the streamer as singing when, in the last minute, at least 3 of their lines were sung and those are at least 70% of their lines (singing ran 75–100% a minute, talk at most 40–60%). Once a song has 5 sung lines it's named; while the streamer goes on singing without a pause of over a minute, it's named again every 3 minutes, for the next song. Only a song the model is sure of is said: it fills in `title` only once it has checked the lyrics, and nothing is said otherwise. A song told to the room within the hour (by this or by `/识歌`) isn't told again. It uses `/识歌`'s model and prompt, with the question saying nobody asked. It assumes the background music doesn't get transcribed as the streamer singing. Off unless `--auto-song-id`; until the bot stops. Only while speech recognition is on.
+
+```text
+@默认关闭 /自动识歌 1
+→ 已处理自动识歌请求
+（主播唱了一会儿）
+→ 这首是《ひとつのハートで》，原唱三重野瞳！
+```
+
 ### /识别背景音乐
 
 Names the recording playing in the stream, from the last 15 s of its audio, by its fingerprint (Shazam, through `shazamio`; the fingerprint is worked out locally and only it is sent), asked in Chinese so Chinese singers come back by their Chinese names (张靓颖, not Jane Zhang). It doesn't need the lyrics, so it finds songs in any language, and usually still does with the streamer talking over them. It can't name the streamer singing a song themselves (use `/识歌`), or music too quiet under the talk. It answers in a few seconds without Claude, and is refunded when nothing is found. Only while speech recognition is on (not with `--no-asr`).
@@ -164,6 +176,7 @@ Each feature offers its own commands, and `src/main.ts` hands them all to `ChatB
 | 设置唤醒词     | `WakeWord.commands()` in `src/app/wake-word.ts`                                        |
 | 识歌           | `songIdCommand` in `src/app/song-id-command.ts`                                        |
 | 识别背景音乐   | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
+| 自动识歌       | `AutoSongId.commands()` in `src/app/auto-song-id.ts`                                   |
 
 The `Command` type and the `done` / `failed` helpers are in `src/app/command.ts`.
 

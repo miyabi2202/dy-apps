@@ -21,6 +21,7 @@ import { jev } from './adapters/jev';
 import { wakeWordFile } from './adapters/wake-word-file';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
+import { AutoSongId } from './app/auto-song-id';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { GiftThanker } from './app/gift-thanker';
@@ -77,13 +78,18 @@ const userTalk = userTalkFiles(files.users);
 // The streamer saying the room's wake word (from --wake-words, read again when it changes) makes
 // the bot talk now, for free; /设置唤醒词 changes it.
 let wakeWord: WakeWord | null = null;
+// And the streamer singing has the song named, when /自动识歌 (or --auto-song-id) turns it on.
+let autoSongId: AutoSongId | null = null;
 const transcriber = options.asr
   ? new Transcriber({
       streamUrl: roomApi.streamUrl,
       transcript,
       record,
       log,
-      onLine: (line) => wakeWord?.hear(line),
+      onLine: (line) => {
+        wakeWord?.hear(line);
+        autoSongId?.hear(line);
+      },
       spawnWorker: uvWorker(join(packageDir, 'asr')),
     })
   : null;
@@ -131,6 +137,7 @@ const room = new RoomState({
     talkThreshold: talker.threshold,
     thanksThreshold: thanker.threshold,
     wakeWord: wakeWords.get(),
+    autoSongId: autoSongId?.on ?? false,
   }),
   commands: liveSection(join(packageDir, 'commands.md'), 'The commands'),
   log,
@@ -209,6 +216,16 @@ const songId = new SongId({
     : undefined,
   log,
 });
+autoSongId = transcriber
+  ? new AutoSongId({
+      songId,
+      room,
+      outbox,
+      log,
+      on: options.autoSongId,
+      maxLength: options.maxReplyLength,
+    })
+  : null;
 // Decides what a mention is (a question, or a command) and charges for it.
 const bot = new ChatBot({
   feed,
@@ -227,6 +244,7 @@ const bot = new ChatBot({
     ...wakeWord.commands(),
     screenshotCommand(room),
     ...songId.commands(),
+    ...(autoSongId?.commands() ?? []),
     // Only when listening to the stream.
     ...(transcriber ? [musicCommand(() => transcriber.identifyMusic(), log)] : []),
   ],
@@ -244,6 +262,7 @@ log.info('starting', {
   persona: config.persona,
   talkThreshold: options.talkThreshold,
   thanksThreshold: options.thanksThreshold,
+  autoSongId: options.autoSongId,
   songIdEngine: songId.engine,
 });
 bot.start();

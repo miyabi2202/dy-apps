@@ -55,6 +55,18 @@ export function currentSong(lines: readonly TranscriptLine[], gapMs = 60_000): T
   return start === undefined ? [...lines] : lines.filter((line) => line.start >= start);
 }
 
+/**
+ * Whether the streamer is singing at `at`: of their lines (not a linked-up guest's) that ended in
+ * the minute before, at least 3 were sung and they're at least 70% of them. On a singing stream
+ * that was 75–100% a minute of singing, and at most 40% (60% once) one of talk, where a line now
+ * and then is taken for sung.
+ */
+export function singingNow(lines: readonly TranscriptLine[], at: number): boolean {
+  const lately = lines.filter((line) => !isGuest(line) && at - line.end < 60_000 && line.end <= at);
+  const sung = lately.filter(isSung).length;
+  return sung >= 3 && sung >= 0.7 * lately.length;
+}
+
 /** A line the transcription worker prints: one sentence, times in seconds. */
 interface WorkerLine {
   start: number;
