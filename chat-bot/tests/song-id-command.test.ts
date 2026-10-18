@@ -86,3 +86,26 @@ test('/识歌模型 switches between Codex and Claude, Codex first when there is
     reply: '没有装 codex，可以用的有：claude',
   });
 });
+
+test('asks for the song as JSON, sends its message, and sends an answer that is not JSON as it is', async () => {
+  const schemas: (object | undefined)[] = [];
+  const answers = [
+    JSON.stringify({ message: '这首是中島美嘉的《ALWAYS》', title: 'ALWAYS', artist: '中島美嘉' }),
+    '弹幕：没认出来',
+  ];
+  const songId = new SongId({
+    prompt: () => '',
+    sungLines: () => [],
+    claude: ({ schema }) => {
+      schemas.push(schema);
+      return Promise.resolve(answers.shift() ?? '');
+    },
+    log: silentLog,
+  });
+  const [identify] = songId.commands();
+  if (!identify?.prompt) throw new Error('/识歌 should have its own prompt');
+
+  await expect(identify.ask?.({ prompt: '' })).resolves.toBe('这首是中島美嘉的《ALWAYS》');
+  await expect(identify.ask?.({ prompt: '' })).resolves.toBe('弹幕：没认出来');
+  expect(schemas[0]).toMatchObject({ required: ['message', 'title', 'artist'] });
+});

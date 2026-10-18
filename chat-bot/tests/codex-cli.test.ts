@@ -1,4 +1,5 @@
 import type { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { codexCli, codexResult } from '../src/adapters/codex-cli';
 
 const events = (...lines: object[]) => lines.map((line) => JSON.stringify(line)).join('\n');
@@ -47,4 +48,14 @@ test("runs read-only without the user's config, searching live, with the model a
   expect(args[args.indexOf('--sandbox') + 1]).toBe('read-only');
   expect(args[args.indexOf('--model') + 1]).toBe('gpt-6-luna');
   expect(args.at(-1)).toBe('你是机器人\n\n这是什么歌');
+});
+
+test('hands codex the answer schema in a file', () => {
+  let schema = '';
+  const spawnProcess = ((_command: string, args: readonly string[]) => {
+    schema = readFileSync(args[args.indexOf('--output-schema') + 1] ?? '', 'utf8');
+    throw new Error('not really running codex');
+  }) as unknown as typeof spawn;
+  void codexCli({ spawnProcess })({ prompt: 'hi', schema: { type: 'object' } }).catch(() => {});
+  expect(schema).toBe('{"type":"object"}');
 });

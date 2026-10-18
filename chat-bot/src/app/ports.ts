@@ -76,6 +76,8 @@ export interface Question {
   tools?: readonly string[];
   /** Give up after this many turns (each a step of thinking and tool use), to cap the cost. */
   maxTurns?: number;
+  /** A JSON Schema the answer must follow: the answer is then that JSON. */
+  schema?: object;
 }
 
 /** Asks Claude one question and resolves with its answer. */

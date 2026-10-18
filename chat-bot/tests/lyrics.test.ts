@@ -1,5 +1,5 @@
 import { parseJLyricResults } from '../src/adapters/j-lyric';
-import { candidates, clearWinner, lyricFragments } from '../src/core/lyrics';
+import { candidates, clearWinner, lyricFragments, parseSongAnswer } from '../src/core/lyrics';
 
 const song = (title: string, artist = '中島美嘉') => ({
   title,
@@ -58,4 +58,21 @@ test("reads the songs off j-lyric's results page", () => {
     { title: 'ALWAYS', artist: '中島美嘉', url: 'https://j-lyric.net/artist/a000621/l01e18a.html' },
     { title: 'Tom & Jerry', artist: 'A&B', url: 'https://j-lyric.net/artist/a1/l2.html' },
   ]);
+});
+
+test('reads a song answer, and rejects anything else', () => {
+  expect(
+    parseSongAnswer('{"message":"是《あぶく》","title":"あぶく","artist":"ヨルシカ"}'),
+  ).toEqual({
+    message: '是《あぶく》',
+    title: 'あぶく',
+    artist: 'ヨルシカ',
+  });
+  expect(parseSongAnswer('{"message":"没认出来"}')).toEqual({
+    message: '没认出来',
+    title: '',
+    artist: '',
+  });
+  expect(parseSongAnswer('弹幕：没认出来')).toBeNull();
+  expect(parseSongAnswer('{"title":"ALWAYS"}')).toBeNull();
 });

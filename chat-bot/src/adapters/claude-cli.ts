@@ -99,6 +99,7 @@ export function claudeCli({
       ...(model ? ['--model', model] : []),
       ...(systemPrompt ? ['--append-system-prompt', systemPrompt] : []),
       ...(question.maxTurns ? ['--max-turns', String(question.maxTurns)] : []),
+      ...(question.schema ? ['--json-schema', JSON.stringify(question.schema)] : []),
     ];
   };
   return (question) =>

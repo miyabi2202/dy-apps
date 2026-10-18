@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AskClaude } from '../app/ports';
 
 export interface CodexCliOptions {
@@ -59,8 +62,13 @@ export function codexCli({
   systemPrompt,
   spawnProcess = spawn,
 }: CodexCliOptions = {}): AskClaude {
-  return ({ prompt }) =>
+  return ({ prompt, schema }) =>
     new Promise((resolve, reject) => {
+      // codex reads the answer's schema from a file.
+      const schemaDir = schema ? mkdtempSync(join(tmpdir(), 'codex-schema-')) : null;
+      const schemaFile = schemaDir && join(schemaDir, 'schema.json');
+      if (schemaFile) writeFileSync(schemaFile, JSON.stringify(schema));
+      const cleanUp = () => schemaDir && rmSync(schemaDir, { recursive: true, force: true });
       const args = [
         'exec',
         '--ephemeral',
@@ -75,23 +83,33 @@ export function codexCli({
         '-c',
         'web_search="live"',
         '--json',
+        ...(schemaFile ? ['--output-schema', schemaFile] : []),
         systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,
       ];
-      const child = spawnProcess(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+      let child: ReturnType<typeof spawn>;
+      try {
+        child = spawnProcess(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+      } catch (err) {
+        cleanUp();
+        throw err;
+      }
       let stdout = '';
       let stderr = '';
       const timer = setTimeout(() => {
         child.kill();
+        cleanUp();
         reject(new Error(`codex timed out after ${timeoutMs} ms`));
       }, timeoutMs);
       child.stdout?.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
       child.stderr?.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
       child.on('error', (err) => {
         clearTimeout(timer);
+        cleanUp();
         reject(err);
       });
       child.on('close', (code) => {
         clearTimeout(timer);
+        cleanUp();
         try {
           resolve(codexResult(stdout));
         } catch (err) {

@@ -56,4 +56,7 @@ test('a question can narrow the tools (no folders without file tools) and cap th
 
   void ask({ prompt: 'hi' }).catch(() => {});
   expect(args).not.toContain('--max-turns');
+
+  void ask({ prompt: 'hi', schema: { type: 'object' } }).catch(() => {});
+  expect(after('--json-schema')).toBe('{"type":"object"}');
 });

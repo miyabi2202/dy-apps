@@ -1,6 +1,12 @@
-import { candidates, clearWinner, lyricFragments } from '../core/lyrics';
+import {
+  candidates,
+  clearWinner,
+  lyricFragments,
+  parseSongAnswer,
+  SONG_ANSWER_SCHEMA,
+} from '../core/lyrics';
 import { done, failed, type Command, type Prepared } from './command';
-import type { AskClaude, Log, LyricsSearch } from './ports';
+import type { AskClaude, Log, LyricsSearch, Question } from './ports';
 
 /** Who looks a song up when the lyrics site alone can't tell, the first there is by default. */
 export const SONG_ID_ENGINES = ['codex', 'claude'] as const;
@@ -42,7 +48,7 @@ export class SongId {
 
   /** `/识歌` for anyone, at a mention's price; `/识歌模型 codex|claude` for admins. */
   commands(): Command[] {
-    const { prompt, webPrompt = prompt, claude, log } = this.options;
+    const { prompt, webPrompt = prompt, log } = this.options;
     return [
       {
         name: '识歌',
@@ -51,7 +57,7 @@ export class SongId {
         prepare: () => this.lookUpLyrics(),
         tools: ['WebSearch', 'WebFetch'],
         maxTurns: SONG_ID_MAX_TURNS,
-        ask: (question) => (this.options[this.engine] ?? claude)(question),
+        ask: (question) => this.identify(question),
       },
       {
         name: '识歌模型',
@@ -70,6 +76,26 @@ export class SongId {
         },
       },
     ];
+  }
+
+  /**
+   * Asks the current model, for an answer in SONG_ANSWER_SCHEMA's shape: its message is what's
+   * sent, and the song it named is logged. An answer that isn't that shape is sent as it is.
+   */
+  private async identify(question: Question): Promise<string> {
+    const model = this.options[this.engine] ?? this.options.claude;
+    const text = await model({ ...question, schema: SONG_ANSWER_SCHEMA });
+    const answer = parseSongAnswer(text);
+    if (!answer) {
+      this.options.log.warn('song id answer is not json', { engine: this.engine, text });
+      return text;
+    }
+    this.options.log.info('song identified', {
+      engine: this.engine,
+      title: answer.title,
+      artist: answer.artist,
+    });
+    return answer.message;
   }
 
   private async lookUpLyrics(): Promise<Prepared> {
