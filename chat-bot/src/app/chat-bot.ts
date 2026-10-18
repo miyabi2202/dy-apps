@@ -164,7 +164,6 @@ export class ChatBot {
         question: args,
         history: this.options.room.recentChat(),
         template: command.prompt(),
-        prepare: command.prepare,
         tools: command.tools,
         maxTurns: command.maxTurns,
         ask: command.ask,

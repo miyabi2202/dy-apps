@@ -58,8 +58,6 @@ export type PromptInput = RoomPromptInput & {
   userChat?: string;
   /** The asker's diamonds left to pay for @s with. */
   askerBalance?: number;
-  /** What the bot looked up before asking (a command's own), for `{{lookup}}`. */
-  lookup?: string;
 };
 
 /** `settings` as lines for the prompt, with `asker`'s balance when known. */
@@ -87,13 +85,12 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
  * without one), `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
  * none), `{{settings}}` the room's settings (and the asker's balance) as a list, and
- * `{{commands}}` the commands viewers can run (both empty when not given), and `{{lookup}}` what
- * a command looked up before asking (`（无）` when nothing).
+ * `{{commands}}` the commands viewers can run (both empty when not given).
  */
 export function buildPrompt(template: string, input: PromptInput): string {
   const { history, transcript, singleLength, maxLength, now, chatDir, persona } = input;
   const { asker = '', question = '', botName, context, botTalk, userHistory, userChat } = input;
-  const { settings, commands, askerBalance, lookup } = input;
+  const { settings, commands, askerBalance } = input;
   const values: Record<string, string> = {
     history: history.map((line) => `${line.nickname}: ${line.content}`).join('\n') || '（暂无）',
     transcript:
@@ -117,7 +114,6 @@ export function buildPrompt(template: string, input: PromptInput): string {
     userChat: userChat?.trim() || '（暂无）',
     settings: settings ? settingsText(settings, asker, askerBalance) : '',
     commands: commands?.trim() ?? '',
-    lookup: lookup?.trim() || '（无）',
   };
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => values[key] ?? match);
 }

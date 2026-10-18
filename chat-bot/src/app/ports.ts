@@ -4,7 +4,6 @@
  */
 import type { ChatRecord } from '../core/chat-record';
 import type { Gift, IncomingChat } from '../core/room-events';
-import type { LyricHit } from '../core/lyrics';
 import type { Exchange } from '../core/talk-record';
 
 /** Who the admins are, by user id; it may change while the bot runs. */
@@ -82,9 +81,6 @@ export interface Question {
 
 /** Asks Claude one question and resolves with its answer. */
 export type AskClaude = (question: Question) => Promise<string>;
-
-/** Songs on a lyrics site whose lyrics contain `fragment`. */
-export type LyricsSearch = (fragment: string) => Promise<LyricHit[]>;
 
 /** The room's chat record, kept in files in `dir` that Claude may read. */
 export interface RoomRecord {

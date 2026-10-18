@@ -126,39 +126,24 @@ export class MentionAnswerer {
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, room, log, promptTemplate, userTalk } = this.options;
     try {
-      // A lookup that fails just leaves it to Claude. Without one, the prompt is built at once,
-      // from the room as it was when the mention's turn came.
-      const prepared = mention.prepare
-        ? await mention.prepare().catch((err: unknown) => {
-            log.warn('could not prepare the answer', { error: errorMessage(err) });
-            return null;
-          })
-        : null;
-      let answer: string;
-      if (prepared && 'answer' in prepared) {
-        answer = prepared.answer;
-        log.info('answered without claude', { asker: mention.asker, answer });
-      } else {
-        const input = room.promptInput();
-        const prompt = buildPrompt(mention.template ?? promptTemplate(), {
-          ...input,
-          transcript: mention.pickTranscript?.(input.transcript) ?? input.transcript,
-          history: mention.history,
-          asker: mention.asker,
-          question: mention.question,
-          singleLength: singleBudget(mention.asker, this.limits),
-          maxLength: answerBudget(mention.asker, this.limits),
-          userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
-          askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
-          lookup: prepared?.lookup,
-        });
-        log.debug('prompt', { prompt });
-        const image = await room.screenshot();
-        const started = room.now();
-        const { tools, maxTurns } = mention;
-        answer = await (mention.ask ?? ask)({ prompt, image, tools, maxTurns });
-        log.info('claude answered', { answer, ms: room.now() - started, image: !!image });
-      }
+      const input = room.promptInput();
+      const prompt = buildPrompt(mention.template ?? promptTemplate(), {
+        ...input,
+        transcript: mention.pickTranscript?.(input.transcript) ?? input.transcript,
+        history: mention.history,
+        asker: mention.asker,
+        question: mention.question,
+        singleLength: singleBudget(mention.asker, this.limits),
+        maxLength: answerBudget(mention.asker, this.limits),
+        userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
+        askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
+      });
+      log.debug('prompt', { prompt });
+      const image = await room.screenshot();
+      const started = room.now();
+      const { tools, maxTurns } = mention;
+      const answer = await (mention.ask ?? ask)({ prompt, image, tools, maxTurns });
+      log.info('claude answered', { answer, ms: room.now() - started, image: !!image });
       const messages = replyMessages(mention.asker, answer, this.limits);
       if (!messages.length) {
         log.warn('claude gave an empty answer', { asker: mention.asker });

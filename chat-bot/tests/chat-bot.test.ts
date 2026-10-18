@@ -278,7 +278,6 @@ test("/识歌 asks its own model with its own prompt, at a mention's price, answ
   const asked: string[] = [];
   const songId = new SongId({
     prompt: () => '识歌:{{question}}',
-    transcript: () => [],
     claude: ({ prompt }) => {
       asked.push(prompt);
       return Promise.resolve('这首是《aLIEz》');

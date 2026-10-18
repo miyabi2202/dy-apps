@@ -116,7 +116,7 @@ Turns screenshots of the live video on (`1`) or off (`0`); while on, every promp
 
 ### /识歌
 
-Names the song being sung or played, from the lyrics heard lately. Only the song being sung now counts: a pause of over a minute between sung lines ends a song, and what came before it is left out. First the bot itself searches [j-lyric](https://j-lyric.net/)'s lyrics with 7-character pieces of its last 5 Japanese lines (up to 12, at once): when one song is found by at least 2 pieces and twice as many as any other, it answers with it straight away, in about 8 seconds and without a model. Otherwise Codex (`gpt-6-luna` at medium effort, searching the web live; the default) or Claude (web search and fetch only, at most 12 turns, more is given up on and refunded) works it out with `song-id-web.md` (Codex: search Google for at least 3 rounds before giving up) or `song-id.md` (Claude) as the prompt (a room's own `song_id_web.md` or `song_id.md` overrides it), told what the search found (`{{lookup}}`); `/识歌模型` switches between them. The model answers in a fixed JSON shape, enforced by its CLI (`--output-schema` for Codex, `--json-schema` for Claude): `message` is what's sent, and `title` and `artist`, the song it named (empty when none), go into the log as `song identified`. Anything after the command is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails.
+Names the song being sung or played, from the lyrics heard lately. Only the song being sung now counts: a pause of over a minute between sung lines ends a song, and what came before it is left out. Codex (`gpt-6-luna` at medium effort, searching the web live; the default) or Claude (web search and fetch only, at most 12 turns, more is given up on and refunded) works it out with `song-id-web.md` (Codex: search Google for at least 3 rounds before giving up) or `song-id.md` (Claude) as the prompt (a room's own `song_id_web.md` or `song_id.md` overrides it); `/识歌模型` switches between them. The model answers in a fixed JSON shape, enforced by its CLI (`--output-schema` for Codex, `--json-schema` for Claude): `message` is what's sent, and `title` and `artist`, the song it named (empty when none), go into the log as `song identified`. Anything after the command is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails.
 
 ```text
 @默认关闭 /识歌
@@ -130,7 +130,7 @@ Lyrics are only as good as speech recognition, so it does best on Chinese and En
 
 ### /识歌模型
 
-Who works out `/识歌` when j-lyric alone can't tell: `codex` (OpenAI's Codex CLI, `gpt-6-luna`, which searches the web live; the default, unless the bot started with `--codex ''`) or `claude`. Codex finds lyrics Claude's web search doesn't, but can't see the screenshot. Until the bot stops.
+Who works out `/识歌`: `codex` (OpenAI's Codex CLI, `gpt-6-luna`, which searches the web live; the default, unless the bot started with `--codex ''`) or `claude`. Codex finds lyrics Claude's web search doesn't, but can't see the screenshot. Until the bot stops.
 
 ```text
 @默认关闭 /识歌模型 claude

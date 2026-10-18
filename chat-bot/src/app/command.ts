@@ -34,11 +34,6 @@ export type Command = {
 
 /** How a command with its own prompt is answered, besides the prompt. */
 export interface PromptOptions {
-  /**
-   * Done first, when it's the command's turn to be answered: an `answer` to send without asking
-   * Claude, or a `lookup` for the prompt's `{{lookup}}`, or null for neither.
-   */
-  prepare?: () => Promise<Prepared>;
   /** The tools Claude may use, when not all of the usual ones. */
   tools?: readonly string[];
   /** Give up after this many of Claude's turns, to cap the cost (and refund). */
@@ -48,9 +43,6 @@ export interface PromptOptions {
   /** The part of what the streamer said lately that the prompt gets, when not all of it. */
   pickTranscript?: (lines: readonly TranscriptLine[]) => TranscriptLine[];
 }
-
-/** What a command's `prepare` came to. */
-export type Prepared = { answer: string } | { lookup: string } | null;
 
 /** A command that worked, saying `reply` back. */
 export const done = (reply: string): CommandResult => ({ ok: true, reply });

@@ -14,7 +14,6 @@ import { claudeCli } from './adapters/claude-cli';
 import { codexCli } from './adapters/codex-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
-import { jLyricSearch } from './adapters/j-lyric';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
 import { liveSection, liveText, roomFiles } from './adapters/room-files';
 import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
@@ -186,13 +185,10 @@ const answerer = new MentionAnswerer({
 });
 // Codex reads its working directory, so it gets an empty one.
 const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
-// /识歌: j-lyric first, so a Japanese song whose lyrics were heard well is named at once; then
-// Codex, which searches with Google (or Claude, with /识歌模型).
+// /识歌: Codex, which searches with Google (or Claude, with /识歌模型).
 const songId = new SongId({
   prompt: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
   webPrompt: liveText(files.songIdWeb, () => readFileSync(songIdWebTemplate, 'utf8')),
-  search: jLyricSearch(),
-  transcript: () => room.recentTranscript(),
   claude: ask,
   codex: options.codex
     ? codexCli({
