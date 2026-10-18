@@ -13,7 +13,7 @@ test('says what is playing, and fails (to be refunded) when nothing is found or 
   });
   await expect(run(() => Promise.resolve(null))).resolves.toEqual({
     ok: false,
-    reply: '没认出背景音乐，可能现在没在放歌，或者音乐被说话声盖住了，过一会儿再试试',
+    reply: '我找不到',
   });
   await expect(run(() => Promise.reject(new Error('not listening')))).resolves.toEqual({
     ok: false,

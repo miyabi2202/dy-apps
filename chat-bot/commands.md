@@ -136,7 +136,7 @@ Names the recording playing in the stream, from the last 15 s of its audio, by i
 → @雅 现在放的是SawanoHiroyuki[nZk]的《aLIEz (feat. mizuki)》
 
 （a quiet stretch, or the streamer singing）
-→ @雅 没认出背景音乐，可能现在没在放歌，或者音乐被说话声盖住了，过一会儿再试试
+→ @雅 我找不到
 ```
 
 ## How a command is handled

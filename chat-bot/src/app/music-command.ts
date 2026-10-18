@@ -17,7 +17,7 @@ export function musicCommand(identify: () => Promise<MusicMatch | null>, log: Lo
       try {
         const match = await identify();
         if (!match) {
-          return failed('没认出背景音乐，可能现在没在放歌，或者音乐被说话声盖住了，过一会儿再试试');
+          return failed('我找不到');
         }
         const artist = match.artist ? `${match.artist}的` : '';
         return done(`现在放的是${artist}《${match.title}》`);
