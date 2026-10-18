@@ -18,6 +18,8 @@ export interface SongIdOptions {
   codex?: AskClaude;
   log: Log;
   now?: () => number;
+  /** Told each song named to the room, after its message, to say more about it. */
+  onTold?: (song: SongAnswer) => void;
 }
 
 /** At most this many of Claude's turns: a search that runs longer is given up on (and refunded). */
@@ -76,9 +78,11 @@ export class SongId {
     return this.named.get(title);
   }
 
-  /** Remembers that `title` was told to the room now. */
-  told(title: string): void {
-    if (title) this.named.set(title, (this.options.now ?? Date.now)());
+  /** Remembers that `song` was told to the room now (when it has a title), and says so. */
+  told(song: SongAnswer): void {
+    if (!song.title) return;
+    this.named.set(song.title, (this.options.now ?? Date.now)());
+    this.options.onTold?.(song);
   }
 
   /** `/识歌` for anyone, at a mention's price; `/识歌模型 codex|claude` for admins. */
@@ -118,7 +122,7 @@ export class SongId {
   private async identify(question: Question): Promise<string> {
     const { answer, text } = await this.name(question);
     if (!answer) return text;
-    this.told(answer.title);
+    this.told(answer);
     return answer.message;
   }
 }

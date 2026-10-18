@@ -111,8 +111,8 @@ export class AutoSongId {
       }
       const text = plainMessage(answer.message, maxLength);
       if (!text) return;
-      songId.told(answer.title);
       outbox.push({ kind: 'talk', text });
+      songId.told(answer);
     } catch (err) {
       log.warn('auto song id failed', { error: errorMessage(err) });
     }

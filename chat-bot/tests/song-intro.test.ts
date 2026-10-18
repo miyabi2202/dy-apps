@@ -1,0 +1,58 @@
+import { SongIntro } from '../src/app/song-intro';
+import { RoomState } from '../src/app/room-state';
+import { ChatHistory } from '../src/core/chat-history';
+import { Transcript } from '../src/core/transcript';
+import type { Question } from '../src/app/ports';
+
+const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+const now = () => 600_000;
+
+function setUp(answer: string) {
+  const transcript = new Transcript(30 * 60_000, now);
+  transcript.add({ start: 500_000, end: 503_000, text: '给你幸福的是我', speech: 0.05 });
+  transcript.add({ start: 504_000, end: 506_000, text: '谁在唱', speech: 0.05, host: false });
+  const room = new RoomState({
+    history: new ChatHistory(10),
+    transcript,
+    now,
+    botName: '默认关闭',
+    log,
+  });
+  const asked: Question[] = [];
+  const pushed: string[] = [];
+  const intro = new SongIntro({
+    ask: (question) => {
+      asked.push(question);
+      return Promise.resolve(answer);
+    },
+    outbox: { push: ({ text }) => void pushed.push(text) },
+    promptTemplate: () => '{{question}}\n{{transcript}}',
+    room,
+    log,
+    maxLength: 50,
+  });
+  return { intro, asked, pushed };
+}
+
+test('says the intro, then the praise, from one search-backed answer', async () => {
+  const { intro, asked, pushed } = setUp(
+    JSON.stringify({ intro: '这首是 2008 年的歌', praise: '「给你幸福的是我」这句好温柔' }),
+  );
+  await intro.introduce({ title: '安静', artist: '朱丽静、陈世安' });
+
+  expect(pushed).toEqual(['这首是 2008 年的歌', '「给你幸福的是我」这句好温柔']);
+  expect(asked[0]!.tools).toEqual(['WebSearch', 'WebFetch']);
+  expect(asked[0]!.prompt).toContain('《安静》，原唱 朱丽静、陈世安');
+  expect(asked[0]!.prompt).toContain('给你幸福的是我');
+  expect(asked[0]!.prompt).not.toContain('谁在唱');
+});
+
+test('says nothing it left empty, and nothing for an answer that is not json', async () => {
+  const empty = setUp(JSON.stringify({ intro: '', praise: '高音好稳' }));
+  await empty.intro.introduce({ title: '安静', artist: '' });
+  expect(empty.pushed).toEqual(['高音好稳']);
+
+  const broken = setUp('这首歌很好听');
+  await broken.intro.introduce({ title: '安静', artist: '' });
+  expect(broken.pushed).toEqual([]);
+});

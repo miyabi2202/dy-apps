@@ -29,7 +29,7 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
         return done;
       },
       namedAt: (title) => named.get(title),
-      told: (title) => named.set(title, now),
+      told: ({ title }) => named.set(title, now),
     },
     room: fakeRoom({ transcript, now: () => now }),
     outbox: { push: ({ text }) => sent.push(text) },

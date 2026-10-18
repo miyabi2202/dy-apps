@@ -31,6 +31,7 @@ import { AutoSongId } from './app/auto-song-id';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { GiftThanker } from './app/gift-thanker';
+import { SongIntro } from './app/song-intro';
 import { StreamerAdmin } from './app/streamer-admin';
 import { MentionAnswerer } from './app/mention-answerer';
 import { Outbox } from './app/outbox';
@@ -71,13 +72,14 @@ wallet.clear();
 const chatDir = join(roomDir, 'chat');
 mkdirSync(chatDir, { recursive: true });
 const record = new ChatLog(chatDir);
-// The prompts are shared by every room (a room's own auto_reply.md, song_id.md or gift_thanks.md
+// The prompts are shared by every room (a room's own auto_reply.md, song_id.md, gift_thanks.md and so on
 // overrides one), and the room's context.md; all read on every use so edits apply while it runs.
 // Plus what the bot said, overall and to each viewer, so it doesn't repeat itself.
 const autoReplyTemplate = resolve(options.autoReplyPromptFile);
 const songIdTemplate = join(packageDir, 'song-id.md');
 const songIdWebTemplate = join(packageDir, 'song-id-web.md');
 const giftThanksTemplate = join(packageDir, 'gift-thanks.md');
+const songIntroTemplate = join(packageDir, 'song-intro.md');
 const files = roomFiles(roomDir);
 const context = liveText(files.context);
 // The room's room_config.json, read again when it changes: whether it's a 私密 room.
@@ -210,6 +212,15 @@ const answerer = new MentionAnswerer({
 // Codex reads its working directory, so it gets an empty one.
 const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 // /识歌: Codex, which searches with Google (or Claude, with /识歌模型).
+// Once a song is named, says something about it and praises the streamer's singing.
+const songIntro = new SongIntro({
+  ask,
+  outbox,
+  promptTemplate: liveText(files.songIntro, () => readFileSync(songIntroTemplate, 'utf8')),
+  room,
+  log,
+  maxLength: options.maxReplyLength,
+});
 const songId = new SongId({
   prompt: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
   webPrompt: liveText(files.songIdWeb, () => readFileSync(songIdWebTemplate, 'utf8')),
@@ -224,6 +235,7 @@ const songId = new SongId({
       })
     : undefined,
   log,
+  onTold: (song) => void songIntro.introduce(song),
 });
 autoSongId = transcriber
   ? new AutoSongId({
