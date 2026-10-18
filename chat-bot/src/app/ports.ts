@@ -11,6 +11,9 @@ export interface Admins {
   has(userId: string): boolean;
 }
 
+/** Who the room's streamer is, or null while it isn't known yet. */
+export type FindStreamer = () => Promise<{ uid: string; nickname: string } | null>;
+
 /** What the streamer says in this room to wake the bot; it may change while the bot runs. */
 export interface WakeWords {
   /** The room's wake word, or the default one; empty for none. */

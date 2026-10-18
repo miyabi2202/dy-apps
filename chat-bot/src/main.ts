@@ -25,6 +25,7 @@ import { AutoSongId } from './app/auto-song-id';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { GiftThanker } from './app/gift-thanker';
+import { StreamerAdmin } from './app/streamer-admin';
 import { MentionAnswerer } from './app/mention-answerer';
 import { Outbox } from './app/outbox';
 import { RoomFeed } from './app/room-feed';
@@ -228,6 +229,14 @@ autoSongId = transcriber
       maxLength: options.maxReplyLength,
     })
   : null;
+// The admins from config.json (read again when it changes, so admins can be added or removed while
+// it runs), and the room's streamer once DyHub has read the room page.
+const admins = new StreamerAdmin({
+  admins: liveAdmins(resolve(options.configFile), { log }),
+  find: roomApi.streamer,
+  log,
+});
+admins.start();
 // Decides what a mention is (a question, or a command) and charges for it.
 const bot = new ChatBot({
   feed,
@@ -236,8 +245,7 @@ const bot = new ChatBot({
   outbox,
   log,
   billing,
-  // Read again when config.json changes, so admins can be added or removed while it runs.
-  admins: liveAdmins(resolve(options.configFile), { log }),
+  admins,
   commands: [
     personaCommand(room),
     ...billing.commands(),

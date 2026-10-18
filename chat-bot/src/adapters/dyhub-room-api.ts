@@ -1,8 +1,8 @@
-import type { Screenshot, SendChat, StreamUrl } from '../app/ports';
+import type { FindStreamer, Screenshot, SendChat, StreamUrl } from '../app/ports';
 
 /**
- * One live room's HTTP API on DyHub: send chat, and get the stream URL and a screenshot of the
- * player. All three need DyHub's browser collector to have the room open.
+ * One live room's HTTP API on DyHub: send chat, get the stream URL and a screenshot of the
+ * player (these need DyHub's browser collector to have the room open), and who the streamer is.
  */
 export class DyhubRoomApi {
   private readonly base: string;
@@ -33,6 +33,15 @@ export class DyhubRoomApi {
     if (!res.ok) return null;
     const body = (await res.json()) as { url?: string };
     return body.url ?? null;
+  };
+
+  /** `GET …` (the room): the streamer, from the room page, once DyHub has read it. */
+  readonly streamer: FindStreamer = async () => {
+    const res = await this.fetchFn(this.base);
+    if (!res.ok) return null;
+    const body = (await res.json()) as { room?: { meta?: { uid?: string; nickname?: string } } };
+    const { uid, nickname = '' } = body.room?.meta ?? {};
+    return uid ? { uid, nickname } : null;
   };
 
   /** `GET …/screenshot`: the player as a JPEG. */
