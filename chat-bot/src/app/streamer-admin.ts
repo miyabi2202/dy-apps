@@ -5,6 +5,8 @@ export interface StreamerAdminOptions {
   /** The admins from config.json. */
   admins: Admins;
   find: FindStreamer;
+  /** Told who the streamer is, once found. */
+  onFound?: (streamer: { uid: string; nickname: string }) => void;
   log: Log;
   /** How long to wait before asking again while the streamer isn't known. */
   retryMs?: number;
@@ -27,6 +29,7 @@ export class StreamerAdmin implements Admins {
   start(): void {
     const {
       find,
+      onFound,
       log,
       retryMs = 10_000,
       schedule = (run, ms) => void setTimeout(run, ms),
@@ -41,6 +44,7 @@ export class StreamerAdmin implements Admins {
           if (!streamer) return schedule(ask, retryMs);
           this.streamer = streamer.uid;
           log.info('streamer is an admin', streamer);
+          onFound?.(streamer);
         })
         .catch(() => {});
     };

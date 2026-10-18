@@ -6,9 +6,11 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 test('the streamer is an admin once found, besides the admins from config.json', async () => {
   const answers = [null, { uid: '4431457071932131', nickname: '海老夏二🎂' }];
   const later: (() => void)[] = [];
+  const onFound = jest.fn();
   const admins = new StreamerAdmin({
     admins: { has: (id) => id === '7664182420958889017' },
     find: () => Promise.resolve(answers.shift() ?? null),
+    onFound,
     log,
     schedule: (run) => later.push(run),
   });
@@ -23,4 +25,5 @@ test('the streamer is an admin once found, besides the admins from config.json',
   expect(admins.has('7664182420958889017')).toBe(true);
   expect(admins.has('111111')).toBe(false);
   expect(later).toHaveLength(0);
+  expect(onFound).toHaveBeenCalledWith({ uid: '4431457071932131', nickname: '海老夏二🎂' });
 });

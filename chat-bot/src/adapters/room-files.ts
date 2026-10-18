@@ -28,6 +28,12 @@ export interface RoomConfig {
   private: boolean;
 }
 
+/** The room's streamer, which the bot writes into `room_config.json` once it knows. */
+export interface Streamer {
+  uid: string;
+  nickname: string;
+}
+
 const DEFAULT_ROOM_CONFIG: RoomConfig = { private: false };
 
 /**
@@ -83,6 +89,27 @@ export function liveRoomConfig(
     }
     return config;
   };
+}
+
+/**
+ * Writes `streamer` into the room's `room_config.json` as `"streamer": { "nickname", "uid" }`,
+ * keeping everything else in it. A file that doesn't parse is left alone.
+ */
+export function saveStreamer(
+  path: string,
+  { uid, nickname }: Streamer,
+  {
+    log,
+    read = (p) => readFileSync(p, 'utf8'),
+    write = writeFileSync,
+  }: { log: Log; read?: (path: string) => string; write?: (path: string, text: string) => void },
+): void {
+  try {
+    const config = JSON.parse(read(path)) as Record<string, unknown>;
+    write(path, `${JSON.stringify({ ...config, streamer: { nickname, uid } }, null, 2)}\n`);
+  } catch (err) {
+    log.warn('could not write the streamer into room_config.json', { error: errorMessage(err) });
+  }
 }
 
 /**

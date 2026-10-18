@@ -15,7 +15,13 @@ import { codexCli } from './adapters/codex-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
-import { liveRoomConfig, liveSection, liveText, roomFiles } from './adapters/room-files';
+import {
+  liveRoomConfig,
+  liveSection,
+  liveText,
+  roomFiles,
+  saveStreamer,
+} from './adapters/room-files';
 import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
 import { jev } from './adapters/jev';
 import { wakeWordFile } from './adapters/wake-word-file';
@@ -230,10 +236,12 @@ autoSongId = transcriber
     })
   : null;
 // The admins from config.json (read again when it changes, so admins can be added or removed while
-// it runs), and the room's streamer once DyHub has read the room page.
+// it runs), and the room's streamer once DyHub has read the room page (saved in room_config.json).
 const admins = new StreamerAdmin({
   admins: liveAdmins(resolve(options.configFile), { log }),
   find: roomApi.streamer,
+  // Noted in the room's room_config.json.
+  onFound: (streamer) => saveStreamer(files.config, streamer, { log }),
   log,
 });
 admins.start();
