@@ -37,6 +37,24 @@ export function isSung(line: TranscriptLine): boolean {
   return line.speech !== undefined && line.speech < SUNG_BELOW_SPEECH;
 }
 
+/**
+ * What was said and sung since the current song started: a pause of more than `gapMs` between
+ * two sung lines ends a song, so everything before the last such pause belongs to an earlier one.
+ * All of `lines` when nothing was sung.
+ */
+export function currentSong(lines: readonly TranscriptLine[], gapMs = 60_000): TranscriptLine[] {
+  const sung = lines.filter(isSung);
+  let start = sung[0]?.start;
+  for (let i = sung.length - 1; i > 0; i--) {
+    const [before, after] = [sung[i - 1], sung[i]];
+    if (before && after && after.start - before.end > gapMs) {
+      start = after.start;
+      break;
+    }
+  }
+  return start === undefined ? [...lines] : lines.filter((line) => line.start >= start);
+}
+
 /** A line the transcription worker prints: one sentence, times in seconds. */
 interface WorkerLine {
   start: number;

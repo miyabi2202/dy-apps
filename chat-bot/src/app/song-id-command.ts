@@ -6,6 +6,7 @@ import {
   SONG_ANSWER_SCHEMA,
 } from '../core/lyrics';
 import { done, failed, type Command, type Prepared } from './command';
+import { currentSong, isSung, type TranscriptLine } from '../core/transcript';
 import type { AskClaude, Log, LyricsSearch, Question } from './ports';
 
 /** Who looks a song up when the lyrics site alone can't tell, the first there is by default. */
@@ -19,8 +20,8 @@ export interface SongIdOptions {
   webPrompt?: () => string;
   /** Searches a lyrics site with a fragment of the lyrics. */
   search?: LyricsSearch;
-  /** What the streamer sang lately, oldest first. */
-  sungLines: () => string[];
+  /** What the streamer said and sang lately, oldest first. */
+  transcript: () => TranscriptLine[];
   /** Claude, with web search and fetch. */
   claude: AskClaude;
   /** Codex, which searches the web live (Google among others). */
@@ -55,6 +56,8 @@ export class SongId {
         adminOnly: false,
         prompt: () => (this.engine === 'claude' ? prompt() : webPrompt()),
         prepare: () => this.lookUpLyrics(),
+        // Only the song being sung now, not the one before it.
+        pickTranscript: (lines) => currentSong(lines),
         tools: ['WebSearch', 'WebFetch'],
         maxTurns: SONG_ID_MAX_TURNS,
         ask: (question) => this.identify(question),
@@ -99,8 +102,9 @@ export class SongId {
   }
 
   private async lookUpLyrics(): Promise<Prepared> {
-    const { search, sungLines, log } = this.options;
-    const fragments = lyricFragments(sungLines());
+    const { search, transcript, log } = this.options;
+    const sung = currentSong(transcript()).filter(isSung);
+    const fragments = lyricFragments(sung.map((line) => line.text));
     if (!search || !fragments.length) return null;
     const found = await Promise.all(
       fragments.map((fragment) =>

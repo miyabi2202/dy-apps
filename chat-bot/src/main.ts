@@ -36,7 +36,7 @@ import { WakeWord } from './app/wake-word';
 import { parseCliOptions, USAGE } from './cli-options';
 import { ChatHistory } from './core/chat-history';
 import type { RoomSettings } from './core/prompt';
-import { isSung, Transcript } from './core/transcript';
+import { Transcript } from './core/transcript';
 import { Wallet } from './core/wallet';
 
 const packageDir = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -192,17 +192,13 @@ const songId = new SongId({
   prompt: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
   webPrompt: liveText(files.songIdWeb, () => readFileSync(songIdWebTemplate, 'utf8')),
   search: jLyricSearch(),
-  sungLines: () =>
-    room
-      .recentTranscript()
-      .filter(isSung)
-      .map((line) => line.text),
+  transcript: () => room.recentTranscript(),
   claude: ask,
   codex: options.codex
     ? codexCli({
         model: options.codex,
-        // Enough with song-id-web.md, which has it search at least 3 rounds: 9 of 9 found.
-        effort: 'low',
+        // Low sometimes answered without searching at all; medium always searched, ~8 s slower.
+        effort: 'medium',
         cwd: emptyDir,
         systemPrompt: options.systemPrompt,
       })

@@ -1,3 +1,4 @@
+import type { TranscriptLine } from '../core/transcript';
 import type { AskClaude } from './ports';
 
 /**
@@ -44,6 +45,8 @@ export interface PromptOptions {
   maxTurns?: number;
   /** Who answers it, when not the usual Claude. */
   ask?: AskClaude;
+  /** The part of what the streamer said lately that the prompt gets, when not all of it. */
+  pickTranscript?: (lines: readonly TranscriptLine[]) => TranscriptLine[];
 }
 
 /** What a command's `prepare` came to. */

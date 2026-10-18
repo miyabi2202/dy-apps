@@ -139,8 +139,10 @@ export class MentionAnswerer {
         answer = prepared.answer;
         log.info('answered without claude', { asker: mention.asker, answer });
       } else {
+        const input = room.promptInput();
         const prompt = buildPrompt(mention.template ?? promptTemplate(), {
-          ...room.promptInput(),
+          ...input,
+          transcript: mention.pickTranscript?.(input.transcript) ?? input.transcript,
           history: mention.history,
           asker: mention.asker,
           question: mention.question,

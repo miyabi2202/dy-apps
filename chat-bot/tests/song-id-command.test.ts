@@ -12,7 +12,8 @@ function prepare(sung: string[], search: (fragment: string) => Promise<LyricHit[
   const songId = new SongId({
     prompt: () => '',
     search,
-    sungLines: () => sung,
+    transcript: () =>
+      sung.map((text, i) => ({ start: i * 5000, end: i * 5000 + 4000, text, speech: 0.05 })),
     claude: () => Promise.resolve(''),
     log: silentLog,
   });
@@ -53,7 +54,7 @@ test('/识歌模型 switches between Codex and Claude, Codex first when there is
   const songId = new SongId({
     prompt: () => 'claude prompt',
     webPrompt: () => 'web prompt',
-    sungLines: () => [],
+    transcript: () => [],
     claude: model('claude'),
     codex: model('codex'),
     log: silentLog,
@@ -76,7 +77,7 @@ test('/识歌模型 switches between Codex and Claude, Codex first when there is
   // Only what's there can be picked, and without Codex, Claude it is.
   const claudeOnly = new SongId({
     prompt: () => '',
-    sungLines: () => [],
+    transcript: () => [],
     claude: model('claude'),
     log: silentLog,
   });
@@ -95,7 +96,7 @@ test('asks for the song as JSON, sends its message, and sends an answer that is 
   ];
   const songId = new SongId({
     prompt: () => '',
-    sungLines: () => [],
+    transcript: () => [],
     claude: ({ schema }) => {
       schemas.push(schema);
       return Promise.resolve(answers.shift() ?? '');
@@ -108,4 +109,29 @@ test('asks for the song as JSON, sends its message, and sends an answer that is 
   await expect(identify.ask?.({ prompt: '' })).resolves.toBe('这首是中島美嘉的《ALWAYS》');
   await expect(identify.ask?.({ prompt: '' })).resolves.toBe('弹幕：没认出来');
   expect(schemas[0]).toMatchObject({ required: ['message', 'title', 'artist'] });
+});
+
+test('looks up only the song being sung now, not the one before a pause', async () => {
+  const searched: string[] = [];
+  const at = (s: number, text: string) => ({
+    start: s * 1000,
+    end: s * 1000 + 4000,
+    text,
+    speech: 0.05,
+  });
+  const songId = new SongId({
+    prompt: () => '',
+    search: (fragment) => {
+      searched.push(fragment);
+      return Promise.resolve([]);
+    },
+    transcript: () => [at(0, '何もかもが今色褪せて見える'), at(120, '燃え尽きないものを数えて')],
+    claude: () => Promise.resolve(''),
+    log: silentLog,
+  });
+  const [identify] = songId.commands();
+  if (!identify?.prompt) throw new Error('/识歌 should have its own prompt');
+  await identify.prepare?.();
+  expect(searched).toEqual(['燃え尽きないも', 'いものを数えて']);
+  expect(identify.pickTranscript?.([at(0, 'a'), at(120, 'b')]).map((l) => l.text)).toEqual(['b']);
 });

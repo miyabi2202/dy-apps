@@ -1,7 +1,7 @@
 import { ChatLog } from '../src/adapters/chat-log-files';
 import type { Log, Worker } from '../src/app/ports';
 import { Transcriber } from '../src/app/transcriber';
-import { Transcript } from '../src/core/transcript';
+import { currentSong, Transcript } from '../src/core/transcript';
 
 const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 
@@ -127,4 +127,29 @@ test('asks the worker what music is playing, telling a match, no match and a fai
   await expect(transcriber.identifyMusic(10)).rejects.toThrow('the worker did not answer');
   transcriber.stop();
   await running;
+});
+
+test('the current song starts after the last pause of over a minute between sung lines', () => {
+  const line = (s: number, text: string, speech = 0.05) => ({
+    start: s * 1000,
+    end: s * 1000 + 4000,
+    text,
+    speech,
+  });
+  const lines = [
+    line(0, 'I dream'),
+    line(10, 'I dream'),
+    line(40, '下一首唱什么呢', 0.8),
+    line(130, 'どうしようもないほどに'),
+    line(150, '救いたいだけ'),
+    line(160, '好听吗', 0.8),
+  ];
+  expect(currentSong(lines).map((l) => l.text)).toEqual([
+    'どうしようもないほどに',
+    '救いたいだけ',
+    '好听吗',
+  ]);
+  // One song throughout, or nothing sung: all of it.
+  expect(currentSong(lines.slice(0, 2))).toHaveLength(2);
+  expect(currentSong([line(0, '你好', 0.8)])).toHaveLength(1);
 });

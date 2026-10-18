@@ -168,6 +168,7 @@ export class ChatBot {
         tools: command.tools,
         maxTurns: command.maxTurns,
         ask: command.ask,
+        pickTranscript: command.pickTranscript,
       });
       return undefined;
     }
