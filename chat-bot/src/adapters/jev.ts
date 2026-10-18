@@ -1,4 +1,5 @@
 import type { Judge } from '../app/ports';
+import { OutOfCreditError } from '../core/errors';
 
 export interface JevOptions {
   /** A TypeSafe API key (console.typesafe.ai). */
@@ -10,8 +11,20 @@ export interface JevOptions {
 }
 
 /**
+ * How TypeSafe turns a call down for want of money: undocumented, so a 402, or a 403 or 429 that
+ * says so (a plain 429 is a rate limit, which passes).
+ */
+function outOfCredit(status: number, body: string): boolean {
+  return (
+    status === 402 ||
+    ([403, 429].includes(status) && /credit|balance|billing|quota|payment|fund/i.test(body))
+  );
+}
+
+/**
  * TypeSafe's Jev (`POST /v1/systemone`): a classifier that answers yes/no questions about a text
  * with a probability each, in a fraction of a second, for about $0.04 per million input tokens.
+ * Throws OutOfCreditError when the account has run out of money.
  */
 export function jev({
   apiKey,
@@ -36,7 +49,9 @@ export function jev({
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
-      throw new Error(`jev answered ${response.status}: ${(await response.text()).slice(0, 300)}`);
+      const body = (await response.text()).slice(0, 300);
+      const message = `jev answered ${response.status}: ${body}`;
+      throw outOfCredit(response.status, body) ? new OutOfCreditError(message) : new Error(message);
     }
     const { answers } = (await response.json()) as { answers: Record<string, { noul: number }> };
     return Object.fromEntries(Object.keys(questions).map((key) => [key, answers[key]?.noul ?? 0]));

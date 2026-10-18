@@ -1,6 +1,7 @@
 import type { Judge, Log } from '../src/app/ports';
 import { fakeRoom } from './fake-room';
 import { Talker, WOKEN, type TalkerOptions } from '../src/app/talker';
+import { OutOfCreditError } from '../src/core/errors';
 import { ChatHistory } from '../src/core/chat-history';
 import { Transcript } from '../src/core/transcript';
 
@@ -125,4 +126,22 @@ test('the wake word talks now, telling Claude why, and an answer that is not JSO
   expect(await talker.talkNow('reply', WOKEN)).toBe('主播今天好可爱');
   expect(prompts).toEqual(['主播说了唤醒词。|（暂无）']);
   expect(sent).toEqual([{ kind: 'reply', text: '主播今天好可爱' }]);
+});
+
+test('when Jev runs out of money, says so in the room and turns itself off', async () => {
+  let asked = 0;
+  const { talker, sent, chat } = setup(
+    [() => chat('小红', '机器人在吗'), () => chat('小红', '机器人还在吗'), () => {}],
+    {
+      judge: () => {
+        asked++;
+        return Promise.reject(new OutOfCreditError('jev answered 402: insufficient credits'));
+      },
+    },
+  );
+  await talker.run();
+
+  expect(sent).toEqual([{ kind: 'system', text: '钱包烧干了，自动回复已关闭' }]);
+  expect(talker.threshold).toBe(10);
+  expect(asked).toBe(1);
 });

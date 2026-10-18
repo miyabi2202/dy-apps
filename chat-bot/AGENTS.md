@@ -42,6 +42,7 @@ Stop the bot's background task first, then DyHub's (TaskStop), and check with th
 - `transcriber stopped, restarting` now and then is normal (the stream URL expires or the stream drops); it retries every 10 s. If it repeats, `GET localhost:8757/api/rooms/<房间号>/stream` shows whether DyHub still has a stream.
 - `reply did not show up in the room chat`: Douyin may be throttling the account; suggest a pause.
 - `could not answer mention … claude …`: run `claude -p` by hand to check Claude Code works; the mention was refunded.
+- `jev is out of credit, auto-reply off`: the TypeSafe account ran dry; the bot told the room (`钱包烧干了，自动回复已关闭`) and set the threshold to 10. Tell the user to top it up, then an admin can turn it back on with `/自动回复阈值 0.6`.
 - `no JEV_API_KEY` at start, or `could not judge` now and then: the bot then only talks unprompted on the wake word. Check `chat-bot/.env` has `JEV_API_KEY` (a TypeSafe key) and that `curl -s -H "Authorization: Bearer $JEV_API_KEY" https://api.typesafe.ai/v1/models` answers.
 - `/识歌 … codex failed`: Codex isn't logged in or ran out of quota; `codex login` logs in, and `/识歌模型 claude` switches to Claude meanwhile.
 - Changed the code? Run `pnpm typecheck`, `pnpm test` and `pnpm lint` (from the repo root) before restarting it.

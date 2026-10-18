@@ -1,4 +1,4 @@
-import { errorMessage } from '../core/errors';
+import { errorMessage, OutOfCreditError } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
 import { relevanceRequest, roomLines, type RoomLine } from '../core/relevance';
 import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
@@ -31,6 +31,9 @@ export interface TalkerOptions {
   /** At least this long between two things it says unprompted, or after being asked to talk. */
   quietMs?: number;
 }
+
+/** The threshold set when the judge's account runs dry: off. */
+const OFF_FOR_NO_CREDIT = 10;
 
 /** Why it talks when the streamer says the wake word. */
 export const WOKEN = '主播说了唤醒词。';
@@ -136,6 +139,10 @@ export class Talker {
     try {
       scores = await judge(state, questions);
     } catch (err) {
+      if (err instanceof OutOfCreditError) {
+        this.outOfCredit(err);
+        return;
+      }
       log.warn('could not judge', { error: errorMessage(err) });
       return;
     }
@@ -149,6 +156,16 @@ export class Talker {
     if ((await this.wait(reactionMs)) === 'woken' || this.stopped) return;
     await this.say('talk', followUp(best.line));
     this.talkedAt = room.now();
+  }
+
+  /**
+   * The judge's account ran dry: auto-reply goes off (threshold OFF_FOR_NO_CREDIT, until an admin
+   * sets it again), and the room is told.
+   */
+  private outOfCredit(err: OutOfCreditError): void {
+    this.threshold = OFF_FOR_NO_CREDIT;
+    this.options.log.error('jev is out of credit, auto-reply off', { error: err.message });
+    this.options.outbox.push({ kind: 'system', text: '钱包烧干了，自动回复已关闭' });
   }
 
   private async say(kind: OutgoingMessage['kind'], why: string): Promise<string | null> {

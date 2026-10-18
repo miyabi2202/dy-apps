@@ -1,4 +1,5 @@
 import { jev } from '../src/adapters/jev';
+import { OutOfCreditError } from '../src/core/errors';
 
 test('asks Jev one yes/no question per key and gives back each probability', async () => {
   const requests: { url: string; body: string }[] = [];
@@ -26,9 +27,18 @@ test('asks Jev one yes/no question per key and gives back each probability', asy
     },
   });
 
-  const failing = jev({
-    apiKey: 'key',
-    fetch: () => Promise.resolve(new Response('bad key', { status: 401 })),
-  });
-  await expect(failing('', {})).rejects.toThrow('jev answered 401: bad key');
+  const answering = (status: number, body: string) =>
+    jev({ apiKey: 'key', fetch: () => Promise.resolve(new Response(body, { status })) })('', {});
+  await expect(answering(401, 'bad key')).rejects.toThrow('jev answered 401: bad key');
+  await expect(answering(429, 'rate limit exceeded')).rejects.not.toThrow(OutOfCreditError);
+});
+
+test('tells running out of money apart from other refusals', async () => {
+  const answering = (status: number, body: string) =>
+    jev({ apiKey: 'key', fetch: () => Promise.resolve(new Response(body, { status })) })('', {});
+  await expect(answering(402, '')).rejects.toThrow(OutOfCreditError);
+  await expect(answering(429, '{"error":"Insufficient credits"}')).rejects.toThrow(
+    OutOfCreditError,
+  );
+  await expect(answering(403, 'billing limit reached')).rejects.toThrow(OutOfCreditError);
 });
