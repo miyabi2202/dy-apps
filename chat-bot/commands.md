@@ -4,19 +4,20 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 ## The commands
 
-| Command                | Who    | Price                                  | What it does                                                                                           | Says back                                                                           |
-| ---------------------- | ------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `/修改人设 <人设>`     | admins | free                                   | Who the bot plays: prompts get `你的人设是<人设>`                                                      | `已处理修改人设请求`; empty → `人设不能为空，用法：/修改人设 人设`                  |
-| `/修改收费 <钻>`       | admins | free                                   | Diamonds per @ (0 = free)                                                                              | `已处理修改收费请求`; not a number → `收费要写成钻石数，用法：/修改收费 2`          |
-| `/回复`                | admins | free                                   | Says something to the streamer now, from `talk.md`, whatever's going on                                | The message itself (sent as a reply); nothing to say → `没想好说什么，这次没有回复` |
-| `/自动回复间隔 <分钟>` | admins | free                                   | How often the bot talks unprompted (0 = never)                                                         | `已处理自动回复间隔请求`; not a number → usage                                      |
-| `/自动谢礼 <钻>`       | admins | free                                   | Thank a viewer whose gifts in 5 minutes pass this many diamonds (99999 by default, so off)             | `已处理自动谢礼请求`; not a number → usage                                          |
-| `/截图 <0\|1>`         | admins | free                                   | Screenshots of the live video off (0) or on (1) for every prompt; off by default unless `--screenshot` | `已处理截图请求`; anything else → `要写 0（关闭）或 1（打开），用法：/截图 1`       |
-| `/识歌 [提示]`         | anyone | a mention's (`--cost`, or `/修改收费`) | Names the song being sung or played, from `song-id.md` (the hint is passed on)                         | The answer, like a reply to a mention                                               |
+| Command                | Who    | Price                                  | What it does                                                                                                                                                            | Says back                                                                                 |
+| ---------------------- | ------ | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `/修改人设 <人设>`     | admins | free                                   | Who the bot plays: prompts get `你的人设是<人设>`                                                                                                                       | `已处理修改人设请求`; empty → `人设不能为空，用法：/修改人设 人设`                        |
+| `/修改收费 <钻>`       | admins | free                                   | Diamonds per @ (0 = free)                                                                                                                                               | `已处理修改收费请求`; not a number → `收费要写成钻石数，用法：/修改收费 2`                |
+| `/回复`                | admins | free                                   | Says something to the streamer now, from `talk.md`, whatever's going on                                                                                                 | The message itself (sent as a reply); nothing to say → `没想好说什么，这次没有回复`       |
+| `/自动回复间隔 <分钟>` | admins | free                                   | How often the bot talks unprompted (0 = never)                                                                                                                          | `已处理自动回复间隔请求`; not a number → usage                                            |
+| `/自动谢礼 <钻>`       | admins | free                                   | Thank a viewer whose gifts in 5 minutes pass this many diamonds (99999 by default, so off)                                                                              | `已处理自动谢礼请求`; not a number → usage                                                |
+| `/设置唤醒词 <词>`     | admins | free                                   | This room's wake word, which the streamer says to make the bot talk now (like `/回复`, for free); saved in `wake-words.json` under the room id, so it lasts across runs | `已处理设置唤醒词请求`; no Chinese in it → `唤醒词要有中文，用法：/设置唤醒词 我想吃鱼了` |
+| `/截图 <0\|1>`         | admins | free                                   | Screenshots of the live video off (0) or on (1) for every prompt; off by default unless `--screenshot`                                                                  | `已处理截图请求`; anything else → `要写 0（关闭）或 1（打开），用法：/截图 1`             |
+| `/识歌 [提示]`         | anyone | a mention's (`--cost`, or `/修改收费`) | Names the song being sung or played, from `song-id.md` (the hint is passed on)                                                                                          | The answer, like a reply to a mention                                                     |
 
-The streamer can also run `/回复` by voice, for free, by saying `--wake-word` (`我想吃鱼了` by default; see `src/app/wake-word.ts`).
+The streamer can also run `/回复` by voice, for free, by saying the room's wake word (see `src/app/wake-word.ts`).
 
-All changes last until the bot stops; a restart goes back to the command-line options and `config.json`.
+All changes but `/设置唤醒词` last until the bot stops; a restart goes back to the command-line options and `config.json`.
 
 ## How a command is handled
 
@@ -40,6 +41,7 @@ Each feature offers its own commands, and `src/main.ts` hands them all to `ChatB
 | 修改收费           | `Billing.commands()` in `src/app/billing.ts`                     |
 | 回复, 自动回复间隔 | `Talker.commands()` in `src/app/talker.ts`                       |
 | 自动谢礼           | `GiftThanker.commands()` in `src/app/gift-thanker.ts`            |
+| 设置唤醒词         | `WakeWord.commands()` in `src/app/wake-word.ts`                  |
 | 识歌               | `songIdCommand` in `src/app/song-id-command.ts`                  |
 
 The `Command` type and the `done` / `failed` helpers are in `src/app/command.ts`.

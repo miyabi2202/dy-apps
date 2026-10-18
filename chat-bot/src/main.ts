@@ -16,6 +16,7 @@ import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
 import { liveText, roomFiles } from './adapters/room-files';
 import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
+import { wakeWordFile } from './adapters/wake-word-file';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
 import { Billing } from './app/billing';
@@ -66,7 +67,8 @@ const files = roomFiles(roomDir);
 const context = liveText(files.context);
 const botTalk = botTalkFile(files.botTalk);
 const userTalk = userTalkFiles(files.users);
-// The streamer saying --wake-word makes the bot talk now, like /回复, for free.
+// The streamer saying the room's wake word (from --wake-words, read again when it changes) makes
+// the bot talk now, like /回复, for free; /设置唤醒词 changes it.
 let wakeWord: WakeWord | null = null;
 const transcriber = options.asr
   ? new Transcriber({
@@ -127,7 +129,11 @@ const talker = new Talker({
   maxLength: options.maxReplyLength,
   log,
 });
-wakeWord = new WakeWord({ phrase: options.wakeWord, wake: () => talker.talkNow(), log });
+wakeWord = new WakeWord({
+  words: wakeWordFile(resolve(options.wakeWordsFile), roomId, { log }),
+  wake: () => talker.talkNow(),
+  log,
+});
 // Thanks a viewer whose gifts in 5 minutes pass --thanks-threshold (changed with /自动谢礼).
 const thanker = new GiftThanker({
   ask,
@@ -178,6 +184,7 @@ const bot = new ChatBot({
     ...billing.commands(),
     ...talker.commands(),
     ...thanker.commands(),
+    ...wakeWord.commands(),
     screenshotCommand(room),
     songIdCommand(liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8'))),
   ],
@@ -195,7 +202,6 @@ log.info('starting', {
   persona: config.persona,
   talkMinutes: options.talkMs / 60_000,
   thanksThreshold: options.thanksThreshold,
-  wakeWord: options.wakeWord,
 });
 bot.start();
 void transcriber?.run();

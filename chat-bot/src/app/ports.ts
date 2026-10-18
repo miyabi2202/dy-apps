@@ -11,6 +11,14 @@ export interface Admins {
   has(userId: string): boolean;
 }
 
+/** What the streamer says in this room to wake the bot; it may change while the bot runs. */
+export interface WakeWords {
+  /** The room's wake word, or the default one; empty for none. */
+  get(): string;
+  /** Sets the room's own wake word. */
+  set(phrase: string): void;
+}
+
 /** Everything the bot has said in the room, so Claude can see it and not repeat itself. */
 export interface BotTalk {
   add(text: string): void;
