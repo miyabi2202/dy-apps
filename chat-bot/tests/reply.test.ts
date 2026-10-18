@@ -1,4 +1,10 @@
-import { answerBudget, oneMessage, replyMessages, singleBudget } from '../src/core/reply';
+import {
+  answerBudget,
+  oneMessage,
+  plainMessage,
+  replyMessages,
+  singleBudget,
+} from '../src/core/reply';
 
 const limits = { maxLength: 30, maxParts: 3 };
 
@@ -39,4 +45,17 @@ test('drops Claude’s own @ of the asker, whole or short', () => {
   expect(replyMessages('向你看齐哦', '@向你看齐哦 @向你看 好的', limits)).toEqual([
     '@向你看齐哦 好的',
   ]);
+});
+
+test('sends only what follows the last 弹幕： mark, so Claude’s thinking before it stays out', () => {
+  const wide = { maxLength: 49, maxParts: 5 };
+  expect(
+    replyMessages('雅', '没有歌词可用。认不出来。\n\n弹幕：暂时没听到主播唱，认不出来', wide),
+  ).toEqual(['@雅 暂时没听到主播唱，认不出来']);
+  expect(replyMessages('雅', '先查一下。\n**弹幕：** 是中岛美嘉的《ALWAYS》', wide)).toEqual([
+    '@雅 是中岛美嘉的《ALWAYS》',
+  ]);
+  // Without the mark, the whole answer, as before; a 弹幕 mid-sentence isn't a mark.
+  expect(replyMessages('雅', '这条弹幕：很有意思', wide)).toEqual(['@雅 这条弹幕：很有意思']);
+  expect(plainMessage('想想说什么好\n弹幕：主播这首好好听', 49)).toBe('主播这首好好听');
 });

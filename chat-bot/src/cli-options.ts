@@ -61,11 +61,12 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'max-parts': { type: 'string', default: '5' },
       tools: { type: 'string', default: 'WebSearch,WebFetch,Read,Glob,Grep' },
       model: { type: 'string', default: 'opus' },
-      // Claude otherwise may write up its searching before the answer, and it'd all be sent.
+      // Claude may write up its thinking or searching before the answer; only what follows the
+      // last 弹幕： is sent (see oneLine).
       system: {
         type: 'string',
         default:
-          '你是一个抖音直播间的机器人。你最后写出的文字会原样作为弹幕发到直播间：只写要发送的那句话，不要写思考、分析、搜索结果的总结或说明。',
+          '你是一个抖音直播间的机器人。把要发到直播间的弹幕写在回答的最后，以「弹幕：」开头；只有最后一个「弹幕：」后面的内容会被发出去，前面写的不会。',
       },
       logs: { type: 'string', default: join(packageDir, 'logs') },
       asr: { type: 'boolean', default: true },

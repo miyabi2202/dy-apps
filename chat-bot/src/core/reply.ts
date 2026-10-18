@@ -80,9 +80,20 @@ export function replyMessages(asker: string, answer: string, limits: ReplyLimits
   return parts.map((part, i) => `${shortTag(asker)} (${i + 1}/${parts.length}) ${part}`);
 }
 
-/** Claude's answer on one line, without the sources list web search makes it add. */
+/**
+ * Where Claude is told to mark the message to send (`弹幕：…`), after whatever thinking it writes
+ * first; bold (`**弹幕：**`) counts too.
+ */
+const MESSAGE_MARK = /(?:^|\n)[ \t]*\**弹幕\**[ \t]*[:：][ \t]*\**/g;
+
+/**
+ * Claude's answer on one line: only what follows the last `弹幕：` mark when there is one (the
+ * whole answer when there isn't), and without the sources list web search makes it add.
+ */
 function oneLine(answer: string): string {
-  const body = answer.split(/\n\s*(?:Sources|来源)\s*[:：]/)[0] ?? '';
+  const mark = [...answer.matchAll(MESSAGE_MARK)].at(-1);
+  const message = mark ? answer.slice(mark.index + mark[0].length) : answer;
+  const body = message.split(/\n\s*(?:Sources|来源)\s*[:：]/)[0] ?? '';
   return body.replace(/\s+/g, ' ').trim();
 }
 
