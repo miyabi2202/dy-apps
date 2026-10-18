@@ -167,6 +167,7 @@ export class ChatBot {
         prepare: command.prepare,
         tools: command.tools,
         maxTurns: command.maxTurns,
+        ask: command.ask,
       });
       return undefined;
     }

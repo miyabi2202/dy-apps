@@ -42,4 +42,5 @@ Stop the bot's background task first, then DyHub's (TaskStop), and check with th
 - `transcriber stopped, restarting` now and then is normal (the stream URL expires or the stream drops); it retries every 10 s. If it repeats, `GET localhost:8757/api/rooms/<房间号>/stream` shows whether DyHub still has a stream.
 - `reply did not show up in the room chat`: Douyin may be throttling the account; suggest a pause.
 - `could not answer mention … claude …`: run `claude -p` by hand to check Claude Code works; the mention was refunded.
+- `/识歌 … agy failed` or `agy exited`: Gemini (Antigravity's CLI) isn't logged in or ran out of quota; `agy` logs in, and `/识歌模型 claude` switches to Claude meanwhile.
 - Changed the code? Run `pnpm typecheck`, `pnpm test` and `pnpm lint` (from the repo root) before restarting it.

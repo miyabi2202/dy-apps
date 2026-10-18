@@ -1,5 +1,5 @@
 import type { LyricHit } from '../src/core/lyrics';
-import { songIdCommand } from '../src/app/song-id-command';
+import { SongId } from '../src/app/song-id-command';
 import { silentLog } from './fakes';
 
 const hit = (title: string, artist: string): LyricHit => ({
@@ -9,8 +9,15 @@ const hit = (title: string, artist: string): LyricHit => ({
 });
 
 function prepare(sung: string[], search: (fragment: string) => Promise<LyricHit[]>) {
-  const command = songIdCommand(() => '', { search, sungLines: () => sung, log: silentLog });
-  if (!command.prompt) throw new Error('/识歌 should have its own prompt');
+  const songId = new SongId({
+    prompt: () => '',
+    search,
+    sungLines: () => sung,
+    claude: () => Promise.resolve(''),
+    log: silentLog,
+  });
+  const [command] = songId.commands();
+  if (!command?.prompt) throw new Error('/识歌 should have its own prompt');
   return command.prepare?.();
 }
 
@@ -35,4 +42,44 @@ test('answers at once when the lyrics point at one song, else tells Claude what 
   });
   // Nothing Japanese sung: nothing to look up.
   await expect(prepare(['明明你也想我吧'], () => Promise.resolve([]))).resolves.toBeNull();
+});
+
+test('/识歌模型 switches between Gemini and Claude, and Gemini is the default when there is one', async () => {
+  const askedBy: string[] = [];
+  const model = (name: string) => () => {
+    askedBy.push(name);
+    return Promise.resolve('');
+  };
+  const songId = new SongId({
+    prompt: () => '',
+    sungLines: () => [],
+    claude: model('claude'),
+    gemini: model('gemini'),
+    log: silentLog,
+  });
+  const [identify, switchModel] = songId.commands();
+  if (!identify?.prompt || !switchModel?.run) throw new Error('missing commands');
+  const ask = () => identify.ask?.({ prompt: '' });
+
+  await ask();
+  expect(switchModel.run('Claude')).toEqual({ ok: true, reply: '已处理识歌模型请求' });
+  await ask();
+  expect(switchModel.run('gpt')).toEqual({
+    ok: false,
+    reply: '要写 gemini 或 claude，用法：/识歌模型 gemini',
+  });
+  expect(askedBy).toEqual(['gemini', 'claude']);
+
+  // Without Gemini, Claude it is.
+  const claudeOnly = new SongId({
+    prompt: () => '',
+    sungLines: () => [],
+    claude: model('claude'),
+    log: silentLog,
+  });
+  expect(claudeOnly.engine).toBe('claude');
+  expect(claudeOnly.commands()[1]?.run?.('gemini')).toEqual({
+    ok: false,
+    reply: '没有装 Gemini（agy），只能用 claude',
+  });
 });

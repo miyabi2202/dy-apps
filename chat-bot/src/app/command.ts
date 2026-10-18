@@ -1,3 +1,5 @@
+import type { AskClaude } from './ports';
+
 /**
  * What a command came to: `reply` is what the bot says back, nothing when empty (the command
  * spoke for itself). A failed one is refunded.
@@ -40,6 +42,8 @@ export interface PromptOptions {
   tools?: readonly string[];
   /** Give up after this many of Claude's turns, to cap the cost (and refund). */
   maxTurns?: number;
+  /** Who answers it, when not the usual Claude. */
+  ask?: AskClaude;
 }
 
 /** What a command's `prepare` came to. */

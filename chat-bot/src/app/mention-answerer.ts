@@ -153,7 +153,8 @@ export class MentionAnswerer {
         log.debug('prompt', { prompt });
         const image = await room.screenshot();
         const started = room.now();
-        answer = await ask({ prompt, image, tools: mention.tools, maxTurns: mention.maxTurns });
+        const { tools, maxTurns } = mention;
+        answer = await (mention.ask ?? ask)({ prompt, image, tools, maxTurns });
         log.info('claude answered', { answer, ms: room.now() - started, image: !!image });
       }
       const messages = replyMessages(mention.asker, answer, this.limits);

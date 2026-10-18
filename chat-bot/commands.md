@@ -6,17 +6,18 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 <!-- prompt.md and talk.md get this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
 
-| Command                | What it does                                       | Admins only |
-| ---------------------- | -------------------------------------------------- | ----------- |
-| `/修改人设 <人设>`     | Change who the bot plays                           | yes         |
-| `/修改收费 <钻>`       | Change what an @ costs                             | yes         |
-| `/回复`                | Have the bot say something to the streamer now     | yes         |
-| `/自动回复间隔 <分钟>` | How often the bot talks unprompted                 | yes         |
-| `/自动谢礼 <钻>`       | Thank viewers who give more than this in 5 minutes | yes         |
-| `/设置唤醒词 <词>`     | The words the streamer says to make the bot talk   | yes         |
-| `/截图 <0\|1>`         | Send Claude the live video or not                  | yes         |
-| `/识歌 [提示]`         | Name the song the streamer sings, from its lyrics  | no          |
-| `/识别背景音乐`        | Name the recording playing, from its sound         | no          |
+| Command                      | What it does                                       | Admins only |
+| ---------------------------- | -------------------------------------------------- | ----------- |
+| `/修改人设 <人设>`           | Change who the bot plays                           | yes         |
+| `/修改收费 <钻>`             | Change what an @ costs                             | yes         |
+| `/回复`                      | Have the bot say something to the streamer now     | yes         |
+| `/自动回复间隔 <分钟>`       | How often the bot talks unprompted                 | yes         |
+| `/自动谢礼 <钻>`             | Thank viewers who give more than this in 5 minutes | yes         |
+| `/设置唤醒词 <词>`           | The words the streamer says to make the bot talk   | yes         |
+| `/截图 <0\|1>`               | Send Claude the live video or not                  | yes         |
+| `/识歌 [提示]`               | Name the song the streamer sings, from its lyrics  | no          |
+| `/识歌模型 <gemini\|claude>` | Who looks songs up for `/识歌`                     | yes         |
+| `/识别背景音乐`              | Name the recording playing, from its sound         | no          |
 
 Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
 
@@ -115,7 +116,7 @@ Turns screenshots of the live video on (`1`) or off (`0`); while on, every promp
 
 ### /识歌
 
-Names the song being sung or played, from the lyrics heard lately. First the bot itself searches [j-lyric](https://j-lyric.net/)'s lyrics with 7-character pieces of the last 5 Japanese lines sung (up to 12, at once): when one song is found by at least 2 pieces and twice as many as any other, it answers with it straight away, in about 8 seconds and without Claude. Otherwise Claude works it out with `song-id.md` (or the room's `song_id.md`) as the prompt, told what the search found (`{{lookup}}`), with web search and fetch only and at most 12 turns (more is given up on and refunded). Anything after the command is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails.
+Names the song being sung or played, from the lyrics heard lately. First the bot itself searches [j-lyric](https://j-lyric.net/)'s lyrics with 7-character pieces of the last 5 Japanese lines sung (up to 12, at once): when one song is found by at least 2 pieces and twice as many as any other, it answers with it straight away, in about 8 seconds and without a model. Otherwise Gemini (through `agy`, searching with Google; the default) or Claude (web search and fetch only, at most 12 turns, more is given up on and refunded) works it out with `song-id.md` (or the room's `song_id.md`) as the prompt, told what the search found (`{{lookup}}`); `/识歌模型` switches between them. Anything after the command is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails.
 
 ```text
 @默认关闭 /识歌
@@ -126,6 +127,18 @@ Names the song being sung or played, from the lyrics heard lately. First the bot
 ```
 
 Lyrics are only as good as speech recognition, so it does best on Chinese and English, and seldom finds a Japanese or German song. For a recording playing in the background, `/识别背景音乐` is surer.
+
+### /识歌模型
+
+Who works out `/识歌` when j-lyric alone can't tell: `gemini` (Gemini through Antigravity's CLI, `agy`, which searches with Google and finds lyrics Claude's web search doesn't; the default, unless the bot started with `--gemini ''`) or `claude`. Gemini can't see the screenshot. Until the bot stops.
+
+```text
+@默认关闭 /识歌模型 claude
+→ 已处理识歌模型请求
+
+@默认关闭 /识歌模型 gpt
+→ 要写 gemini 或 claude，用法：/识歌模型 gemini
+```
 
 ### /识别背景音乐
 

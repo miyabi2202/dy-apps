@@ -4,7 +4,7 @@ import type { Command } from '../src/app/command';
 import { MentionAnswerer, type Mention } from '../src/app/mention-answerer';
 import { RoomFeed } from '../src/app/room-feed';
 import { personaCommand } from '../src/app/room-state';
-import { songIdCommand } from '../src/app/song-id-command';
+import { SongId } from '../src/app/song-id-command';
 import { ChatHistory } from '../src/core/chat-history';
 import { Wallet, type Account } from '../src/core/wallet';
 import { fakeRoom } from './fake-room';
@@ -273,19 +273,25 @@ test('a command with nothing to say says nothing', async () => {
   expect(wallet.balance('u-管理')).toBe(0);
 });
 
-test("/识歌 asks Claude with its own prompt, at a mention's price, answered like a mention", async () => {
+test("/识歌 asks its own model with its own prompt, at a mention's price, answered like a mention", async () => {
   const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
-  const { settle, say, prompts, sent } = setup({
-    wallet,
-    cost: 1,
-    commands: [songIdCommand(() => '识歌:{{question}}', { sungLines: () => [], log: silentLog })],
-    answer: '这首是《aLIEz》',
+  const asked: string[] = [];
+  const songId = new SongId({
+    prompt: () => '识歌:{{question}}',
+    sungLines: () => [],
+    claude: ({ prompt }) => {
+      asked.push(prompt);
+      return Promise.resolve('这首是《aLIEz》');
+    },
+    log: silentLog,
   });
+  const { settle, say, prompts, sent } = setup({ wallet, cost: 1, commands: songId.commands() });
   say(chat('阿明', '@小助手 /识歌 日文的'));
   say(chat('阿明', '@小助手 /识歌'));
   await settle();
 
-  expect(prompts).toEqual(['识歌:日文的']);
+  expect(asked).toEqual(['识歌:日文的']);
+  expect(prompts).toEqual([]);
   expect(wallet.balance('u-阿明')).toBe(0);
   expect(sent).toEqual([
     '@阿明 你的余额不足，还剩0钻，指令「识歌」需要1钻（60秒内只提醒一次）',

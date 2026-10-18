@@ -1,12 +1,21 @@
 import { candidates, clearWinner, lyricFragments } from '../core/lyrics';
-import type { Command, Prepared } from './command';
-import type { Log, LyricsSearch } from './ports';
+import { done, failed, type Command, type Prepared } from './command';
+import type { AskClaude, Log, LyricsSearch } from './ports';
+
+/** Who looks a song up when the lyrics site alone can't tell. */
+export type SongIdEngine = 'claude' | 'gemini';
 
 export interface SongIdOptions {
+  /** The prompt (see buildPrompt), read each time so edits apply at once. */
+  prompt: () => string;
   /** Searches a lyrics site with a fragment of the lyrics. */
   search?: LyricsSearch;
   /** What the streamer sang lately, oldest first. */
   sungLines: () => string[];
+  /** Claude, with web search and fetch. */
+  claude: AskClaude;
+  /** Gemini, which searches with Google; without it, Claude does it all. */
+  gemini?: AskClaude;
   log: Log;
 }
 
@@ -14,48 +23,79 @@ export interface SongIdOptions {
 export const SONG_ID_MAX_TURNS = 12;
 
 /**
- * `/识歌`: anyone can ask, at a mention's price. First the bot itself searches a lyrics site
- * with fragments of the last lines sung: when they all point at one song, it answers with it at
- * once, without Claude. Otherwise Claude works it out with `prompt` (see buildPrompt), told what
- * the search found (`{{lookup}}`), with web search and fetch only, for at most
- * SONG_ID_MAX_TURNS turns.
+ * Names the song being sung, for `/识歌`. First the bot itself searches a lyrics site with
+ * fragments of the last lines sung: when they all point at one song, it answers with it at once.
+ * Otherwise Gemini (searching with Google, better at finding lyrics) or Claude (web search and
+ * fetch only, at most SONG_ID_MAX_TURNS turns) works it out with the prompt, told what the
+ * search found (`{{lookup}}`). Gemini does when there is one, until an admin switches with
+ * `/识歌模型`.
  */
-export function songIdCommand(prompt: () => string, options: SongIdOptions): Command {
-  return {
-    name: '识歌',
-    adminOnly: false,
-    prompt,
-    prepare: () => lookUpLyrics(options),
-    tools: ['WebSearch', 'WebFetch'],
-    maxTurns: SONG_ID_MAX_TURNS,
-  };
-}
+export class SongId {
+  engine: SongIdEngine;
 
-async function lookUpLyrics({ search, sungLines, log }: SongIdOptions): Promise<Prepared> {
-  const fragments = lyricFragments(sungLines());
-  if (!search || !fragments.length) return null;
-  const found = await Promise.all(
-    fragments.map((fragment) =>
-      search(fragment).catch((err: unknown) => {
-        log.warn('lyrics search failed', { fragment, error: String(err) });
-        return [];
-      }),
-    ),
-  );
-  const songs = candidates(found);
-  const winner = clearWinner(songs);
-  log.info('lyrics search', {
-    fragments: fragments.length,
-    top: songs.slice(0, 3).map((s) => `${s.artist}《${s.title}》×${s.fragments}`),
-    winner: !!winner,
-  });
-  if (winner) return { answer: `这首是${winner.artist}的《${winner.title}》` };
-  if (!songs.length)
-    return { lookup: `用 ${fragments.length} 个歌词片段查了 j-lyric，都没有结果。` };
-  return {
-    lookup: [
-      `用 ${fragments.length} 个歌词片段查了 j-lyric，命中的歌（括号里是命中的片段数，越多越可能）：`,
-      ...songs.slice(0, 5).map((s) => `- ${s.artist}《${s.title}》（${s.fragments}）${s.url}`),
-    ].join('\n'),
-  };
+  constructor(private readonly options: SongIdOptions) {
+    this.engine = options.gemini ? 'gemini' : 'claude';
+  }
+
+  /** `/识歌` for anyone, at a mention's price; `/识歌模型 gemini|claude` for admins. */
+  commands(): Command[] {
+    const { prompt, claude, gemini, log } = this.options;
+    return [
+      {
+        name: '识歌',
+        adminOnly: false,
+        prompt,
+        prepare: () => this.lookUpLyrics(),
+        tools: ['WebSearch', 'WebFetch'],
+        maxTurns: SONG_ID_MAX_TURNS,
+        ask: (question) => (this.engine === 'gemini' && gemini ? gemini : claude)(question),
+      },
+      {
+        name: '识歌模型',
+        adminOnly: true,
+        price: 0,
+        run: (args) => {
+          const engine = args.toLowerCase();
+          if (engine !== 'claude' && engine !== 'gemini') {
+            return failed('要写 gemini 或 claude，用法：/识歌模型 gemini');
+          }
+          if (engine === 'gemini' && !gemini) return failed('没有装 Gemini（agy），只能用 claude');
+          this.engine = engine;
+          log.info('song id engine', { engine });
+          return done('已处理识歌模型请求');
+        },
+      },
+    ];
+  }
+
+  private async lookUpLyrics(): Promise<Prepared> {
+    const { search, sungLines, log } = this.options;
+    const fragments = lyricFragments(sungLines());
+    if (!search || !fragments.length) return null;
+    const found = await Promise.all(
+      fragments.map((fragment) =>
+        search(fragment).catch((err: unknown) => {
+          log.warn('lyrics search failed', { fragment, error: String(err) });
+          return [];
+        }),
+      ),
+    );
+    const songs = candidates(found);
+    const winner = clearWinner(songs);
+    log.info('lyrics search', {
+      fragments: fragments.length,
+      top: songs.slice(0, 3).map((s) => `${s.artist}《${s.title}》×${s.fragments}`),
+      winner: !!winner,
+    });
+    if (winner) return { answer: `这首是${winner.artist}的《${winner.title}》` };
+    if (!songs.length) {
+      return { lookup: `用 ${fragments.length} 个歌词片段查了 j-lyric，都没有结果。` };
+    }
+    return {
+      lookup: [
+        `用 ${fragments.length} 个歌词片段查了 j-lyric，命中的歌（括号里是命中的片段数，越多越可能）：`,
+        ...songs.slice(0, 5).map((s) => `- ${s.artist}《${s.title}》（${s.fragments}）${s.url}`),
+      ].join('\n'),
+    };
+  }
 }

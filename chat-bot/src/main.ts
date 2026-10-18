@@ -3,13 +3,14 @@
  *
  *     pnpm start --room 259175310675 --bot-name 默认关闭
  */
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DyhubClient } from '@dy-apps/services';
 import { uvWorker } from './adapters/asr-worker';
 import { ChatLog } from './adapters/chat-log-files';
+import { agyCli } from './adapters/agy-cli';
 import { claudeCli } from './adapters/claude-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
@@ -28,7 +29,7 @@ import { Outbox } from './app/outbox';
 import { RoomFeed } from './app/room-feed';
 import { personaCommand, RoomState, screenshotCommand } from './app/room-state';
 import { musicCommand } from './app/music-command';
-import { songIdCommand } from './app/song-id-command';
+import { SongId } from './app/song-id-command';
 import { Talker } from './app/talker';
 import { Transcriber } from './app/transcriber';
 import { WakeWord } from './app/wake-word';
@@ -182,6 +183,24 @@ const answerer = new MentionAnswerer({
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
 });
+// agy reads its working directory, so it gets an empty one.
+const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agy-'));
+// /识歌: j-lyric first, so a Japanese song whose lyrics were heard well is named at once; then
+// Gemini (agy, searching with Google) when it's installed, else Claude; /识歌模型 switches.
+const songId = new SongId({
+  prompt: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
+  search: jLyricSearch(),
+  sungLines: () =>
+    room
+      .recentTranscript()
+      .filter(isSung)
+      .map((line) => line.text),
+  claude: ask,
+  gemini: options.gemini
+    ? agyCli({ model: options.gemini, cwd: emptyDir, systemPrompt: options.systemPrompt })
+    : undefined,
+  log,
+});
 // Decides what a mention is (a question, or a command) and charges for it.
 const bot = new ChatBot({
   feed,
@@ -199,19 +218,7 @@ const bot = new ChatBot({
     ...thanker.commands(),
     ...wakeWord.commands(),
     screenshotCommand(room),
-    songIdCommand(
-      liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
-      // j-lyric first, so a Japanese song whose lyrics were heard well is named without Claude.
-      {
-        search: jLyricSearch(),
-        sungLines: () =>
-          room
-            .recentTranscript()
-            .filter(isSung)
-            .map((line) => line.text),
-        log,
-      },
-    ),
+    ...songId.commands(),
     // Only when listening to the stream.
     ...(transcriber ? [musicCommand(() => transcriber.identifyMusic(), log)] : []),
   ],
@@ -229,6 +236,7 @@ log.info('starting', {
   persona: config.persona,
   talkMinutes: options.talkMs / 60_000,
   thanksThreshold: options.thanksThreshold,
+  songIdEngine: songId.engine,
 });
 bot.start();
 void transcriber?.run();
