@@ -72,8 +72,9 @@ wallet.clear();
 const chatDir = join(roomDir, 'chat');
 mkdirSync(chatDir, { recursive: true });
 const record = new ChatLog(chatDir);
-// The prompts are shared by every room (a room's own auto_reply.md, song_id.md, gift_thanks.md and so on
-// overrides one), and the room's context.md; all read on every use so edits apply while it runs.
+// The prompts are shared by every room (a room's own auto_reply.md, song_id.md, gift_thanks.md and
+// so on overrides one), and the room's context.md; all read on every use so edits apply while it
+// runs.
 // Plus what the bot said, overall and to each viewer, so it doesn't repeat itself.
 const autoReplyTemplate = resolve(options.autoReplyPromptFile);
 const songIdTemplate = join(packageDir, 'song-id.md');
