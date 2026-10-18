@@ -30,3 +30,14 @@ test('picks up admins added or removed while running, and keeps them through a b
   expect(admins.has('2')).toBe(true);
   expect(warnings).toEqual(['could not read the admins, keeping the last ones']);
 });
+
+test('listing 111111 makes every 私密 room viewer an admin', () => {
+  const log: Log = { debug() {}, info() {}, warn() {}, error() {} };
+  let file = '{"admins": ["111111"]}';
+  const admins = liveAdmins('config.json', { log, read: () => file });
+  expect(admins.has('111111-雅***-31')).toBe(true);
+  expect(admins.has('7664182420958889017')).toBe(false);
+
+  file = '{"admins": []}';
+  expect(admins.has('111111-雅***-31')).toBe(false);
+});

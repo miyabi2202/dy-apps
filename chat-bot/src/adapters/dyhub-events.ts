@@ -3,13 +3,18 @@ import type { RoomEvents } from '../app/ports';
 import type { Gift, IncomingChat } from '../core/room-events';
 
 /** The id Douyin gives every viewer in a 私密 room, where viewers hide who they are. */
-const HIDDEN_ID = '111111';
+export const HIDDEN_ID = '111111';
 
 /**
  * Who sent an event. In a 私密 room (`hidden`), viewers all share HIDDEN_ID and the same default avatar, and show only
  * their nickname's first character (`苦***`), so they're told apart by that and their wealth level,
  * taken not to change while the bot runs: `111111-苦***-31`.
  */
+/** Whether `userId` is a 私密 room's viewer, as userIdOf gives it. */
+export function isHiddenViewer(userId: string): boolean {
+  return userId.startsWith(`${HIDDEN_ID}-`);
+}
+
 export function userIdOf({ id, nickname, payLevel }: DyhubUser, hidden: boolean): string {
   if (!hidden || id !== HIDDEN_ID) return id;
   return `${HIDDEN_ID}-${nickname}-${payLevel ?? 0}`;

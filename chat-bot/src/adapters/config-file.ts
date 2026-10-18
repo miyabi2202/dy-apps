@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { Admins, Log } from '../app/ports';
 import { errorMessage } from '../core/errors';
+import { HIDDEN_ID, isHiddenViewer } from './dyhub-events';
 
 /** The bot's settings that live in `config.json` rather than on the command line. */
 export interface BotConfig {
@@ -35,6 +36,8 @@ export interface LiveAdminsOptions {
  * The config file's admins, so admins can be added or removed while the bot runs: each check
  * reads the file (it's tiny, and checks only come with mentions) and parses it again when its
  * text differs from last time. A file that can't be read or checked keeps the last good list.
+ * Listing `111111` makes every 私密 room viewer an admin, for running a command there (Douyin hides
+ * admins' ids too) before taking it out again.
  */
 export function liveAdmins(
   path: string,
@@ -62,7 +65,7 @@ export function liveAdmins(
   return {
     has(userId) {
       refresh();
-      return admins.has(userId);
+      return admins.has(userId) || (admins.has(HIDDEN_ID) && isHiddenViewer(userId));
     },
   };
 }
