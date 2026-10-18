@@ -310,7 +310,8 @@ def as_wav(chunks: list[bytes]) -> bytes:
 
 def answer_music_requests(recent: collections.deque) -> None:
     """Reads `{"music_id": id}` lines from stdin and answers each from the latest audio in `recent`."""
-    shazam = Shazam()
+    # In Chinese: Chinese singers by their Chinese names (张靓颖, not Jane Zhang); others as they are.
+    shazam = Shazam(language="zh-CN", endpoint_country="CN")
     for request in sys.stdin:
         try:
             music_id = json.loads(request)["music_id"]
