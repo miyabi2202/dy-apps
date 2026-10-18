@@ -82,6 +82,15 @@ export interface Question {
 /** Asks Claude one question and resolves with its answer. */
 export type AskClaude = (question: Question) => Promise<string>;
 
+/**
+ * Scores, from 0 to 1, how likely the answer to each of `questions` (by key) is yes, given
+ * `state`: a fast yes/no classifier (TypeSafe's Jev), far cheaper than asking Claude.
+ */
+export type Judge = (
+  state: string,
+  questions: Record<string, string>,
+) => Promise<Record<string, number>>;
+
 /** The room's chat record, kept in files in `dir` that Claude may read. */
 export interface RoomRecord {
   readonly dir: string;

@@ -27,10 +27,10 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
 
 ## While it runs
 
-- In someone else's room, the bot answers anyone who @s it, in public, as the user's account, and, when turned on (`--talk-minutes`, `/自动回复间隔`), says something unprompted every few minutes; gift thanks (`--thanks-threshold`, `/自动谢礼`) are off by default too. The wake word is on by default, though: if the streamer happens to say `我想吃鱼了`, the bot talks (set the room's id to `""` in `wake-words.json` to turn it off). Say so when starting it there.
+- In someone else's room, the bot answers anyone who @s it, in public, as the user's account, and by default also joins in when people talk to or about it without an @ (Jev, with `JEV_API_KEY` in `chat-bot/.env`; `--auto-reply-threshold 1` or `/自动回复阈值 1` turns it off; at most once a minute). Gift thanks (`--thanks-threshold`, `/自动谢礼`) are off by default. The wake word is on by default too: if the streamer happens to say `我想吃鱼了`, the bot talks (set the room's id to `""` in `wake-words.json` to turn it off). Say so when starting it there.
 - Read `chat-bot/logs/chat-bot.log` (JSON lines: every chat, prompt, answer, gift and transcript line) to answer questions like 「刚才机器人回了什么」 or 「谁送了礼物」.
 - The room's chat record is in `chat-bot/data/<房间号>/chat/*.txt`, one line per speech (`[主播](speech)`, or `(sing)` when sung), chat or gift (`[昵称#uid](gift)`), 100 lines a file; it's kept across runs.
-- The prompts (`chat-bot/prompt.md`, `talk.md`, `song-id.md`, `song-id-web.md`, `gift-thanks.md`) are shared by every room, and each room's `chat-bot/data/<房间号>/context.md` (background on the room, in every prompt) holds what's particular to it; a room can override a prompt with its own `auto_reply.md`, `song_id.md`, `song_id_web.md` or `gift_thanks.md` there. All are read on every use: edit them to change the bot while it runs, no restart needed. `bot_logs.md` there has everything the bot sent, and `<uid>/talk.txt` each viewer's exchanges with it.
+- The prompts (`chat-bot/prompt.md`, `auto-reply.md`, `song-id.md`, `song-id-web.md`, `gift-thanks.md`) are shared by every room, and each room's `chat-bot/data/<房间号>/context.md` (background on the room, in every prompt) holds what's particular to it; a room can override a prompt with its own `auto_reply.md`, `song_id.md`, `song_id_web.md` or `gift_thanks.md` there. All are read on every use: edit them to change the bot while it runs, no restart needed. `bot_logs.md` there has everything the bot sent, and `<uid>/talk.txt` each viewer's exchanges with it.
 - Balances are in `chat-bot/data/<房间号>/wallet.json` (`gifted` − `spent` per user id) while the bot runs. Don't edit them unless the user asks.
 
 ## Stop
@@ -42,5 +42,6 @@ Stop the bot's background task first, then DyHub's (TaskStop), and check with th
 - `transcriber stopped, restarting` now and then is normal (the stream URL expires or the stream drops); it retries every 10 s. If it repeats, `GET localhost:8757/api/rooms/<房间号>/stream` shows whether DyHub still has a stream.
 - `reply did not show up in the room chat`: Douyin may be throttling the account; suggest a pause.
 - `could not answer mention … claude …`: run `claude -p` by hand to check Claude Code works; the mention was refunded.
+- `no JEV_API_KEY` at start, or `could not judge` now and then: the bot then only talks unprompted on the wake word. Check `chat-bot/.env` has `JEV_API_KEY` (a TypeSafe key) and that `curl -s -H "Authorization: Bearer $JEV_API_KEY" https://api.typesafe.ai/v1/models` answers.
 - `/识歌 … codex failed`: Codex isn't logged in or ran out of quota; `codex login` logs in, and `/识歌模型 claude` switches to Claude meanwhile.
 - Changed the code? Run `pnpm typecheck`, `pnpm test` and `pnpm lint` (from the repo root) before restarting it.

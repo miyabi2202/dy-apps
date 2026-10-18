@@ -4,14 +4,13 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 ## The commands
 
-<!-- prompt.md and talk.md get this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
+<!-- prompt.md and auto-reply.md get this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
 
 | Command                     | What it does                                       | Admins only |
 | --------------------------- | -------------------------------------------------- | ----------- |
 | `/修改人设 <人设>`          | Change who the bot plays                           | yes         |
 | `/修改收费 <钻>`            | Change what an @ costs                             | yes         |
-| `/回复`                     | Have the bot say something to the streamer now     | yes         |
-| `/自动回复间隔 <分钟>`      | How often the bot talks unprompted                 | yes         |
+| `/自动回复阈值 <0–1>`       | How sure it must be it's talked about to join in   | yes         |
 | `/自动谢礼 <钻>`            | Thank viewers who give more than this in 5 minutes | yes         |
 | `/设置唤醒词 <词>`          | The words the streamer says to make the bot talk   | yes         |
 | `/截图 <0\|1>`              | Send Claude the live video or not                  | yes         |
@@ -45,31 +44,19 @@ Sets how many diamonds a viewer pays per @ (and per `/识歌`); `0` makes them f
 → 收费要写成钻石数，用法：/修改收费 2
 ```
 
-### /回复
+### /自动回复阈值
 
-Has the bot say one thing to the streamer now, from `talk.md` (or the room's `auto_reply.md`), whatever's going on. The streamer can do the same by saying the wake word (see `/设置唤醒词`).
-
-```text
-@默认关闭 /回复
-→ 这首歌副歌好好听，主播能再唱一遍吗？
-
-（Claude had nothing to say）
-→ 没想好说什么，这次没有回复
-```
-
-### /自动回复间隔
-
-How often, in minutes, the bot says something unprompted, counting from now; `0` turns it off. It starts at `--talk-minutes` (0). The bot stays quiet when nothing was said or chatted since last time.
+How sure the bot must be that something said in the room is about it before it joins in unprompted. Every 20 seconds it asks Jev (TypeSafe's fast classifier, `JEV_API_KEY` in `chat-bot/.env`) how likely each new chat, and each thing the streamer said, is said to the bot, about it (even as 它) or picking up what it said; the streamer reading chat aloud is told apart by sound and doesn't count as them saying it. When one scores at or above the threshold, the bot waits 20 seconds for the room to react, then Claude decides from `auto-reply.md` whether a reply is still needed (someone may have answered already, or the talk moved on) and says it. It keeps quiet for at least a minute after talking. It starts at `--auto-reply-threshold` (0.6); `1` or more turns it off, and Jev isn't asked at all.
 
 ```text
-@默认关闭 /自动回复间隔 5
-→ 已处理自动回复间隔请求
+@默认关闭 /自动回复阈值 0.7
+→ 已处理自动回复阈值请求
 
-@默认关闭 /自动回复间隔 0
-→ 已处理自动回复间隔请求
+@默认关闭 /自动回复阈值 1
+→ 已处理自动回复阈值请求
 
-@默认关闭 /自动回复间隔 半小时
-→ 间隔要写成分钟数，0 表示关闭，用法：/自动回复间隔 3
+@默认关闭 /自动回复阈值 一半
+→ 阈值要写成 0 到 1 之间的小数，1 表示关闭，用法：/自动回复阈值 0.6
 ```
 
 ### /自动谢礼
@@ -89,7 +76,7 @@ Thanks a viewer, with an @ from `gift-thanks.md`, when their gifts within 5 minu
 
 ### /设置唤醒词
 
-Sets this room's wake word: when the streamer says it (spoken, not sung, and not by a linked-up guest), the bot talks as on `/回复`, for free, and then ignores it for a minute. It's matched by sound, so 我想吃余了 counts for 我想吃鱼了. It's saved in `wake-words.json` under the room id, so it lasts across runs; rooms without their own use `default` (`我想吃鱼了`). Set a room's to `""` in that file to turn it off there.
+Sets this room's wake word: when the streamer says it (spoken, not sung, and not by a linked-up guest), the bot says one thing to the streamer now from `auto-reply.md`, for free, and then ignores it for a minute. It's matched by sound, so 我想吃余了 counts for 我想吃鱼了. It's saved in `wake-words.json` under the room id, so it lasts across runs; rooms without their own use `default` (`我想吃鱼了`). Set a room's to `""` in that file to turn it off there.
 
 ```text
 @默认关闭 /设置唤醒词 小猫饿了
@@ -168,15 +155,15 @@ Commands are logged as `command` in `logs/chat-bot.log`.
 
 Each feature offers its own commands, and `src/main.ts` hands them all to `ChatBot` in the order the help list shows them:
 
-| Command            | Defined in                                                                             |
-| ------------------ | -------------------------------------------------------------------------------------- |
-| 修改人设, 截图     | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
-| 修改收费           | `Billing.commands()` in `src/app/billing.ts`                                           |
-| 回复, 自动回复间隔 | `Talker.commands()` in `src/app/talker.ts`                                             |
-| 自动谢礼           | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
-| 设置唤醒词         | `WakeWord.commands()` in `src/app/wake-word.ts`                                        |
-| 识歌               | `songIdCommand` in `src/app/song-id-command.ts`                                        |
-| 识别背景音乐       | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
+| Command        | Defined in                                                                             |
+| -------------- | -------------------------------------------------------------------------------------- |
+| 修改人设, 截图 | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
+| 修改收费       | `Billing.commands()` in `src/app/billing.ts`                                           |
+| 自动回复阈值   | `Talker.commands()` in `src/app/talker.ts`                                             |
+| 自动谢礼       | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
+| 设置唤醒词     | `WakeWord.commands()` in `src/app/wake-word.ts`                                        |
+| 识歌           | `songIdCommand` in `src/app/song-id-command.ts`                                        |
+| 识别背景音乐   | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
 
 The `Command` type and the `done` / `failed` helpers are in `src/app/command.ts`.
 

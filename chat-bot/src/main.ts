@@ -3,7 +3,7 @@
  *
  *     pnpm start --room 259175310675 --bot-name 默认关闭
  */
-import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,7 @@ import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
 import { liveSection, liveText, roomFiles } from './adapters/room-files';
 import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
+import { jev } from './adapters/jev';
 import { wakeWordFile } from './adapters/wake-word-file';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
@@ -29,7 +30,7 @@ import { RoomFeed } from './app/room-feed';
 import { personaCommand, RoomState, screenshotCommand } from './app/room-state';
 import { musicCommand } from './app/music-command';
 import { SongId } from './app/song-id-command';
-import { Talker } from './app/talker';
+import { Talker, WOKEN } from './app/talker';
 import { Transcriber } from './app/transcriber';
 import { WakeWord } from './app/wake-word';
 import { parseCliOptions, USAGE } from './cli-options';
@@ -39,6 +40,8 @@ import { Transcript } from './core/transcript';
 import { Wallet } from './core/wallet';
 
 const packageDir = join(dirname(fileURLToPath(import.meta.url)), '..');
+// API keys (JEV_API_KEY) from chat-bot/.env, which git ignores, when there is one.
+if (existsSync(join(packageDir, '.env'))) process.loadEnvFile(join(packageDir, '.env'));
 
 const options = parseCliOptions(process.argv.slice(2), packageDir);
 if (!options) {
@@ -63,7 +66,7 @@ const record = new ChatLog(chatDir);
 // The prompts are shared by every room (a room's own auto_reply.md, song_id.md or gift_thanks.md
 // overrides one), and the room's context.md; all read on every use so edits apply while it runs.
 // Plus what the bot said, overall and to each viewer, so it doesn't repeat itself.
-const talkTemplate = resolve(options.talkPromptFile);
+const autoReplyTemplate = resolve(options.autoReplyPromptFile);
 const songIdTemplate = join(packageDir, 'song-id.md');
 const songIdWebTemplate = join(packageDir, 'song-id-web.md');
 const giftThanksTemplate = join(packageDir, 'gift-thanks.md');
@@ -72,7 +75,7 @@ const context = liveText(files.context);
 const botTalk = botTalkFile(files.botTalk);
 const userTalk = userTalkFiles(files.users);
 // The streamer saying the room's wake word (from --wake-words, read again when it changes) makes
-// the bot talk now, like /回复, for free; /设置唤醒词 changes it.
+// the bot talk now, for free; /设置唤醒词 changes it.
 let wakeWord: WakeWord | null = null;
 const transcriber = options.asr
   ? new Transcriber({
@@ -125,27 +128,32 @@ const room = new RoomState({
   botName: options.botName,
   settings: (): Omit<RoomSettings, 'screenshots'> => ({
     mentionCost: billing.cost,
-    talkMinutes: talker.interval / 60_000,
+    talkThreshold: talker.threshold,
     thanksThreshold: thanker.threshold,
     wakeWord: wakeWords.get(),
   }),
   commands: liveSection(join(packageDir, 'commands.md'), 'The commands'),
   log,
 });
-// Says something to the streamer every --talk-minutes (changed with /自动回复间隔), and on
-// /回复, from the room's auto_reply.md.
+// Joins in, from the room's auto_reply.md, when Jev (with JEV_API_KEY from chat-bot/.env) scores
+// something said in the room as about the bot at --auto-reply-threshold or more (/自动回复阈值 changes
+// it); and talks when the streamer says the wake word.
+const jevKey = process.env.JEV_API_KEY;
+if (!jevKey)
+  log.warn('no JEV_API_KEY in chat-bot/.env: the bot only talks unprompted on the wake word');
 const talker = new Talker({
   ask,
   outbox,
-  promptTemplate: liveText(files.autoReply, () => readFileSync(talkTemplate, 'utf8')),
-  intervalMs: options.talkMs,
+  promptTemplate: liveText(files.autoReply, () => readFileSync(autoReplyTemplate, 'utf8')),
+  judge: jevKey ? jev({ apiKey: jevKey }) : undefined,
+  threshold: options.talkThreshold,
   room,
   maxLength: options.maxReplyLength,
   log,
 });
 wakeWord = new WakeWord({
   words: wakeWords,
-  wake: () => talker.talkNow(),
+  wake: () => talker.talkNow('reply', WOKEN),
   log,
 });
 // Thanks a viewer whose gifts in 5 minutes pass --thanks-threshold (changed with /自动谢礼).
@@ -234,7 +242,7 @@ log.info('starting', {
   cost: options.cost,
   admins: config.admins,
   persona: config.persona,
-  talkMinutes: options.talkMs / 60_000,
+  talkThreshold: options.talkThreshold,
   thanksThreshold: options.thanksThreshold,
   songIdEngine: songId.engine,
 });

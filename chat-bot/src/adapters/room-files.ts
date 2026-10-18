@@ -21,7 +21,7 @@ export interface RoomFiles {
 /**
  * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and `wallet.json`): an
  * empty `context.md` created when missing, `bot_logs.md`, and a `<user id>/` folder for each
- * viewer the bot talked with. The prompts are shared by every room (chat-bot/talk.md and so on);
+ * viewer the bot talked with. The prompts are shared by every room (chat-bot/auto-reply.md and so on);
  * a room only has its own `auto_reply.md`, `song_id.md`, `song_id_web.md` or `gift_thanks.md`
  * when someone puts one there to override it.
  */

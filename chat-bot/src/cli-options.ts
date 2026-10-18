@@ -9,8 +9,8 @@ export const USAGE =
   '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
-  '       [--send-interval 10] [--data data/] [--config config.json] [--talk-minutes 0]\n' +
-  '       [--talk-prompt talk.md] [--thanks-threshold 99999] [--wake-words wake-words.json]\n' +
+  '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 0.6]\n' +
+  '       [--auto-reply-prompt auto-reply.md] [--thanks-threshold 99999] [--wake-words wake-words.json]\n' +
   '       [--codex gpt-6-luna]';
 
 /** The command line, checked and converted; see the README for what each option does. */
@@ -37,9 +37,9 @@ export interface CliOptions {
   dataDir: string;
   /** Admins and the starting persona. */
   configFile: string;
-  /** How often the bot says something unprompted; 0 never. */
-  talkMs: number;
-  talkPromptFile: string;
+  /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
+  talkThreshold: number;
+  autoReplyPromptFile: string;
   /** Thank a viewer whose gifts in 5 minutes come to more than this many diamonds. */
   thanksThreshold: number;
   /** Each room's wake word, and the default one, which /设置唤醒词 writes to. */
@@ -86,9 +86,9 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'send-interval': { type: 'string', default: '10' },
       data: { type: 'string', default: join(packageDir, 'data') },
       config: { type: 'string', default: join(packageDir, 'config.json') },
-      // Off by default; /自动回复间隔 turns it on while the bot runs.
-      'talk-minutes': { type: 'string', default: '0' },
-      'talk-prompt': { type: 'string', default: join(packageDir, 'talk.md') },
+      // Jev's score at which the bot joins in when someone talks about it; /自动回复阈值 changes it.
+      'auto-reply-threshold': { type: 'string', default: '0.6' },
+      'auto-reply-prompt': { type: 'string', default: join(packageDir, 'auto-reply.md') },
       // So high it's off by default; /自动谢礼 lowers it while the bot runs.
       'thanks-threshold': { type: 'string', default: '99999' },
       'wake-words': { type: 'string', default: join(packageDir, 'wake-words.json') },
@@ -121,8 +121,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     sendIntervalMs: Number(values['send-interval']) * 1000,
     dataDir: values.data,
     configFile: values.config,
-    talkMs: Number(values['talk-minutes']) * 60_000,
-    talkPromptFile: values['talk-prompt'],
+    talkThreshold: Number(values['auto-reply-threshold']),
+    autoReplyPromptFile: values['auto-reply-prompt'],
     thanksThreshold: Number(values['thanks-threshold']),
     wakeWordsFile: values['wake-words'],
     codex: values.codex,

@@ -160,7 +160,12 @@ test('points Claude at the record folder, and tells it who it plays', async () =
 });
 
 test("tells Claude the room settings, the asker's balance and the commands", async () => {
-  const settings = { mentionCost: 2, talkMinutes: 0, thanksThreshold: 100, wakeWord: '我想吃鱼了' };
+  const settings = {
+    mentionCost: 2,
+    talkThreshold: 1,
+    thanksThreshold: 100,
+    wakeWord: '我想吃鱼了',
+  };
   const { ask, prompts } = setup({
     template: '{{settings}}\n---\n{{commands}}',
     wallet: memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 10, spent: 3 } }),
@@ -168,6 +173,7 @@ test("tells Claude the room settings, the asker's balance and the commands", asy
     commands: () => '## The commands\n\n/识歌',
   });
   await ask({ userId: 'u-阿明' });
+  settings.talkThreshold = 0.6;
   settings.thanksThreshold = 99999;
   settings.wakeWord = '';
   await ask({ userId: 'u-阿明' });
@@ -184,7 +190,9 @@ test("tells Claude the room settings, the asker's balance and the commands", asy
       '---',
       '## The commands\n\n/识歌',
     ].join('\n'),
-    expect.stringContaining('- 自动谢礼：关闭\n- 唤醒词：无\n'),
+    expect.stringContaining(
+      '- 自动回复：开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 0.6）\n- 自动谢礼：关闭\n- 唤醒词：无\n',
+    ),
   ]);
 });
 

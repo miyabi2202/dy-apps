@@ -1,9 +1,11 @@
 import { errorMessage } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
+import { relevanceRequest, roomLines, type RoomLine } from '../core/relevance';
 import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
+import { parseTalkAnswer, TALK_ANSWER_SCHEMA } from '../core/talk-answer';
 import { done, failed, type Command } from './command';
 import type { OutgoingMessage, Outbox } from './outbox';
-import type { AskClaude, Log } from './ports';
+import type { AskClaude, Judge, Log } from './ports';
 import type { RoomState } from './room-state';
 
 export interface TalkerOptions {
@@ -11,8 +13,10 @@ export interface TalkerOptions {
   outbox: Pick<Outbox, 'push'>;
   /** The prompt (see buildPrompt for what it can fill in), read each time so edits apply at once. */
   promptTemplate: () => string;
-  /** Say something this often; 0 never, until changed. */
-  intervalMs: number;
+  /** Says how likely each new chat or sentence is about the bot. Without it, it only talks when asked. */
+  judge?: Judge;
+  /** Talk when something new is about the bot at least this likely; 1 or more never, without asking. */
+  threshold: number;
   /** The chat, transcript and the rest of what the prompt knows about the room. */
   room: RoomState;
   /** Douyin's chat length limit. */
@@ -20,34 +24,49 @@ export interface TalkerOptions {
   log: Log;
   /** Waits `ms`; tests pass one that doesn't. */
   sleep?: (ms: number) => Promise<void>;
+  /** How often it looks at what's new. */
+  checkMs?: number;
+  /** How long it waits after something about the bot before talking, so the streamer can answer first. */
+  reactionMs?: number;
+  /** At least this long between two things it says unprompted, or after being asked to talk. */
+  quietMs?: number;
 }
+
+/** Why it talks when the streamer says the wake word. */
+export const WOKEN = '主播说了唤醒词。';
 
 /**
  * Has Claude say something to the streamer unprompted, as fits what's going on: from what the
- * streamer said and sang and the chat lately, and the video when there's a screenshot. It does
- * so every `intervalMs` (which can be changed while it runs, 0 for never), staying quiet when
- * nothing was said, or chatted by anyone but the bot, since the last time, since the stream is
- * then likely off; and whenever `talkNow` asks. Scheduled messages go out after everything else
- * waiting.
+ * streamer said and sang and the chat lately, and the video when there's a screenshot. Every
+ * `checkMs` it asks the judge (Jev) whether anything new, chat or what the streamer said (without
+ * the chat they read out), is about the bot; when something is at least `threshold` likely, it
+ * waits `reactionMs` for the room's reaction and then has Claude decide whether a reply is still
+ * needed and say it (TALK_ANSWER_SCHEMA). It also talks whenever `talkNow` asks (the wake word).
  */
 export class Talker {
+  /** Talk when something is about the bot at least this likely; 1 or more never. */
+  threshold: number;
   private stopped = false;
-  private intervalMs: number;
-  /** Ends the current wait early, when the interval changes or the talker stops. */
+  /** Ends the current wait early, when the talker stops. */
   private wake: () => void = () => {};
   private readonly sleep: (ms: number) => Promise<void>;
+  /** Up to when the room has been looked at; what was said before it is old news. */
+  private seen: number;
+  /** When it last talked, or started to. */
+  private talkedAt = -Infinity;
 
   constructor(private readonly options: TalkerOptions) {
-    this.intervalMs = options.intervalMs;
+    this.threshold = options.threshold;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.seen = options.room.now();
   }
 
   /** Runs until `stop()`. */
   async run(): Promise<void> {
+    const { checkMs = 20_000 } = this.options;
     while (!this.stopped) {
-      const intervalMs = this.intervalMs;
-      if ((await this.wait(intervalMs)) === 'woken' || this.stopped) continue;
-      await this.talk(intervalMs);
+      if ((await this.wait(checkMs)) === 'woken' || this.stopped) continue;
+      await this.check();
     }
   }
 
@@ -56,81 +75,101 @@ export class Talker {
     this.wake();
   }
 
-  /** How often it talks, in ms; 0 never. */
-  get interval(): number {
-    return this.intervalMs;
+  /**
+   * Says something now, whatever's going on, sent as `kind`, telling Claude `why`; what it said,
+   * or null if nothing.
+   */
+  async talkNow(kind: OutgoingMessage['kind'], why: string): Promise<string | null> {
+    this.talkedAt = this.options.room.now();
+    return this.say(kind, why);
   }
 
-  /** Talk this often from now on (0 never), counting from now. */
-  set interval(ms: number) {
-    this.intervalMs = ms;
-    this.options.log.info('talk interval', { minutes: ms / 60_000 });
-    this.wake();
-  }
-
-  /** Says something now, whatever's going on, sent as `kind`; what it said, or null if nothing. */
-  async talkNow(kind: OutgoingMessage['kind'] = 'reply'): Promise<string | null> {
-    return this.say(kind);
-  }
-
-  /** `/回复` talks now, `/自动回复间隔 5` talks every 5 minutes from now on (0 never). */
+  /** `/自动回复阈值 0.6` sets the threshold (1 or more: never unprompted). */
   commands(): Command[] {
     return [
       {
-        name: '回复',
-        adminOnly: true,
-        price: 0,
-        run: async () =>
-          // The message itself says it worked.
-          (await this.talkNow()) ? done('') : failed('没想好说什么，这次没有回复'),
-      },
-      {
-        name: '自动回复间隔',
+        name: '自动回复阈值',
         adminOnly: true,
         price: 0,
         run: (args) => {
-          if (!/^\d+$/.test(args))
-            return failed('间隔要写成分钟数，0 表示关闭，用法：/自动回复间隔 3');
-          this.interval = Number(args) * 60_000;
-          return done('已处理自动回复间隔请求');
+          if (!/^\d+(\.\d+)?$/.test(args))
+            return failed('阈值要写成 0 到 1 之间的小数，1 表示关闭，用法：/自动回复阈值 0.6');
+          this.threshold = Number(args);
+          this.options.log.info('talk threshold', { threshold: this.threshold });
+          return done('已处理自动回复阈值请求');
         },
       },
     ];
   }
 
-  /** Waits `ms` (forever when 0), or until woken: which of the two ended it. */
+  /** Waits `ms`, or until woken: which of the two ended it. */
   private wait(ms: number): Promise<'elapsed' | 'woken'> {
     return new Promise((resolve) => {
       this.wake = () => resolve('woken');
-      if (ms > 0) void this.sleep(ms).then(() => resolve('elapsed'));
+      void this.sleep(ms).then(() => resolve('elapsed'));
     });
   }
 
-  /** The scheduled talk, unless the room has been quiet for `intervalMs`. */
-  private async talk(intervalMs: number): Promise<void> {
-    const { room } = this.options;
-    const since = room.now() - intervalMs;
-    if (
-      !room.recentTranscript().some((line) => line.end > since) &&
-      !room.recentChat().some((chat) => chat.ts > since && chat.nickname !== room.botName)
-    ) {
-      this.options.log.info('room quiet, not talking');
+  /** Asks the judge about what's new since it last looked, and talks if it's about the bot. */
+  private async check(): Promise<void> {
+    const { judge, room, log, quietMs = 60_000, reactionMs = 20_000 } = this.options;
+    const now = room.now();
+    if (!judge || this.threshold >= 1) {
+      this.seen = now;
       return;
     }
-    await this.say('talk');
+    // While it keeps quiet, what's said waits to be looked at after.
+    if (now - this.talkedAt < quietMs) return;
+    const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName);
+    const since = Math.max(this.seen, this.talkedAt);
+    const fresh = lines.filter((line) => line.candidate && line.ts > since && line.ts <= now);
+    this.seen = now;
+    if (!fresh.length) return;
+    const first = lines.indexOf(fresh[0]!);
+    const { state, questions } = relevanceRequest(
+      lines.slice(Math.max(0, first - 25), first),
+      fresh,
+      room.botName,
+      room.persona,
+    );
+    let scores: Record<string, number>;
+    try {
+      scores = await judge(state, questions);
+    } catch (err) {
+      log.warn('could not judge', { error: errorMessage(err) });
+      return;
+    }
+    const best = fresh
+      .map((line, i) => ({ line, score: scores[`q${i + 1}`] ?? 0 }))
+      .reduce((a, b) => (b.score > a.score ? b : a));
+    log.debug('judged', { lines: fresh.length, best: best.line.text, score: best.score });
+    if (best.score < this.threshold) return;
+    log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });
+    this.talkedAt = now;
+    if ((await this.wait(reactionMs)) === 'woken' || this.stopped) return;
+    await this.say('talk', followUp(best.line));
+    this.talkedAt = room.now();
   }
 
-  private async say(kind: OutgoingMessage['kind']): Promise<string | null> {
+  private async say(kind: OutgoingMessage['kind'], why: string): Promise<string | null> {
     const { ask, outbox, room, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
     try {
       const prompt = buildPrompt(this.options.promptTemplate(), {
         ...room.promptInput(),
+        question: why,
         singleLength: maxLength,
         maxLength,
       });
       log.debug('talk prompt', { prompt });
       const image = await room.screenshot();
-      const text = plainMessage(await ask({ prompt, image }), maxLength);
+      // An answer that isn't TALK_ANSWER_SCHEMA's shape is taken as the message.
+      const raw = await ask({ prompt, image, schema: TALK_ANSWER_SCHEMA });
+      const answer = parseTalkAnswer(raw) ?? { reply: true, message: raw };
+      if (!answer.reply) {
+        log.info('no need to talk', { why });
+        return null;
+      }
+      const text = plainMessage(answer.message, maxLength);
       if (!text) {
         log.warn('claude had nothing to say');
         return null;
@@ -143,4 +182,9 @@ export class Talker {
       return null;
     }
   }
+}
+
+/** Why it talks when someone talked about it (auto-reply.md says what to do then). */
+function followUp(line: RoomLine): string {
+  return `有人说到你：${line.who} 说「${line.text}」。`;
 }

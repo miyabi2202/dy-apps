@@ -205,7 +205,7 @@ test('ignores commands from anyone but an admin, and answers bad ones with how t
     price: 0,
     run: () => ({ ok: false, reply: '收费要写成钻石数，用法：/修改收费 2' }),
   });
-  const commands = ['修改人设', '修改收费', '回复', '自动回复间隔', '自动谢礼'].map(admin);
+  const commands = ['修改人设', '修改收费', '自动回复阈值', '自动谢礼'].map(admin);
   const { settle, say, prompts, sent } = setup({ wallet, admins: ['u-管理'], commands });
   say(chat('阿明', '@小助手 /修改收费 0'));
   say(chat('管理', '@小助手 /修改收费 两钻'));
@@ -216,7 +216,7 @@ test('ignores commands from anyone but an admin, and answers bad ones with how t
   expect(wallet.balance('u-阿明')).toBe(5);
   expect(sent).toEqual([
     '@管理 收费要写成钻石数，用法：/修改收费 2',
-    '@管理 没有指令「删库」，可用的有：修改人设、修改收费、回复、自动回复间隔、自动谢礼',
+    '@管理 没有指令「删库」，可用的有：修改人设、修改收费、自动回复阈值、自动谢礼',
   ]);
 });
 

@@ -7,7 +7,7 @@ import type { Log, WakeWords } from './ports';
 export interface WakeWordOptions {
   /** What the streamer says in this room to wake the bot (empty never wakes it), read on each line. */
   words: WakeWords;
-  /** What waking does: the bot says something now, like /回复, for free. */
+  /** What waking does: the bot says something now, for free. */
   wake: () => Promise<unknown>;
   /** Ignore the phrase for this long after it woke the bot. */
   cooldownMs?: number;
