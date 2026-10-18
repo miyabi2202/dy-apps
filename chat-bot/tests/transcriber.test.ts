@@ -9,6 +9,7 @@ const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 function fakeWorker(lines: string[], onLine: (line: string) => void): Worker {
   return {
     kill: () => {},
+    send: () => {},
     exited: Promise.resolve().then(() => {
       lines.forEach(onLine);
       return 0;
@@ -83,4 +84,47 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
     '2026-10-16 08:00:00 [连线](speech) 从 url-1 听到\n' +
       '2026-10-16 08:00:00 [主播](sing) 从 url-2 听到\n',
   );
+});
+
+test('asks the worker what music is playing, telling a match, no match and a failure apart', async () => {
+  const answers: object[] = [
+    { title: 'Aimaimoko', artist: 'Inori Minase' },
+    { title: null, artist: null },
+    { error: 'Shazam is down' },
+  ];
+  let finish: (code: number) => void = () => {};
+  let workerStarted: () => void = () => {};
+  const started = new Promise<void>((resolve) => (workerStarted = resolve));
+  const transcriber = new Transcriber({
+    streamUrl: () => Promise.resolve('url'),
+    transcript: new Transcript(),
+    log: silentLog,
+    spawnWorker: (_url, { onLine }) => {
+      workerStarted();
+      return {
+        kill: () => finish(0),
+        // Answers at once, while there are answers left; then never.
+        send: (line) => {
+          const answer = answers.shift();
+          const { music_id } = JSON.parse(line) as { music_id: number };
+          if (answer) onLine(JSON.stringify({ music_id, ...answer }));
+        },
+        exited: new Promise((resolve) => (finish = resolve)),
+      };
+    },
+    sleep: () => Promise.resolve(),
+  });
+  await expect(transcriber.identifyMusic()).rejects.toThrow('not listening to the stream');
+
+  const running = transcriber.run();
+  await started;
+  await expect(transcriber.identifyMusic()).resolves.toEqual({
+    title: 'Aimaimoko',
+    artist: 'Inori Minase',
+  });
+  await expect(transcriber.identifyMusic()).resolves.toBeNull();
+  await expect(transcriber.identifyMusic()).rejects.toThrow('Shazam is down');
+  await expect(transcriber.identifyMusic(10)).rejects.toThrow('the worker did not answer');
+  transcriber.stop();
+  await running;
 });

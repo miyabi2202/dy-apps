@@ -85,6 +85,8 @@ export interface RoomRecord {
 /** A running transcription worker. */
 export interface Worker {
   kill(): void;
+  /** Writes a line (a request, like a music one) to it. */
+  send(line: string): void;
   /** Resolves with the exit code when it stops, or rejects when it couldn't start. */
   exited: Promise<number | null>;
 }

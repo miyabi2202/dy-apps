@@ -15,9 +15,10 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/自动谢礼 <钻>`       | Thank viewers who give more than this in 5 minutes |
 | `/设置唤醒词 <词>`     | The words the streamer says to make the bot talk   |
 | `/截图 <0\|1>`         | Send Claude the live video or not                  |
-| `/识歌 [提示]`         | Name the song being sung or played                 |
+| `/识歌 [提示]`         | Name the song the streamer sings, from its lyrics  |
+| `/识别背景音乐`        | Name the recording playing, from its sound         |
 
-All but `/识歌` are for admins only, and free. `/识歌` is for anyone, and costs what an @ does. Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
+All but `/识歌` and `/识别背景音乐` are for admins only, and free. Those two are for anyone, and cost what an @ does. Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
 
 ### /修改人设
 
@@ -114,7 +115,7 @@ Turns screenshots of the live video on (`1`) or off (`0`); while on, every promp
 
 ### /识歌
 
-Names the song being sung or played, from what was heard lately, with `song-id.md` (or the room's `song_id.md`) as the prompt; Claude searches a few lines of the lyrics. Anything after it is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails.
+Names the song being sung or played, from the lyrics heard lately, with `song-id.md` (or the room's `song_id.md`) as the prompt; Claude searches a few lines of the lyrics. Anything after it is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails.
 
 ```text
 @默认关闭 /识歌
@@ -122,6 +123,20 @@ Names the song being sung or played, from what was heard lately, with `song-id.m
 
 @默认关闭 /识歌 好像是日语歌
 → @雅 听起来像泽野弘之的……
+```
+
+Lyrics are only as good as speech recognition, so it does best on Chinese and English, and seldom finds a Japanese or German song. For a recording playing in the background, `/识别背景音乐` is surer.
+
+### /识别背景音乐
+
+Names the recording playing in the stream, from the last 15 s of its audio, by its fingerprint (Shazam, through `shazamio`; the fingerprint is worked out locally and only it is sent). It doesn't need the lyrics, so it finds songs in any language, and usually still does with the streamer talking over them. It can't name the streamer singing a song themselves (use `/识歌`), or music too quiet under the talk. It answers in a few seconds without Claude, and is refunded when nothing is found. Only while speech recognition is on (not with `--no-asr`).
+
+```text
+@默认关闭 /识别背景音乐
+→ @雅 现在放的是SawanoHiroyuki[nZk]的《aLIEz (feat. mizuki)》
+
+（a quiet stretch, or the streamer singing）
+→ @雅 没认出背景音乐，可能现在没在放歌，或者音乐被说话声盖住了，过一会儿再试试
 ```
 
 ## How a command is handled
@@ -140,14 +155,15 @@ Commands are logged as `command` in `logs/chat-bot.log`.
 
 Each feature offers its own commands, and `src/main.ts` hands them all to `ChatBot` in the order the help list shows them:
 
-| Command            | Defined in                                                       |
-| ------------------ | ---------------------------------------------------------------- |
-| 修改人设, 截图     | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts` |
-| 修改收费           | `Billing.commands()` in `src/app/billing.ts`                     |
-| 回复, 自动回复间隔 | `Talker.commands()` in `src/app/talker.ts`                       |
-| 自动谢礼           | `GiftThanker.commands()` in `src/app/gift-thanker.ts`            |
-| 设置唤醒词         | `WakeWord.commands()` in `src/app/wake-word.ts`                  |
-| 识歌               | `songIdCommand` in `src/app/song-id-command.ts`                  |
+| Command            | Defined in                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------- |
+| 修改人设, 截图     | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
+| 修改收费           | `Billing.commands()` in `src/app/billing.ts`                                           |
+| 回复, 自动回复间隔 | `Talker.commands()` in `src/app/talker.ts`                                             |
+| 自动谢礼           | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
+| 设置唤醒词         | `WakeWord.commands()` in `src/app/wake-word.ts`                                        |
+| 识歌               | `songIdCommand` in `src/app/song-id-command.ts`                                        |
+| 识别背景音乐       | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
 
 The `Command` type and the `done` / `failed` helpers are in `src/app/command.ts`.
 

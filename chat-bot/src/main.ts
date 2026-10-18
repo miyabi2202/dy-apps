@@ -26,6 +26,7 @@ import { MentionAnswerer } from './app/mention-answerer';
 import { Outbox } from './app/outbox';
 import { RoomFeed } from './app/room-feed';
 import { personaCommand, RoomState, screenshotCommand } from './app/room-state';
+import { musicCommand } from './app/music-command';
 import { songIdCommand } from './app/song-id-command';
 import { Talker } from './app/talker';
 import { Transcriber } from './app/transcriber';
@@ -198,6 +199,8 @@ const bot = new ChatBot({
     ...wakeWord.commands(),
     screenshotCommand(room),
     songIdCommand(liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8'))),
+    // Only when listening to the stream.
+    ...(transcriber ? [musicCommand(() => transcriber.identifyMusic(), log)] : []),
   ],
   maxReplyLength: options.maxReplyLength,
 });
