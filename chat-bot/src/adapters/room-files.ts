@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Log } from '../app/ports';
+import { errorMessage } from '../core/errors';
 
 /** The files someone can edit for one room, to change the bot there while it runs. */
 export interface RoomFiles {
@@ -16,11 +18,21 @@ export interface RoomFiles {
   botTalk: string;
   /** Where each viewer's folder of exchanges with the bot goes. */
   users: string;
+  /** The room's settings, see RoomConfig. */
+  config: string;
 }
+
+/** What `room_config.json` says about a room. */
+export interface RoomConfig {
+  /** A 私密 room: its viewers hide who they are, and come in under one shared user id. */
+  private: boolean;
+}
+
+const DEFAULT_ROOM_CONFIG: RoomConfig = { private: false };
 
 /**
  * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and `wallet.json`): an
- * empty `context.md` created when missing, `bot_logs.md`, and a `<user id>/` folder for each
+ * empty `context.md` and a default `room_config.json` created when missing, `bot_logs.md`, and a `<user id>/` folder for each
  * viewer the bot talked with. The prompts are shared by every room (chat-bot/auto-reply.md and so on);
  * a room only has its own `auto_reply.md`, `song_id.md`, `song_id_web.md` or `gift_thanks.md`
  * when someone puts one there to override it.
@@ -35,9 +47,42 @@ export function roomFiles(dir: string): RoomFiles {
     giftThanks: join(dir, 'gift_thanks.md'),
     botTalk: join(dir, 'bot_logs.md'),
     users: dir,
+    config: join(dir, 'room_config.json'),
   };
   if (!existsSync(files.context)) writeFileSync(files.context, '');
+  if (!existsSync(files.config)) {
+    writeFileSync(files.config, `${JSON.stringify(DEFAULT_ROOM_CONFIG, null, 2)}\n`);
+  }
   return files;
+}
+
+/**
+ * The room's `room_config.json` as it is now: read on each call, parsed again when it changed. A
+ * file that can't be read or checked keeps the last good settings (the defaults at first).
+ */
+export function liveRoomConfig(
+  path: string,
+  { log, read = (p) => readFileSync(p, 'utf8') }: { log: Log; read?: (path: string) => string },
+): () => RoomConfig {
+  let config = DEFAULT_ROOM_CONFIG;
+  let seen: string | null = null;
+  return () => {
+    try {
+      const text = read(path);
+      if (text === seen) return config;
+      seen = text;
+      const raw = JSON.parse(text) as Partial<Record<keyof RoomConfig, unknown>>;
+      const isPrivate = raw.private ?? false;
+      if (typeof isPrivate !== 'boolean') throw new Error('private must be true or false');
+      config = { private: isPrivate };
+      log.info('room config', { ...config });
+    } catch (err) {
+      log.warn('could not read room_config.json, keeping the last settings', {
+        error: errorMessage(err),
+      });
+    }
+    return config;
+  };
 }
 
 /**

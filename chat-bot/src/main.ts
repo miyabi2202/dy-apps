@@ -15,7 +15,7 @@ import { codexCli } from './adapters/codex-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
-import { liveSection, liveText, roomFiles } from './adapters/room-files';
+import { liveRoomConfig, liveSection, liveText, roomFiles } from './adapters/room-files';
 import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
 import { jev } from './adapters/jev';
 import { wakeWordFile } from './adapters/wake-word-file';
@@ -73,6 +73,8 @@ const songIdWebTemplate = join(packageDir, 'song-id-web.md');
 const giftThanksTemplate = join(packageDir, 'gift-thanks.md');
 const files = roomFiles(roomDir);
 const context = liveText(files.context);
+// The room's room_config.json, read again when it changes: whether it's a 私密 room.
+const roomConfig = liveRoomConfig(files.config, { log });
 const botTalk = botTalkFile(files.botTalk);
 const userTalk = userTalkFiles(files.users);
 // The streamer saying the room's wake word (from --wake-words, read again when it changes) makes
@@ -177,7 +179,7 @@ const thanker = new GiftThanker({
 // Listens to the room: records chat and gifts, credits gifts, and tells the bot of mentions
 // and the thanker of gifts.
 const feed = new RoomFeed({
-  events: dyhubEvents(new DyhubClient({ port, roomId, retryMs: 5000 })),
+  events: dyhubEvents(new DyhubClient({ port, roomId, retryMs: 5000 }), () => roomConfig().private),
   bot: { nickname: options.botName, userId: options.botId },
   history,
   log,

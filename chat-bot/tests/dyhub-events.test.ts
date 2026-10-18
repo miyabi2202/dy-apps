@@ -1,5 +1,5 @@
-import type { DyhubCommentEvent, DyhubGiftEvent } from '@dy-apps/services';
-import { chatFrom, giftFrom, userIdOf } from '../src/adapters/dyhub-events';
+import type { DyhubCommentEvent, DyhubGiftEvent, DyhubUser } from '@dy-apps/services';
+import { chatFrom, giftFrom, userIdOf as idIn } from '../src/adapters/dyhub-events';
 
 test('keeps only the picked @mentions of a chat, and names an anonymous sender', () => {
   const event: DyhubCommentEvent = {
@@ -46,8 +46,9 @@ test('a gift is worth its count times its diamonds, and needs someone to credit'
   expect(giftFrom({ ...event, user: undefined }, 2)).toBeNull();
 });
 
-test('hidden viewers, who all share one id, are told apart by nickname and wealth level', () => {
+test('in a 私密 room, viewers, who all share one id, are told apart by nickname and wealth level', () => {
   const hidden = (nickname: string, payLevel?: number) => ({ id: '111111', nickname, payLevel });
+  const userIdOf = (user: DyhubUser) => idIn(user, true);
 
   expect(userIdOf(hidden('苦***', 31))).toBe('111111-82e6_2a_2a_2a-31');
   expect(userIdOf(hidden('🌈***', 21))).toBe('111111-1f308_2a_2a_2a-21');
@@ -55,4 +56,8 @@ test('hidden viewers, who all share one id, are told apart by nickname and wealt
   expect(userIdOf(hidden('香***', 31))).not.toBe(userIdOf(hidden('苦***', 31)));
   expect(userIdOf(hidden('用***'))).toBe('111111-7528_2a_2a_2a-0');
   expect(userIdOf({ id: 'u-阿明', nickname: '阿明', payLevel: 21 })).toBe('u-阿明');
+});
+
+test('outside a 私密 room, ids are kept as they are', () => {
+  expect(idIn({ id: '111111', nickname: '苦***', payLevel: 31 }, false)).toBe('111111');
 });
