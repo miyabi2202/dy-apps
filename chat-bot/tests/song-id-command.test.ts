@@ -44,7 +44,7 @@ test('answers at once when the lyrics point at one song, else tells Claude what 
   await expect(prepare(['明明你也想我吧'], () => Promise.resolve([]))).resolves.toBeNull();
 });
 
-test('/识歌模型 switches between Codex, Gemini and Claude, Codex first when there is one', async () => {
+test('/识歌模型 switches between Codex and Claude, Codex first when there is one', async () => {
   const askedBy: string[] = [];
   const model = (name: string) => () => {
     askedBy.push(name);
@@ -56,7 +56,6 @@ test('/识歌模型 switches between Codex, Gemini and Claude, Codex first when 
     sungLines: () => [],
     claude: model('claude'),
     codex: model('codex'),
-    gemini: model('gemini'),
     log: silentLog,
   });
   const [identify, switchModel] = songId.commands();
@@ -65,18 +64,16 @@ test('/识歌模型 switches between Codex, Gemini and Claude, Codex first when 
 
   await ask();
   expect(identify.prompt()).toBe('web prompt');
-  expect(switchModel.run('Gemini')).toEqual({ ok: true, reply: '已处理识歌模型请求' });
-  await ask();
-  expect(switchModel.run('claude')).toEqual({ ok: true, reply: '已处理识歌模型请求' });
+  expect(switchModel.run('Claude')).toEqual({ ok: true, reply: '已处理识歌模型请求' });
   await ask();
   expect(identify.prompt()).toBe('claude prompt');
   expect(switchModel.run('gpt')).toEqual({
     ok: false,
-    reply: '要写 codex、gemini 或 claude，用法：/识歌模型 codex',
+    reply: '要写 codex 或 claude，用法：/识歌模型 codex',
   });
-  expect(askedBy).toEqual(['codex', 'gemini', 'claude']);
+  expect(askedBy).toEqual(['codex', 'claude']);
 
-  // Only what's there can be picked, and without Codex or Gemini, Claude it is.
+  // Only what's there can be picked, and without Codex, Claude it is.
   const claudeOnly = new SongId({
     prompt: () => '',
     sungLines: () => [],

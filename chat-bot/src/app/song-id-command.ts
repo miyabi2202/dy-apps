@@ -3,13 +3,13 @@ import { done, failed, type Command, type Prepared } from './command';
 import type { AskClaude, Log, LyricsSearch } from './ports';
 
 /** Who looks a song up when the lyrics site alone can't tell, the first there is by default. */
-export const SONG_ID_ENGINES = ['codex', 'gemini', 'claude'] as const;
+export const SONG_ID_ENGINES = ['codex', 'claude'] as const;
 export type SongIdEngine = (typeof SONG_ID_ENGINES)[number];
 
 export interface SongIdOptions {
   /** Claude's prompt (see buildPrompt), read each time so edits apply at once. */
   prompt: () => string;
-  /** Codex's and Gemini's, which search with Google rather than fetch lyrics pages. */
+  /** Codex's, which searches with Google rather than fetch lyrics pages. */
   webPrompt?: () => string;
   /** Searches a lyrics site with a fragment of the lyrics. */
   search?: LyricsSearch;
@@ -19,8 +19,6 @@ export interface SongIdOptions {
   claude: AskClaude;
   /** Codex, which searches the web live (Google among others). */
   codex?: AskClaude;
-  /** Gemini, which searches with Google. */
-  gemini?: AskClaude;
   log: Log;
 }
 
@@ -30,8 +28,8 @@ export const SONG_ID_MAX_TURNS = 12;
 /**
  * Names the song being sung, for `/识歌`. First the bot itself searches a lyrics site with
  * fragments of the last lines sung: when they all point at one song, it answers with it at once.
- * Otherwise Codex or Gemini (both search with Google, so they find lyrics Claude's web search
- * doesn't) or Claude (web search and fetch only, at most SONG_ID_MAX_TURNS turns) works it out
+ * Otherwise Codex (which searches with Google, so it finds lyrics Claude's web search doesn't)
+ * or Claude (web search and fetch only, at most SONG_ID_MAX_TURNS turns) works it out
  * with the prompt, told what the search found (`{{lookup}}`): the first of them there is, until
  * an admin switches with `/识歌模型`.
  */
@@ -42,7 +40,7 @@ export class SongId {
     this.engine = SONG_ID_ENGINES.find((engine) => options[engine]) ?? 'claude';
   }
 
-  /** `/识歌` for anyone, at a mention's price; `/识歌模型 codex|gemini|claude` for admins. */
+  /** `/识歌` for anyone, at a mention's price; `/识歌模型 codex|claude` for admins. */
   commands(): Command[] {
     const { prompt, webPrompt = prompt, claude, log } = this.options;
     return [
@@ -61,7 +59,7 @@ export class SongId {
         price: 0,
         run: (args) => {
           const engine = SONG_ID_ENGINES.find((e) => e === args.toLowerCase());
-          if (!engine) return failed('要写 codex、gemini 或 claude，用法：/识歌模型 codex');
+          if (!engine) return failed('要写 codex 或 claude，用法：/识歌模型 codex');
           if (!this.options[engine]) {
             const usable = SONG_ID_ENGINES.filter((e) => this.options[e]).join('、');
             return failed(`没有装 ${engine}，可以用的有：${usable}`);

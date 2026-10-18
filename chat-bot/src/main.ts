@@ -10,7 +10,6 @@ import { fileURLToPath } from 'node:url';
 import { DyhubClient } from '@dy-apps/services';
 import { uvWorker } from './adapters/asr-worker';
 import { ChatLog } from './adapters/chat-log-files';
-import { agyCli } from './adapters/agy-cli';
 import { claudeCli } from './adapters/claude-cli';
 import { codexCli } from './adapters/codex-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
@@ -185,10 +184,10 @@ const answerer = new MentionAnswerer({
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
 });
-// Codex and agy read their working directory, so they get an empty one.
+// Codex reads its working directory, so it gets an empty one.
 const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 // /识歌: j-lyric first, so a Japanese song whose lyrics were heard well is named at once; then
-// Codex, which searches with Google (Gemini through agy, or Claude, with /识歌模型).
+// Codex, which searches with Google (or Claude, with /识歌模型).
 const songId = new SongId({
   prompt: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
   webPrompt: liveText(files.songIdWeb, () => readFileSync(songIdWebTemplate, 'utf8')),
@@ -207,9 +206,6 @@ const songId = new SongId({
         cwd: emptyDir,
         systemPrompt: options.systemPrompt,
       })
-    : undefined,
-  gemini: options.gemini
-    ? agyCli({ model: options.gemini, cwd: emptyDir, systemPrompt: options.systemPrompt })
     : undefined,
   log,
 });
