@@ -6,19 +6,19 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 <!-- prompt.md and talk.md get this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
 
-| Command                | What it does                                       |
-| ---------------------- | -------------------------------------------------- |
-| `/修改人设 <人设>`     | Change who the bot plays                           |
-| `/修改收费 <钻>`       | Change what an @ costs                             |
-| `/回复`                | Have the bot say something to the streamer now     |
-| `/自动回复间隔 <分钟>` | How often the bot talks unprompted                 |
-| `/自动谢礼 <钻>`       | Thank viewers who give more than this in 5 minutes |
-| `/设置唤醒词 <词>`     | The words the streamer says to make the bot talk   |
-| `/截图 <0\|1>`         | Send Claude the live video or not                  |
-| `/识歌 [提示]`         | Name the song the streamer sings, from its lyrics  |
-| `/识别背景音乐`        | Name the recording playing, from its sound         |
+| Command                | What it does                                       | Admins only |
+| ---------------------- | -------------------------------------------------- | ----------- |
+| `/修改人设 <人设>`     | Change who the bot plays                           | yes         |
+| `/修改收费 <钻>`       | Change what an @ costs                             | yes         |
+| `/回复`                | Have the bot say something to the streamer now     | yes         |
+| `/自动回复间隔 <分钟>` | How often the bot talks unprompted                 | yes         |
+| `/自动谢礼 <钻>`       | Thank viewers who give more than this in 5 minutes | yes         |
+| `/设置唤醒词 <词>`     | The words the streamer says to make the bot talk   | yes         |
+| `/截图 <0\|1>`         | Send Claude the live video or not                  | yes         |
+| `/识歌 [提示]`         | Name the song the streamer sings, from its lyrics  | no          |
+| `/识别背景音乐`        | Name the recording playing, from its sound         | no          |
 
-All but `/识歌` and `/识别背景音乐` are for admins only, and free. Those two are for anyone, and cost what an @ does. Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
+Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
 
 ### /修改人设
 
