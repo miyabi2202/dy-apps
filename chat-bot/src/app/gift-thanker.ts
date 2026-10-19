@@ -1,6 +1,6 @@
 import { errorMessage } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
-import { DOUYIN_CHAT_LIMIT, replyMessages } from '../core/reply';
+import { DOUYIN_CHAT_LIMIT, replyMessages, singleBudget } from '../core/reply';
 import type { Gift } from '../core/room-events';
 import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
@@ -98,7 +98,7 @@ export class GiftThanker {
         ...input,
         asker: nickname,
         question,
-        singleLength: maxLength - [...`@${nickname} `].length,
+        singleLength: singleBudget(nickname, limits),
         maxLength,
         userHistory: this.options.userTalk?.recent(userId),
         userChat: input.history

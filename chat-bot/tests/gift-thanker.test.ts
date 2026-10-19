@@ -80,6 +80,28 @@ test('in a 私密 room, thanks the viewer by their id and the nickname they show
   ]);
 });
 
+test('tells Claude how long the thanks may be with the short @ a long nickname falls back to', async () => {
+  const prompts: string[] = [];
+  const thanker = new GiftThanker({
+    ask: ({ prompt }) => {
+      prompts.push(prompt);
+      return Promise.resolve('谢谢');
+    },
+    outbox: { push: () => {} },
+    promptTemplate: () => '{{singleLength}}',
+    threshold: 20,
+    room: fakeRoom(),
+    maxLength: 20,
+    log: silentLog,
+  });
+
+  thanker.onGift(gift('这是一个很长的昵称', '玫瑰', 30));
+  await thanker.idle();
+
+  // 20, less `@这是一 `.
+  expect(prompts).toEqual(['15']);
+});
+
 test('/自动谢礼 sets the threshold', async () => {
   const thanker = new GiftThanker({
     ask: () => Promise.resolve(''),
