@@ -180,7 +180,7 @@ test("tells Claude the room settings, the asker's balance and the commands", asy
 
   expect(prompts).toEqual([
     [
-      '直播间现在的设置（管理员可以用指令修改）：',
+      '直播间现在的设置（机器人管理员可以用指令修改）：',
       '- 每次 @ 你：2 钻，用观众给主播送过的礼物抵（不会另外扣观众的钱）',
       '- 截图：关（你看不到直播画面）',
       '- 自动回复：关闭',

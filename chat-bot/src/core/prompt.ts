@@ -72,7 +72,7 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
   const { mentionCost, screenshots, talkThreshold, thanksThreshold, wakeWord, autoSongId } =
     settings;
   return [
-    '直播间现在的设置（管理员可以用指令修改）：',
+    '直播间现在的设置（机器人管理员可以用指令修改）：',
     `- 每次 @ 你：${mentionCost > 0 ? `${mentionCost} 钻，用观众给主播送过的礼物抵（不会另外扣观众的钱）` : '免费'}`,
     `- 截图：${screenshots ? '开（你能看到直播画面）' : '关（你看不到直播画面）'}`,
     `- 自动回复：${talkThreshold < 1 ? `开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 ${talkThreshold}）` : '关闭'}`,
