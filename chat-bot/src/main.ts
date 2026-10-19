@@ -29,6 +29,7 @@ import { jev } from './adapters/jev';
 import { wakeWordFile } from './adapters/wake-word-file';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
+import { AutoReply } from './app/auto-reply';
 import { AutoSongId } from './app/auto-song-id';
 import type { AskClaude } from './app/ports';
 import { Billing } from './app/billing';
@@ -42,7 +43,7 @@ import { RoomFeed } from './app/room-feed';
 import { personaCommand, RoomState, screenshotCommand } from './app/room-state';
 import { musicCommand } from './app/music-command';
 import { SongId } from './app/song-id-command';
-import { Talker, WOKEN } from './app/talker';
+import { TalkNow, WOKEN } from './app/talk-now';
 import { Transcriber } from './app/transcriber';
 import { WakeWord } from './app/wake-word';
 import { parseCliOptions, USAGE } from './cli-options';
@@ -121,9 +122,9 @@ const mentionTemplate = livePrompt('mention', {
 const history = new ChatHistory(options.historySize);
 // Each room's wake word, read again when the file changes; /设置唤醒词 writes this room's.
 const wakeWords = wakeWordFile(resolve(options.wakeWordsFile), roomId, { log });
-// Three closures point forward: the room's settings (to the talker, thanker and autoSongId), the
-// talker's reply and the answerer's onCommandRequest (to the bot). They run only after the bot
-// exists, since nothing calls room.promptInput() or starts the talker while this is wired.
+// Three closures point forward: the room's settings (to autoReply, thanker and autoSongId), the
+// autoReply's reply and the answerer's onCommandRequest (to the bot). They run only after the bot
+// exists, since nothing calls room.promptInput() or starts autoReply while this is wired.
 // What the room looks like now, for every prompt. The bot plays config.persona until
 // /修改人设 changes it for this run. The prompts also get the settings admins can change, and
 // the list of commands from commands.md, so the bot can tell viewers what it can do.
@@ -142,7 +143,7 @@ const room = new RoomState({
   botName: options.botName,
   settings: (): Omit<RoomSettings, 'screenshots'> => ({
     mentionCost: billing.cost,
-    talkThreshold: talker.threshold,
+    autoReplyThreshold: autoReply.threshold,
     thanksThreshold: thanker.threshold,
     wakeWord: wakeWords.get(),
     autoSongId: autoSongId?.on ?? false,
@@ -176,14 +177,11 @@ const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 // too, by their uid).
 // Never asked: without Codex there's no judge either.
 const noPicker: AskClaude = () => Promise.reject(new Error('--codex is empty'));
-const talker = new Talker({
-  ask,
+const autoReply = new AutoReply({
   outbox,
-  promptTemplate: prompt('wakeWord', resolve(options.autoReplyPromptFile)),
   judge: jevKey && options.codex ? jev({ apiKey: jevKey }) : undefined,
-  threshold: options.talkThreshold,
+  threshold: options.autoReplyThreshold,
   room,
-  maxLength: options.maxReplyLength,
   log,
   picker: options.codex
     ? codexCli({
@@ -234,7 +232,7 @@ const answerer = new MentionAnswerer({
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
   // What they say next goes straight to the picker for a minute: it's likely a reply.
-  onAnswered: (userId) => talker.answered(userId),
+  onAnswered: (userId) => autoReply.answered(userId),
   // 「把你的人设改成小猫」 and the like: run the command if they may.
   onCommandRequest: (mention, name, args) => bot.requestCommand(mention, name, args),
 });
@@ -266,9 +264,18 @@ const songId = new SongId({
 });
 // The streamer saying the room's wake word (from --wake-words, read again when it changes) makes
 // the bot talk now, for free; /设置唤醒词 changes it.
+const talkNow = new TalkNow({
+  ask,
+  outbox,
+  promptTemplate: prompt('wakeWord', resolve(options.autoReplyPromptFile)),
+  room,
+  maxLength: options.maxReplyLength,
+  log,
+  onSaid: () => autoReply.spokeToRoom(),
+});
 const wakeWord = new WakeWord({
   words: wakeWords,
-  wake: () => talker.talkNow('reply', WOKEN),
+  wake: () => talkNow.say('reply', WOKEN),
   log,
 });
 // And the streamer singing has the song named, when /自动识歌 (or --auto-song-id) turns it on.
@@ -299,7 +306,7 @@ const bot: ChatBot = new ChatBot({
   commands: [
     personaCommand(room),
     ...billing.commands(),
-    ...talker.commands(),
+    ...autoReply.commands(),
     ...thanker.commands(),
     ...wakeWord.commands(),
     screenshotCommand(room),
@@ -320,20 +327,20 @@ log.info('starting', {
   cost: options.cost,
   admins: config.admins,
   persona: config.persona,
-  talkThreshold: options.talkThreshold,
+  autoReplyThreshold: options.autoReplyThreshold,
   thanksThreshold: options.thanksThreshold,
   autoSongId: options.autoSongId,
   songIdEngine: songId.engine,
 });
 bot.start();
 void transcriber?.run();
-void talker.run();
+void autoReply.run();
 
 const shutdown = () => {
   log.info('stopping');
   bot.stop();
   transcriber?.stop();
-  talker.stop();
+  autoReply.stop();
   wallet.clear();
   log.on('finish', () => process.exit(0));
   log.end();

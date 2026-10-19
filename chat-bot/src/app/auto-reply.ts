@@ -1,28 +1,21 @@
 import { errorMessage, OutOfCreditError } from '../core/errors';
-import { buildPrompt } from '../core/prompt';
 import { relevanceRequest, roomLines, type RoomLine } from '../core/relevance';
-import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
 import { parseReplyPick, pickLines, pickPrompt, REPLY_PICK_SCHEMA } from '../core/reply-pick';
-import { parseTalkAnswer, TALK_ANSWER_SCHEMA } from '../core/talk-answer';
 import type { UnpromptedReply } from './chat-bot';
 import { done, failed, type Command } from './command';
-import type { OutgoingMessage, Outbox } from './outbox';
+import type { Outbox } from './outbox';
 import type { AskClaude, FindStreamer, Judge, Log } from './ports';
 import type { RoomState } from './room-state';
 
-export interface TalkerOptions {
-  ask: AskClaude;
+export interface AutoReplyOptions {
+  /** Where it tells the room the judge's account ran dry. */
   outbox: Pick<Outbox, 'push'>;
-  /** The prompt (see buildPrompt for what it can fill in), read each time so edits apply at once. */
-  promptTemplate: () => string;
   /** Says how likely each new chat or sentence is about the bot. Without it, it never talks unprompted. */
   judge?: Judge;
   /** Talk when something new is about the bot at least this likely; 1 or more never, without asking. */
   threshold: number;
   /** The chat, transcript and the rest of what the prompt knows about the room. */
   room: RoomState;
-  /** Douyin's chat length limit. */
-  maxLength?: number;
   log: Log;
   /** Waits `ms`; tests pass one that doesn't. */
   sleep?: (ms: number) => Promise<void>;
@@ -56,22 +49,17 @@ const MAX_PICKS = 3;
 /** The threshold set when the judge's account runs dry: off. */
 const OFF_FOR_NO_CREDIT = 10;
 
-/** Why it talks when the streamer says the wake word. */
-export const WOKEN = '主播说了唤醒词。';
-
 /**
- * Has Claude say something to the streamer unprompted, as fits what's going on: from what the
- * streamer said and sang and the chat lately, and the video when there's a screenshot. Every
- * `checkMs` it asks the judge (Jev) whether anything new, chat or what the streamer said (without
- * the chat they read out), is about the bot; when something is at least `threshold` likely, it
- * has the picker choose whom to answer, each through `reply`. It also talks whenever `talkNow` asks
- * (the wake word).
+ * Joins in when people talk to or about the bot. Every `checkMs` it asks the judge (Jev) whether
+ * anything new, chat or what the streamer said (without the chat they read out), is about the
+ * bot; when something is at least `threshold` likely, it has the picker choose whom to answer, each
+ * through `reply`. What someone the bot just answered says goes to the picker without the judge.
  */
-export class Talker {
+export class AutoReply {
   /** Talk when something is about the bot at least this likely; 1 or more never. */
   threshold: number;
   private stopped = false;
-  /** Ends the current wait early, when the talker stops. */
+  /** Ends the current wait early, when it stops. */
   private wake: () => void = () => {};
   private readonly sleep: (ms: number) => Promise<void>;
   /** Up to when the room has been looked at; what was said before it is old news. */
@@ -81,7 +69,7 @@ export class Talker {
   /** When the bot last said something to each person, by user id (STREAMER for the streamer). */
   private readonly saidTo = new Map<string, number>();
 
-  constructor(private readonly options: TalkerOptions) {
+  constructor(private readonly options: AutoReplyOptions) {
     this.threshold = options.threshold;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.seen = options.room.now();
@@ -102,12 +90,13 @@ export class Talker {
   }
 
   /**
-   * Says something now, whatever's going on, sent as `kind`, telling Claude `why`; what it said,
-   * or null if nothing.
+   * The bot just said something to the room, which mostly means the streamer: it keeps quiet for
+   * a while, and for FOLLOW_UP_MS what the streamer says goes to the picker, without the judge.
    */
-  async talkNow(kind: OutgoingMessage['kind'], why: string): Promise<string | null> {
-    this.talkedAt = this.options.room.now();
-    return this.say(kind, why);
+  spokeToRoom(): void {
+    const now = this.options.room.now();
+    this.talkedAt = now;
+    this.saidTo.set(STREAMER, now);
   }
 
   /**
@@ -308,39 +297,5 @@ export class Talker {
     this.threshold = OFF_FOR_NO_CREDIT;
     this.options.log.error('jev is out of credit, auto-reply off', { error: err.message });
     this.options.outbox.push({ kind: 'system', text: '钱包烧干了，自动回复已关闭' });
-  }
-
-  private async say(kind: OutgoingMessage['kind'], why: string): Promise<string | null> {
-    const { ask, outbox, room, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
-    try {
-      const prompt = buildPrompt(this.options.promptTemplate(), {
-        ...room.promptInput(),
-        question: why,
-        singleLength: maxLength,
-        maxLength,
-      });
-      log.debug('talk prompt', { prompt });
-      const image = await room.screenshot();
-      // An answer that isn't TALK_ANSWER_SCHEMA's shape is taken as the message.
-      const raw = await ask({ prompt, image, schema: TALK_ANSWER_SCHEMA });
-      const answer = parseTalkAnswer(raw) ?? { reply: true, message: raw };
-      if (!answer.reply) {
-        log.info('no need to talk', { why });
-        return null;
-      }
-      const text = plainMessage(answer.message, maxLength);
-      if (!text) {
-        log.warn('claude had nothing to say');
-        return null;
-      }
-      log.info('talking', { text, kind });
-      outbox.push({ kind, text });
-      // Said to the room, which mostly means the streamer.
-      this.saidTo.set(STREAMER, room.now());
-      return text;
-    } catch (err) {
-      log.error('could not talk', { error: errorMessage(err) });
-      return null;
-    }
   }
 }

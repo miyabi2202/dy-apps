@@ -173,7 +173,7 @@ Each feature offers its own commands, and `src/main.ts` hands them all to `ChatB
 | -------------- | -------------------------------------------------------------------------------------- |
 | 修改人设, 截图 | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
 | 修改收费       | `Billing.commands()` in `src/app/billing.ts`                                           |
-| 自动回复阈值   | `Talker.commands()` in `src/app/talker.ts`                                             |
+| 自动回复阈值   | `AutoReply.commands()` in `src/app/auto-reply.ts`                                      |
 | 自动谢礼       | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
 | 设置唤醒词     | `WakeWord.commands()` in `src/app/wake-word.ts`                                        |
 | 识歌           | `songIdCommand` in `src/app/song-id-command.ts`                                        |
@@ -212,4 +212,4 @@ export function jokeCommand(prompt: () => string): Command {
 }
 ```
 
-Then add it to the `commands` list in `src/main.ts`, add a row to the tables above, and test it next to its feature (see `tests/talker.test.ts`, `tests/billing.test.ts`, `tests/room-state.test.ts`).
+Then add it to the `commands` list in `src/main.ts`, add a row to the tables above, and test it next to its feature (see `tests/auto-reply.test.ts`, `tests/billing.test.ts`, `tests/room-state.test.ts`).

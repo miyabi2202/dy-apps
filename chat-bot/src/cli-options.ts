@@ -38,7 +38,7 @@ export interface CliOptions {
   /** Admins and the starting persona. */
   configFile: string;
   /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
-  talkThreshold: number;
+  autoReplyThreshold: number;
   autoReplyPromptFile: string;
   /** Thank a viewer whose gifts in 5 minutes come to more than this many diamonds. */
   thanksThreshold: number;
@@ -126,7 +126,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     sendIntervalMs: Number(values['send-interval']) * 1000,
     dataDir: values.data,
     configFile: values.config,
-    talkThreshold: Number(values['auto-reply-threshold']),
+    autoReplyThreshold: Number(values['auto-reply-threshold']),
     autoReplyPromptFile: values['auto-reply-prompt'],
     thanksThreshold: Number(values['thanks-threshold']),
     wakeWordsFile: values['wake-words'],

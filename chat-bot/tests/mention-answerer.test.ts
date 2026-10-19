@@ -162,7 +162,7 @@ test('points Claude at the record folder, and tells it who it plays', async () =
 test("tells Claude the room settings, the asker's balance and the commands", async () => {
   const settings = {
     mentionCost: 2,
-    talkThreshold: 1,
+    autoReplyThreshold: 1,
     thanksThreshold: 100,
     wakeWord: '我想吃鱼了',
   };
@@ -173,7 +173,7 @@ test("tells Claude the room settings, the asker's balance and the commands", asy
     commands: () => '## The commands\n\n/识歌',
   });
   await ask({ userId: 'u-阿明' });
-  settings.talkThreshold = 0.6;
+  settings.autoReplyThreshold = 0.6;
   settings.thanksThreshold = 99999;
   settings.wakeWord = '';
   await ask({ userId: 'u-阿明' });

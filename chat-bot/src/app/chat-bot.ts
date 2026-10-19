@@ -168,7 +168,7 @@ export class ChatBot {
   }
 
   /**
-   * Answers what someone said to or about the bot without an @ (the talker picked it), like a
+   * Answers what someone said to or about the bot without an @ (auto-reply picked it), like a
    * mention: they pay for it (nothing for the streamer or an admin), and one who can't is told
    * so, in other words, and answered once they send a gift.
    */
