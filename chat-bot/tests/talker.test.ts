@@ -71,7 +71,9 @@ test('asks Jev about what is new, waits for the room to react, then talks, and k
     () => {},
     () => {},
   ];
-  const { talker, prompts, sent, judged, answers, chat, say } = setup(rounds);
+  const { talker, prompts, sent, judged, answers, chat, say } = setup(rounds, {
+    reactionMs: 10_000,
+  });
   answers.push(JSON.stringify({ reply: true, message: '我才不笨，我只是在省电' }));
   answers.push(JSON.stringify({ reply: true, message: '我刚出生两天' }));
   await talker.run();
@@ -167,6 +169,7 @@ test('with a picker, answers each one it picks like a mention, the streamer by t
       pickTemplate: () => '{{botName}}\n{{lines}}',
       reply: (target) => void replies.push(target),
       streamer: () => ({ uid: 's-1', nickname: '虾虾' }),
+      reactionMs: 10_000,
     },
   );
   await talker.run();
@@ -194,6 +197,7 @@ test('the picker may answer nobody, and gets no streamer line while the streamer
       pickTemplate: () => '{{lines}}',
       reply: (target) => void replies.push(target),
       streamer: () => null,
+      reactionMs: 10_000,
     },
   );
   await talker.run();
@@ -201,4 +205,22 @@ test('the picker may answer nobody, and gets no streamer line while the streamer
   expect(picks[0]).toContain('     00:00:30 [主播] 机器人你也说两句');
   expect(picks[0]).not.toContain('(2)');
   expect(replies).toEqual([]);
+});
+
+test('by default, picks whom to answer at once, without waiting for the room to react', async () => {
+  const replies: UnpromptedReply[] = [];
+  let picked = 0;
+  const { talker, chat } = setup([() => chat('小红', '机器人你几岁了', 'u-小红')], {
+    picker: () => {
+      picked = 1;
+      return Promise.resolve(JSON.stringify({ lines: [1] }));
+    },
+    pickTemplate: () => '{{lines}}',
+    reply: (target) => void replies.push(target),
+    streamer: () => null,
+  });
+  await talker.run();
+
+  expect(picked).toBe(1);
+  expect(replies.map((r) => r.question)).toEqual(['机器人你几岁了']);
 });

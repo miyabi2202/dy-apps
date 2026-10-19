@@ -178,7 +178,8 @@ const talker = new Talker({
   picker: options.codex
     ? codexCli({
         model: options.codex,
-        effort: 'low',
+        // Low sometimes picked nobody when someone clearly wanted an answer; medium is ~4 s slower.
+        effort: 'medium',
         webSearch: false,
         cwd: emptyDir,
         systemPrompt: options.systemPrompt,

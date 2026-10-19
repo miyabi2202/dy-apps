@@ -28,7 +28,10 @@ export interface TalkerOptions {
   sleep?: (ms: number) => Promise<void>;
   /** How often it looks at what's new. */
   checkMs?: number;
-  /** How long it waits after something about the bot before talking, so the streamer can answer first. */
+  /**
+   * How long it waits after something about the bot before talking, so the streamer can answer
+   * first; none by default, as picking whom to answer and answering take a while anyway.
+   */
   reactionMs?: number;
   /** At least this long between two things it says unprompted, or after being asked to talk. */
   quietMs?: number;
@@ -61,8 +64,9 @@ export const WOKEN = '主播说了唤醒词。';
  * streamer said and sang and the chat lately, and the video when there's a screenshot. Every
  * `checkMs` it asks the judge (Jev) whether anything new, chat or what the streamer said (without
  * the chat they read out), is about the bot; when something is at least `threshold` likely, it
- * waits `reactionMs` for the room's reaction and then has Claude decide whether a reply is still
- * needed and say it (TALK_ANSWER_SCHEMA). It also talks whenever `talkNow` asks (the wake word).
+ * waits `reactionMs` (none by default) and then has the picker choose whom to answer, each through
+ * `reply`, or, without a picker, has Claude decide whether a reply is still needed and say it
+ * (TALK_ANSWER_SCHEMA). It also talks whenever `talkNow` asks (the wake word).
  */
 export class Talker {
   /** Talk when something is about the bot at least this likely; 1 or more never. */
@@ -133,7 +137,7 @@ export class Talker {
 
   /** Asks the judge about what's new since it last looked, and talks if it's about the bot. */
   private async check(): Promise<void> {
-    const { judge, room, log, quietMs = 60_000, reactionMs = 10_000 } = this.options;
+    const { judge, room, log, quietMs = 60_000, reactionMs = 0 } = this.options;
     const now = room.now();
     if (!judge || this.threshold >= 1) {
       this.seen = now;
@@ -171,7 +175,7 @@ export class Talker {
     if (best.score < this.threshold) return;
     log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });
     this.talkedAt = now;
-    if ((await this.wait(reactionMs)) === 'woken' || this.stopped) return;
+    if (reactionMs > 0 && ((await this.wait(reactionMs)) === 'woken' || this.stopped)) return;
     const { picker, reply } = this.options;
     if (picker && reply) {
       const about = fresh.filter((_, i) => (scores[`q${i + 1}`] ?? 0) >= this.threshold);
