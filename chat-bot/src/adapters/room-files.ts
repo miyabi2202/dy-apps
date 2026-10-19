@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Log } from '../app/ports';
+import type { Log, OnSingConfig } from '../app/ports';
 import { errorMessage } from '../core/errors';
 
 /** The files someone can edit for one room, to change the bot there while it runs. */
@@ -19,6 +19,8 @@ export interface RoomFiles {
 export interface RoomConfig {
   /** A 私密 room: its viewers hide who they are, and come in under one shared user id. */
   private: boolean;
+  /** What the bot says, now and then, as the streamer starts a song (`on_sing`); none when absent. */
+  onSing?: OnSingConfig;
 }
 
 /** The room's streamer, which the bot writes into `room_config.json` once it knows. */
@@ -65,10 +67,11 @@ export function liveRoomConfig(
       const text = read(path);
       if (text === seen) return config;
       seen = text;
-      const raw = JSON.parse(text) as Partial<Record<keyof RoomConfig, unknown>>;
+      const raw = JSON.parse(text) as { private?: unknown; on_sing?: unknown };
       const isPrivate = raw.private ?? false;
       if (typeof isPrivate !== 'boolean') throw new Error('private must be true or false');
-      config = { private: isPrivate };
+      const onSing = raw.on_sing === undefined ? undefined : onSingConfig(raw.on_sing);
+      config = { private: isPrivate, ...(onSing && { onSing }) };
       log.info('room config', { ...config });
     } catch (err) {
       log.warn('could not read room_config.json, keeping the last settings', {
@@ -77,6 +80,18 @@ export function liveRoomConfig(
     }
     return config;
   };
+}
+
+/** `on_sing` as a OnSingConfig, or an error saying what's wrong with it. */
+function onSingConfig(raw: unknown): OnSingConfig {
+  const { message, probability } = (raw ?? {}) as Record<string, unknown>;
+  if (typeof message !== 'string' || !message.trim()) {
+    throw new Error('on_sing.message must be some text');
+  }
+  if (typeof probability !== 'number' || !(probability >= 0 && probability <= 1)) {
+    throw new Error('on_sing.probability must be a number from 0 to 1');
+  }
+  return { message, probability };
 }
 
 /**

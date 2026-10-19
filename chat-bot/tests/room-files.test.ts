@@ -37,6 +37,18 @@ test('room_config.json starts not private, and is read again as it changes', () 
   writeFileSync(config, '{ "private": "yes" }');
   expect(roomConfig()).toEqual({ private: true });
   expect(log.warn).toHaveBeenCalled();
+
+  writeFileSync(config, '{ "on_sing": { "message": "缇娅 缇娅", "probability": 0.67 } }');
+  expect(roomConfig()).toEqual({
+    private: false,
+    onSing: { message: '缇娅 缇娅', probability: 0.67 },
+  });
+
+  writeFileSync(config, '{ "on_sing": { "message": "缇娅 缇娅", "probability": "2/3" } }');
+  expect(roomConfig()).toEqual({
+    private: false,
+    onSing: { message: '缇娅 缇娅', probability: 0.67 },
+  });
 });
 
 test('writes the streamer into room_config.json, keeping the rest', () => {

@@ -129,3 +129,11 @@ export interface AdditionalCommand {
   /** Diamonds an answer costs a viewer (0 free; admins never pay); what an @ costs when not set. */
   price?: number;
 }
+
+/** What the bot says when the streamer starts a song (a cheer, say). */
+export interface OnSingConfig {
+  /** Sent as it is. */
+  message: string;
+  /** The chance it's sent for each song, 0–1. */
+  probability: number;
+}

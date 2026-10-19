@@ -37,6 +37,7 @@ import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { GiftThanker } from './app/gift-thanker';
 import { solveCommand } from './app/solve-command';
+import { OnSing } from './app/on-sing';
 import { SongIntro } from './app/song-intro';
 import { StreamerAdmin } from './app/streamer-admin';
 import { MentionAnswerer } from './app/mention-answerer';
@@ -86,7 +87,8 @@ const files = roomFiles(roomDir);
 const context = liveText(files.context);
 // What the bot says about itself when asked, shared by every room.
 const intro = liveText(join(packageDir, 'intro.md'));
-// The room's room_config.json, read again when it changes: whether it's a 私密 room.
+// The room's room_config.json, read again when it changes: whether it's a 私密 room, and what
+// the bot says when the streamer starts a song.
 const roomConfig = liveRoomConfig(files.config, { log });
 // On entering the room, fetches room_config.json's download list into data/<房间号>/artifacts/
 // (each through its transformer script, if it has one), in the background: a slow or failed
@@ -315,7 +317,12 @@ const autoSongId =
         maxLength: options.maxReplyLength,
       })
     : null;
-transcriber?.onLine((line) => autoSongId?.hear(line));
+// And, in a room with on_sing in its room_config.json, its message as the streamer starts a song.
+const onSing = new OnSing({ config: () => roomConfig().onSing, room, outbox, log });
+transcriber?.onLine((line) => {
+  autoSongId?.hear(line);
+  onSing.hear(line);
+});
 // Decides what a mention is (a question, or a command) and charges for it.
 const bot: ChatBot = new ChatBot({
   feed,

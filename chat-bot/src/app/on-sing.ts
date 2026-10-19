@@ -1,0 +1,46 @@
+import { currentSong, isGuest, isSung, singingNow, type TranscriptLine } from '../core/transcript';
+import type { Outbox } from './outbox';
+import type { Log, OnSingConfig } from './ports';
+import type { RoomState } from './room-state';
+
+export interface OnSingOptions {
+  /** The room's `on_sing` as it is now (room_config.json, read again as it changes). */
+  config: () => OnSingConfig | undefined;
+  room: Pick<RoomState, 'recentTranscript'>;
+  outbox: Pick<Outbox, 'push'>;
+  log: Log;
+  /** While the streamer goes on singing, take this long as the next song. */
+  againMs?: number;
+  /** A number from 0 to 1, for whether the message is sent for a song. */
+  random?: () => number;
+}
+
+/**
+ * Sends the room's `on_sing` message (room_config.json) as the streamer starts a song, with its
+ * probability: once they're singing (see singingNow), for each new song (after a
+ * pause), and again every `againMs` while they go on singing, as one song runs into the next.
+ */
+export class OnSing {
+  /** When the last song was rolled for. */
+  private rolledAt = -Infinity;
+
+  constructor(private readonly options: OnSingOptions) {}
+
+  /** Called with each line the streamer says or sings, after it joined the transcript. */
+  hear(line: TranscriptLine): void {
+    const { room, outbox, log, againMs = 180_000, random = Math.random } = this.options;
+    const config = this.options.config();
+    if (!config || !isSung(line) || isGuest(line)) return;
+    const lines = room.recentTranscript().filter((l) => !isGuest(l));
+    if (!singingNow(lines, line.end)) return;
+    // As in AutoSongId: the song's start moves as its first lines drop out of the transcript.
+    const songStart = currentSong(lines).find(isSung)?.start ?? line.start;
+    if (songStart <= this.rolledAt && line.end - this.rolledAt < againMs) return;
+    this.rolledAt = line.end;
+    if (random() >= config.probability) {
+      log.info('on sing: not this song');
+      return;
+    }
+    outbox.push({ kind: 'talk', text: config.message });
+  }
+}
