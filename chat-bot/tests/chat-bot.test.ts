@@ -340,13 +340,18 @@ test("a command that isn't admin-only, or isn't one, gets Claude's reply instead
 test('/解题 is answered by its own Claude, from its own prompt, with a screenshot even while they are off', async () => {
   const asked: Question[] = [];
   const solve = solveCommand({
+    name: '解题',
     prompt: () => '解题：{{question}}',
     ask: (question) => {
       asked.push(question);
       return Promise.resolve(JSON.stringify({ message: '选C，按面积分' }));
     },
   });
-  const { settle, say, sent, prompts } = setup({ commands: [solve], screenshot: true });
+  const { settle, say, sent, prompts } = setup({
+    commands: [solve],
+    screenshot: true,
+    admins: ['u-阿明'],
+  });
   say(chat('阿明', '@小助手 /解题 这题选什么'));
   await settle();
 

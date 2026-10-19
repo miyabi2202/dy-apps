@@ -117,17 +117,19 @@ const ask = claudeCli({
   timeoutMs: 240_000,
   zoom,
 });
-// /解题: Claude thinking harder, with more time.
-const solveAsk = claudeCli({
-  cwd: tmpdir(),
-  tools: options.tools,
-  readDirs: [chatDir],
-  model: options.model,
-  systemPrompt: options.systemPrompt,
-  effort: 'high',
-  timeoutMs: 360_000,
-  zoom,
-});
+// /解题: Claude thinking harder, with more time; /拼命解题: Fable, slower still but stronger at
+// figure puzzles (it found one's 洛书 magic square that Opus missed).
+const solveAsk = (model: string, timeoutMs: number) =>
+  claudeCli({
+    cwd: tmpdir(),
+    tools: options.tools,
+    readDirs: [chatDir],
+    model,
+    systemPrompt: options.systemPrompt,
+    effort: 'high',
+    timeoutMs,
+    zoom,
+  });
 // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
 const outbox = new Outbox({
   send: roomApi.sendChat,
@@ -332,7 +334,8 @@ const bot: ChatBot = new ChatBot({
     ...wakeWord.commands(),
     screenshotCommand(room),
     ...songId.commands(),
-    solveCommand({ prompt: prompt('solve'), ask: solveAsk }),
+    solveCommand({ name: '解题', prompt: prompt('solve'), ask: solveAsk(options.model, 360_000) }),
+    solveCommand({ name: '拼命解题', prompt: prompt('solve'), ask: solveAsk('fable', 600_000) }),
     ...(autoSongId?.commands() ?? []),
     // Only when listening to the stream.
     ...(transcriber ? [musicCommand(() => transcriber.identifyMusic(), log)] : []),

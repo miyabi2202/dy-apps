@@ -17,7 +17,8 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/识歌 [提示]`              | Name the song the streamer sings, from its lyrics  | no          | –           |
 | `/识歌模型 <codex\|claude>` | Who looks songs up for `/识歌`                     | yes         | codex       |
 | `/识别背景音乐`             | Name the recording playing, from its sound         | no          | –           |
-| `/解题 [提示]`              | Work out the puzzle on screen                      | no          | –           |
+| `/解题 [提示]`              | Work out the puzzle on screen                      | yes         | –           |
+| `/拼命解题 [提示]`          | The same, with Fable: slower, stronger             | yes         | –           |
 | `/自动识歌 <0\|1>`          | Name the songs the streamer sings, unasked         | yes         | 0           |
 
 Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
@@ -142,11 +143,20 @@ Has the bot name the songs the streamer sings without anyone asking, as `/识歌
 
 ### /解题
 
-Works out the math, logic or figure puzzle on the screen (or written after the command), for anyone, at a mention's price. It always sends Claude a screenshot, even while `/截图` has them off, and asks with its own prompt `solve.md` (a room's own `solve.md` overrides it), at `--effort high`, with up to 6 minutes, and the `zoom` tool to look closer at small figures and text. The prompt has Claude check several rules against every figure before it answers, and say so when two rules fit or it can't tell. Answered like any @.
+Works out the math, logic or figure puzzle on the screen (or written after the command), for admins only, since it's slow. It always sends Claude a screenshot, even while `/截图` has them off, and asks with its own prompt `solve.md` (a room's own `solve.md` overrides it), at `--effort high`, with up to 6 minutes, and the `zoom` tool to look closer at small figures and text. The prompt has Claude check several rules against every figure before it answers, and say so when two rules fit or it can't tell. Claude answers in JSON, so only the answer is sent (not what it says while working, nor web sources). Answered like any @, typically in 20 seconds to 2 minutes.
 
 ```text
 @默认关闭 /解题
 → @雅 选C：按格子算面积，①④⑤都是7.5格，②③⑥都是10.5格
+```
+
+### /拼命解题
+
+`/解题` with Fable instead of `--model`: slower (one to six minutes; up to 10 are allowed) but stronger at figure puzzles. On two test puzzles it was right 4 of 4 to Opus's 3 of 4, and found one's intended rule (the enclosed regions are the 洛书 magic square) that Opus missed. Admins only.
+
+```text
+@默认关闭 /拼命解题
+→ @雅 选A。数封闭区域：每行之和都是15，第一行4+9+2，第二行3+5+7，第三行8+1+?，缺6，A正好6个封闭区域
 ```
 
 ### /识别背景音乐
