@@ -244,3 +244,26 @@ test('after it spoke to the room, what the streamer says, on the stream or in th
   expect(picks[0]).toContain('★ 00:00:40 [主播] 那我接一个');
   expect(picks[0]).toContain('★ 00:00:40 [虾虾] 印象深刻');
 });
+
+test('answers at most 3 at once, the surest first', async () => {
+  const replies: UnpromptedReply[] = [];
+  const { autoReply, chat } = setup(
+    [
+      () => {
+        for (const name of ['甲', '乙', '丙', '丁', '戊']) chat(name, `机器人${name}`, `u-${name}`);
+      },
+    ],
+    {
+      picker: () =>
+        Promise.resolve(
+          JSON.stringify({
+            picks: [1, 2, 3, 4, 5].map((line) => ({ line, confidence: 0.7 + line / 100 })),
+          }),
+        ),
+      reply: (target) => void replies.push(target),
+    },
+  );
+  await autoReply.run();
+
+  expect(replies.map((r) => r.nickname)).toEqual(['戊', '丁', '丙']);
+});

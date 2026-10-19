@@ -169,6 +169,22 @@ test("a viewer who couldn't pay is answered once they send a gift, within 5 minu
   expect(prompts).toHaveLength(1);
 });
 
+test('in a 私密 room, an unpaid mention is answered after a gift from the same viewer, and no other', async () => {
+  const wallet = memoryWallet();
+  const { settle, say, give, prompts, sent } = setup({ wallet, cost: 1 });
+  const viewer = { userId: '111111-苦***-31' };
+  say({ ...chat('苦***', '@小助手 在吗'), ...viewer });
+  give({ ...gift('苦***', 1, 1), userId: '111111-苦***-45' }); // another level: another viewer
+  await settle();
+  expect(prompts).toEqual([]);
+
+  give({ ...gift('苦***', 1, 1), ...viewer });
+  await settle();
+  expect(prompts).toHaveLength(1);
+  expect(sent.at(-1)).toBe('@苦*** 你好呀');
+  expect(wallet.balance('111111-苦***-31')).toBe(0);
+});
+
 test('an unpaid mention is forgotten after 5 minutes', async () => {
   let now = 0;
   const wallet = memoryWallet();

@@ -55,6 +55,31 @@ test('thanks a viewer once their gifts in 5 minutes pass the threshold, once a w
   ]);
 });
 
+test('in a 私密 room, thanks the viewer by their id and the nickname they show', async () => {
+  const sent: { kind: string; text: string }[] = [];
+  const talked: [string, Exchange][] = [];
+  const history = new ChatHistory(100);
+  history.add({ ts: 1, userId: '111111-苦***-31', nickname: '苦***', content: '今天加班好累' });
+  history.add({ ts: 2, userId: '111111-苦***-45', nickname: '苦***', content: '主播唱得好' });
+  const thanker = new GiftThanker({
+    ask: ({ prompt }) => Promise.resolve(prompt),
+    outbox: { push: (message) => sent.push(message) },
+    promptTemplate: () => '{{asker}}|{{userChat}}',
+    threshold: 20,
+    room: fakeRoom({ history }),
+    userTalk: { add: (userId, exchange) => talked.push([userId, exchange]), recent: () => '' },
+    log: silentLog,
+  });
+
+  thanker.onGift({ ...gift('苦***', '玫瑰', 30), userId: '111111-苦***-31' });
+  await thanker.idle();
+
+  expect(sent).toEqual([{ kind: 'reply', text: '@苦*** 苦***|今天加班好累' }]);
+  expect(talked.map(([userId, { nickname }]) => [userId, nickname])).toEqual([
+    ['111111-苦***-31', '苦***'],
+  ]);
+});
+
 test('/自动谢礼 sets the threshold', async () => {
   const thanker = new GiftThanker({
     ask: () => Promise.resolve(''),
