@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AskClaude, Question } from '../app/ports';
 
 export interface ClaudeCliOptions {
@@ -20,8 +23,16 @@ export interface ClaudeCliOptions {
   model?: string;
   /** Added to Claude Code's system prompt for every question. */
   systemPrompt?: string;
+  /**
+   * The MCP server with the `zoom` tool (zoom-mcp.ts), started with the screenshot's file as its
+   * last argument for a question that has one, so Claude can look closer at part of it.
+   */
+  zoom?: { command: string; args: readonly string[] };
   spawnProcess?: typeof spawn;
 }
+
+/** The zoom server's tool, as Claude Code names an MCP tool. */
+const ZOOM_TOOL = 'mcp__zoom__zoom';
 
 /** Tools that read files: never pre-approved, so they stay inside the working directories. */
 const FILE_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead']);
@@ -67,7 +78,8 @@ export function resultFrom(output: string): string {
 /**
  * `claude -p`, with the question as a stream-json message on stdin so it can carry an image.
  * Chat is untrusted, so the run gets only the listed tools (web search and fetch, and reading `readDirs`,
- * by default), no MCP servers and no saved session.
+ * by default), no saved session, and no MCP server but `zoom` (which only reads the screenshot),
+ * for a question with one.
  */
 export function claudeCli({
   command = 'claude',
@@ -77,11 +89,15 @@ export function claudeCli({
   readDirs = [],
   model,
   systemPrompt,
+  zoom,
   spawnProcess = spawn,
 }: ClaudeCliOptions = {}): AskClaude {
-  const argsFor = (question: Question) => {
+  const argsFor = (question: Question, mcpConfig: string | null) => {
     const allowed = question.tools ?? tools;
-    const preApproved = allowed.filter((tool) => !FILE_TOOLS.has(tool)).join(',');
+    const preApproved = [
+      ...allowed.filter((tool) => !FILE_TOOLS.has(tool)),
+      ...(mcpConfig ? [ZOOM_TOOL] : []),
+    ].join(',');
     const readsFiles = allowed.some((tool) => FILE_TOOLS.has(tool));
     return [
       '-p',
@@ -95,6 +111,7 @@ export function claudeCli({
       ...(preApproved ? ['--allowedTools', preApproved] : []),
       ...(readsFiles ? readDirs.flatMap((dir) => ['--add-dir', dir]) : []),
       '--strict-mcp-config',
+      ...(mcpConfig ? ['--mcp-config', mcpConfig] : []),
       '--no-session-persistence',
       ...(model ? ['--model', model] : []),
       ...(systemPrompt ? ['--append-system-prompt', systemPrompt] : []),
@@ -104,10 +121,27 @@ export function claudeCli({
   };
   return (question) =>
     new Promise((resolve, reject) => {
-      const child = spawnProcess(command, argsFor(question), {
-        cwd,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+      // The screenshot, and the config that starts the zoom server on it, in a folder of their own.
+      const dir = zoom && question.image ? mkdtempSync(join(tmpdir(), 'chat-bot-zoom-')) : null;
+      let mcpConfig: string | null = null;
+      if (dir && zoom && question.image) {
+        const screenshot = join(dir, 'screenshot.jpg');
+        writeFileSync(screenshot, question.image);
+        mcpConfig = join(dir, 'mcp.json');
+        const server = { command: zoom.command, args: [...zoom.args, screenshot] };
+        writeFileSync(mcpConfig, JSON.stringify({ mcpServers: { zoom: server } }));
+      }
+      const cleanUp = () => dir && rmSync(dir, { recursive: true, force: true });
+      let child: ReturnType<typeof spawn>;
+      try {
+        child = spawnProcess(command, argsFor(question, mcpConfig), {
+          cwd,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      } catch (err) {
+        cleanUp();
+        throw err;
+      }
       let stdout = '';
       let stderr = '';
       const timer = setTimeout(() => {
@@ -118,10 +152,12 @@ export function claudeCli({
       child.stderr?.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
       child.on('error', (err) => {
         clearTimeout(timer);
+        cleanUp();
         reject(err);
       });
       child.on('close', (code) => {
         clearTimeout(timer);
+        cleanUp();
         try {
           resolve(resultFrom(stdout));
         } catch (err) {

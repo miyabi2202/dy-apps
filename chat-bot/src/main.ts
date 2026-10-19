@@ -106,6 +106,13 @@ const ask = claudeCli({
   readDirs: [chatDir],
   model: options.model,
   systemPrompt: options.systemPrompt,
+  // Zooming into a screenshot and working a puzzle out can take a minute or two.
+  timeoutMs: 240_000,
+  // With a screenshot, Claude may zoom into part of it (src/adapters/zoom-mcp.ts, with ffmpeg).
+  zoom: {
+    command: join(packageDir, 'node_modules', '.bin', 'tsx'),
+    args: [join(packageDir, 'src', 'adapters', 'zoom-mcp.ts')],
+  },
 });
 // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
 const outbox = new Outbox({

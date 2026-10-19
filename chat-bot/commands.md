@@ -92,7 +92,7 @@ Sets this room's wake word: when the streamer says it (spoken, not sung, and not
 
 ### /截图
 
-Turns screenshots of the live video on (`1`) or off (`0`); while on, every prompt gets one, for streams where Claude needs to see the screen (a board, a game). Off unless the bot started with `--screenshot`.
+Turns screenshots of the live video on (`1`) or off (`0`); while on, every prompt gets one, for streams where Claude needs to see the screen (a board, a game). Off unless the bot started with `--screenshot`. With a screenshot, Claude also gets a `zoom` tool (`src/adapters/zoom-mcp.ts`, an MCP server that crops and enlarges a region with ffmpeg), so it can read small figures and text; on a figure puzzle that took it from guessing to answering right, at about 30–100 seconds an answer.
 
 ```text
 @默认关闭 /截图 1

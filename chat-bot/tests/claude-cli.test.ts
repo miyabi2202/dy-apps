@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import type { spawn } from 'node:child_process';
 import { claudeCli, resultFrom, userMessage } from '../src/adapters/claude-cli';
 
@@ -59,4 +60,38 @@ test('a question can narrow the tools (no folders without file tools) and cap th
 
   void ask({ prompt: 'hi', schema: { type: 'object' } }).catch(() => {});
   expect(after('--json-schema')).toBe('{"type":"object"}');
+});
+
+test('with a screenshot, starts the zoom server on it and allows its tool; without one, neither', () => {
+  let args: readonly string[] = [];
+  const spawnProcess = ((_command: string, a: readonly string[]) => {
+    args = a;
+    throw new Error('not really running claude');
+  }) as unknown as typeof spawn;
+  const zoom = { command: '/bin/tsx', args: ['/app/zoom-mcp.ts'] };
+  const ask = claudeCli({ zoom, spawnProcess });
+  const after = (flag: string) => args[args.indexOf(flag) + 1];
+
+  let config = '';
+  const peek = ((_command: string, a: readonly string[]) => {
+    args = a;
+    config = readFileSync(a[a.indexOf('--mcp-config') + 1]!, 'utf8');
+    throw new Error('not really running claude');
+  }) as unknown as typeof spawn;
+  void claudeCli({ zoom, spawnProcess: peek })({
+    prompt: 'hi',
+    image: new Uint8Array([0xff, 0xd8]),
+  }).catch(() => {});
+  const server = (
+    JSON.parse(config) as { mcpServers: { zoom: { command: string; args: string[] } } }
+  ).mcpServers.zoom;
+  expect(server.command).toBe('/bin/tsx');
+  expect(server.args[0]).toBe('/app/zoom-mcp.ts');
+  // The screenshot and config are removed once claude is done (here, failed to start).
+  expect(existsSync(server.args[1]!)).toBe(false);
+  expect(after('--allowedTools')).toBe('WebSearch,WebFetch,mcp__zoom__zoom');
+
+  void ask({ prompt: 'hi' }).catch(() => {});
+  expect(args).not.toContain('--mcp-config');
+  expect(after('--allowedTools')).toBe('WebSearch,WebFetch');
 });
