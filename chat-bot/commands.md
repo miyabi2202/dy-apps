@@ -6,18 +6,18 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 <!-- prompt.md and auto-reply.md get this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
 
-| Command                     | What it does                                       | Admins only | Default                           |
-| --------------------------- | -------------------------------------------------- | ----------- | --------------------------------- |
-| `/修改人设 <人设>`          | Change who the bot plays                           | yes         | `config.json` `persona` (none)    |
-| `/修改收费 <钻>`            | Change what an @ costs                             | yes         | 1 (`--cost`)                      |
-| `/自动回复阈值 <0–1>`       | How sure it must be it's talked about to join in   | yes         | 1, off (`--auto-reply-threshold`) |
-| `/自动谢礼 <钻>`            | Thank viewers who give more than this in 5 minutes | yes         | 99999, off (`--thanks-threshold`) |
-| `/设置唤醒词 <词>`          | The words the streamer says to make the bot talk   | yes         | 我想吃鱼了 (`wake-words.json`)    |
-| `/截图 <0\|1>`              | Send Claude the live video or not                  | yes         | 0, off (`--screenshot` for 1)     |
-| `/识歌 [提示]`              | Name the song the streamer sings, from its lyrics  | no          | –                                 |
-| `/识歌模型 <codex\|claude>` | Who looks songs up for `/识歌`                     | yes         | codex (`--codex ''` for claude)   |
-| `/识别背景音乐`             | Name the recording playing, from its sound         | no          | –                                 |
-| `/自动识歌 <0\|1>`          | Name the songs the streamer sings, unasked         | yes         | 0, off (`--auto-song-id` for 1)   |
+| Command                     | What it does                                       | Admins only | Default     |
+| --------------------------- | -------------------------------------------------- | ----------- | ----------- |
+| `/修改人设 <人设>`          | Change who the bot plays                           | yes         | none        |
+| `/修改收费 <钻>`            | Change what an @ costs                             | yes         | 1           |
+| `/自动回复阈值 <0–1>`       | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
+| `/自动谢礼 <钻>`            | Thank viewers who give more than this in 5 minutes | yes         | 99999 (off) |
+| `/设置唤醒词 <词>`          | The words the streamer says to make the bot talk   | yes         | 我想吃鱼了  |
+| `/截图 <0\|1>`              | Send Claude the live video or not                  | yes         | 0           |
+| `/识歌 [提示]`              | Name the song the streamer sings, from its lyrics  | no          | –           |
+| `/识歌模型 <codex\|claude>` | Who looks songs up for `/识歌`                     | yes         | codex       |
+| `/识别背景音乐`             | Name the recording playing, from its sound         | no          | –           |
+| `/自动识歌 <0\|1>`          | Name the songs the streamer sings, unasked         | yes         | 0           |
 
 Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
 
