@@ -21,6 +21,8 @@ export interface RoomStateOptions {
   persona?: string;
   /** Background on the room for `{{context}}`, read each time so edits apply at once. */
   context?: () => string;
+  /** What the bot says about itself for `{{intro}}`, read each time so edits apply at once. */
+  intro?: () => string;
   /** What the bot has said in the room, for `{{botTalk}}`. */
   botTalk?: Pick<BotTalk, 'recent'>;
   /** A JPEG of the live video, sent to Claude with a prompt while screenshots are on. */
@@ -76,7 +78,7 @@ export class RoomState {
 
   /** The room's part of a prompt (see buildPrompt), as it is now. */
   promptInput(): RoomPromptInput {
-    const { chatDir, context, botTalk, settings, commands } = this.options;
+    const { chatDir, context, intro, botTalk, settings, commands } = this.options;
     return {
       history: this.recentChat(),
       transcript: this.recentTranscript(),
@@ -85,6 +87,7 @@ export class RoomState {
       persona: this.persona,
       botName: this.botName,
       context: context?.(),
+      intro: intro?.(),
       botTalk: botTalk?.recent(),
       settings: settings && { ...settings(), screenshots: this.screenshotsOn },
       commands: commands?.(),

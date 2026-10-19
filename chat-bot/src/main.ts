@@ -84,6 +84,8 @@ const songIntroTemplate = join(packageDir, 'song-intro.md');
 const replyPickTemplate = join(packageDir, 'reply-pick.md');
 const files = roomFiles(roomDir);
 const context = liveText(files.context);
+// What the bot says about itself when asked, shared by every room.
+const intro = liveText(join(packageDir, 'intro.md'));
 // The room's room_config.json, read again when it changes: whether it's a 私密 room.
 const roomConfig = liveRoomConfig(files.config, { log });
 const botTalk = botTalkFile(files.botTalk);
@@ -139,6 +141,7 @@ const room = new RoomState({
   transcriptMs: options.transcriptMs,
   persona: config.persona,
   context,
+  intro,
   botTalk,
   // Off unless --screenshot; /截图 switches it while the bot runs.
   screenshot: roomApi.screenshot,

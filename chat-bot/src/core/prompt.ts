@@ -18,6 +18,8 @@ export interface RoomPromptInput {
   botName?: string;
   /** Background on the room: who the streamer is, what's talked about, what to mind. */
   context?: string;
+  /** What the bot says about itself when asked: who made it, what it can and can't do. */
+  intro?: string;
   /** What the bot itself said in the room lately, one message a line. */
   botTalk?: string;
   /** How the bot is set up in the room right now. */
@@ -94,7 +96,7 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
  * most the answer may use over several, `{{now}}` the time, `{{chatDir}}` the folder of chat
  * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{botName}}`
  * the bot's own nickname, `{{context}}` the room's background under a heading (empty
- * without one), `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
+ * without one), `{{intro}}` what the bot says about itself, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
  * none), `{{settings}}` the room's settings (and the asker's balance) as a list, and
  * `{{commands}}` the commands viewers can run (both empty when not given).
@@ -102,7 +104,7 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
 export function buildPrompt(template: string, input: PromptInput): string {
   const { history, transcript, singleLength, maxLength, now, chatDir, persona } = input;
   const { asker = '', question = '', botName, context, botTalk, userHistory, userChat } = input;
-  const { settings, commands, askerBalance, unprompted } = input;
+  const { settings, commands, askerBalance, unprompted, intro } = input;
   const said = question || '（只 @ 了你，没有说别的）';
   const values: Record<string, string> = {
     history: history.map((line) => `${line.nickname}: ${line.content}`).join('\n') || '（暂无）',
@@ -128,6 +130,9 @@ export function buildPrompt(template: string, input: PromptInput): string {
     persona: persona ? `你的人设是${persona}` : '',
     botName: botName ?? '',
     context: context?.trim() ? `关于这个直播间的背景资料：\n\n${context.trim()}` : '',
+    intro: intro?.trim()
+      ? `关于你自己（有人问起你是谁、谁做的、能做什么时，照这个回答，口径保持一致，不要编别的）：\n\n${intro.trim()}`
+      : '',
     botTalk: botTalk?.trim() || '（暂无）',
     userHistory: userHistory?.trim() || '（暂无）',
     userChat: userChat?.trim() || '（暂无）',
