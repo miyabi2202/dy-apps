@@ -48,9 +48,10 @@ function setup(options: SetupOptions = {}) {
       log: silentLog,
       promptTemplate: () => options.template ?? TEMPLATE,
       billing,
+      onCommandRequest: (mention, name, args) => bot.requestCommand(mention, name, args),
     });
   const feed = new RoomFeed({ events, bot: BOT, history, log: silentLog, billing });
-  const bot = new ChatBot({
+  const bot: ChatBot = new ChatBot({
     feed,
     answerer,
     room,
@@ -60,10 +61,12 @@ function setup(options: SetupOptions = {}) {
     admins: new Set(options.admins),
     commands: options.commands ?? [personaCommand(room), ...(billing?.commands() ?? [])],
     now: options.now,
+    adminNames: '雅',
   });
   bot.start();
   return {
     bot,
+    room,
     /** Waits for Claude's answers and for everything to be sent. */
     settle: async () => {
       await bot.idle();
@@ -246,6 +249,48 @@ test('someone who cannot pay for an unprompted answer is told in other words, an
     '阿明 没有 @ 你，是在弹幕里说到了你或在跟你说话，你主动回 TA 一句：机器人几岁',
   ]);
   expect(sent.at(-1)).toBe('@阿明 你好呀');
+});
+
+test('asked in words for an admin-only command, an admin has it run, as if typed', async () => {
+  const answer = JSON.stringify({
+    message: '好的，马上变猫',
+    command_request: '修改人设',
+    command_args: '爱说冷笑话的猫',
+  });
+  const { settle, say, sent, room } = setup({ answer, admins: ['u-雅'] });
+  say(chat('雅', '@小助手 把你的人设改成爱说冷笑话的猫'));
+  await settle();
+
+  expect(room.persona).toBe('爱说冷笑话的猫');
+  expect(sent).toEqual(['@雅 已处理修改人设请求']);
+});
+
+test('anyone else asking for an admin-only command is told who may', async () => {
+  const answer = JSON.stringify({
+    message: '好的，马上变猫',
+    command_request: '修改人设',
+    command_args: '猫',
+  });
+  const { settle, say, sent, room } = setup({ answer, admins: ['u-雅'] });
+  say(chat('阿明', '@小助手 把你的人设改成猫'));
+  await settle();
+
+  expect(room.persona).toBe('');
+  expect(sent).toEqual(['@阿明 你无权调用「修改人设」指令，只有主播和雅才可以']);
+});
+
+test("a command that isn't admin-only, or isn't one, gets Claude's reply instead", async () => {
+  const answer = JSON.stringify({
+    message: '想知道歌名就发 /识歌',
+    command_request: '识歌',
+    command_args: '',
+  });
+  const songId = { name: '识歌', adminOnly: false, run: () => ({ ok: true, reply: '' }) };
+  const { settle, say, sent } = setup({ answer, commands: [songId] });
+  say(chat('阿明', '@小助手 这是什么歌'));
+  await settle();
+
+  expect(sent).toEqual(['@阿明 想知道歌名就发 /识歌']);
 });
 
 test('clearing the wallet forgets every balance', () => {

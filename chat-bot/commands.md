@@ -161,7 +161,9 @@ Names the recording playing in the stream, from the last 15 s of its audio, by i
    - **runs code** (`run(args)`): it returns `{ ok, reply }`; `reply` goes out as a system message (sent after replies, before notices), and a failed one (`ok: false`) is refunded. A `run` may be async (`/回复` waits for Claude).
    - **asks Claude with its own prompt** (`prompt: () => string`): the args become the question and it's answered exactly like a mention (queued for Claude, split into messages, refunded if it fails), from that template instead of `prompt.md`.
 
-Commands are logged as `command` in `logs/chat-bot.log`.
+**Asked for in words.** An admin-only command can also be asked for without the slash, in a mention or in what someone says to the bot unprompted: 「把你的人设改成小猫」, 「以后 100 钻以下的礼物不用谢了」. `prompt.md` answers in JSON (`message`, `command_request`, `command_args`; `src/core/mention-answer.ts`), and when Claude names a command there, `ChatBot.requestCommand` takes over instead of sending its message: an admin's (or the streamer's) runs as if they'd typed `/修改人设 小猫`, and anyone else gets `你无权调用「修改人设」指令，只有主播和雅才可以` (雅 is `adminNames` in `config.json`). Other commands asked for this way just get Claude's reply, since they cost diamonds the mention already paid.
+
+Commands are logged as `command` in `logs/chat-bot.log` (`command requested` for one asked for in words).
 
 ## Where they're defined
 

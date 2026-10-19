@@ -7,6 +7,7 @@ import {
   singleBudget,
   type ReplyLimits,
 } from '../core/reply';
+import { MENTION_ANSWER_SCHEMA, parseMentionAnswer } from '../core/mention-answer';
 import type { ChatLine } from '../core/room-events';
 import type { Billing } from './billing';
 import type { PromptOptions } from './command';
@@ -62,6 +63,12 @@ export interface MentionAnswererOptions {
   maxReplyLength?: number;
   /** A long answer goes out as up to this many messages, `@asker (1/3) …`. */
   maxReplyParts?: number;
+  /**
+   * Told when, answering with the usual prompt, Claude found the asker asking for a command in
+   * so many words (修改人设 for 「把你的人设改成小猫」): true when it took it from there (ran it, or
+   * said they may not), so Claude's own reply isn't sent.
+   */
+  onCommandRequest?: (mention: Mention, name: string, args: string) => boolean;
   /** Told each viewer it answered, once the answer is on its way. */
   onAnswered?: (userId: string) => void;
   /** Mentions waiting for Claude beyond this are dropped, so a busy room can't pile up a
@@ -149,8 +156,29 @@ export class MentionAnswerer {
       const image = await room.screenshot();
       const started = room.now();
       const { tools, maxTurns } = mention;
-      const answer = await (mention.ask ?? ask)({ prompt, image, tools, maxTurns });
-      log.info('claude answered', { answer, ms: room.now() - started, image: !!image });
+      // The usual prompt answers in MENTION_ANSWER_SCHEMA; a command's own prompt, as it says.
+      const usual = mention.template === undefined;
+      const raw = await (mention.ask ?? ask)({
+        prompt,
+        image,
+        tools,
+        maxTurns,
+        ...(usual && { schema: MENTION_ANSWER_SCHEMA }),
+      });
+      log.info('claude answered', { answer: raw, ms: room.now() - started, image: !!image });
+      let answer = raw;
+      if (usual) {
+        const { message, command, args } = parseMentionAnswer(raw);
+        answer = message;
+        if (command && this.options.onCommandRequest?.(mention, command, args)) {
+          if (mention.userId) {
+            const { asker: nickname, question } = mention;
+            const asked = `（要调用指令 /${command}${args ? ` ${args}` : ''}）`;
+            userTalk?.add(mention.userId, { nickname, question, answer: asked });
+          }
+          return;
+        }
+      }
       const messages = replyMessages(mention.asker, answer, limits);
       if (!messages.length) {
         log.warn('claude gave an empty answer', { asker: mention.asker });

@@ -29,6 +29,8 @@ export interface ChatBotOptions {
   commands?: readonly Command[];
   /** Douyin's chat length limit, for the bot's own messages. */
   maxReplyLength?: number;
+  /** Who may run admin-only commands, as viewers know them: 「只有主播和…才可以」. */
+  adminNames?: string;
   /** A mention its asker couldn't pay for is answered if they send a gift within this long. */
   waitForGiftMs?: number;
   now?: () => number;
@@ -102,11 +104,7 @@ export class ChatBot {
     const admin = this.isAdmin(userId);
     const call = parseCommand(question);
     if (call) {
-      const pending = this.onCommand(chat, question, call, admin);
-      if (pending) {
-        const run = pending.finally(() => this.running.delete(run));
-        this.running.add(run);
-      }
+      this.track(this.onCommand(chat, question, call, admin));
       return;
     }
     const charge = this.charge(chat, question, admin);
@@ -133,6 +131,40 @@ export class ChatBot {
       const { nickname } = chat;
       this.replyUnprompted({ nickname, userId, question, heard: unprompted });
     } else this.onMention(chat, question);
+  }
+
+  /**
+   * Someone asked, in so many words, for what an admin-only command does (Claude found it in their
+   * mention, or in what they said to the bot): an admin's runs as if they'd typed it, and anyone
+   * else is told they may not. False when `name` isn't an admin-only command, so Claude's own
+   * reply goes out instead (the others cost diamonds, already paid for the mention).
+   */
+  requestCommand(
+    { asker, userId }: Pick<Mention, 'asker' | 'userId'>,
+    name: string,
+    args: string,
+  ): boolean {
+    const command = this.commands.get(name);
+    if (!command?.adminOnly) return false;
+    const { log, adminNames = '机器人管理员' } = this.options;
+    const admin = this.isAdmin(userId);
+    log.info('command requested', { asker, userId, name, args, admin });
+    if (!admin) {
+      this.say(asker, 'system', `你无权调用「${name}」指令，只有主播和${adminNames}才可以`);
+      return true;
+    }
+    const question = `/${name}${args ? ` ${args}` : ''}`;
+    const ts = (this.options.now ?? Date.now)();
+    const chat: IncomingChat = { ts, userId, nickname: asker, content: question, mentions: [] };
+    this.track(this.onCommand(chat, question, { name, args }, true));
+    return true;
+  }
+
+  /** Keeps a command that's still running, for idle(). */
+  private track(pending: Promise<void> | undefined): void {
+    if (!pending) return;
+    const run = pending.finally(() => this.running.delete(run));
+    this.running.add(run);
   }
 
   /**

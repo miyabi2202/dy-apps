@@ -234,6 +234,8 @@ const answerer = new MentionAnswerer({
   maxReplyParts: options.maxReplyParts,
   // What they say next goes straight to the picker for a minute: it's likely a reply.
   onAnswered: (userId) => talker.answered(userId),
+  // 「把你的人设改成小猫」 and the like: run the command if they may (the bot is made further down).
+  onCommandRequest: (mention, name, args) => bot.requestCommand(mention, name, args),
 });
 // /识歌: Codex, which searches with Google (or Claude, with /识歌模型).
 // Once a song is named, says something about it and praises the streamer's singing.
@@ -282,7 +284,7 @@ const admins = new StreamerAdmin({
 });
 admins.start();
 // Decides what a mention is (a question, or a command) and charges for it.
-const bot = new ChatBot({
+const bot: ChatBot = new ChatBot({
   feed,
   answerer,
   room,
@@ -290,6 +292,7 @@ const bot = new ChatBot({
   log,
   billing,
   admins,
+  adminNames: config.adminNames,
   commands: [
     personaCommand(room),
     ...billing.commands(),
