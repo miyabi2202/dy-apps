@@ -2,7 +2,7 @@ import { clock } from './local-time';
 import { readMark } from './reading';
 import type { RoomLine } from './relevance';
 
-/** One numbered line the picker thinks the bot may answer, and how sure it is that it should. */
+/** One numbered line and how sure the picker is that the bot should answer it now. */
 export interface Pick {
   line: number;
   /** 0–1: how sure the bot should answer it now. */
@@ -27,7 +27,7 @@ export const REPLY_PICK_SCHEMA = {
         required: ['line', 'confidence'],
         additionalProperties: false,
       },
-      description: '可能需要机器人回复的那几条，各带一个把握；都不用回就是空数组',
+      description: '每一条带编号的都打一个分',
     },
   },
   required: ['picks'],
