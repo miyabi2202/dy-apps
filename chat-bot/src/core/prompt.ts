@@ -1,4 +1,4 @@
-import { clock } from './local-time';
+import { clock, localDate } from './local-time';
 import type { GiftLine } from './recent-gifts';
 import type { ChatLine } from './room-events';
 import { isGuest, isSung, type TranscriptLine } from './transcript';
@@ -96,7 +96,8 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
  * `（连线）` before it when someone they're linked up with said it), `{{asker}}` and `{{question}}` the
  * mention's sender and text, `{{asked}}` the two as a line saying they @ed the bot (or, when
  * `unprompted`, that it heard them talk to or about it), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
- * most the answer may use over several, `{{now}}` the time, `{{chatDir}}` the folder of chat
+ * most the answer may use over several, `{{now}}` the time, `{{today}}` the date and weekday
+ * (`2026-10-20 星期二`), `{{chatDir}}` the folder of chat
  * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{botName}}`
  * the bot's own nickname, `{{context}}` the room's background under a heading (empty
  * without one), `{{intro}}` what the bot says about itself, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
@@ -129,6 +130,7 @@ export function buildPrompt(template: string, input: PromptInput): string {
     singleLength: String(singleLength),
     maxLength: String(maxLength),
     now: clock(now),
+    today: localDate(now),
     chatDir: chatDir ?? '（无）',
     persona: persona ? `你的人设是${persona}` : '',
     botName: botName ?? '',

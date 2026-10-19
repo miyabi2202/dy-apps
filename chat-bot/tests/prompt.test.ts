@@ -33,3 +33,10 @@ test('{{history}} shows the recent gifts among the chat, by time', () => {
   });
   expect(prompt).toBe('阿明: 好听\n澳***: （送出 比心兔兔×1，299钻）\n小红: 谢一下这个礼物');
 });
+
+test('{{today}} is the date and the weekday', () => {
+  const tuesday = new Date(2026, 9, 20, 9, 30).getTime();
+  expect(buildPrompt('{{today}} {{now}}', { ...input, now: tuesday })).toBe(
+    '2026-10-20 星期二 09:30:00',
+  );
+});
