@@ -15,6 +15,7 @@ import { codexCli } from './adapters/codex-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
+import { readDownloads, runDownloads } from './adapters/room-downloads';
 import {
   liveRoomConfig,
   liveSection,
@@ -88,6 +89,9 @@ const context = liveText(files.context);
 const intro = liveText(join(packageDir, 'intro.md'));
 // The room's room_config.json, read again when it changes: whether it's a 私密 room.
 const roomConfig = liveRoomConfig(files.config, { log });
+// On entering the room, fetches room_config.json's download list into data/<房间号>/artifacts/,
+// in the background: a slow or failed download doesn't hold up the bot.
+void runDownloads(readDownloads(files.config, { log }), join(roomDir, 'artifacts'), { log });
 const botTalk = botTalkFile(files.botTalk);
 const userTalk = userTalkFiles(files.users);
 const transcriber = options.asr
