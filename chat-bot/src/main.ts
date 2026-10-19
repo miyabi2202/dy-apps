@@ -117,19 +117,6 @@ const ask = claudeCli({
   timeoutMs: 240_000,
   zoom,
 });
-// /解题: Claude thinking harder, with more time; /拼命解题: Fable, slower still but stronger at
-// figure puzzles (it found one's 洛书 magic square that Opus missed).
-const solveAsk = (model: string, timeoutMs: number) =>
-  claudeCli({
-    cwd: tmpdir(),
-    tools: options.tools,
-    readDirs: [chatDir],
-    model,
-    systemPrompt: options.systemPrompt,
-    effort: 'high',
-    timeoutMs,
-    zoom,
-  });
 // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
 const outbox = new Outbox({
   send: roomApi.sendChat,
@@ -195,6 +182,17 @@ if (!options.codex)
   log.warn('--codex is empty: auto-reply is off, the bot only talks on the wake word');
 // Codex reads its working directory, so it gets an empty one.
 const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
+// /解题 and /拼命解题: Codex's gpt-6-astra, which on figure puzzles was faster and more often
+// right than Claude Opus or Fable, even with their zoom tool; /拼命解题 thinks harder.
+const solveAsk = (effort: string, timeoutMs: number) =>
+  codexCli({
+    model: 'gpt-6-astra',
+    effort,
+    webSearch: false,
+    timeoutMs,
+    cwd: emptyDir,
+    systemPrompt: options.systemPrompt,
+  });
 // Once Jev finds something about the bot, Codex (the cheap model, no web search) picks whom to
 // answer, and each is answered like a mention (charged, with their own talk.txt; the streamer's
 // too, by their uid).
@@ -259,7 +257,7 @@ const answerer = new MentionAnswerer({
   // 「把你的人设改成小猫」 and the like: run the command if they may.
   onCommandRequest: (mention, name, args) => bot.requestCommand(mention, name, args),
 });
-// /识歌: Codex, which searches with Google (or Claude, with /识歌模型).
+// /识歌 and /自动识歌: Codex, which searches with Google; without Codex, neither.
 // Once a song is named, may say up to two more things about it, or nothing.
 const songIntro = new SongIntro({
   ask,
@@ -269,23 +267,20 @@ const songIntro = new SongIntro({
   log,
   maxLength: options.maxReplyLength,
 });
-const songId = new SongId({
-  prompt: prompt('songId'),
-  webPrompt: prompt('songIdWeb'),
-  claude: ask,
-  codex: options.codex
-    ? codexCli({
+const songId = options.codex
+  ? new SongId({
+      prompt: prompt('songId'),
+      codex: codexCli({
         model: options.codex,
         // Low sometimes answered without searching at all; medium always searched, ~8 s slower.
         effort: 'medium',
         cwd: emptyDir,
         systemPrompt: options.systemPrompt,
-      })
-    : undefined,
-  log,
-  onTold: (song) => void songIntro.introduce(song),
-});
-// The streamer saying the room's wake word (from --wake-words, read again when it changes) makes
+      }),
+      log,
+      onTold: (song) => void songIntro.introduce(song),
+    })
+  : null; // The streamer saying the room's wake word (from --wake-words, read again when it changes) makes
 // the bot talk now, for free; /设置唤醒词 changes it.
 const talkNow = new TalkNow({
   ask,
@@ -302,16 +297,17 @@ const wakeWord = new WakeWord({
   log,
 });
 // And the streamer singing has the song named, when /自动识歌 (or --auto-song-id) turns it on.
-const autoSongId = transcriber
-  ? new AutoSongId({
-      songId,
-      room,
-      outbox,
-      log,
-      on: options.autoSongId,
-      maxLength: options.maxReplyLength,
-    })
-  : null;
+const autoSongId =
+  transcriber && songId
+    ? new AutoSongId({
+        songId,
+        room,
+        outbox,
+        log,
+        on: options.autoSongId,
+        maxLength: options.maxReplyLength,
+      })
+    : null;
 transcriber?.onLine((line) => {
   wakeWord.hear(line);
   autoSongId?.hear(line);
@@ -333,9 +329,9 @@ const bot: ChatBot = new ChatBot({
     ...thanker.commands(),
     ...wakeWord.commands(),
     screenshotCommand(room),
-    ...songId.commands(),
-    solveCommand({ name: '解题', prompt: prompt('solve'), ask: solveAsk(options.model, 360_000) }),
-    solveCommand({ name: '拼命解题', prompt: prompt('solve'), ask: solveAsk('fable', 600_000) }),
+    ...(songId?.commands() ?? []),
+    solveCommand({ name: '解题', prompt: prompt('solve'), ask: solveAsk('medium', 360_000) }),
+    solveCommand({ name: '拼命解题', prompt: prompt('solve'), ask: solveAsk('high', 600_000) }),
     ...(autoSongId?.commands() ?? []),
     // Only when listening to the stream.
     ...(transcriber ? [musicCommand(() => transcriber.identifyMusic(), log)] : []),
@@ -355,7 +351,6 @@ log.info('starting', {
   autoReplyThreshold: options.autoReplyThreshold,
   thanksThreshold: options.thanksThreshold,
   autoSongId: options.autoSongId,
-  songIdEngine: songId.engine,
 });
 bot.start();
 void transcriber?.run();

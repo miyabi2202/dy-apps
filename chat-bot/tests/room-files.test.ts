@@ -64,14 +64,14 @@ describe('livePrompt', () => {
 
   test("the room's own file, named with underscores, wins over the shared one", () => {
     const { packageDir, roomDir } = dirs();
-    writeFileSync(join(packageDir, 'song-id-web.md'), 'shared');
-    const prompt = livePrompt('songIdWeb', { packageDir, roomDir });
+    writeFileSync(join(packageDir, 'song-id.md'), 'shared');
+    const prompt = livePrompt('songId', { packageDir, roomDir });
     expect(prompt()).toBe('shared');
 
-    writeFileSync(join(roomDir, 'song_id_web.md'), 'room');
+    writeFileSync(join(roomDir, 'song_id.md'), 'room');
     expect(prompt()).toBe('room');
 
-    rmSync(join(roomDir, 'song_id_web.md'));
+    rmSync(join(roomDir, 'song_id.md'));
     expect(prompt()).toBe('shared');
   });
 

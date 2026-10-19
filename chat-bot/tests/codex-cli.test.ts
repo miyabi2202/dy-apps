@@ -59,3 +59,21 @@ test('hands codex the answer schema in a file', () => {
   void codexCli({ spawnProcess })({ prompt: 'hi', schema: { type: 'object' } }).catch(() => {});
   expect(schema).toBe('{"type":"object"}');
 });
+
+test('hands codex the screenshot in a file, before the prompt', () => {
+  let args: readonly string[] = [];
+  let image: Buffer = Buffer.from('');
+  const spawnProcess = ((_command: string, a: readonly string[]) => {
+    args = a;
+    image = readFileSync(a[a.indexOf('-i') + 1] ?? '');
+    throw new Error('not really running codex');
+  }) as unknown as typeof spawn;
+  void codexCli({ spawnProcess })({ prompt: 'hi', image: new Uint8Array([0xff, 0xd8]) }).catch(
+    () => {},
+  );
+  expect([...image]).toEqual([0xff, 0xd8]);
+  expect(args.slice(-2)).toEqual(['--', 'hi']);
+
+  void codexCli({ spawnProcess })({ prompt: 'hi' }).catch(() => {});
+  expect(args).not.toContain('-i');
+});

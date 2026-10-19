@@ -51,8 +51,9 @@ export function codexResult(output: string): string {
 /**
  * Asks OpenAI's Codex CLI, `codex exec`, with live web search (Google, among others). Chat is
  * untrusted, so it runs in a read-only sandbox in an empty folder, keeps no session, and ignores
- * the user's own Codex config and rules (their AGENTS.md, memories, hooks and plugins). It can't
- * take a screenshot, nor narrow its tools or cap its turns per question, so those are left out.
+ * the user's own Codex config and rules (their AGENTS.md, memories, hooks and plugins). A
+ * screenshot goes with the prompt (`-i`); it can't narrow its tools or cap its turns per question,
+ * so those are left out.
  * It uses the logged-in user's account: `codex login` once.
  */
 export function codexCli({
@@ -65,13 +66,15 @@ export function codexCli({
   webSearch = true,
   spawnProcess = spawn,
 }: CodexCliOptions = {}): AskClaude {
-  return ({ prompt, schema }) =>
+  return ({ prompt, schema, image }) =>
     new Promise((resolve, reject) => {
-      // codex reads the answer's schema from a file.
-      const schemaDir = schema ? mkdtempSync(join(tmpdir(), 'codex-schema-')) : null;
-      const schemaFile = schemaDir && join(schemaDir, 'schema.json');
+      // codex reads the answer's schema, and the screenshot, from files.
+      const dir = schema || image ? mkdtempSync(join(tmpdir(), 'codex-question-')) : null;
+      const schemaFile = dir && schema ? join(dir, 'schema.json') : null;
       if (schemaFile) writeFileSync(schemaFile, JSON.stringify(schema));
-      const cleanUp = () => schemaDir && rmSync(schemaDir, { recursive: true, force: true });
+      const imageFile = dir && image ? join(dir, 'screenshot.jpg') : null;
+      if (imageFile && image) writeFileSync(imageFile, image);
+      const cleanUp = () => dir && rmSync(dir, { recursive: true, force: true });
       const args = [
         'exec',
         '--ephemeral',
@@ -87,6 +90,8 @@ export function codexCli({
         `web_search="${webSearch ? 'live' : 'disabled'}"`,
         '--json',
         ...(schemaFile ? ['--output-schema', schemaFile] : []),
+        // `-i` takes any number of files, so `--` ends them before the prompt.
+        ...(imageFile ? ['-i', imageFile, '--'] : []),
         systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,
       ];
       let child: ReturnType<typeof spawn>;

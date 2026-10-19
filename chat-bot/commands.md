@@ -6,20 +6,19 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 <!-- prompt.md and wake-word.md get this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
 
-| Command                     | What it does                                       | Admins only | Default     |
-| --------------------------- | -------------------------------------------------- | ----------- | ----------- |
-| `/修改人设 <人设>`          | Change who the bot plays                           | yes         | none        |
-| `/修改收费 <钻>`            | Change what an @ costs                             | yes         | 1           |
-| `/自动回复阈值 <0–1>`       | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
-| `/自动谢礼 <钻>`            | Thank viewers who give more than this in 5 minutes | yes         | 99999 (off) |
-| `/设置唤醒词 <词>`          | The words the streamer says to make the bot talk   | yes         | 我想吃鱼了  |
-| `/截图 <0\|1>`              | Send Claude the live video or not                  | yes         | 0           |
-| `/识歌 [提示]`              | Name the song the streamer sings, from its lyrics  | no          | –           |
-| `/识歌模型 <codex\|claude>` | Who looks songs up for `/识歌`                     | yes         | codex       |
-| `/识别背景音乐`             | Name the recording playing, from its sound         | no          | –           |
-| `/解题 [提示]`              | Work out the puzzle on screen                      | yes         | –           |
-| `/拼命解题 [提示]`          | The same, with Fable: slower, stronger             | yes         | –           |
-| `/自动识歌 <0\|1>`          | Name the songs the streamer sings, unasked         | yes         | 0           |
+| Command               | What it does                                       | Admins only | Default     |
+| --------------------- | -------------------------------------------------- | ----------- | ----------- |
+| `/修改人设 <人设>`    | Change who the bot plays                           | yes         | none        |
+| `/修改收费 <钻>`      | Change what an @ costs                             | yes         | 1           |
+| `/自动回复阈值 <0–1>` | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
+| `/自动谢礼 <钻>`      | Thank viewers who give more than this in 5 minutes | yes         | 99999 (off) |
+| `/设置唤醒词 <词>`    | The words the streamer says to make the bot talk   | yes         | 我想吃鱼了  |
+| `/截图 <0\|1>`        | Send Claude the live video or not                  | yes         | 0           |
+| `/识歌 [提示]`        | Name the song the streamer sings, from its lyrics  | no          | –           |
+| `/识别背景音乐`       | Name the recording playing, from its sound         | no          | –           |
+| `/解题 [提示]`        | Work out the puzzle on screen                      | yes         | –           |
+| `/拼命解题 [提示]`    | The same, thinking harder                          | yes         | –           |
+| `/自动识歌 <0\|1>`    | Name the songs the streamer sings, unasked         | yes         | 0           |
 
 Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
 
@@ -106,7 +105,7 @@ Turns screenshots of the live video on (`1`) or off (`0`); while on, every promp
 
 ### /识歌
 
-Names the song being sung or played, from the lyrics heard lately. Only the song being sung now counts: a pause of over a minute between sung lines ends a song, and what came before it is left out. Codex (`gpt-6-luna` at medium effort, searching the web live; the default) or Claude (web search and fetch only, at most 12 turns, more is given up on and refunded) works it out with `song-id-web.md` (Codex: search Google for at least 3 rounds before giving up) or `song-id.md` (Claude) as the prompt (a room's own `song_id_web.md` or `song_id.md` overrides it); `/识歌模型` switches between them. The model answers in a fixed JSON shape, enforced by its CLI (`--output-schema` for Codex, `--json-schema` for Claude): `message` is what's sent, and `title` and `artist`, the song it named (empty when none), go into the log as `song identified`. Anything after the command is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails. Once a song is named, Claude may say up to two more messages to the room (no @), whatever fits, from `song-intro.md` (a room's own `song_intro.md` overrides it): something it finds searching for the song, a line of the lyrics, who the song was for, the chat's reactions, a joke, or nothing. It only sees the lyrics as transcribed, not the voice, so it doesn't judge the singing. They're free, and come 30–60 seconds after the song's name.
+Names the song being sung or played, from the lyrics heard lately. Only the song being sung now counts: a pause of over a minute between sung lines ends a song, and what came before it is left out. Codex (`--codex`, `gpt-6-luna` at medium effort, searching the web live) works it out with `song-id.md` as the prompt (search Google for at least 3 rounds before giving up; a room's own `song_id.md` overrides it). It answers in a fixed JSON shape, enforced by `--output-schema`: `message` is what's sent, and `title`, `artist` and `sure`, the song it named (empty when none), go into the log as `song identified`. Without Codex (`--codex ''`) there's no `/识歌`. Anything after the command is passed on as a hint. It's answered like any @, so it's queued, may be split into several messages, and is refunded if it fails. Once a song is named, Claude may say up to two more messages to the room (no @), whatever fits, from `song-intro.md` (a room's own `song_intro.md` overrides it): something it finds searching for the song, a line of the lyrics, who the song was for, the chat's reactions, a joke, or nothing. It only sees the lyrics as transcribed, not the voice, so it doesn't judge the singing. They're free, and come 30–60 seconds after the song's name.
 
 ```text
 @默认关闭 /识歌
@@ -117,18 +116,6 @@ Names the song being sung or played, from the lyrics heard lately. Only the song
 ```
 
 Lyrics are only as good as speech recognition, so it does best on Chinese and English, and seldom finds a Japanese or German song. For a recording playing in the background, `/识别背景音乐` is surer.
-
-### /识歌模型
-
-Who works out `/识歌`: `codex` (OpenAI's Codex CLI, `gpt-6-luna`, which searches the web live; the default, unless the bot started with `--codex ''`) or `claude`. Codex finds lyrics Claude's web search doesn't, but can't see the screenshot. Until the bot stops.
-
-```text
-@默认关闭 /识歌模型 claude
-→ 已处理识歌模型请求
-
-@默认关闭 /识歌模型 gpt
-→ 要写 codex 或 claude，用法：/识歌模型 codex
-```
 
 ### /自动识歌
 
@@ -143,21 +130,16 @@ Has the bot name the songs the streamer sings without anyone asking, as `/识歌
 
 ### /解题
 
-Works out the math, logic or figure puzzle on the screen (or written after the command), for admins only, since it's slow. It always sends Claude a screenshot, even while `/截图` has them off, and asks with its own prompt `solve.md` (a room's own `solve.md` overrides it), at `--effort high`, with up to 6 minutes, and the `zoom` tool to look closer at small figures and text. The prompt has Claude check several rules against every figure before it answers, and say so when two rules fit or it can't tell. Claude answers in JSON, so only the answer is sent (not what it says while working, nor web sources). Answered like any @, typically in 20 seconds to 2 minutes.
+Works out the math, logic or figure puzzle on the screen (or written after the command), for admins only. It always sends a screenshot, even while `/截图` has them off, and asks Codex's `gpt-6-astra` (at medium effort, no web search, up to 6 minutes) with its own prompt `solve.md` (a room's own `solve.md` overrides it). The prompt has it check several rules against every figure before it answers, and say so when two rules fit or it can't tell. It answers in JSON, so only the answer is sent. On three test puzzles astra was right every time, in 16–43 seconds, where Claude Opus and Fable (even with a zoom tool) were slower and sometimes wrong. Answered like any @.
 
 ```text
 @默认关闭 /解题
-→ @雅 选C：按格子算面积，①④⑤都是7.5格，②③⑥都是10.5格
+→ @雅 选A。封闭区域数为492、357、816，每行每列之和均为15。
 ```
 
 ### /拼命解题
 
-`/解题` with Fable instead of `--model`: slower (one to six minutes; up to 10 are allowed) but stronger at figure puzzles. On two test puzzles it was right 4 of 4 to Opus's 3 of 4, and found one's intended rule (the enclosed regions are the 洛书 magic square) that Opus missed. Admins only.
-
-```text
-@默认关闭 /拼命解题
-→ @雅 选A。数封闭区域：每行之和都是15，第一行4+9+2，第二行3+5+7，第三行8+1+?，缺6，A正好6个封闭区域
-```
+`/解题` at high effort, with up to 10 minutes, for a puzzle `/解题` got wrong. Admins only.
 
 ### /识别背景音乐
 
@@ -196,7 +178,7 @@ Each feature offers its own commands, and `src/main.ts` hands them all to `ChatB
 | 自动回复阈值   | `AutoReply.commands()` in `src/app/auto-reply.ts`                                      |
 | 自动谢礼       | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
 | 设置唤醒词     | `WakeWord.commands()` in `src/app/wake-word.ts`                                        |
-| 识歌, 识歌模型 | `SongId.commands()` in `src/app/song-id.ts`                                            |
+| 识歌           | `SongId.commands()` in `src/app/song-id.ts`                                            |
 | 识别背景音乐   | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
 | 自动识歌       | `AutoSongId.commands()` in `src/app/auto-song-id.ts`                                   |
 

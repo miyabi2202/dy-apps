@@ -109,7 +109,6 @@ export const PROMPT_FILES = {
   wakeWord: 'wake-word.md',
   replyPick: 'reply-pick.md',
   songId: 'song-id.md',
-  songIdWeb: 'song-id-web.md',
   giftThanks: 'gift-thanks.md',
   songIntro: 'song-intro.md',
   solve: 'solve.md',
