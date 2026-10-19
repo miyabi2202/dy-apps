@@ -228,10 +228,9 @@ test('by default, picks whom to answer at once, without waiting for the room to 
 test('what someone says within a minute of the bot answering them goes to the picker, not Jev', async () => {
   const picks: string[] = [];
   const replies: UnpromptedReply[] = [];
-  let talker: Talker | undefined;
   const ran = setup(
     [
-      () => talker!.answered('u-小红'),
+      () => ran.talker.answered('u-小红'),
       () => {
         ran.chat('小红', '印象深刻', 'u-小红');
         ran.chat('阿明', '一马当先', 'u-阿明');
@@ -247,8 +246,7 @@ test('what someone says within a minute of the bot answering them goes to the pi
       streamer: () => null,
     },
   );
-  talker = ran.talker;
-  await talker.run();
+  await ran.talker.run();
 
   // Jev was asked only about 阿明's, which isn't about the bot.
   expect(ran.judged).toEqual(['(1) 00:00:40 [阿明] 一马当先']);
@@ -259,10 +257,9 @@ test('what someone says within a minute of the bot answering them goes to the pi
 
 test('after it talks to the room, what the streamer says, on the stream or in the chat, follows up', async () => {
   const picks: string[] = [];
-  let talker: Talker | undefined;
   const ran = setup(
     [
-      () => void talker!.talkNow('reply', WOKEN),
+      () => void ran.talker.talkNow('reply', WOKEN),
       () => {
         ran.say('那我接一个');
         ran.chat('虾虾', '印象深刻', 's-1');
@@ -279,9 +276,8 @@ test('after it talks to the room, what the streamer says, on the stream or in th
       quietMs: 0,
     },
   );
-  talker = ran.talker;
   ran.answers.push(JSON.stringify({ reply: true, message: '我先出：心心相印' }));
-  await talker.run();
+  await ran.talker.run();
 
   expect(ran.judged).toEqual([]);
   expect(picks[0]).toContain('★ 00:00:40 [主播] 那我接一个');
