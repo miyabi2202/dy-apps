@@ -127,6 +127,8 @@ export class MentionAnswerer {
 
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, room, log, promptTemplate, userTalk } = this.options;
+    // What the bot says unprompted is one message: nobody asked for a long answer.
+    const limits = mention.unprompted ? { ...this.limits, maxParts: 1 } : this.limits;
     try {
       const input = room.promptInput();
       const prompt = buildPrompt(mention.template ?? promptTemplate(), {
@@ -135,8 +137,8 @@ export class MentionAnswerer {
         history: mention.history,
         asker: mention.asker,
         question: mention.question,
-        singleLength: singleBudget(mention.asker, this.limits),
-        maxLength: answerBudget(mention.asker, this.limits),
+        singleLength: singleBudget(mention.asker, limits),
+        maxLength: answerBudget(mention.asker, limits),
         userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
         askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
         unprompted: mention.unprompted,
@@ -147,7 +149,7 @@ export class MentionAnswerer {
       const { tools, maxTurns } = mention;
       const answer = await (mention.ask ?? ask)({ prompt, image, tools, maxTurns });
       log.info('claude answered', { answer, ms: room.now() - started, image: !!image });
-      const messages = replyMessages(mention.asker, answer, this.limits);
+      const messages = replyMessages(mention.asker, answer, limits);
       if (!messages.length) {
         log.warn('claude gave an empty answer', { asker: mention.asker });
         this.refund(mention);

@@ -197,6 +197,19 @@ test('answers what someone said to it unprompted like a mention, charged, saying
   expect(wallet.balance('u-阿明')).toBe(0);
 });
 
+test('an unprompted answer is one message, cut to fit', async () => {
+  const { bot, settle, sent } = setup({ answer: '好'.repeat(80) });
+  bot.replyUnprompted({
+    nickname: '阿明',
+    userId: 'u-阿明',
+    question: '机器人几岁',
+    heard: 'chat',
+  });
+  await settle();
+
+  expect(sent).toHaveLength(1);
+});
+
 test('the streamer is answered for free, as said on the stream', async () => {
   const wallet = memoryWallet();
   const { bot, settle, prompts } = setup({ wallet, admins: ['s-1'], template: '{{asked}}' });
