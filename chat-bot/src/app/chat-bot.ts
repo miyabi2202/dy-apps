@@ -214,7 +214,12 @@ export class ChatBot {
     const charge = billing.charge(userId, asker, price);
     if (charge.ok) return charge;
     if (userId) {
-      const at = (this.options.now ?? Date.now)();
+      const { now = Date.now, waitForGiftMs = 5 * 60_000 } = this.options;
+      const at = now();
+      // Only a gift removes an entry, so those that nobody came back for are dropped here.
+      for (const [id, { at: since }] of this.unpaid) {
+        if (at - since > waitForGiftMs) this.unpaid.delete(id);
+      }
       this.unpaid.set(userId, { chat, question, at, ...(unprompted && { unprompted }) });
     }
     log.info('balance too low', {

@@ -185,6 +185,22 @@ test('in a 私密 room, an unpaid mention is answered after a gift from the same
   expect(wallet.balance('111111-苦***-31')).toBe(0);
 });
 
+test('unpaid mentions nobody came back for are dropped once they are 5 minutes old', async () => {
+  let now = 0;
+  const { bot, settle, say } = setup({ wallet: memoryWallet(), cost: 1, now: () => now });
+  // The map is private: its size is all there is to see, since an old one is ignored anyway.
+  const unpaid = (bot as unknown as { unpaid: Map<string, unknown> }).unpaid;
+  say(chat('阿明', '@小助手 在吗'));
+  say(chat('小红', '@小助手 在吗'));
+  await settle();
+  expect(unpaid.size).toBe(2);
+
+  now = 5 * 60_000 + 1;
+  say(chat('小蓝', '@小助手 在吗'));
+  await settle();
+  expect([...unpaid.keys()]).toEqual(['u-小蓝']);
+});
+
 test('an unpaid mention is forgotten after 5 minutes', async () => {
   let now = 0;
   const wallet = memoryWallet();
