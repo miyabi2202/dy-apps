@@ -1,7 +1,13 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { liveRoomConfig, liveSection, roomFiles, saveStreamer } from '../src/adapters/room-files';
+import {
+  livePrompt,
+  liveRoomConfig,
+  liveSection,
+  roomFiles,
+  saveStreamer,
+} from '../src/adapters/room-files';
 
 test('reads one section of a Markdown file, as it is now', () => {
   const file = join(mkdtempSync(join(tmpdir(), 'room-files-')), 'commands.md');
@@ -48,4 +54,56 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
   saveStreamer(config, { uid: '1', nickname: '阿明' }, { log });
   expect(readFileSync(config, 'utf8')).toBe('{ "private": ');
   expect(log.warn).toHaveBeenCalled();
+});
+
+describe('livePrompt', () => {
+  const dirs = () => ({
+    packageDir: mkdtempSync(join(tmpdir(), 'package-')),
+    roomDir: mkdtempSync(join(tmpdir(), 'room-')),
+  });
+
+  test("the room's own file, named with underscores, wins over the shared one", () => {
+    const { packageDir, roomDir } = dirs();
+    writeFileSync(join(packageDir, 'song-id-web.md'), 'shared');
+    const prompt = livePrompt('songIdWeb', { packageDir, roomDir });
+    expect(prompt()).toBe('shared');
+
+    writeFileSync(join(roomDir, 'song_id_web.md'), 'room');
+    expect(prompt()).toBe('room');
+
+    rmSync(join(roomDir, 'song_id_web.md'));
+    expect(prompt()).toBe('shared');
+  });
+
+  test('edits to the shared file are picked up', () => {
+    const { packageDir, roomDir } = dirs();
+    writeFileSync(join(packageDir, 'gift-thanks.md'), 'one');
+    const prompt = livePrompt('giftThanks', { packageDir, roomDir });
+    writeFileSync(join(packageDir, 'gift-thanks.md'), 'two');
+    expect(prompt()).toBe('two');
+  });
+
+  test('a prompt without roomDir ignores room files, and sharedPath replaces the shared file', () => {
+    const { packageDir, roomDir } = dirs();
+    writeFileSync(join(packageDir, 'prompt.md'), 'shared');
+    writeFileSync(join(roomDir, 'prompt.md'), 'room');
+    writeFileSync(join(roomDir, 'mine.md'), 'mine');
+    expect(livePrompt('mention', { packageDir })()).toBe('shared');
+    expect(livePrompt('mention', { packageDir, sharedPath: join(roomDir, 'mine.md') })()).toBe(
+      'mine',
+    );
+  });
+
+  test('the shared file read at the start is used if it can no longer be read', () => {
+    const { packageDir, roomDir } = dirs();
+    writeFileSync(join(packageDir, 'song-intro.md'), 'first');
+    const prompt = livePrompt('songIntro', { packageDir, roomDir });
+    rmSync(join(packageDir, 'song-intro.md'));
+    expect(prompt()).toBe('first');
+  });
+
+  test('a missing shared file throws at construction', () => {
+    const { packageDir, roomDir } = dirs();
+    expect(() => livePrompt('replyPick', { packageDir, roomDir })).toThrow();
+  });
 });

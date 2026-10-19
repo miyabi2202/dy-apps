@@ -3,7 +3,7 @@
  *
  *     pnpm start --room 259175310675 --bot-name 默认关闭
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +18,9 @@ import { DyhubRoomApi } from './adapters/dyhub-room-api';
 import {
   liveRoomConfig,
   liveSection,
+  livePrompt,
   liveText,
+  type PromptName,
   roomFiles,
   saveStreamer,
 } from './adapters/room-files';
@@ -72,16 +74,11 @@ wallet.clear();
 const chatDir = join(roomDir, 'chat');
 mkdirSync(chatDir, { recursive: true });
 const record = new ChatLog(chatDir);
-// The prompts are shared by every room (a room's own auto_reply.md, song_id.md, gift_thanks.md and
-// so on overrides one), and the room's context.md; all read on every use so edits apply while it
-// runs.
+// The prompts are shared by every room, a room's own file overrides one (see PROMPT_FILES), and the
+// room's context.md; all read on every use so edits apply while it runs.
 // Plus what the bot said, overall and to each viewer, so it doesn't repeat itself.
-const autoReplyTemplate = resolve(options.autoReplyPromptFile);
-const songIdTemplate = join(packageDir, 'song-id.md');
-const songIdWebTemplate = join(packageDir, 'song-id-web.md');
-const giftThanksTemplate = join(packageDir, 'gift-thanks.md');
-const songIntroTemplate = join(packageDir, 'song-intro.md');
-const replyPickTemplate = join(packageDir, 'reply-pick.md');
+const prompt = (name: PromptName, sharedPath?: string) =>
+  livePrompt(name, { packageDir, roomDir, sharedPath });
 const files = roomFiles(roomDir);
 const context = liveText(files.context);
 // What the bot says about itself when asked, shared by every room.
@@ -124,11 +121,11 @@ const outbox = new Outbox({
   intervalMs: options.sendIntervalMs,
   onSent: ({ text }) => botTalk.add(text),
 });
-// The mention prompt is read at start, so a missing file stops the bot at once, and then on every
-// use; a read that fails later keeps the text from the start.
-const mentionPrompt = resolve(options.promptFile);
-const firstMentionTemplate = readFileSync(mentionPrompt, 'utf8');
-const mentionTemplate = liveText(mentionPrompt, () => firstMentionTemplate);
+// The mention prompt is the one with no room override; --prompt may point elsewhere.
+const mentionTemplate = livePrompt('mention', {
+  packageDir,
+  sharedPath: resolve(options.promptFile),
+});
 const history = new ChatHistory(options.historySize);
 // Each room's wake word, read again when the file changes; /设置唤醒词 writes this room's.
 const wakeWords = wakeWordFile(resolve(options.wakeWordsFile), roomId, { log });
@@ -172,7 +169,7 @@ const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 const talker = new Talker({
   ask,
   outbox,
-  promptTemplate: liveText(files.autoReply, () => readFileSync(autoReplyTemplate, 'utf8')),
+  promptTemplate: prompt('wakeWord', resolve(options.autoReplyPromptFile)),
   judge: jevKey ? jev({ apiKey: jevKey }) : undefined,
   threshold: options.talkThreshold,
   room,
@@ -188,7 +185,7 @@ const talker = new Talker({
         systemPrompt: options.systemPrompt,
       })
     : undefined,
-  pickTemplate: liveText(files.replyPick, () => readFileSync(replyPickTemplate, 'utf8')),
+  pickTemplate: prompt('replyPick'),
   // The bot and the admins are made further down, before the talker runs.
   reply: (target) => bot.replyUnprompted(target),
   streamer: () => admins.current(),
@@ -202,7 +199,7 @@ wakeWord = new WakeWord({
 const thanker = new GiftThanker({
   ask,
   outbox,
-  promptTemplate: liveText(files.giftThanks, () => readFileSync(giftThanksTemplate, 'utf8')),
+  promptTemplate: prompt('giftThanks'),
   threshold: options.thanksThreshold,
   room,
   userTalk,
@@ -242,14 +239,14 @@ const answerer = new MentionAnswerer({
 const songIntro = new SongIntro({
   ask,
   outbox,
-  promptTemplate: liveText(files.songIntro, () => readFileSync(songIntroTemplate, 'utf8')),
+  promptTemplate: prompt('songIntro'),
   room,
   log,
   maxLength: options.maxReplyLength,
 });
 const songId = new SongId({
-  prompt: liveText(files.songId, () => readFileSync(songIdTemplate, 'utf8')),
-  webPrompt: liveText(files.songIdWeb, () => readFileSync(songIdWebTemplate, 'utf8')),
+  prompt: prompt('songId'),
+  webPrompt: prompt('songIdWeb'),
   claude: ask,
   codex: options.codex
     ? codexCli({

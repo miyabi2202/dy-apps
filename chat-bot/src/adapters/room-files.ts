@@ -7,17 +7,6 @@ import { errorMessage } from '../core/errors';
 export interface RoomFiles {
   /** Background on the room, for the prompts' `{{context}}`. */
   context: string;
-  /** This room's own prompt for what the bot says unprompted, if someone writes one. */
-  autoReply: string;
-  /** This room's own prompts for /识歌, Claude's and the web-searching models', if someone writes one. */
-  songId: string;
-  songIdWeb: string;
-  /** This room's own prompt for thanking big givers, if someone writes one. */
-  giftThanks: string;
-  /** This room's own prompt for what's said about a song once it's named, if someone writes one. */
-  songIntro: string;
-  /** This room's own prompt for picking whom to answer unprompted, if someone writes one. */
-  replyPick: string;
   /** Everything the bot sent in the room. */
   botTalk: string;
   /** Where each viewer's folder of exchanges with the bot goes. */
@@ -43,20 +32,13 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = { private: false };
 /**
  * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and `wallet.json`): an
  * empty `context.md` and a default `room_config.json` created when missing, `bot_logs.md`, and a `<user id>/` folder for each
- * viewer the bot talked with. The prompts are shared by every room (chat-bot/auto-reply.md and so on);
- * a room only has its own `auto_reply.md`, `song_id.md`, `song_id_web.md`, `gift_thanks.md`,
- * `song_intro.md` or `reply_pick.md` when someone puts one there to override it.
+ * viewer the bot talked with. The prompts are shared by every room (see PROMPT_FILES); a room
+ * only has its own when someone puts one there to override it.
  */
 export function roomFiles(dir: string): RoomFiles {
   mkdirSync(dir, { recursive: true });
   const files = {
     context: join(dir, 'context.md'),
-    autoReply: join(dir, 'auto_reply.md'),
-    songId: join(dir, 'song_id.md'),
-    songIdWeb: join(dir, 'song_id_web.md'),
-    giftThanks: join(dir, 'gift_thanks.md'),
-    songIntro: join(dir, 'song_intro.md'),
-    replyPick: join(dir, 'reply_pick.md'),
     botTalk: join(dir, 'bot_logs.md'),
     users: dir,
     config: join(dir, 'room_config.json'),
@@ -116,6 +98,45 @@ export function saveStreamer(
   } catch (err) {
     log.warn('could not write the streamer into room_config.json', { error: errorMessage(err) });
   }
+}
+
+/**
+ * The prompt files in chat-bot/, by what they're for. A room overrides one with a file of the same
+ * name in its folder, with `_` for `-`: `song-id.md` by `song_id.md`.
+ */
+export const PROMPT_FILES = {
+  mention: 'prompt.md',
+  wakeWord: 'auto-reply.md',
+  replyPick: 'reply-pick.md',
+  songId: 'song-id.md',
+  songIdWeb: 'song-id-web.md',
+  giftThanks: 'gift-thanks.md',
+  songIntro: 'song-intro.md',
+} as const;
+
+export type PromptName = keyof typeof PROMPT_FILES;
+
+/**
+ * The prompt `name`, read on every call so edits apply at once: the room's own file in `roomDir`
+ * when there is one, else the shared one in `packageDir` (or `sharedPath`, for a prompt the command
+ * line points elsewhere). Without `roomDir` the prompt has no room override. The shared file is read
+ * once now, so a missing one stops the bot at start; it's also the text used if the shared file
+ * can't be read later.
+ */
+export function livePrompt(
+  name: PromptName,
+  {
+    packageDir,
+    roomDir,
+    sharedPath,
+  }: { packageDir: string; roomDir?: string; sharedPath?: string },
+): () => string {
+  const file = PROMPT_FILES[name];
+  const shared = sharedPath ?? join(packageDir, file);
+  const first = readFileSync(shared, 'utf8');
+  const sharedText = liveText(shared, () => first);
+  if (!roomDir) return sharedText;
+  return liveText(join(roomDir, file.replaceAll('-', '_')), sharedText);
 }
 
 /**
