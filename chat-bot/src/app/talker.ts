@@ -15,7 +15,7 @@ export interface TalkerOptions {
   outbox: Pick<Outbox, 'push'>;
   /** The prompt (see buildPrompt for what it can fill in), read each time so edits apply at once. */
   promptTemplate: () => string;
-  /** Says how likely each new chat or sentence is about the bot. Without it, it only talks when asked. */
+  /** Says how likely each new chat or sentence is about the bot. Without it, it never talks unprompted. */
   judge?: Judge;
   /** Talk when something new is about the bot at least this likely; 1 or more never, without asking. */
   threshold: number;
@@ -28,24 +28,16 @@ export interface TalkerOptions {
   sleep?: (ms: number) => Promise<void>;
   /** How often it looks at what's new. */
   checkMs?: number;
-  /**
-   * How long it waits after something about the bot before talking, so the streamer can answer
-   * first; none by default, as picking whom to answer and answering take a while anyway.
-   */
-  reactionMs?: number;
   /** At least this long between two things it says unprompted, or after being asked to talk. */
   quietMs?: number;
-  /**
-   * Picks whom to answer (Codex, cheap): with it and `reply`, what's about the bot is answered
-   * through `reply`, to each one the picker picks, rather than with one message from `ask`.
-   */
-  picker?: AskClaude;
+  /** Picks whom to answer of what's about the bot (Codex, cheap). */
+  picker: AskClaude;
   /** The picker's prompt (see pickPrompt), read each time so edits apply at once. */
-  pickTemplate?: () => string;
+  pickTemplate: () => string;
   /** Answers one thing someone said to or about the bot, like a mention (ChatBot.replyUnprompted). */
-  reply?: (target: UnpromptedReply) => void;
+  reply: (target: UnpromptedReply) => void;
   /** Who the streamer is, so what they said can be answered as theirs; null while unknown. */
-  streamer?: () => Awaited<ReturnType<FindStreamer>>;
+  streamer: () => Awaited<ReturnType<FindStreamer>>;
 }
 
 /**
@@ -72,9 +64,8 @@ export const WOKEN = '主播说了唤醒词。';
  * streamer said and sang and the chat lately, and the video when there's a screenshot. Every
  * `checkMs` it asks the judge (Jev) whether anything new, chat or what the streamer said (without
  * the chat they read out), is about the bot; when something is at least `threshold` likely, it
- * waits `reactionMs` (none by default) and then has the picker choose whom to answer, each through
- * `reply`, or, without a picker, has Claude decide whether a reply is still needed and say it
- * (TALK_ANSWER_SCHEMA). It also talks whenever `talkNow` asks (the wake word).
+ * has the picker choose whom to answer, each through `reply`. It also talks whenever `talkNow` asks
+ * (the wake word).
  */
 export class Talker {
   /** Talk when something is about the bot at least this likely; 1 or more never. */
@@ -124,7 +115,7 @@ export class Talker {
    * goes to the picker, without the judge.
    */
   answered(userId: string): void {
-    const streamer = this.options.streamer?.();
+    const streamer = this.options.streamer();
     this.saidTo.set(userId === streamer?.uid ? STREAMER : userId, this.options.room.now());
   }
 
@@ -156,7 +147,7 @@ export class Talker {
 
   /** Asks the judge about what's new since it last looked, and talks if it's about the bot. */
   private async check(): Promise<void> {
-    const { judge, room, log, quietMs = 60_000, reactionMs = 0 } = this.options;
+    const { judge, room, log, quietMs = 60_000 } = this.options;
     const now = room.now();
     if (!judge || this.threshold >= 1) {
       this.seen = now;
@@ -169,9 +160,8 @@ export class Talker {
     const fresh = lines.filter((line) => line.candidate && line.ts > since && line.ts <= now);
     this.seen = now;
     if (!fresh.length) return;
-    const { picker, reply } = this.options;
     // What someone the bot just answered says goes to the picker as it is; the rest, to the judge.
-    const following = picker && reply ? fresh.filter((line) => this.followsUp(line)) : [];
+    const following = fresh.filter((line) => this.followsUp(line));
     const judged = await this.judge(
       lines,
       fresh.filter((line) => !following.includes(line)),
@@ -179,22 +169,20 @@ export class Talker {
     if (judged === null) return;
     const { about, best } = judged;
     if (!about.length && !following.length) return;
-    if (best && about.length) {
+    if (best) {
       log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });
     }
     if (following.length) {
       log.info('following up', { lines: following.map(({ who, text }) => ({ who, text })) });
     }
     this.talkedAt = now;
-    if (reactionMs > 0 && ((await this.wait(reactionMs)) === 'woken' || this.stopped)) return;
-    if (picker && reply) await this.pickAndReply(since, [...about, ...following], picker, reply);
-    else if (best) await this.say('talk', followUp(best.line));
+    await this.pickAndReply(since, [...about, ...following]);
     this.talkedAt = room.now();
   }
 
   /**
    * Asks the judge whether each of `fresh` is about the bot: those at least `threshold` likely, and
-   * the likeliest; null when the judge failed.
+   * the likeliest of them (for the log); null when the judge failed.
    */
   private async judge(
     lines: readonly RoomLine[],
@@ -226,7 +214,7 @@ export class Talker {
 
   /** Whether `line` was said by someone within FOLLOW_UP_MS of the bot saying something to them. */
   private followsUp(line: RoomLine): boolean {
-    const streamer = this.options.streamer?.();
+    const streamer = this.options.streamer();
     const who =
       line.who === STREAMER && line.userId === undefined
         ? STREAMER
@@ -242,15 +230,9 @@ export class Talker {
    * room had time to react, so some may need no answer any more), and answers each through
    * `reply`, as the chatter's or (said on the stream) the streamer's.
    */
-  private async pickAndReply(
-    since: number,
-    about: readonly RoomLine[],
-    picker: AskClaude,
-    reply: (target: UnpromptedReply) => void,
-  ): Promise<void> {
-    const { room, log, pickTemplate, streamer: findStreamer } = this.options;
-    if (!pickTemplate) return;
-    const streamer = findStreamer?.() ?? null;
+  private async pickAndReply(since: number, about: readonly RoomLine[]): Promise<void> {
+    const { room, log, picker, pickTemplate, reply } = this.options;
+    const streamer = this.options.streamer();
     const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName).slice(
       -PICK_LINES,
     );
@@ -361,9 +343,4 @@ export class Talker {
       return null;
     }
   }
-}
-
-/** Why it talks when someone talked about it (auto-reply.md says what to do then). */
-function followUp(line: RoomLine): string {
-  return `有人说到你：${line.who} 说「${line.text}」。`;
 }

@@ -42,6 +42,10 @@ function setup(rounds: (() => void)[], options: Partial<TalkerOptions> = {}) {
     promptTemplate: () => '{{question}}|{{transcript}}',
     judge: judgeByWord(judged),
     threshold: 0.6,
+    picker: () => Promise.resolve(JSON.stringify({ picks: [] })),
+    pickTemplate: () => '{{lines}}',
+    reply: () => {},
+    streamer: () => null,
     room: fakeRoom({ history, transcript, now: () => now }),
     log: silentLog,
     sleep: (ms) => {
@@ -58,45 +62,6 @@ function setup(rounds: (() => void)[], options: Partial<TalkerOptions> = {}) {
   const say = (text: string) => transcript.add({ start: now - 2000, end: now, text, speech: 0.8 });
   return { talker, prompts, sent, judged, answers, chat, say };
 }
-
-test('asks Jev about what is new, waits for the room to react, then talks, and keeps quiet a while', async () => {
-  const rounds = [
-    () => chat('阿明', '今晚吃火锅'),
-    () => chat('小红', '这机器人好笨啊'),
-    // While it waits, the streamer reads it out and laughs.
-    () => say('这机器人好笨啊哈哈哈'),
-    // Too soon after it talked: looked at only once it has kept quiet a minute.
-    () => chat('阿明', '机器人你几岁'),
-    () => {},
-    () => {},
-    () => {},
-  ];
-  const { talker, prompts, sent, judged, answers, chat, say } = setup(rounds, {
-    reactionMs: 10_000,
-  });
-  answers.push(JSON.stringify({ reply: true, message: '我才不笨，我只是在省电' }));
-  answers.push(JSON.stringify({ reply: true, message: '我刚出生两天' }));
-  await talker.run();
-
-  expect(judged).toEqual([
-    '(1) 00:00:20 [阿明] 今晚吃火锅',
-    '(1) 00:00:40 [小红] 这机器人好笨啊',
-    '(1) 00:01:10 [阿明] 机器人你几岁',
-  ]);
-  expect(prompts[0]).toBe('有人说到你：小红 说「这机器人好笨啊」。|00:00:48 这机器人好笨啊哈哈哈');
-  expect(sent).toEqual([
-    { kind: 'talk', text: '我才不笨，我只是在省电' },
-    { kind: 'talk', text: '我刚出生两天' },
-  ]);
-});
-
-test('says nothing when, seeing how the room took it, there is no need to', async () => {
-  const { talker, sent, answers, chat } = setup([() => chat('小红', '机器人你几岁了'), () => {}]);
-  answers.push(JSON.stringify({ reply: false, message: '' }));
-  await talker.run();
-
-  expect(sent).toEqual([]);
-});
 
 test('asks Jev nothing at a threshold of 1 or more, until /自动回复阈值 lowers it', async () => {
   const rounds = [
@@ -158,8 +123,8 @@ test('with a picker, answers what it is sure enough of like a mention, surest fi
       () => {
         chat('阿明', '今晚吃火锅', 'u-阿明');
         chat('小红', '机器人你几岁了', 'u-小红');
+        say('机器人你也说两句');
       },
-      () => say('机器人你也说两句'),
     ],
     {
       picker: ({ prompt }) => {
@@ -179,14 +144,13 @@ test('with a picker, answers what it is sure enough of like a mention, surest fi
       pickTemplate: () => '{{botName}}\n{{lines}}',
       reply: (target) => void replies.push(target),
       streamer: () => ({ uid: 's-1', nickname: '虾虾' }),
-      reactionMs: 10_000,
     },
   );
   await talker.run();
 
   expect(picks[0]).toContain('(1)  00:00:20 [阿明] 今晚吃火锅');
   expect(picks[0]).toContain('(2)★ 00:00:20 [小红] 机器人你几岁了');
-  expect(picks[0]).toContain('(3)  00:00:30 [主播] 机器人你也说两句');
+  expect(picks[0]).toContain('(3)★ 00:00:20 [主播] 机器人你也说两句');
   expect(replies).toEqual([
     { nickname: '小红', userId: 'u-小红', question: '机器人你几岁了', heard: 'chat' },
     { nickname: '虾虾', userId: 's-1', question: '机器人你也说两句', heard: 'speech' },
@@ -198,7 +162,12 @@ test('the picker may answer nobody, and gets no streamer line while the streamer
   const picks: string[] = [];
   const replies: UnpromptedReply[] = [];
   const { talker, chat, say } = setup(
-    [() => chat('小红', '机器人你几岁了', 'u-小红'), () => say('机器人你也说两句')],
+    [
+      () => {
+        chat('小红', '机器人你几岁了', 'u-小红');
+        say('机器人你也说两句');
+      },
+    ],
     {
       picker: ({ prompt }) => {
         picks.push(prompt);
@@ -207,17 +176,16 @@ test('the picker may answer nobody, and gets no streamer line while the streamer
       pickTemplate: () => '{{lines}}',
       reply: (target) => void replies.push(target),
       streamer: () => null,
-      reactionMs: 10_000,
     },
   );
   await talker.run();
 
-  expect(picks[0]).toContain('     00:00:30 [主播] 机器人你也说两句');
+  expect(picks[0]).toContain('     00:00:20 [主播] 机器人你也说两句');
   expect(picks[0]).not.toContain('(2)');
   expect(replies).toEqual([]);
 });
 
-test('by default, picks whom to answer at once, without waiting for the room to react', async () => {
+test('picks whom to answer as soon as something is about the bot', async () => {
   const replies: UnpromptedReply[] = [];
   let picked = 0;
   const { talker, chat } = setup([() => chat('小红', '机器人你几岁了', 'u-小红')], {

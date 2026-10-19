@@ -30,6 +30,7 @@ import { wakeWordFile } from './adapters/wake-word-file';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
 import { AutoSongId } from './app/auto-song-id';
+import type { AskClaude } from './app/ports';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { GiftThanker } from './app/gift-thanker';
@@ -161,20 +162,25 @@ const admins = new StreamerAdmin({
 admins.start();
 // Joins in, from the room's auto_reply.md, when Jev (with JEV_API_KEY from chat-bot/.env) scores
 // something said in the room as about the bot at --auto-reply-threshold or more (/自动回复阈值 changes
-// it); and talks when the streamer says the wake word.
+// it); and talks when the streamer says the wake word. Both Jev and Codex (which picks whom to
+// answer) are needed to join in; without either, only the wake word makes it talk.
 const jevKey = process.env.JEV_API_KEY;
 if (!jevKey)
   log.warn('no JEV_API_KEY in chat-bot/.env: the bot only talks unprompted on the wake word');
+if (!options.codex)
+  log.warn('--codex is empty: auto-reply is off, the bot only talks on the wake word');
 // Codex reads its working directory, so it gets an empty one.
 const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 // Once Jev finds something about the bot, Codex (the cheap model, no web search) picks whom to
 // answer, and each is answered like a mention (charged, with their own talk.txt; the streamer's
-// too, by their uid). Without Codex, Claude says one message from auto-reply.md instead.
+// too, by their uid).
+// Never asked: without Codex there's no judge either.
+const noPicker: AskClaude = () => Promise.reject(new Error('--codex is empty'));
 const talker = new Talker({
   ask,
   outbox,
   promptTemplate: prompt('wakeWord', resolve(options.autoReplyPromptFile)),
-  judge: jevKey ? jev({ apiKey: jevKey }) : undefined,
+  judge: jevKey && options.codex ? jev({ apiKey: jevKey }) : undefined,
   threshold: options.talkThreshold,
   room,
   maxLength: options.maxReplyLength,
@@ -188,7 +194,7 @@ const talker = new Talker({
         cwd: emptyDir,
         systemPrompt: options.systemPrompt,
       })
-    : undefined,
+    : noPicker,
   pickTemplate: prompt('replyPick'),
   reply: (target) => bot.replyUnprompted(target),
   streamer: () => admins.current(),
