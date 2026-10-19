@@ -1,3 +1,5 @@
+import { parseJsonObject } from './json-answer';
+
 /** What the model says after a song was named: up to two messages, sent in order; none for nothing. */
 export interface SongIntroAnswer {
   messages: string[];
@@ -23,13 +25,7 @@ export const SONG_INTRO_SCHEMA = {
 
 /** `text` as a SongIntroAnswer, or null when it isn't one (the model ignored the schema). */
 export function parseSongIntro(text: string): SongIntroAnswer | null {
-  let answer: { messages?: unknown };
-  try {
-    answer = JSON.parse(text) as typeof answer;
-  } catch {
-    return null;
-  }
-  const messages = answer?.messages;
+  const messages = parseJsonObject(text)?.messages;
   if (!Array.isArray(messages) || !messages.every((m) => typeof m === 'string')) return null;
   return { messages: messages.slice(0, SONG_INTRO_MAX) };
 }

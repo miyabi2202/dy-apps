@@ -240,7 +240,7 @@ export class AutoReply {
       lines: text,
       botName: room.botName,
       persona: room.persona,
-      botTalk: room.promptInput().botTalk ?? '',
+      botTalk: room.botTalk(),
     });
     let answer: string;
     try {

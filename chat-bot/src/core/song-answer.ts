@@ -1,3 +1,5 @@
+import { parseJsonObject } from './json-answer';
+
 /** What a model answers `/识歌` with: the message to send, and the song when it named one. */
 export interface SongAnswer {
   message: string;
@@ -26,13 +28,9 @@ export const SONG_ANSWER_SCHEMA = {
 
 /** `text` as a SongAnswer, or null when it isn't one (the model ignored the schema). */
 export function parseSongAnswer(text: string): SongAnswer | null {
-  let answer: Partial<Record<keyof SongAnswer, unknown>>;
-  try {
-    answer = JSON.parse(text) as typeof answer;
-  } catch {
-    return null;
-  }
-  const { message, title = '', artist = '', sure = false } = answer ?? {};
+  const answer = parseJsonObject(text);
+  if (!answer) return null;
+  const { message, title = '', artist = '', sure = false } = answer;
   if (typeof message !== 'string' || typeof title !== 'string' || typeof artist !== 'string') {
     return null;
   }

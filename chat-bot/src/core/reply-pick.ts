@@ -1,3 +1,4 @@
+import { parseJsonObject } from './json-answer';
 import { clock } from './local-time';
 import { readMark } from './reading';
 import type { RoomLine } from './relevance';
@@ -36,13 +37,7 @@ export const REPLY_PICK_SCHEMA = {
 
 /** `text` as the picker's picks, or null when it isn't one (the model ignored the schema). */
 export function parseReplyPick(text: string): Pick[] | null {
-  let answer: { picks?: unknown };
-  try {
-    answer = JSON.parse(text) as typeof answer;
-  } catch {
-    return null;
-  }
-  const picks = answer?.picks;
+  const picks = parseJsonObject(text)?.picks;
   if (!Array.isArray(picks)) return null;
   const valid = (p: unknown): p is Pick =>
     typeof p === 'object' &&

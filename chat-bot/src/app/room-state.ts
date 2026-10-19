@@ -76,6 +76,11 @@ export class RoomState {
     return transcript?.recent(transcriptMs) ?? [];
   }
 
+  /** What the bot said in the room lately, one message a line; empty when it said nothing. */
+  botTalk(): string {
+    return this.options.botTalk?.recent() ?? '';
+  }
+
   /** The room's part of a prompt (see buildPrompt), as it is now. */
   promptInput(): RoomPromptInput {
     const { chatDir, context, intro, botTalk, settings, commands } = this.options;

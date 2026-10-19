@@ -1,3 +1,5 @@
+import { parseJsonObject } from './json-answer';
+
 /** What the model answers when the bot may talk unprompted: whether to, and what. */
 export interface TalkAnswer {
   /** False when there's no need to say anything (someone answered already, the talk moved on). */
@@ -19,13 +21,9 @@ export const TALK_ANSWER_SCHEMA = {
 
 /** `text` as a TalkAnswer, or null when it isn't one (the model ignored the schema). */
 export function parseTalkAnswer(text: string): TalkAnswer | null {
-  let answer: Partial<Record<keyof TalkAnswer, unknown>>;
-  try {
-    answer = JSON.parse(text) as typeof answer;
-  } catch {
-    return null;
-  }
-  const { reply, message } = answer ?? {};
+  const answer = parseJsonObject(text);
+  if (!answer) return null;
+  const { reply, message } = answer;
   if (typeof reply !== 'boolean' || typeof message !== 'string') return null;
   return { reply, message };
 }

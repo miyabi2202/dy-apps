@@ -1,3 +1,5 @@
+import { parseJsonObject } from './json-answer';
+
 /** What Claude answers a mention (or something said to it) with, from prompt.md. */
 export interface MentionAnswer {
   /** The reply to send. */
@@ -32,13 +34,9 @@ export const MENTION_ANSWER_SCHEMA = {
  * taken as the message itself.
  */
 export function parseMentionAnswer(text: string): MentionAnswer {
-  let answer: Record<string, unknown>;
-  try {
-    answer = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    return { message: text, command: '', args: '' };
-  }
-  const { message, command_request: command, command_args: args } = answer ?? {};
+  const answer = parseJsonObject(text);
+  if (!answer) return { message: text, command: '', args: '' };
+  const { message, command_request: command, command_args: args } = answer;
   if (typeof message !== 'string') return { message: text, command: '', args: '' };
   return {
     message,
