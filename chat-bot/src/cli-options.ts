@@ -10,7 +10,7 @@ export const USAGE =
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
-  '       [--auto-reply-prompt auto-reply.md] [--thanks-threshold 99999] [--wake-words wake-words.json]\n' +
+  '       [--wake-word-prompt wake-word.md] [--thanks-threshold 99999] [--wake-words wake-words.json]\n' +
   '       [--codex gpt-6-luna] [--auto-song-id]';
 
 /** The command line, checked and converted; see the README for what each option does. */
@@ -39,7 +39,7 @@ export interface CliOptions {
   configFile: string;
   /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
   autoReplyThreshold: number;
-  autoReplyPromptFile: string;
+  wakeWordPromptFile: string;
   /** Thank a viewer whose gifts in 5 minutes come to more than this many diamonds. */
   thanksThreshold: number;
   /** Each room's wake word, and the default one, which /设置唤醒词 writes to. */
@@ -91,7 +91,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       // Jev's score at which the bot joins in when someone talks about it: 1, off, by default;
       // /自动回复阈值 0.6 turns it on while the bot runs.
       'auto-reply-threshold': { type: 'string', default: '1' },
-      'auto-reply-prompt': { type: 'string', default: join(packageDir, 'auto-reply.md') },
+      'wake-word-prompt': { type: 'string', default: join(packageDir, 'wake-word.md') },
       // So high it's off by default; /自动谢礼 lowers it while the bot runs.
       'thanks-threshold': { type: 'string', default: '99999' },
       'wake-words': { type: 'string', default: join(packageDir, 'wake-words.json') },
@@ -127,7 +127,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     dataDir: values.data,
     configFile: values.config,
     autoReplyThreshold: Number(values['auto-reply-threshold']),
-    autoReplyPromptFile: values['auto-reply-prompt'],
+    wakeWordPromptFile: values['wake-word-prompt'],
     thanksThreshold: Number(values['thanks-threshold']),
     wakeWordsFile: values['wake-words'],
     codex: values.codex,

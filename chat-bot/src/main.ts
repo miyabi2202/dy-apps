@@ -161,7 +161,7 @@ const admins = new StreamerAdmin({
   log,
 });
 admins.start();
-// Joins in, from the room's auto_reply.md, when Jev (with JEV_API_KEY from chat-bot/.env) scores
+// Joins in when Jev (with JEV_API_KEY from chat-bot/.env) scores
 // something said in the room as about the bot at --auto-reply-threshold or more (/自动回复阈值 changes
 // it); and talks when the streamer says the wake word. Both Jev and Codex (which picks whom to
 // answer) are needed to join in; without either, only the wake word makes it talk.
@@ -267,7 +267,7 @@ const songId = new SongId({
 const talkNow = new TalkNow({
   ask,
   outbox,
-  promptTemplate: prompt('wakeWord', resolve(options.autoReplyPromptFile)),
+  promptTemplate: prompt('wakeWord', resolve(options.wakeWordPromptFile)),
   room,
   maxLength: options.maxReplyLength,
   log,

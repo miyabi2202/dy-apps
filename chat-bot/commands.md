@@ -4,7 +4,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 ## The commands
 
-<!-- prompt.md and auto-reply.md get this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
+<!-- prompt.md and wake-word.md get this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
 
 | Command                     | What it does                                       | Admins only | Default     |
 | --------------------------- | -------------------------------------------------- | ----------- | ----------- |
@@ -77,7 +77,7 @@ Thanks a viewer, with an @ from `gift-thanks.md`, when their gifts within 5 minu
 
 ### /设置唤醒词
 
-Sets this room's wake word: when the streamer says it (spoken, not sung, and not by a linked-up guest), the bot says one thing to the streamer now from `auto-reply.md`, for free, and then ignores it for a minute. It's matched by sound, so 我想吃余了 counts for 我想吃鱼了. It's saved in `wake-words.json` under the room id, so it lasts across runs; rooms without their own use `default` (`我想吃鱼了`). Set a room's to `""` in that file to turn it off there.
+Sets this room's wake word: when the streamer says it (spoken, not sung, and not by a linked-up guest), the bot says one thing to the streamer now from `wake-word.md`, for free, and then ignores it for a minute. It's matched by sound, so 我想吃余了 counts for 我想吃鱼了. It's saved in `wake-words.json` under the room id, so it lasts across runs; rooms without their own use `default` (`我想吃鱼了`). Set a room's to `""` in that file to turn it off there.
 
 ```text
 @默认关闭 /设置唤醒词 小猫饿了

@@ -106,7 +106,7 @@ export function saveStreamer(
  */
 export const PROMPT_FILES = {
   mention: 'prompt.md',
-  wakeWord: 'auto-reply.md',
+  wakeWord: 'wake-word.md',
   replyPick: 'reply-pick.md',
   songId: 'song-id.md',
   songIdWeb: 'song-id-web.md',
