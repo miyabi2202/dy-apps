@@ -24,10 +24,9 @@ export interface SongIntroOptions {
 const MAX_TURNS = 8;
 
 /**
- * After a song was named (by /识歌 or on its own), says two more messages to the room: one about
- * the song, from what Claude finds searching for it, then one praising the streamer's singing,
- * from what they sang. One prompt writes both, so they don't repeat each other. When nothing
- * was found about the song, neither is said.
+ * After a song was named (by /识歌 or on its own), lets Claude say up to two more messages to the
+ * room, whatever it likes (something it finds searching for the song, a word on how the streamer
+ * sang it, a joke) or nothing, so it doesn't fall into one pattern song after song.
  */
 export class SongIntro {
   constructor(private readonly options: SongIntroOptions) {}
@@ -54,10 +53,8 @@ export class SongIntro {
         log.warn('song intro answer is not json', { text });
         return;
       }
-      log.info('song intro', { title, ...answer });
-      // Without anything found about the song, nothing is said, praise included.
-      if (!plainMessage(answer.intro, maxLength)) return;
-      for (const message of [answer.intro, answer.praise]) {
+      log.info('song intro', { title, messages: answer.messages });
+      for (const message of answer.messages) {
         const said = plainMessage(message, maxLength);
         if (said) outbox.push({ kind: 'talk', text: said });
       }

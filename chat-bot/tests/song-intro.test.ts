@@ -34,9 +34,9 @@ function setUp(answer: string) {
   return { intro, asked, pushed };
 }
 
-test('says the intro, then the praise, from one search-backed answer', async () => {
+test('says what it chose to, in order, from one answer that may search', async () => {
   const { intro, asked, pushed } = setUp(
-    JSON.stringify({ intro: '这首是 2008 年的歌', praise: '「给你幸福的是我」这句好温柔' }),
+    JSON.stringify({ messages: ['这首是 2008 年的歌', '「给你幸福的是我」这句好温柔'] }),
   );
   await intro.introduce({ title: '安静', artist: '朱丽静、陈世安' });
 
@@ -47,14 +47,14 @@ test('says the intro, then the praise, from one search-backed answer', async () 
   expect(asked[0]!.prompt).not.toContain('谁在唱');
 });
 
-test('says nothing without an intro, nor for an answer that is not json', async () => {
-  const empty = setUp(JSON.stringify({ intro: '', praise: '高音好稳' }));
-  await empty.intro.introduce({ title: '安静', artist: '' });
-  expect(empty.pushed).toEqual([]);
+test('may say nothing, says no more than two, and nothing for an answer that is not json', async () => {
+  const none = setUp(JSON.stringify({ messages: [] }));
+  await none.intro.introduce({ title: '安静', artist: '' });
+  expect(none.pushed).toEqual([]);
 
-  const noPraise = setUp(JSON.stringify({ intro: '这首是 2008 年的歌', praise: '' }));
-  await noPraise.intro.introduce({ title: '安静', artist: '' });
-  expect(noPraise.pushed).toEqual(['这首是 2008 年的歌']);
+  const many = setUp(JSON.stringify({ messages: ['一', '二', '三'] }));
+  await many.intro.introduce({ title: '安静', artist: '' });
+  expect(many.pushed).toEqual(['一', '二']);
 
   const broken = setUp('这首歌很好听');
   await broken.intro.introduce({ title: '安静', artist: '' });

@@ -1,31 +1,35 @@
-/** What the model answers after a song was named: two messages, sent in this order. */
+/** What the model says after a song was named: up to two messages, sent in order; none for nothing. */
 export interface SongIntroAnswer {
-  /** About the song, from what it found; empty to say nothing. */
-  intro: string;
-  /** Praise for the streamer's singing; empty to say nothing. */
-  praise: string;
+  messages: string[];
 }
+
+/** The most messages it may say. */
+export const SONG_INTRO_MAX = 2;
 
 /** The JSON Schema SongIntroAnswer follows (strict: every field required, no others). */
 export const SONG_INTRO_SCHEMA = {
   type: 'object',
   properties: {
-    intro: { type: 'string', description: '介绍这首歌的那条弹幕，不发就是空字符串' },
-    praise: { type: 'string', description: '夸主播唱得好的那条弹幕，不发就是空字符串' },
+    messages: {
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: SONG_INTRO_MAX,
+      description: '要发到直播间的弹幕，按顺序发；不说就是空数组',
+    },
   },
-  required: ['intro', 'praise'],
+  required: ['messages'],
   additionalProperties: false,
 } as const;
 
 /** `text` as a SongIntroAnswer, or null when it isn't one (the model ignored the schema). */
 export function parseSongIntro(text: string): SongIntroAnswer | null {
-  let answer: Partial<Record<keyof SongIntroAnswer, unknown>>;
+  let answer: { messages?: unknown };
   try {
     answer = JSON.parse(text) as typeof answer;
   } catch {
     return null;
   }
-  const { intro, praise } = answer ?? {};
-  if (typeof intro !== 'string' || typeof praise !== 'string') return null;
-  return { intro, praise };
+  const messages = answer?.messages;
+  if (!Array.isArray(messages) || !messages.every((m) => typeof m === 'string')) return null;
+  return { messages: messages.slice(0, SONG_INTRO_MAX) };
 }
