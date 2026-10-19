@@ -15,6 +15,7 @@ import { codexCli } from './adapters/codex-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
+import { loadAdditionalCommands } from './adapters/additional-command-files';
 import { readDownloads, runDownloads } from './adapters/room-downloads';
 import {
   liveRoomConfig,
@@ -89,9 +90,14 @@ const context = liveText(files.context);
 const intro = liveText(join(packageDir, 'intro.md'));
 // The room's room_config.json, read again when it changes: whether it's a 私密 room.
 const roomConfig = liveRoomConfig(files.config, { log });
-// On entering the room, fetches room_config.json's download list into data/<房间号>/artifacts/,
-// in the background: a slow or failed download doesn't hold up the bot.
-void runDownloads(readDownloads(files.config, { log }), join(roomDir, 'artifacts'), { log });
+// On entering the room, fetches room_config.json's download list into data/<房间号>/artifacts/
+// (each through its transformer script, if it has one), in the background: a slow or failed
+// download doesn't hold up the bot.
+void runDownloads(readDownloads(files.config, { log }), roomDir, { log });
+// The room's own commands, listed in data/<房间号>/additional_commands/index.md (主播会唱xxx吗):
+// answered when a mention asks for one, or auto-reply finds what someone said is for one.
+const additionalCommands = loadAdditionalCommands(roomDir, { log });
+const commandsSection = liveSection(join(packageDir, 'commands.md'), 'The commands');
 const botTalk = botTalkFile(files.botTalk);
 const userTalk = userTalkFiles(files.users);
 const transcriber = options.asr
@@ -162,7 +168,17 @@ const room = new RoomState({
     wakeWord: wakeWords.get(),
     autoSongId: autoSongId?.on ?? false,
   }),
-  commands: liveSection(join(packageDir, 'commands.md'), 'The commands'),
+  // commands.md's list, and the room's own commands, which Claude asks for by name.
+  commands: () =>
+    additionalCommands.length
+      ? [
+          commandsSection(),
+          '',
+          '### 这个直播间自己的指令（不用打 /：观众问到这类问题，就在 command_request 写指令名，command_args 留空，程序会用它专门的资料回答）',
+          '',
+          ...additionalCommands.map(({ id, name, when }) => `- ${id}（${name}）：${when}`),
+        ].join('\n')
+      : commandsSection(),
   log,
 });
 // The admins from config.json (read again when it changes, so admins can be added or removed while
@@ -222,6 +238,7 @@ const autoReply = new AutoReply({
   pickTemplate: prompt('replyPick'),
   reply: (target) => bot.replyUnprompted(target),
   streamer: () => admins.current(),
+  additionalCommands,
 });
 // Thanks a viewer whose gifts in 5 minutes pass --thanks-threshold (changed with /自动谢礼).
 const thanker = new GiftThanker({
@@ -327,6 +344,7 @@ const bot: ChatBot = new ChatBot({
   billing,
   admins,
   adminNames: config.adminNames,
+  additionalCommands,
   commands: [
     personaCommand(room),
     ...billing.commands(),

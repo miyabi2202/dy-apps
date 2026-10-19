@@ -61,13 +61,16 @@ export interface RelevanceRequest {
 /**
  * Asks, of each of `fresh`, whether it's about the bot: said to it, about it (even as 它), or
  * picking up what it said. The bot isn't called an AI, so talk of AI songs or other AIs isn't
- * taken for it; `persona` gives the names viewers may call it by.
+ * taken for it; `persona` gives the names viewers may call it by. And, as `q<n>t<m>`, whether it's
+ * what the room's m-th own command is for (`topics`, each its `when`: 在问主播会不会唱某首歌…),
+ * which the bot answers too.
  */
 export function relevanceRequest(
   before: readonly RoomLine[],
   fresh: readonly RoomLine[],
   botName: string,
   persona: string,
+  topics: readonly string[] = [],
 ): RelevanceRequest {
   const line = (l: RoomLine) => `${clock(l.ts)} [${l.who}] ${l.text}`;
   const state = [
@@ -80,9 +83,15 @@ export function relevanceRequest(
     ...fresh.map((l, i) => `(${i + 1}) ${line(l)}`),
   ].join('\n');
   const questions = Object.fromEntries(
-    fresh.map((_, i) => [
-      `q${i + 1}`,
-      `新内容第 (${i + 1}) 条和这个聊天机器人有关吗：在对它说话、评论或介绍它（哪怕只用「它/他」指它）、或在接它刚才的话？说到 AI 不一定是指它：AI 歌曲、AI 翻唱、豆包之类别的 AI 都不算，要看上下文。观众之间聊天、对主播说话、主播聊别的，都不算。`,
+    fresh.flatMap((_, i): [string, string][] => [
+      [
+        `q${i + 1}`,
+        `新内容第 (${i + 1}) 条和这个聊天机器人有关吗：在对它说话、评论或介绍它（哪怕只用「它/他」指它）、或在接它刚才的话？说到 AI 不一定是指它：AI 歌曲、AI 翻唱、豆包之类别的 AI 都不算，要看上下文。观众之间聊天、对主播说话、主播聊别的，都不算。`,
+      ],
+      ...topics.map((when, j): [string, string] => [
+        `q${i + 1}t${j + 1}`,
+        `新内容第 (${i + 1}) 条是不是${when}？`,
+      ]),
     ]),
   );
   return { state, questions };

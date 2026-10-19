@@ -41,6 +41,8 @@ export interface UnpromptedReply {
   question: string;
   /** In the chat, or (the streamer) on the stream. */
   heard: Heard;
+  /** The room's own command to answer it with (AdditionalCommand's id); the usual prompt without. */
+  command?: string;
 }
 
 /** Gives `mention`'s price back to whoever paid it, if anything was paid. */

@@ -117,3 +117,21 @@ export type SpawnWorker = (
   url: string,
   handlers: { onLine: (line: string) => void; onLog: (line: string) => void },
 ) => Worker;
+
+/**
+ * A room's own command, from its `additional_commands/index.md` (see AdditionalCommandEntry):
+ * asked for in so many words, or picked for what someone said without an @, it's answered with
+ * its own prompt, like a mention.
+ */
+export interface AdditionalCommand {
+  /** Its file's name without `.md`, which the picker and Claude call it by: can-sing. */
+  id: string;
+  /** What it's for, as viewers would say it: 主播会唱xxx吗. */
+  name: string;
+  /** When to use it: 在问主播会不会唱某首歌…. */
+  when: string;
+  /** What's said that's surely for it, even when the judge doesn't think so; null for none. */
+  trigger: RegExp | null;
+  /** The prompt, its song list filled in, read each time so edits apply at once. */
+  prompt: () => string;
+}

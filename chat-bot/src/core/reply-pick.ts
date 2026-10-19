@@ -8,6 +8,8 @@ export interface Pick {
   line: number;
   /** 0–1: how sure the bot should answer it now. */
   confidence: number;
+  /** The room's own command to answer it with (its id, can-sing); empty for the usual answer. */
+  command: string;
 }
 
 /** The JSON Schema the picker answers in (strict: every field required, no others). */
@@ -24,8 +26,12 @@ export const REPLY_PICK_SCHEMA = {
             type: 'number',
             description: '0 到 1，有多确定机器人现在应该回复这一条',
           },
+          command: {
+            type: 'string',
+            description: '用哪个指令回答（指令名，比如 can-sing）；照常回答就是空字符串',
+          },
         },
-        required: ['line', 'confidence'],
+        required: ['line', 'confidence', 'command'],
         additionalProperties: false,
       },
       description: '每一条带编号的都打一个分',
@@ -39,12 +45,17 @@ export const REPLY_PICK_SCHEMA = {
 export function parseReplyPick(text: string): Pick[] | null {
   const picks = parseJsonObject(text)?.picks;
   if (!Array.isArray(picks)) return null;
-  const valid = (p: unknown): p is Pick =>
+  const valid = (p: unknown): p is Omit<Pick, 'command'> & { command?: unknown } =>
     typeof p === 'object' &&
     p !== null &&
     Number.isInteger((p as Pick).line) &&
     typeof (p as Pick).confidence === 'number';
-  return picks.every(valid) ? picks : null;
+  if (!picks.every(valid)) return null;
+  return picks.map(({ line, confidence, command }) => ({
+    line,
+    confidence,
+    command: typeof command === 'string' ? command.trim() : '',
+  }));
 }
 
 /**
@@ -68,13 +79,32 @@ export function pickLines(
   return { text, numbered };
 }
 
-/** The picker's prompt's `{{key}}`s: the lines, the bot's name and persona, what it said lately. */
+/**
+ * The picker's prompt's `{{key}}`s: the lines, the bot's name and persona, what it said lately, and
+ * `{{commands}}`, what the room's own commands answer, without an @ too (empty for none).
+ */
 export function pickPrompt(
   template: string,
-  values: { lines: string; botName: string; persona: string; botTalk: string },
+  values: {
+    lines: string;
+    botName: string;
+    persona: string;
+    botTalk: string;
+    commands?: readonly { id: string; when: string }[];
+  },
 ): string {
+  const { commands = [], ...rest } = values;
   const all: Record<string, string> = {
-    ...values,
+    ...rest,
+    commands: commands.length
+      ? [
+          '除了跟它说话的，下面这些问题它也会回答，哪怕不是在跟它说话、也没提到它（每种用一个指令回答）：',
+          '',
+          ...commands.map(({ id, when }) => `- ${id}：${when}`),
+          '',
+          '这种也打分，`command` 写那个指令名：问得清楚，后面主播和别的观众都还没回答（主播没说会不会，也没开始唱），给 0.8～1；拿不准是不是在问，给 0.3～0.5；已经有人回答了、主播已经在回应或开唱了、是主播自己在说，或者同一个问题机器人刚回答过，给 0～0.2。别的 `command` 都写空字符串。',
+        ].join('\n')
+      : '',
     persona: values.persona ? `它的人设：${values.persona}。` : '',
     botTalk: values.botTalk.trim() || '（暂无）',
     readMark: readMark('某人'),

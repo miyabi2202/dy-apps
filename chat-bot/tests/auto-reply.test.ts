@@ -314,3 +314,69 @@ test('answers at most 3 at once, the surest first', async () => {
 
   expect(replies.map((r) => r.nickname)).toEqual(['戊', '丁', '丙']);
 });
+
+test("what one of the room's own commands is for goes to the picker, which may answer it with that command", async () => {
+  const questions: Record<string, string>[] = [];
+  const picks: string[] = [];
+  const replies: UnpromptedReply[] = [];
+  const { autoReply, chat } = setup(
+    [
+      () => {
+        chat('阿明', '虾虾唱一首晴天吧', 'u-阿明');
+        chat('小红', '会唱孤勇者吗', 'u-小红');
+        chat('小蓝', '今晚吃火锅', 'u-小蓝');
+      },
+    ],
+    {
+      // Jev finds the first is for the command; the second only matches its trigger.
+      judge: (_, asked) => {
+        questions.push(asked);
+        return Promise.resolve({
+          ...Object.fromEntries(Object.keys(asked).map((k) => [k, 0.1])),
+          q1t1: 0.8,
+        });
+      },
+      picker: ({ prompt }) => {
+        picks.push(prompt);
+        return Promise.resolve(
+          JSON.stringify({
+            picks: [
+              { line: 1, confidence: 0.8, command: 'can-sing' },
+              { line: 2, confidence: 0.9, command: 'can-sing' },
+              { line: 3, confidence: 0.7, command: 'no-such' },
+            ],
+          }),
+        );
+      },
+      pickTemplate: () => '{{lines}}\n{{commands}}',
+      reply: (target) => void replies.push(target),
+      streamer: () => null,
+      additionalCommands: [{ id: 'can-sing', when: '在问主播会不会唱某首歌', trigger: /会唱/ }],
+    },
+  );
+  await autoReply.run();
+
+  expect(questions[0]!.q2t1).toBe('新内容第 (2) 条是不是在问主播会不会唱某首歌？');
+  expect(picks[0]).toContain('(1)★ 00:00:20 [阿明] 虾虾唱一首晴天吧');
+  expect(picks[0]).toContain('(2)★ 00:00:20 [小红] 会唱孤勇者吗');
+  expect(picks[0]).toContain('(3)  00:00:20 [小蓝] 今晚吃火锅');
+  expect(picks[0]).toContain('- can-sing：在问主播会不会唱某首歌');
+  expect(replies).toEqual([
+    {
+      nickname: '小红',
+      userId: 'u-小红',
+      question: '会唱孤勇者吗',
+      heard: 'chat',
+      command: 'can-sing',
+    },
+    {
+      nickname: '阿明',
+      userId: 'u-阿明',
+      question: '虾虾唱一首晴天吧',
+      heard: 'chat',
+      command: 'can-sing',
+    },
+    // A command the room doesn't have: answered as usual.
+    { nickname: '小蓝', userId: 'u-小蓝', question: '今晚吃火锅', heard: 'chat' },
+  ]);
+});

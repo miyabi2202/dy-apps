@@ -3,7 +3,10 @@ import { parseReplyPick, pickLines } from '../src/core/reply-pick';
 
 test('reads the picks, and rejects what is not the schema', () => {
   expect(parseReplyPick('{"picks":[{"line":2,"confidence":0.7}]}')).toEqual([
-    { line: 2, confidence: 0.7 },
+    { line: 2, confidence: 0.7, command: '' },
+  ]);
+  expect(parseReplyPick('{"picks":[{"line":1,"confidence":0.9,"command":"can-sing"}]}')).toEqual([
+    { line: 1, confidence: 0.9, command: 'can-sing' },
   ]);
   expect(parseReplyPick('{"picks":[]}')).toEqual([]);
 

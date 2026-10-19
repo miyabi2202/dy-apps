@@ -7,7 +7,7 @@ import { personaCommand } from '../src/app/room-state';
 import { SongId } from '../src/app/song-id';
 import { solveCommand } from '../src/app/solve-command';
 import { MESSAGE_SCHEMA } from '../src/core/mention-answer';
-import type { Question } from '../src/app/ports';
+import type { AdditionalCommand, Question } from '../src/app/ports';
 import { ChatHistory } from '../src/core/chat-history';
 import { Wallet, type Account } from '../src/core/wallet';
 import { fakeRoom } from './fake-room';
@@ -30,6 +30,7 @@ interface SetupOptions {
   answerer?: Pick<MentionAnswerer, 'ask' | 'idle'>;
   now?: () => number;
   screenshot?: boolean;
+  additionalCommands?: AdditionalCommand[];
 }
 
 /** The whole bot on fake events, Claude and outbox; mentions are answered by the real answerer. */
@@ -74,6 +75,7 @@ function setup(options: SetupOptions = {}) {
     commands: options.commands ?? [personaCommand(room), ...(billing?.commands() ?? [])],
     now: options.now,
     adminNames: '雅',
+    additionalCommands: options.additionalCommands,
   });
   bot.start();
   return {
@@ -521,4 +523,57 @@ test("/识歌 asks its own model with its own prompt, at a mention's price, answ
     '@阿明 「识歌」要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱），送了马上回你',
     '@阿明 这首是《aLIEz》',
   ]);
+});
+
+const CAN_SING: AdditionalCommand = {
+  id: 'can-sing',
+  name: '主播会唱xxx吗',
+  when: '在问主播会不会唱某首歌',
+  trigger: /会唱/,
+  prompt: () => '歌单：晴天\n{{asker}} 问的：{{question}}',
+};
+
+test("what auto-reply picked for one of the room's own commands is answered with its prompt, charged, after a gift too", async () => {
+  const wallet = memoryWallet();
+  const { bot, settle, give, prompts, sent } = setup({
+    wallet,
+    cost: 1,
+    answer: JSON.stringify({ message: '会唱哦，《晴天》在歌单里' }),
+    additionalCommands: [CAN_SING],
+  });
+  bot.replyUnprompted({
+    nickname: '阿明',
+    userId: 'u-阿明',
+    question: '虾虾会唱晴天吗',
+    heard: 'chat',
+    command: 'can-sing',
+  });
+  await settle();
+  expect(prompts).toEqual([]);
+
+  give(gift('阿明', 1, 1));
+  await settle();
+  expect(prompts).toEqual(['歌单：晴天\n阿明 问的：虾虾会唱晴天吗']);
+  expect(sent.at(-1)).toBe('@阿明 会唱哦，《晴天》在歌单里');
+  expect(wallet.balance('u-阿明')).toBe(0);
+});
+
+test("a mention Claude finds asking for one of the room's own commands is asked again with its prompt, paid once", async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
+  const answers = [
+    JSON.stringify({ message: '我看看', command_request: 'can-sing', command_args: '' }),
+    JSON.stringify({ message: '会唱哦，《晴天》在歌单里' }),
+  ];
+  const { say, settle, prompts, sent } = setup({
+    wallet,
+    cost: 1,
+    ask: () => Promise.resolve(answers.shift()!),
+    additionalCommands: [CAN_SING],
+  });
+  say(chat('阿明', `@${BOT.nickname} 虾会唱晴天吗`));
+  await settle();
+
+  expect(prompts[1]).toBe('歌单：晴天\n阿明 问的：虾会唱晴天吗');
+  expect(sent).toEqual(['@阿明 会唱哦，《晴天》在歌单里']);
+  expect(wallet.balance('u-阿明')).toBe(0);
 });
