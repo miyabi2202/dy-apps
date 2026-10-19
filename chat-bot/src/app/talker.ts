@@ -48,6 +48,14 @@ export interface TalkerOptions {
   streamer?: () => Awaited<ReturnType<FindStreamer>>;
 }
 
+/**
+ * For this long after the bot says something to someone, what they say goes to the picker without
+ * asking the judge: it's likely a reply (the next move in 成语接龙, say) the judge can't tell.
+ */
+const FOLLOW_UP_MS = 60_000;
+/** Whom the bot said something to without @ing anyone: the streamer. */
+const STREAMER = '主播';
+
 /** At most this many lines go to the picker, the newest. */
 const PICK_LINES = 40;
 /** At most this many are answered at once. */
@@ -79,6 +87,8 @@ export class Talker {
   private seen: number;
   /** When it last talked, or started to. */
   private talkedAt = -Infinity;
+  /** When the bot last said something to each person, by user id (STREAMER for the streamer). */
+  private readonly saidTo = new Map<string, number>();
 
   constructor(private readonly options: TalkerOptions) {
     this.threshold = options.threshold;
@@ -107,6 +117,15 @@ export class Talker {
   async talkNow(kind: OutgoingMessage['kind'], why: string): Promise<string | null> {
     this.talkedAt = this.options.room.now();
     return this.say(kind, why);
+  }
+
+  /**
+   * The bot just answered `userId` (or the streamer, by their uid): for FOLLOW_UP_MS what they say
+   * goes to the picker, without the judge.
+   */
+  answered(userId: string): void {
+    const streamer = this.options.streamer?.();
+    this.saidTo.set(userId === streamer?.uid ? STREAMER : userId, this.options.room.now());
   }
 
   /** `/自动回复阈值 0.6` sets the threshold (1 or more: never unprompted). */
@@ -150,6 +169,39 @@ export class Talker {
     const fresh = lines.filter((line) => line.candidate && line.ts > since && line.ts <= now);
     this.seen = now;
     if (!fresh.length) return;
+    const { picker, reply } = this.options;
+    // What someone the bot just answered says goes to the picker as it is; the rest, to the judge.
+    const following = picker && reply ? fresh.filter((line) => this.followsUp(line)) : [];
+    const judged = await this.judge(
+      lines,
+      fresh.filter((line) => !following.includes(line)),
+    );
+    if (judged === null) return;
+    const { about, best } = judged;
+    if (!about.length && !following.length) return;
+    if (best && about.length) {
+      log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });
+    }
+    if (following.length) {
+      log.info('following up', { lines: following.map(({ who, text }) => ({ who, text })) });
+    }
+    this.talkedAt = now;
+    if (reactionMs > 0 && ((await this.wait(reactionMs)) === 'woken' || this.stopped)) return;
+    if (picker && reply) await this.pickAndReply(since, [...about, ...following], picker, reply);
+    else if (best) await this.say('talk', followUp(best.line));
+    this.talkedAt = room.now();
+  }
+
+  /**
+   * Asks the judge whether each of `fresh` is about the bot: those at least `threshold` likely, and
+   * the likeliest; null when the judge failed.
+   */
+  private async judge(
+    lines: readonly RoomLine[],
+    fresh: readonly RoomLine[],
+  ): Promise<{ about: RoomLine[]; best: { line: RoomLine; score: number } | null } | null> {
+    const { judge, room, log } = this.options;
+    if (!judge || !fresh.length) return { about: [], best: null };
     const first = lines.indexOf(fresh[0]!);
     const { state, questions } = relevanceRequest(
       lines.slice(Math.max(0, first - 25), first),
@@ -161,27 +213,28 @@ export class Talker {
     try {
       scores = await judge(state, questions);
     } catch (err) {
-      if (err instanceof OutOfCreditError) {
-        this.outOfCredit(err);
-        return;
-      }
-      log.warn('could not judge', { error: errorMessage(err) });
-      return;
+      if (err instanceof OutOfCreditError) this.outOfCredit(err);
+      else log.warn('could not judge', { error: errorMessage(err) });
+      return null;
     }
-    const best = fresh
-      .map((line, i) => ({ line, score: scores[`q${i + 1}`] ?? 0 }))
-      .reduce((a, b) => (b.score > a.score ? b : a));
+    const scored = fresh.map((line, i) => ({ line, score: scores[`q${i + 1}`] ?? 0 }));
+    const best = scored.reduce((a, b) => (b.score > a.score ? b : a));
     log.debug('judged', { lines: fresh.length, best: best.line.text, score: best.score });
-    if (best.score < this.threshold) return;
-    log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });
-    this.talkedAt = now;
-    if (reactionMs > 0 && ((await this.wait(reactionMs)) === 'woken' || this.stopped)) return;
-    const { picker, reply } = this.options;
-    if (picker && reply) {
-      const about = fresh.filter((_, i) => (scores[`q${i + 1}`] ?? 0) >= this.threshold);
-      await this.pickAndReply(since, about, picker, reply);
-    } else await this.say('talk', followUp(best.line));
-    this.talkedAt = room.now();
+    const about = scored.filter(({ score }) => score >= this.threshold).map(({ line }) => line);
+    return { about, best: about.length ? best : null };
+  }
+
+  /** Whether `line` was said by someone within FOLLOW_UP_MS of the bot saying something to them. */
+  private followsUp(line: RoomLine): boolean {
+    const streamer = this.options.streamer?.();
+    const who =
+      line.who === STREAMER && line.userId === undefined
+        ? STREAMER
+        : line.userId !== undefined && line.userId === streamer?.uid
+          ? STREAMER
+          : line.userId;
+    const at = who === undefined ? undefined : this.saidTo.get(who);
+    return at !== undefined && line.ts >= at && line.ts - at <= FOLLOW_UP_MS;
   }
 
   /**
@@ -287,6 +340,8 @@ export class Talker {
       }
       log.info('talking', { text, kind });
       outbox.push({ kind, text });
+      // Said to the room, which mostly means the streamer.
+      this.saidTo.set(STREAMER, room.now());
       return text;
     } catch (err) {
       log.error('could not talk', { error: errorMessage(err) });

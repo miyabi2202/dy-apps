@@ -229,6 +229,8 @@ const answerer = new MentionAnswerer({
   maxPending: options.maxPending,
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
+  // What they say next goes straight to the picker for a minute: it's likely a reply.
+  onAnswered: (userId) => talker.answered(userId),
 });
 // /识歌: Codex, which searches with Google (or Claude, with /识歌模型).
 // Once a song is named, says something about it and praises the streamer's singing.

@@ -62,6 +62,8 @@ export interface MentionAnswererOptions {
   maxReplyLength?: number;
   /** A long answer goes out as up to this many messages, `@asker (1/3) …`. */
   maxReplyParts?: number;
+  /** Told each viewer it answered, once the answer is on its way. */
+  onAnswered?: (userId: string) => void;
   /** Mentions waiting for Claude beyond this are dropped, so a busy room can't pile up a
    * backlog nobody remembers asking. */
   maxPending?: number;
@@ -166,6 +168,7 @@ export class MentionAnswerer {
       if (mention.userId) {
         const { asker: nickname, question } = mention;
         userTalk?.add(mention.userId, { nickname, question, answer: messages.join(' ') });
+        this.options.onAnswered?.(mention.userId);
       }
     } catch (err) {
       log.error('could not answer mention', {
