@@ -61,7 +61,7 @@ test('asks for the song as JSON, sends its message, and sends an answer that is 
 
   await expect(identify.ask?.({ prompt: '' })).resolves.toBe('这首是中島美嘉的《ALWAYS》');
   await expect(identify.ask?.({ prompt: '' })).resolves.toBe('弹幕：没认出来');
-  expect(schemas[0]).toMatchObject({ required: ['message', 'title', 'artist'] });
+  expect(schemas[0]).toMatchObject({ required: ['message', 'title', 'artist', 'sure'] });
 });
 
 test('gives the prompt only the song being sung now, not the one before a pause', () => {

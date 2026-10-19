@@ -78,9 +78,9 @@ export class SongId {
     return this.named.get(title);
   }
 
-  /** Remembers that `song` was told to the room now (when it has a title), and says so. */
+  /** Remembers that `song` was told to the room now (when it's sure of it), and says so. */
   told(song: SongAnswer): void {
-    if (!song.title) return;
+    if (!song.title || !song.sure) return;
     this.named.set(song.title, (this.options.now ?? Date.now)());
     this.options.onTold?.(song);
   }

@@ -100,8 +100,9 @@ export class AutoSongId {
         maxLength,
       });
       const { answer } = await songId.name({ prompt });
-      if (!answer?.title) {
-        log.info('auto song id found nothing');
+      // Only a song it's sure of is said: a guess (「听着像…不太确定」) isn't.
+      if (!answer?.title || !answer.sure) {
+        log.info('auto song id found nothing sure', { title: answer?.title });
         return;
       }
       const last = songId.namedAt(answer.title);

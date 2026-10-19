@@ -4,6 +4,8 @@ export interface SongAnswer {
   /** Empty when it didn't name a song. */
   title: string;
   artist: string;
+  /** Whether it checked the lyrics and is sure; false for a guess (「听着像…不太确定」). */
+  sure: boolean;
 }
 
 /** The JSON Schema SongAnswer follows (strict: every field required, no others). */
@@ -13,8 +15,12 @@ export const SONG_ANSWER_SCHEMA = {
     message: { type: 'string', description: '要发到直播间的那条弹幕' },
     title: { type: 'string', description: '认出的歌名，没认出来就是空字符串' },
     artist: { type: 'string', description: '原唱，不知道就是空字符串' },
+    sure: {
+      type: 'boolean',
+      description: '找到歌词核对过、确定就是这首才是 true；猜的、不太确定、没认出来都是 false',
+    },
   },
-  required: ['message', 'title', 'artist'],
+  required: ['message', 'title', 'artist', 'sure'],
   additionalProperties: false,
 } as const;
 
@@ -26,9 +32,9 @@ export function parseSongAnswer(text: string): SongAnswer | null {
   } catch {
     return null;
   }
-  const { message, title = '', artist = '' } = answer ?? {};
+  const { message, title = '', artist = '', sure = false } = answer ?? {};
   if (typeof message !== 'string' || typeof title !== 'string' || typeof artist !== 'string') {
     return null;
   }
-  return { message, title, artist };
+  return { message, title, artist, sure: sure === true && title !== '' };
 }

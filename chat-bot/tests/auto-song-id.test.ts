@@ -22,7 +22,7 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
         prompts.push(prompt);
         const answer = answers.shift();
         const done = Promise.resolve({
-          answer: answer ? { message: '', title: '', artist: '', ...answer } : null,
+          answer: answer ? { message: '', title: '', artist: '', sure: true, ...answer } : null,
           text: '',
         });
         tries.push(done);
@@ -88,4 +88,14 @@ test('/自动识歌 turns it on and off; off, it names nothing', async () => {
   expect(run('1')).toEqual({ ok: true, reply: '已处理自动识歌请求' });
   await line(60, '歌词60');
   expect(prompts).toHaveLength(1);
+});
+
+test('a guess it is not sure of is not said', async () => {
+  const { line, sent, prompts } = setup([
+    { message: '听着像《刀剑如梦》，不太确定？', title: '刀剑如梦', sure: false },
+  ]);
+  for (let t = 100; t < 150; t += 10) await line(t, `谁敢闯望${t}`);
+
+  expect(prompts).toHaveLength(1);
+  expect(sent).toEqual([]);
 });
