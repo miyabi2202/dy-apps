@@ -1,9 +1,9 @@
 /**
- * One of a room's own commands, as `data/<房间号>/additional_commands/index.md` lists it: a prompt
- * the bot answers with when someone asks what it's for, whether they @ the bot or not.
+ * One of a room's own commands, as `data/<房间号>/additional_commands/index.json` lists it: a
+ * prompt the bot answers with when someone asks what it's for, whether they @ the bot or not.
  */
 export interface AdditionalCommandEntry {
-  /** Its `## <id>` heading, which the picker and Claude call it by: can-sing. */
+  /** Its key in index.json, which the picker and Claude call it by: can-sing. */
   id: string;
   /** What it's for, as viewers would say it: 主播会唱xxx吗. */
   name: string;
@@ -13,28 +13,25 @@ export interface AdditionalCommandEntry {
   trigger: RegExp | null;
   /** Its prompt file, relative to the `additional_commands/` folder: can-sing/prompt.md. */
   prompt: string;
+  /** Diamonds an answer costs a viewer (0 free); what an @ costs when not set. */
+  price?: number;
 }
 
 /**
- * The commands in `index.md`: each `## <id>` heading with `- key: value` lines under it (`name`,
- * `when` and `prompt` needed, `trigger` a regular expression); what's before the first heading is
- * left alone. Those that aren't right are left out, each with why.
+ * The commands in `index.json` (already parsed): an object of `"<id>": { "name", "when",
+ * "prompt", "trigger"?, "price"? }`, `trigger` a regular expression and `price` whole diamonds.
+ * Those that aren't right are left out, each with why.
  */
-export function parseCommandIndex(text: string): {
+export function parseCommandIndex(json: unknown): {
   commands: AdditionalCommandEntry[];
   errors: string[];
 } {
+  if (typeof json !== 'object' || json === null || Array.isArray(json)) {
+    return { commands: [], errors: ['index.json must be an object of commands by id'] };
+  }
   const commands: AdditionalCommandEntry[] = [];
   const errors: string[] = [];
-  const sections = `\n${text.replace(/\r\n/g, '\n')}`.split(/\n## /).slice(1);
-  for (const section of sections) {
-    const [heading = '', ...lines] = section.split('\n');
-    const id = heading.trim();
-    const fields = new Map<string, string>();
-    for (const line of lines) {
-      const match = /^- (\w+):\s*(.*)$/.exec(line.trim());
-      if (match) fields.set(match[1]!, match[2]!.trim());
-    }
+  for (const [id, fields] of Object.entries(json)) {
     const entry = toEntry(id, fields);
     if (typeof entry === 'string') errors.push(`${id}: ${entry}`);
     else commands.push(entry);
@@ -42,23 +39,34 @@ export function parseCommandIndex(text: string): {
   return { commands, errors };
 }
 
-function toEntry(id: string, fields: Map<string, string>): AdditionalCommandEntry | string {
-  if (!/^[\w-]+$/.test(id)) return 'the heading should be the id, letters, digits and - only';
-  const name = fields.get('name');
-  const when = fields.get('when');
-  const prompt = fields.get('prompt');
-  if (!name || !when || !prompt) return 'needs name, when and prompt';
-  if (!isInside(prompt)) return `prompt must be inside the folder: ${prompt}`;
-  let trigger: RegExp | null = null;
-  const pattern = fields.get('trigger');
-  if (pattern) {
+function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
+  if (!/^[\w-]+$/.test(id)) return 'the id may have only letters, digits, _ and -';
+  if (typeof fields !== 'object' || fields === null) return 'must be an object';
+  const { name, when, prompt, trigger, price } = fields as Record<string, unknown>;
+  for (const [key, value] of Object.entries({ name, when, prompt })) {
+    if (typeof value !== 'string' || !value.trim()) return `${key} must be a non-empty string`;
+  }
+  if (!isInside(prompt as string)) return `prompt must be inside the folder: ${String(prompt)}`;
+  if (trigger !== undefined && typeof trigger !== 'string') return 'trigger must be a string';
+  let pattern: RegExp | null = null;
+  if (trigger) {
     try {
-      trigger = new RegExp(pattern);
+      pattern = new RegExp(trigger);
     } catch {
-      return `trigger is not a regular expression: ${pattern}`;
+      return `trigger is not a regular expression: ${trigger}`;
     }
   }
-  return { id, name, when, trigger, prompt };
+  if (price !== undefined && !(Number.isInteger(price) && (price as number) >= 0)) {
+    return 'price must be whole diamonds, 0 or more';
+  }
+  return {
+    id,
+    name: name as string,
+    when: when as string,
+    trigger: pattern,
+    prompt: prompt as string,
+    ...(price !== undefined && { price: price as number }),
+  };
 }
 
 /** Whether `path` is relative and stays inside its folder (no `..`). */

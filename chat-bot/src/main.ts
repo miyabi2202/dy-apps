@@ -91,7 +91,7 @@ const roomConfig = liveRoomConfig(files.config, { log });
 // (each through its transformer script, if it has one), in the background: a slow or failed
 // download doesn't hold up the bot.
 void runDownloads(readDownloads(files.config, { log }), roomDir, { log });
-// The room's own commands, listed in data/<房间号>/additional_commands/index.md (主播会唱xxx吗):
+// The room's own commands, listed in data/<房间号>/additional_commands/index.json (主播会唱xxx吗):
 // answered when a mention asks for one, or auto-reply finds what someone said is for one.
 const additionalCommands = loadAdditionalCommands(roomDir, { log });
 const commandsSection = liveSection(join(packageDir, 'commands.md'), 'The commands');

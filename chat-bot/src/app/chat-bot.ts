@@ -153,7 +153,13 @@ export class ChatBot {
     const own = this.additionalCommand(name);
     if (own) {
       this.options.log.info('additional command requested', { asker, userId, command: own.id });
-      this.ask({ ...mention, template: own.prompt(), jsonMessage: true });
+      // The @ was paid for at an @'s price; a cheaper command gives the difference back.
+      let { paid } = mention;
+      if (own.price !== undefined && own.price < paid) {
+        this.refund({ asker, userId, paid: paid - own.price });
+        paid = own.price;
+      }
+      this.ask({ ...mention, paid, template: own.prompt(), jsonMessage: true });
       return true;
     }
     const command = this.commands.get(name);
@@ -189,7 +195,7 @@ export class ChatBot {
     const chat: IncomingChat = { ts, userId, nickname, content: question, mentions: [] };
     const own = command === undefined ? undefined : this.additionalCommand(command);
     this.options.log.info('unprompted', { asker: nickname, userId, question, heard, command });
-    const charge = this.charge(chat, question, this.isAdmin(userId), undefined, heard, own?.id);
+    const charge = this.charge(chat, question, this.isAdmin(userId), undefined, heard, own);
     if (!charge.ok) return;
     this.ask({
       asker: nickname,
@@ -225,8 +231,8 @@ export class ChatBot {
   /**
    * Takes the price of a mention, or of `command`, from the asker, nothing from an admin; when
    * they can't pay, queues a notice, keeps the mention (`question`, or what the bot would say to
-   * them `unprompted`, with the room's own command `additional`) for when they send a gift, and
-   * says so.
+   * them `unprompted`, with the room's own command `additional`, at its price) for when they send
+   * a gift, and says so.
    */
   private charge(
     chat: IncomingChat,
@@ -234,12 +240,12 @@ export class ChatBot {
     admin: boolean,
     command?: Command,
     unprompted?: Heard,
-    additional?: string,
+    additional?: AdditionalCommand,
   ): Charge {
     const { nickname: asker, userId } = chat;
     const { billing, log } = this.options;
     if (admin || !billing) return { ok: true, paid: 0 };
-    const price = command?.price ?? billing.cost;
+    const price = command?.price ?? additional?.price ?? billing.cost;
     const charge = billing.charge(userId, asker, price);
     if (charge.ok) return charge;
     if (userId) {
@@ -254,7 +260,7 @@ export class ChatBot {
         question,
         at,
         ...(unprompted && { unprompted }),
-        ...(additional && { command: additional }),
+        ...(additional && { command: additional.id }),
       });
     }
     log.info('balance too low', {
@@ -263,9 +269,10 @@ export class ChatBot {
       balance: billing.balance(userId),
       command: command?.name,
     });
+    const priced = command ?? additional;
     const notice = billing.lowBalanceNotice(
       userId,
-      command && { name: command.name, price },
+      priced && { name: priced.name, price },
       !!unprompted,
     );
     if (charge.notify) this.say(asker, 'notice', notice);

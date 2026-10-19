@@ -5,7 +5,7 @@ import { isInside, parseCommandIndex } from '../core/additional-command';
 import { errorMessage } from '../core/errors';
 
 /**
- * The room's own commands, as `<roomDir>/additional_commands/index.md` lists them (none when it's
+ * The room's own commands, as `<roomDir>/additional_commands/index.json` lists them (none when it's
  * missing), each with its own folder there for its prompt and whatever else it needs (a download's
  * transformer, say). The list is read now; a command that isn't right is logged and left out. Each
  * prompt is read again on every use, with each `{{file:<path>}}` in it replaced by that file in
@@ -17,15 +17,24 @@ export function loadAdditionalCommands(
   { log, read = (p) => readFileSync(p, 'utf8') }: { log: Log; read?: (path: string) => string },
 ): AdditionalCommand[] {
   const dir = join(roomDir, 'additional_commands');
-  let index: string;
+  let text: string;
   try {
-    index = read(join(dir, 'index.md'));
+    text = read(join(dir, 'index.json'));
   } catch {
+    return [];
+  }
+  let index: unknown;
+  try {
+    index = JSON.parse(text);
+  } catch (err) {
+    log.warn('additional_commands/index.json is not JSON, no commands', {
+      error: errorMessage(err),
+    });
     return [];
   }
   const { commands, errors } = parseCommandIndex(index);
   for (const error of errors) log.warn('skipping an additional command', { error });
-  return commands.map(({ id, name, when, trigger, prompt: file }) => {
+  return commands.map(({ id, name, when, trigger, prompt: file, price }) => {
     const path = join(dir, file);
     // The last prompt read, if the file can't be read while it runs.
     let last = '';
@@ -37,8 +46,8 @@ export function loadAdditionalCommands(
       }
       return withFiles(last, roomDir, { log, read });
     };
-    log.info('additional command', { id, name });
-    return { id, name, when, trigger, prompt };
+    log.info('additional command', { id, name, price });
+    return { id, name, when, trigger, prompt, ...(price !== undefined && { price }) };
   });
 }
 

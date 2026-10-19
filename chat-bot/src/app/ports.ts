@@ -111,7 +111,7 @@ export type SpawnWorker = (
 ) => Worker;
 
 /**
- * A room's own command, from its `additional_commands/index.md` (see AdditionalCommandEntry):
+ * A room's own command, from its `additional_commands/index.json` (see AdditionalCommandEntry):
  * asked for in so many words, or picked for what someone said without an @, it's answered with
  * its own prompt, like a mention.
  */
@@ -126,4 +126,6 @@ export interface AdditionalCommand {
   trigger: RegExp | null;
   /** The prompt, its song list filled in, read each time so edits apply at once. */
   prompt: () => string;
+  /** Diamonds an answer costs a viewer (0 free; admins never pay); what an @ costs when not set. */
+  price?: number;
 }

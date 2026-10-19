@@ -577,3 +577,32 @@ test("a mention Claude finds asking for one of the room's own commands is asked 
   expect(sent).toEqual(['@阿明 会唱哦，《晴天》在歌单里']);
   expect(wallet.balance('u-阿明')).toBe(0);
 });
+
+test('a free room command answers a viewer with no balance, without @ or with one (refunded)', async () => {
+  const wallet = memoryWallet({ 'u-小红': { nickname: '小红', gifted: 1, spent: 0 } });
+  const answers = [
+    JSON.stringify({ message: '会唱哦，《晴天》在歌单里' }),
+    JSON.stringify({ message: '我看看', command_request: 'can-sing', command_args: '' }),
+    JSON.stringify({ message: '会唱哦，《晴天》在歌单里' }),
+  ];
+  const { bot, say, settle, sent } = setup({
+    wallet,
+    cost: 1,
+    ask: () => Promise.resolve(answers.shift()!),
+    additionalCommands: [{ ...CAN_SING, price: 0 }],
+  });
+  bot.replyUnprompted({
+    nickname: '阿明',
+    userId: 'u-阿明',
+    question: '虾虾会唱晴天吗',
+    heard: 'chat',
+    command: 'can-sing',
+  });
+  await settle();
+  expect(sent).toEqual(['@阿明 会唱哦，《晴天》在歌单里']);
+
+  say(chat('小红', `@${BOT.nickname} 虾会唱晴天吗`));
+  await settle();
+  expect(sent.at(-1)).toBe('@小红 会唱哦，《晴天》在歌单里');
+  expect(wallet.balance('u-小红')).toBe(1);
+});
