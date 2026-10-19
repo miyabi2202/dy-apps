@@ -10,8 +10,6 @@ export interface TranscriberOptions {
   /** Where each sentence is also recorded, as said by 主播. */
   record?: RoomRecord;
   log: Log;
-  /** Called with each sentence as it's heard. */
-  onLine?: (line: TranscriptLine) => void;
   spawnWorker: SpawnWorker;
   /** Wait this long before asking for the stream again after it ends or isn't there. */
   retryMs?: number;
@@ -30,12 +28,18 @@ export class Transcriber {
   private nextMusicId = 1;
   /** Music requests waiting for the worker's answer, by id. */
   private readonly musicWaiting = new Map<number, (answer: MusicAnswer) => void>();
+  private readonly lineHandlers: ((line: TranscriptLine) => void)[] = [];
   private readonly retryMs: number;
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(private readonly options: TranscriberOptions) {
     this.retryMs = options.retryMs ?? 10_000;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  }
+
+  /** Calls `handler` with each sentence as it's heard. */
+  onLine(handler: (line: TranscriptLine) => void): void {
+    this.lineHandlers.push(handler);
   }
 
   /** Runs until `stop()`. */
@@ -103,7 +107,7 @@ export class Transcriber {
         this.options.record?.add(speechRecord(line));
         const { text: heard, lang, speech, music, speaker, host, voice } = line;
         log.info('heard', { text: heard, lang, speech, music, speaker, host, voice });
-        this.options.onLine?.(line);
+        for (const handler of this.lineHandlers) handler(line);
       },
       onLog: (text) => log.debug('asr', { text }),
     });

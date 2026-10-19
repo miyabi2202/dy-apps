@@ -57,8 +57,11 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
     },
     sleep: () => Promise.resolve(),
   });
+  const heard: string[] = [];
+  transcriber.onLine((line) => heard.push(line.text));
   await transcriber.run();
 
+  expect(heard).toEqual(['从 url-1 听到', '从 url-2 听到']);
   expect(started).toEqual(['url-1', 'url-2']);
   expect(transcript.recent(Infinity)).toEqual([
     {

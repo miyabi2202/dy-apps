@@ -87,21 +87,12 @@ const intro = liveText(join(packageDir, 'intro.md'));
 const roomConfig = liveRoomConfig(files.config, { log });
 const botTalk = botTalkFile(files.botTalk);
 const userTalk = userTalkFiles(files.users);
-// The streamer saying the room's wake word (from --wake-words, read again when it changes) makes
-// the bot talk now, for free; /设置唤醒词 changes it.
-let wakeWord: WakeWord | null = null;
-// And the streamer singing has the song named, when /自动识歌 (or --auto-song-id) turns it on.
-let autoSongId: AutoSongId | null = null;
 const transcriber = options.asr
   ? new Transcriber({
       streamUrl: roomApi.streamUrl,
       transcript,
       record,
       log,
-      onLine: (line) => {
-        wakeWord?.hear(line);
-        autoSongId?.hear(line);
-      },
       spawnWorker: uvWorker(join(packageDir, 'asr')),
     })
   : null;
@@ -129,6 +120,9 @@ const mentionTemplate = livePrompt('mention', {
 const history = new ChatHistory(options.historySize);
 // Each room's wake word, read again when the file changes; /设置唤醒词 writes this room's.
 const wakeWords = wakeWordFile(resolve(options.wakeWordsFile), roomId, { log });
+// Three closures point forward: the room's settings (to the talker, thanker and autoSongId), the
+// talker's reply and the answerer's onCommandRequest (to the bot). They run only after the bot
+// exists, since nothing calls room.promptInput() or starts the talker while this is wired.
 // What the room looks like now, for every prompt. The bot plays config.persona until
 // /修改人设 changes it for this run. The prompts also get the settings admins can change, and
 // the list of commands from commands.md, so the bot can tell viewers what it can do.
@@ -155,6 +149,16 @@ const room = new RoomState({
   commands: liveSection(join(packageDir, 'commands.md'), 'The commands'),
   log,
 });
+// The admins from config.json (read again when it changes, so admins can be added or removed while
+// it runs), and the room's streamer once DyHub has read the room page (saved in room_config.json).
+const admins = new StreamerAdmin({
+  admins: liveAdmins(resolve(options.configFile), { log }),
+  find: roomApi.streamer,
+  // Noted in the room's room_config.json.
+  onFound: (streamer) => saveStreamer(files.config, streamer, { log }),
+  log,
+});
+admins.start();
 // Joins in, from the room's auto_reply.md, when Jev (with JEV_API_KEY from chat-bot/.env) scores
 // something said in the room as about the bot at --auto-reply-threshold or more (/自动回复阈值 changes
 // it); and talks when the streamer says the wake word.
@@ -186,14 +190,8 @@ const talker = new Talker({
       })
     : undefined,
   pickTemplate: prompt('replyPick'),
-  // The bot and the admins are made further down, before the talker runs.
   reply: (target) => bot.replyUnprompted(target),
   streamer: () => admins.current(),
-});
-wakeWord = new WakeWord({
-  words: wakeWords,
-  wake: () => talker.talkNow('reply', WOKEN),
-  log,
 });
 // Thanks a viewer whose gifts in 5 minutes pass --thanks-threshold (changed with /自动谢礼).
 const thanker = new GiftThanker({
@@ -231,7 +229,7 @@ const answerer = new MentionAnswerer({
   maxReplyParts: options.maxReplyParts,
   // What they say next goes straight to the picker for a minute: it's likely a reply.
   onAnswered: (userId) => talker.answered(userId),
-  // 「把你的人设改成小猫」 and the like: run the command if they may (the bot is made further down).
+  // 「把你的人设改成小猫」 and the like: run the command if they may.
   onCommandRequest: (mention, name, args) => bot.requestCommand(mention, name, args),
 });
 // /识歌: Codex, which searches with Google (or Claude, with /识歌模型).
@@ -260,7 +258,15 @@ const songId = new SongId({
   log,
   onTold: (song) => void songIntro.introduce(song),
 });
-autoSongId = transcriber
+// The streamer saying the room's wake word (from --wake-words, read again when it changes) makes
+// the bot talk now, for free; /设置唤醒词 changes it.
+const wakeWord = new WakeWord({
+  words: wakeWords,
+  wake: () => talker.talkNow('reply', WOKEN),
+  log,
+});
+// And the streamer singing has the song named, when /自动识歌 (or --auto-song-id) turns it on.
+const autoSongId = transcriber
   ? new AutoSongId({
       songId,
       room,
@@ -270,16 +276,10 @@ autoSongId = transcriber
       maxLength: options.maxReplyLength,
     })
   : null;
-// The admins from config.json (read again when it changes, so admins can be added or removed while
-// it runs), and the room's streamer once DyHub has read the room page (saved in room_config.json).
-const admins = new StreamerAdmin({
-  admins: liveAdmins(resolve(options.configFile), { log }),
-  find: roomApi.streamer,
-  // Noted in the room's room_config.json.
-  onFound: (streamer) => saveStreamer(files.config, streamer, { log }),
-  log,
+transcriber?.onLine((line) => {
+  wakeWord.hear(line);
+  autoSongId?.hear(line);
 });
-admins.start();
 // Decides what a mention is (a question, or a command) and charges for it.
 const bot: ChatBot = new ChatBot({
   feed,
