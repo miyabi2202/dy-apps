@@ -7,7 +7,7 @@ import {
   singleBudget,
   type ReplyLimits,
 } from '../core/reply';
-import { MENTION_ANSWER_SCHEMA, parseMentionAnswer } from '../core/mention-answer';
+import { MENTION_ANSWER_SCHEMA, MESSAGE_SCHEMA, parseMentionAnswer } from '../core/mention-answer';
 import type { ChatLine } from '../core/room-events';
 import type { Billing } from './billing';
 import type { PromptOptions } from './command';
@@ -166,20 +166,21 @@ export class MentionAnswerer {
       const image = await room.screenshot(mention.alwaysScreenshot);
       const started = room.now();
       const { tools, maxTurns } = mention;
-      // The usual prompt answers in MENTION_ANSWER_SCHEMA; a command's own prompt, as it says.
+      // The usual prompt answers in MENTION_ANSWER_SCHEMA; a command's own prompt, as it says,
+      // or in MESSAGE_SCHEMA.
       const usual = mention.template === undefined;
+      const schema = usual ? MENTION_ANSWER_SCHEMA : mention.jsonMessage ? MESSAGE_SCHEMA : null;
       const raw = await (mention.ask ?? ask)({
         prompt,
         image,
         tools,
         maxTurns,
-        ...(usual && { schema: MENTION_ANSWER_SCHEMA }),
+        ...(schema && { schema }),
       });
       log.info('claude answered', { answer: raw, ms: room.now() - started, image: !!image });
-      let answer = raw;
+      const answer = schema ? parseMentionAnswer(raw).message : raw;
       if (usual) {
-        const { message, command, args } = parseMentionAnswer(raw);
-        answer = message;
+        const { command, args } = parseMentionAnswer(raw);
         if (command && this.options.onCommandRequest?.(mention, command, args)) {
           if (mention.userId) {
             const { asker: nickname, question } = mention;

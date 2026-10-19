@@ -6,6 +6,7 @@ import { RoomFeed } from '../src/app/room-feed';
 import { personaCommand } from '../src/app/room-state';
 import { SongId } from '../src/app/song-id';
 import { solveCommand } from '../src/app/solve-command';
+import { MESSAGE_SCHEMA } from '../src/core/mention-answer';
 import type { Question } from '../src/app/ports';
 import { ChatHistory } from '../src/core/chat-history';
 import { Wallet, type Account } from '../src/core/wallet';
@@ -342,7 +343,7 @@ test('/解题 is answered by its own Claude, from its own prompt, with a screens
     prompt: () => '解题：{{question}}',
     ask: (question) => {
       asked.push(question);
-      return Promise.resolve('选C，按面积分');
+      return Promise.resolve(JSON.stringify({ message: '选C，按面积分' }));
     },
   });
   const { settle, say, sent, prompts } = setup({ commands: [solve], screenshot: true });
@@ -352,6 +353,7 @@ test('/解题 is answered by its own Claude, from its own prompt, with a screens
   expect(prompts).toEqual([]);
   expect(asked[0]!.prompt).toBe('解题：这题选什么');
   expect(asked[0]!.image).toBeDefined();
+  expect(asked[0]!.schema).toEqual(MESSAGE_SCHEMA);
   expect(sent).toEqual(['@阿明 选C，按面积分']);
 });
 

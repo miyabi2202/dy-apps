@@ -277,6 +277,7 @@ export class ChatBot {
         ask: command.ask,
         pickTranscript: command.pickTranscript,
         alwaysScreenshot: command.alwaysScreenshot,
+        jsonMessage: command.jsonMessage,
       });
       return undefined;
     }

@@ -10,6 +10,17 @@ export interface MentionAnswer {
   args: string;
 }
 
+/**
+ * Just the reply, for a command's own prompt that answers in JSON: so what Claude says while it
+ * works, or the sources Claude Code lists after a web search, aren't sent with it.
+ */
+export const MESSAGE_SCHEMA = {
+  type: 'object',
+  properties: { message: { type: 'string', description: '要发到直播间的回复' } },
+  required: ['message'],
+  additionalProperties: false,
+} as const;
+
 /** The JSON Schema MentionAnswer follows (strict: every field required, no others). */
 export const MENTION_ANSWER_SCHEMA = {
   type: 'object',

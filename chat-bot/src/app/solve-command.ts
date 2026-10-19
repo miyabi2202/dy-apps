@@ -14,5 +14,5 @@ export interface SolveCommandOptions {
  * use it, at a mention's price; it's answered like a mention, from its own prompt.
  */
 export function solveCommand({ prompt, ask }: SolveCommandOptions): Command {
-  return { name: '解题', adminOnly: false, prompt, ask, alwaysScreenshot: true };
+  return { name: '解题', adminOnly: false, prompt, ask, alwaysScreenshot: true, jsonMessage: true };
 }

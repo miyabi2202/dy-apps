@@ -44,6 +44,8 @@ export interface PromptOptions {
   pickTranscript?: (lines: readonly TranscriptLine[]) => TranscriptLine[];
   /** Send a screenshot of the live video even while /截图 has them off. */
   alwaysScreenshot?: boolean;
+  /** Claude answers in JSON, `{ "message": … }`, and only the message is sent. */
+  jsonMessage?: boolean;
 }
 
 /** A command that worked, saying `reply` back. */
