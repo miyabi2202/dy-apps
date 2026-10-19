@@ -276,6 +276,7 @@ export class ChatBot {
         maxTurns: command.maxTurns,
         ask: command.ask,
         pickTranscript: command.pickTranscript,
+        alwaysScreenshot: command.alwaysScreenshot,
       });
       return undefined;
     }

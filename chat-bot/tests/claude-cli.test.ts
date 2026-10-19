@@ -57,6 +57,9 @@ test('a question can narrow the tools (no folders without file tools) and cap th
 
   void ask({ prompt: 'hi' }).catch(() => {});
   expect(args).not.toContain('--max-turns');
+  expect(args).not.toContain('--effort');
+  void claudeCli({ effort: 'high', spawnProcess })({ prompt: 'hi' }).catch(() => {});
+  expect(after('--effort')).toBe('high');
 
   void ask({ prompt: 'hi', schema: { type: 'object' } }).catch(() => {});
   expect(after('--json-schema')).toBe('{"type":"object"}');

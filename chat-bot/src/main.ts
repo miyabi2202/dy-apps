@@ -35,6 +35,7 @@ import type { AskClaude } from './app/ports';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { GiftThanker } from './app/gift-thanker';
+import { solveCommand } from './app/solve-command';
 import { SongIntro } from './app/song-intro';
 import { StreamerAdmin } from './app/streamer-admin';
 import { MentionAnswerer } from './app/mention-answerer';
@@ -99,6 +100,12 @@ const transcriber = options.asr
     })
   : null;
 const billing = new Billing({ wallet, cost: options.cost });
+// With a screenshot, Claude may zoom into part of it to read small figures and text
+// (src/adapters/zoom-mcp.ts, an MCP server cropping with ffmpeg).
+const zoom = {
+  command: join(packageDir, 'node_modules', '.bin', 'tsx'),
+  args: [join(packageDir, 'src', 'adapters', 'zoom-mcp.ts')],
+};
 // An empty working directory, so Claude Code picks up no project's CLAUDE.md or settings.
 const ask = claudeCli({
   cwd: tmpdir(),
@@ -106,13 +113,20 @@ const ask = claudeCli({
   readDirs: [chatDir],
   model: options.model,
   systemPrompt: options.systemPrompt,
-  // Zooming into a screenshot and working a puzzle out can take a minute or two.
+  // Zooming into a screenshot can make an answer take a minute or two.
   timeoutMs: 240_000,
-  // With a screenshot, Claude may zoom into part of it (src/adapters/zoom-mcp.ts, with ffmpeg).
-  zoom: {
-    command: join(packageDir, 'node_modules', '.bin', 'tsx'),
-    args: [join(packageDir, 'src', 'adapters', 'zoom-mcp.ts')],
-  },
+  zoom,
+});
+// /解题: Claude thinking harder, with more time.
+const solveAsk = claudeCli({
+  cwd: tmpdir(),
+  tools: options.tools,
+  readDirs: [chatDir],
+  model: options.model,
+  systemPrompt: options.systemPrompt,
+  effort: 'high',
+  timeoutMs: 360_000,
+  zoom,
 });
 // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
 const outbox = new Outbox({
@@ -318,6 +332,7 @@ const bot: ChatBot = new ChatBot({
     ...wakeWord.commands(),
     screenshotCommand(room),
     ...songId.commands(),
+    solveCommand({ prompt: prompt('solve'), ask: solveAsk }),
     ...(autoSongId?.commands() ?? []),
     // Only when listening to the stream.
     ...(transcriber ? [musicCommand(() => transcriber.identifyMusic(), log)] : []),

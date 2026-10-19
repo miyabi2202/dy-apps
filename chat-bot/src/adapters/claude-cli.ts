@@ -23,6 +23,8 @@ export interface ClaudeCliOptions {
   model?: string;
   /** Added to Claude Code's system prompt for every question. */
   systemPrompt?: string;
+  /** `--effort` (low, medium, high, xhigh, max); Claude Code's default when unset. */
+  effort?: string;
   /**
    * The MCP server with the `zoom` tool (zoom-mcp.ts), started with the screenshot's file as its
    * last argument for a question that has one, so Claude can look closer at part of it.
@@ -89,6 +91,7 @@ export function claudeCli({
   readDirs = [],
   model,
   systemPrompt,
+  effort,
   zoom,
   spawnProcess = spawn,
 }: ClaudeCliOptions = {}): AskClaude {
@@ -114,6 +117,7 @@ export function claudeCli({
       ...(mcpConfig ? ['--mcp-config', mcpConfig] : []),
       '--no-session-persistence',
       ...(model ? ['--model', model] : []),
+      ...(effort ? ['--effort', effort] : []),
       ...(systemPrompt ? ['--append-system-prompt', systemPrompt] : []),
       ...(question.maxTurns ? ['--max-turns', String(question.maxTurns)] : []),
       ...(question.schema ? ['--json-schema', JSON.stringify(question.schema)] : []),

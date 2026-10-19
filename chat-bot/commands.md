@@ -17,6 +17,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/识歌 [提示]`              | Name the song the streamer sings, from its lyrics  | no          | –           |
 | `/识歌模型 <codex\|claude>` | Who looks songs up for `/识歌`                     | yes         | codex       |
 | `/识别背景音乐`             | Name the recording playing, from its sound         | no          | –           |
+| `/解题 [提示]`              | Work out the puzzle on screen                      | no          | –           |
 | `/自动识歌 <0\|1>`          | Name the songs the streamer sings, unasked         | yes         | 0           |
 
 Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
@@ -92,7 +93,7 @@ Sets this room's wake word: when the streamer says it (spoken, not sung, and not
 
 ### /截图
 
-Turns screenshots of the live video on (`1`) or off (`0`); while on, every prompt gets one, for streams where Claude needs to see the screen (a board, a game). Off unless the bot started with `--screenshot`. With a screenshot, Claude also gets a `zoom` tool (`src/adapters/zoom-mcp.ts`, an MCP server that crops and enlarges a region with ffmpeg), so it can read small figures and text; on a figure puzzle that took it from guessing to answering right, at about 30–100 seconds an answer.
+Turns screenshots of the live video on (`1`) or off (`0`); while on, every prompt gets one, for streams where Claude needs to see the screen (a board, a game). Off unless the bot started with `--screenshot`. With a screenshot, Claude also gets a `zoom` tool (`src/adapters/zoom-mcp.ts`, an MCP server that crops and enlarges a region with ffmpeg), so it can read small figures and text. For a puzzle on the screen, `/解题` does better.
 
 ```text
 @默认关闭 /截图 1
@@ -137,6 +138,15 @@ Has the bot name the songs the streamer sings without anyone asking, as `/识歌
 → 已处理自动识歌请求
 （主播唱了一会儿）
 → 这首是《ひとつのハートで》，原唱三重野瞳！
+```
+
+### /解题
+
+Works out the math, logic or figure puzzle on the screen (or written after the command), for anyone, at a mention's price. It always sends Claude a screenshot, even while `/截图` has them off, and asks with its own prompt `solve.md` (a room's own `solve.md` overrides it), at `--effort high`, with up to 6 minutes, and the `zoom` tool to look closer at small figures and text. The prompt has Claude check several rules against every figure before it answers, and say so when two rules fit or it can't tell. Answered like any @.
+
+```text
+@默认关闭 /解题
+→ @雅 选C：按格子算面积，①④⑤都是7.5格，②③⑥都是10.5格
 ```
 
 ### /识别背景音乐

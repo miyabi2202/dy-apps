@@ -163,7 +163,7 @@ export class MentionAnswerer {
         unprompted: mention.unprompted,
       });
       log.debug('prompt', { prompt });
-      const image = await room.screenshot();
+      const image = await room.screenshot(mention.alwaysScreenshot);
       const started = room.now();
       const { tools, maxTurns } = mention;
       // The usual prompt answers in MENTION_ANSWER_SCHEMA; a command's own prompt, as it says.

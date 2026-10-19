@@ -42,6 +42,8 @@ export interface PromptOptions {
   ask?: AskClaude;
   /** The part of what the streamer said lately that the prompt gets, when not all of it. */
   pickTranscript?: (lines: readonly TranscriptLine[]) => TranscriptLine[];
+  /** Send a screenshot of the live video even while /截图 has them off. */
+  alwaysScreenshot?: boolean;
 }
 
 /** A command that worked, saying `reply` back. */

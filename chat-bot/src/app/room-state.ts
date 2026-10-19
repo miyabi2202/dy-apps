@@ -114,8 +114,9 @@ export class RoomState {
    * The live video, or nothing while screenshots are off (without asking DyHub) or when there's
    * no screenshot to be had: prompting goes on.
    */
-  async screenshot(): Promise<Uint8Array | undefined> {
-    if (!this.screenshotsOn) return undefined;
+  /** A screenshot of the live video while screenshots are on, or `always`. */
+  async screenshot(always = false): Promise<Uint8Array | undefined> {
+    if (!this.screenshotsOn && !always) return undefined;
     try {
       return await this.options.screenshot?.();
     } catch (err) {

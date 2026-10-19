@@ -67,7 +67,8 @@ test('screenshots go to Claude only while on, and admins switch them with /截�
   });
   expect(command.run('0')).toEqual({ ok: true, reply: '已处理截图请求' });
   expect(await room.screenshot()).toBeUndefined();
-  // DyHub isn't even asked while screenshots are off.
+  // DyHub isn't even asked while screenshots are off, unless a command always wants one.
   expect(taken).toBe(1);
+  expect(await room.screenshot(true)).toBe(frame);
   expect(command.adminOnly).toBe(true);
 });

@@ -5,6 +5,8 @@ import { MentionAnswerer, type Mention } from '../src/app/mention-answerer';
 import { RoomFeed } from '../src/app/room-feed';
 import { personaCommand } from '../src/app/room-state';
 import { SongId } from '../src/app/song-id';
+import { solveCommand } from '../src/app/solve-command';
+import type { Question } from '../src/app/ports';
 import { ChatHistory } from '../src/core/chat-history';
 import { Wallet, type Account } from '../src/core/wallet';
 import { fakeRoom } from './fake-room';
@@ -26,6 +28,7 @@ interface SetupOptions {
   /** Instead of the real answerer. */
   answerer?: Pick<MentionAnswerer, 'ask' | 'idle'>;
   now?: () => number;
+  screenshot?: boolean;
 }
 
 /** The whole bot on fake events, Claude and outbox; mentions are answered by the real answerer. */
@@ -34,7 +37,15 @@ function setup(options: SetupOptions = {}) {
   const prompts: string[] = [];
   const { outbox, sent } = fakeOutbox();
   const history = new ChatHistory(options.historySize ?? 100);
-  const room = fakeRoom({ history, persona: options.persona });
+  const room = fakeRoom({
+    history,
+    persona: options.persona,
+    // A live video to screenshot, with screenshots off (/截图 0).
+    ...(options.screenshot && {
+      screenshot: () => Promise.resolve(new Uint8Array([0xff, 0xd8])),
+      screenshotsOn: false,
+    }),
+  });
   const billing = options.wallet && new Billing({ wallet: options.wallet, cost: options.cost });
   const answerer =
     options.answerer ??
@@ -323,6 +334,25 @@ test("a command that isn't admin-only, or isn't one, gets Claude's reply instead
   await settle();
 
   expect(sent).toEqual(['@阿明 想知道歌名就发 /识歌']);
+});
+
+test('/解题 is answered by its own Claude, from its own prompt, with a screenshot even while they are off', async () => {
+  const asked: Question[] = [];
+  const solve = solveCommand({
+    prompt: () => '解题：{{question}}',
+    ask: (question) => {
+      asked.push(question);
+      return Promise.resolve('选C，按面积分');
+    },
+  });
+  const { settle, say, sent, prompts } = setup({ commands: [solve], screenshot: true });
+  say(chat('阿明', '@小助手 /解题 这题选什么'));
+  await settle();
+
+  expect(prompts).toEqual([]);
+  expect(asked[0]!.prompt).toBe('解题：这题选什么');
+  expect(asked[0]!.image).toBeDefined();
+  expect(sent).toEqual(['@阿明 选C，按面积分']);
 });
 
 test('clearing the wallet forgets every balance', () => {

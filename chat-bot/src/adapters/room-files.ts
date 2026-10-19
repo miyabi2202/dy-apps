@@ -112,6 +112,7 @@ export const PROMPT_FILES = {
   songIdWeb: 'song-id-web.md',
   giftThanks: 'gift-thanks.md',
   songIntro: 'song-intro.md',
+  solve: 'solve.md',
 } as const;
 
 export type PromptName = keyof typeof PROMPT_FILES;
