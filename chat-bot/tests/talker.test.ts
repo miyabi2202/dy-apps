@@ -150,7 +150,7 @@ test('when Jev runs out of money, says so in the room and turns itself off', asy
   expect(asked).toBe(1);
 });
 
-test('with a picker, answers each one it picks like a mention, the streamer by their uid', async () => {
+test('with a picker, answers what it is sure enough of like a mention, surest first, the streamer by their uid', async () => {
   const picks: string[] = [];
   const replies: UnpromptedReply[] = [];
   const { talker, sent, chat, say } = setup(
@@ -164,7 +164,17 @@ test('with a picker, answers each one it picks like a mention, the streamer by t
     {
       picker: ({ prompt }) => {
         picks.push(prompt);
-        return Promise.resolve(JSON.stringify({ lines: [2, 3, 2, 9] }));
+        return Promise.resolve(
+          JSON.stringify({
+            picks: [
+              { line: 1, confidence: 0.4 },
+              { line: 2, confidence: 0.7 },
+              { line: 3, confidence: 0.8 },
+              { line: 2, confidence: 0.9 },
+              { line: 9, confidence: 0.9 },
+            ],
+          }),
+        );
       },
       pickTemplate: () => '{{botName}}\n{{lines}}',
       reply: (target) => void replies.push(target),
@@ -192,7 +202,7 @@ test('the picker may answer nobody, and gets no streamer line while the streamer
     {
       picker: ({ prompt }) => {
         picks.push(prompt);
-        return Promise.resolve(JSON.stringify({ lines: [] }));
+        return Promise.resolve(JSON.stringify({ picks: [] }));
       },
       pickTemplate: () => '{{lines}}',
       reply: (target) => void replies.push(target),
@@ -213,7 +223,7 @@ test('by default, picks whom to answer at once, without waiting for the room to 
   const { talker, chat } = setup([() => chat('小红', '机器人你几岁了', 'u-小红')], {
     picker: () => {
       picked = 1;
-      return Promise.resolve(JSON.stringify({ lines: [1] }));
+      return Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));
     },
     pickTemplate: () => '{{lines}}',
     reply: (target) => void replies.push(target),
@@ -239,7 +249,7 @@ test('what someone says within a minute of the bot answering them goes to the pi
     {
       picker: ({ prompt }) => {
         picks.push(prompt);
-        return Promise.resolve(JSON.stringify({ lines: [1] }));
+        return Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));
       },
       pickTemplate: () => '{{lines}}',
       reply: (target) => void replies.push(target),
@@ -268,7 +278,7 @@ test('after it talks to the room, what the streamer says, on the stream or in th
     {
       picker: ({ prompt }) => {
         picks.push(prompt);
-        return Promise.resolve(JSON.stringify({ lines: [] }));
+        return Promise.resolve(JSON.stringify({ picks: [] }));
       },
       pickTemplate: () => '{{lines}}',
       reply: () => {},

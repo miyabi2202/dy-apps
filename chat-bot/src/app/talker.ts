@@ -278,13 +278,20 @@ export class Talker {
       log.warn('could not pick whom to answer', { error: errorMessage(err) });
       return;
     }
-    const pick = parseReplyPick(answer);
-    if (!pick) {
+    const picks = parseReplyPick(answer);
+    if (!picks) {
       log.warn('reply pick is not json', { answer });
       return;
     }
-    const targets = new Map<string, UnpromptedReply>();
-    for (const n of pick.lines) {
+    log.debug('picks', {
+      picks: picks.map(({ line, confidence }) => ({ text: numbered[line - 1]?.text, confidence })),
+    });
+    // Only what it's sure enough of (the same threshold as the judge's), surest first, one each.
+    const targets = new Map<string, UnpromptedReply & { confidence: number }>();
+    const sure = picks
+      .filter(({ confidence }) => confidence >= this.threshold)
+      .sort((a, b) => b.confidence - a.confidence);
+    for (const { line: n, confidence } of sure) {
       const line = numbered[n - 1];
       if (!line) continue;
       const target: UnpromptedReply | null = line.userId
@@ -295,14 +302,20 @@ export class Talker {
             question: line.text,
             heard: 'speech',
           };
-      // One answer each, to what they said last.
-      if (target) targets.set(target.userId, target);
+      if (target && !targets.has(target.userId))
+        targets.set(target.userId, { ...target, confidence });
     }
     const picked = [...targets.values()].slice(0, MAX_PICKS);
     log.info('picked whom to answer', {
-      picked: picked.map(({ nickname, question }) => ({ nickname, question })),
+      picked: picked.map(({ nickname, question, confidence }) => ({
+        nickname,
+        question,
+        confidence,
+      })),
     });
-    for (const target of picked) reply(target);
+    for (const { nickname, userId, question, heard } of picked) {
+      reply({ nickname, userId, question, heard });
+    }
   }
 
   /**
