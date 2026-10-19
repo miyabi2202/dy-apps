@@ -1,4 +1,5 @@
 import { clock } from './local-time';
+import type { GiftLine } from './recent-gifts';
 import type { ChatLine } from './room-events';
 import { isGuest, isSung, type TranscriptLine } from './transcript';
 
@@ -6,6 +7,8 @@ import { isGuest, isSung, type TranscriptLine } from './transcript';
 export interface RoomPromptInput {
   /** Recent chat before the question, oldest first. */
   history: readonly ChatLine[];
+  /** The gifts of the last few minutes, oldest first, which `{{history}}` shows among the chat. */
+  gifts?: readonly GiftLine[];
   /** What the streamer said lately, oldest first. */
   transcript: readonly TranscriptLine[];
   /** The current time, ms since the epoch. */
@@ -87,7 +90,8 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
 }
 
 /**
- * Fills a prompt template: `{{history}}` becomes one `昵称: 内容` line per chat, `{{transcript}}`
+ * Fills a prompt template: `{{history}}` becomes one `昵称: 内容` line per chat (and, among them
+ * by time, `昵称: （送出 玫瑰×1，1钻）` per recent gift), `{{transcript}}`
  * one `HH:MM:SS 内容` line per sentence the streamer said (`HH:MM:SS （唱）内容` when sung, and
  * `（连线）` before it when someone they're linked up with said it), `{{asker}}` and `{{question}}` the
  * mention's sender and text, `{{asked}}` the two as a line saying they @ed the bot (or, when
@@ -106,7 +110,7 @@ export function buildPrompt(template: string, input: PromptInput): string {
   const { settings, commands, askerBalance, unprompted, intro } = input;
   const said = question || '（只 @ 了你，没有说别的）';
   const values: Record<string, string> = {
-    history: history.map((line) => `${line.nickname}: ${line.content}`).join('\n') || '（暂无）',
+    history: historyText(history, input.gifts ?? []),
     transcript:
       transcript
         .map((line) => {
@@ -139,4 +143,16 @@ export function buildPrompt(template: string, input: PromptInput): string {
     commands: commands?.trim() ?? '',
   };
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => values[key] ?? match);
+}
+
+/** `history` as `昵称: 内容` lines, and `gifts` among them by time as `昵称: （送出 玫瑰×1，1钻）`. */
+function historyText(history: readonly ChatLine[], gifts: readonly GiftLine[]): string {
+  const lines = [
+    ...history.map((line) => ({ ts: line.ts, text: `${line.nickname}: ${line.content}` })),
+    ...gifts.map((g) => ({
+      ts: g.ts,
+      text: `${g.nickname}: （送出 ${g.name}×${g.count}，${g.diamonds}钻）`,
+    })),
+  ].sort((a, b) => a.ts - b.ts);
+  return lines.map((line) => line.text).join('\n') || '（暂无）';
 }

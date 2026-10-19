@@ -1,4 +1,5 @@
 import type { ChatHistory } from '../core/chat-history';
+import type { RecentGifts } from '../core/recent-gifts';
 import { errorMessage } from '../core/errors';
 import type { RoomPromptInput, RoomSettings } from '../core/prompt';
 import type { ChatLine } from '../core/room-events';
@@ -13,6 +14,8 @@ import type { BotTalk, Log, Screenshot } from './ports';
 export interface RoomStateOptions {
   /** The room's recent chat; whoever hears the chat adds to it. */
   history: ChatHistory;
+  /** The gifts of the last few minutes, shown among the chat in every prompt. */
+  gifts?: RecentGifts;
   /** What the streamer has said, for `{{transcript}}`. */
   transcript?: Transcript;
   /** How far back `{{transcript}}` goes. */
@@ -86,6 +89,7 @@ export class RoomState {
     const { chatDir, context, intro, botTalk, settings, commands } = this.options;
     return {
       history: this.recentChat(),
+      gifts: this.options.gifts?.recent(this.now()),
       transcript: this.recentTranscript(),
       now: this.now(),
       chatDir,

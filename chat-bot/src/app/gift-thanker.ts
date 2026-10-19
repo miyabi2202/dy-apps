@@ -15,6 +15,10 @@ export interface GiftThankerOptions {
   /** Thank someone whose gifts within `windowMs` come to more than this many diamonds. */
   threshold: number;
   windowMs?: number;
+  /** Once past the threshold, wait this long for the rest of a combo, so it's one thanks. */
+  settleMs?: number;
+  /** Waits `ms`; tests pass one that doesn't. */
+  sleep?: (ms: number) => Promise<void>;
   /** The chat and the rest of what the prompt knows about the room. */
   room: RoomState;
   /** Each viewer's past exchanges with the bot; the thanks is added to the giver's. */
@@ -32,14 +36,18 @@ interface Given {
 /**
  * Thanks a viewer whose gifts within `windowMs` (5 minutes) come to more than `threshold`
  * diamonds: Claude reads the room's chat, the viewer's own messages and their past exchanges
- * with the bot, and writes one warm, careful message to them. A viewer is thanked at most once
- * a window. The threshold can be changed while it runs.
+ * with the bot, and writes one warm, careful message to them. It waits `settleMs` (15 s) first,
+ * so a combo is thanked once, with everything in it. Thanked gifts are done with: what they send
+ * after counts afresh, and is thanked again once it passes the threshold too. The threshold can
+ * be changed while it runs.
  */
 export class GiftThanker {
   threshold: number;
   private readonly windowMs: number;
+  /** Each viewer's gifts not thanked yet, by user id. */
   private readonly given = new Map<string, Given[]>();
-  private readonly thankedAt = new Map<string, number>();
+  /** Viewers past the threshold, waiting out settleMs before they're thanked. */
+  private readonly settling = new Set<string>();
   private readonly running = new Set<Promise<void>>();
 
   constructor(private readonly options: GiftThankerOptions) {
@@ -47,20 +55,31 @@ export class GiftThanker {
     this.windowMs = options.windowMs ?? 5 * 60_000;
   }
 
-  /** Counts a gift, and thanks the giver once their window's gifts pass the threshold. */
+  /**
+   * Counts a gift, and once the giver's gifts not thanked yet (within the window) pass the
+   * threshold, thanks them for all of those, after settleMs.
+   */
   onGift(gift: Gift): void {
+    const { userId } = gift;
     const now = this.options.room.now();
-    const since = now - this.windowMs;
-    const given = [...(this.given.get(gift.userId) ?? []), { at: now, gift }].filter(
-      (g) => g.at > since,
+    const given = [...(this.given.get(userId) ?? []), { at: now, gift }].filter(
+      (g) => g.at > now - this.windowMs,
     );
-    this.given.set(gift.userId, given);
-    const total = given.reduce((sum, g) => sum + g.gift.diamonds, 0);
-    const thanked = this.thankedAt.get(gift.userId);
-    if (total <= this.threshold || (thanked !== undefined && thanked > since)) return;
-    this.thankedAt.set(gift.userId, now);
-    this.given.delete(gift.userId);
-    const run = this.thank(gift, given, total).finally(() => this.running.delete(run));
+    this.given.set(userId, given);
+    if (this.settling.has(userId) || total(given) <= this.threshold) return;
+    this.settling.add(userId);
+    const { settleMs = 15_000 } = this.options;
+    const sleep =
+      this.options.sleep ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+    const run = sleep(settleMs)
+      .then(() => {
+        this.settling.delete(userId);
+        const all = this.given.get(userId) ?? [];
+        this.given.delete(userId);
+        // Thanked by the name they last gave under.
+        return this.thank(all.at(-1)?.gift ?? gift, all, total(all));
+      })
+      .finally(() => this.running.delete(run));
     this.running.add(run);
   }
 
@@ -123,3 +142,6 @@ export class GiftThanker {
     }
   }
 }
+
+/** What `given` came to, in diamonds. */
+const total = (given: readonly Given[]) => given.reduce((sum, g) => sum + g.gift.diamonds, 0);

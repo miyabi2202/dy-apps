@@ -48,6 +48,7 @@ import { SongId } from './app/song-id';
 import { Transcriber } from './app/transcriber';
 import { parseCliOptions, USAGE } from './cli-options';
 import { ChatHistory } from './core/chat-history';
+import { RecentGifts } from './core/recent-gifts';
 import type { RoomSettings } from './core/prompt';
 import { Transcript } from './core/transcript';
 import { Wallet } from './core/wallet';
@@ -137,6 +138,8 @@ const mentionTemplate = livePrompt('mention', {
   sharedPath: resolve(options.promptFile),
 });
 const history = new ChatHistory(options.historySize);
+// The last few minutes' gifts, among the chat in every prompt (so 「谢一下这个礼物」 knows which).
+const gifts = new RecentGifts();
 // Three closures point forward: the room's settings (to autoReply, thanker and autoSongId), the
 // autoReply's reply and the answerer's onCommandRequest (to the bot). They run only after the bot
 // exists, since nothing calls room.promptInput() or starts autoReply while this is wired.
@@ -145,6 +148,7 @@ const history = new ChatHistory(options.historySize);
 // the list of commands from commands.md, so the bot can tell viewers what it can do.
 const room = new RoomState({
   history,
+  gifts,
   transcript,
   transcriptMs: options.transcriptMs,
   persona: config.persona,
@@ -254,7 +258,10 @@ const feed = new RoomFeed({
   record,
   billing,
 });
-feed.onGift((gift) => thanker.onGift(gift));
+feed.onGift((gift) => {
+  gifts.add(room.now(), gift);
+  thanker.onGift(gift);
+});
 // Answers each paid question with Claude, one at a time.
 const answerer = new MentionAnswerer({
   ask,

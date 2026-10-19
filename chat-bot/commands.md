@@ -62,7 +62,7 @@ How sure the bot must be that something said in the room is about it before it j
 
 ### /自动谢礼
 
-Thanks a viewer, with an @ from `gift-thanks.md`, when their gifts within 5 minutes pass this many diamonds. It starts at `--thanks-threshold` (99999, so in effect off). A viewer is thanked at most once in 5 minutes.
+Thanks a viewer, with an @ from `gift-thanks.md`, when their gifts within 5 minutes pass this many diamonds. It starts at `--thanks-threshold` (99999, so in effect off). It waits 15 seconds first, so a combo is thanked once, for everything in it. What a viewer sends after a thanks counts afresh, and is thanked again once it passes the threshold too.
 
 ```text
 @默认关闭 /自动谢礼 100

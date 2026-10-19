@@ -11,7 +11,7 @@ function gift(nickname: string, name: string, diamonds: number): Gift {
   return { userId: `u-${nickname}`, nickname, name, count: 1, diamonds };
 }
 
-test('thanks a viewer once their gifts in 5 minutes pass the threshold, once a window', async () => {
+test('thanks a viewer once their gifts in 5 minutes pass the threshold, and again for what they send after', async () => {
   let now = 0;
   const prompts: string[] = [];
   const sent: { kind: string; text: string }[] = [];
@@ -19,6 +19,8 @@ test('thanks a viewer once their gifts in 5 minutes pass the threshold, once a w
   const history = new ChatHistory(100);
   history.add({ ts: 1, userId: 'u-阿明', nickname: '阿明', content: '今天加班好累' });
   history.add({ ts: 2, userId: 'u-小红', nickname: '小红', content: '主播唱得好' });
+  // Each wait for a combo to end lets the test send more gifts first.
+  const waits: (() => void)[] = [];
   const thanker = new GiftThanker({
     ask: ({ prompt }) => {
       prompts.push(prompt);
@@ -30,6 +32,7 @@ test('thanks a viewer once their gifts in 5 minutes pass the threshold, once a w
     room: fakeRoom({ history, now: () => now }),
     userTalk: { add: (_userId, exchange) => exchanges.push(exchange), recent: () => '' },
     log: silentLog,
+    sleep: () => new Promise((resolve) => waits.push(resolve)),
   });
 
   thanker.onGift(gift('阿明', '玫瑰', 10));
@@ -37,22 +40,34 @@ test('thanks a viewer once their gifts in 5 minutes pass the threshold, once a w
   thanker.onGift(gift('阿明', '玫瑰', 10)); // 20: not more than the threshold
   now += 5 * MINUTE;
   thanker.onGift(gift('阿明', '玫瑰', 15)); // the first two fell out of the window: 15
-  thanker.onGift(gift('阿明', '小心心', 10)); // 25: thanked
-  thanker.onGift(gift('阿明', '小心心', 30)); // already thanked this window
+  thanker.onGift(gift('阿明', '小心心', 10)); // 25: past it, waiting for the combo to end
+  thanker.onGift(gift('阿明', '小心心', 30)); // the same combo
+  expect(waits).toHaveLength(1);
+  waits.shift()!();
+  await thanker.idle();
+
+  // What comes after the thanks counts afresh.
+  thanker.onGift(gift('阿明', '比心兔兔', 15));
+  expect(waits).toHaveLength(0);
+  thanker.onGift(gift('阿明', '比心', 10)); // 25 again: thanked again
+  waits.shift()!();
+  await thanker.idle();
+
   thanker.threshold = 99999;
   now += 6 * MINUTE;
   thanker.onGift(gift('阿明', '玫瑰', 500)); // threshold raised
   await thanker.idle();
 
-  expect(prompts).toEqual(['阿明|刚刚送了 玫瑰×1、小心心×1，一共 25 钻|今天加班好累|（暂无）']);
-  expect(sent).toEqual([{ kind: 'reply', text: '@阿明 谢谢阿明的玫瑰，加班辛苦啦' }]);
-  expect(exchanges).toEqual([
-    {
-      nickname: '阿明',
-      question: '（刚刚送了 玫瑰×1、小心心×1，一共 25 钻）',
-      answer: '@阿明 谢谢阿明的玫瑰，加班辛苦啦',
-    },
+  expect(prompts).toEqual([
+    '阿明|刚刚送了 玫瑰×1、小心心×2，一共 55 钻|今天加班好累|（暂无）',
+    '阿明|刚刚送了 比心兔兔×1、比心×1，一共 25 钻|今天加班好累|（暂无）',
   ]);
+  expect(sent).toHaveLength(2);
+  expect(exchanges[0]).toEqual({
+    nickname: '阿明',
+    question: '（刚刚送了 玫瑰×1、小心心×2，一共 55 钻）',
+    answer: '@阿明 谢谢阿明的玫瑰，加班辛苦啦',
+  });
 });
 
 test('in a 私密 room, thanks the viewer by their id and the nickname they show', async () => {
@@ -69,6 +84,7 @@ test('in a 私密 room, thanks the viewer by their id and the nickname they show
     room: fakeRoom({ history }),
     userTalk: { add: (userId, exchange) => talked.push([userId, exchange]), recent: () => '' },
     log: silentLog,
+    sleep: () => Promise.resolve(),
   });
 
   thanker.onGift({ ...gift('苦***', '玫瑰', 30), userId: '111111-苦***-31' });
@@ -93,6 +109,7 @@ test('tells Claude how long the thanks may be with the short @ a long nickname f
     room: fakeRoom(),
     maxLength: 20,
     log: silentLog,
+    sleep: () => Promise.resolve(),
   });
 
   thanker.onGift(gift('这是一个很长的昵称', '玫瑰', 30));
@@ -110,6 +127,7 @@ test('/自动谢礼 sets the threshold', async () => {
     threshold: 99999,
     room: fakeRoom(),
     log: silentLog,
+    sleep: () => Promise.resolve(),
   });
   const run = (args: string) => thanker.commands()[0]?.run?.(args);
 
