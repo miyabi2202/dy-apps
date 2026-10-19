@@ -166,9 +166,8 @@ export class AutoReply {
     if (following.length) {
       log.info('following up', { lines: following.map(({ who, text }) => ({ who, text })) });
     }
-    this.talkedAt = now;
-    await this.pickAndReply(since, [...about, ...following]);
-    this.talkedAt = room.now();
+    // The quiet minute starts only if it answered someone: picking nobody leaves it free to listen.
+    if ((await this.pickAndReply(since, [...about, ...following])) > 0) this.talkedAt = room.now();
   }
 
   /**
@@ -219,9 +218,9 @@ export class AutoReply {
   /**
    * Has the picker choose, of what was said since `since`, what the bot should answer now (the
    * room had time to react, so some may need no answer any more), and answers each through
-   * `reply`, as the chatter's or (said on the stream) the streamer's.
+   * `reply`, as the chatter's or (said on the stream) the streamer's. How many it answered.
    */
-  private async pickAndReply(since: number, about: readonly RoomLine[]): Promise<void> {
+  private async pickAndReply(since: number, about: readonly RoomLine[]): Promise<number> {
     const { room, log, picker, pickTemplate, reply } = this.options;
     const streamer = this.options.streamer();
     const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName).slice(
@@ -237,7 +236,7 @@ export class AutoReply {
         (line.userId !== undefined || (line.who === '主播' && streamer !== null)),
       new Set(lines.filter((line) => aboutKeys.has(key(line)))),
     );
-    if (!numbered.length) return;
+    if (!numbered.length) return 0;
     const prompt = pickPrompt(pickTemplate(), {
       lines: text,
       botName: room.botName,
@@ -249,12 +248,12 @@ export class AutoReply {
       answer = await picker({ prompt, schema: REPLY_PICK_SCHEMA });
     } catch (err) {
       log.warn('could not pick whom to answer', { error: errorMessage(err) });
-      return;
+      return 0;
     }
     const picks = parseReplyPick(answer);
     if (!picks) {
       log.warn('reply pick is not json', { answer });
-      return;
+      return 0;
     }
     log.debug('picks', {
       picks: picks.map(({ line, confidence }) => ({ text: numbered[line - 1]?.text, confidence })),
@@ -289,6 +288,7 @@ export class AutoReply {
     for (const { nickname, userId, question, heard } of picked) {
       reply({ nickname, userId, question, heard });
     }
+    return picked.length;
   }
 
   /**

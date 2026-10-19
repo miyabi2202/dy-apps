@@ -187,6 +187,32 @@ test('picks whom to answer as soon as something is about the bot', async () => {
   expect(replies.map((r) => r.question)).toEqual(['机器人你几岁了']);
 });
 
+test('keeps quiet for a minute only after it answered someone, not when the picker picked nobody', async () => {
+  const picks = [{ line: 1, confidence: 0.1 }];
+  const replies: UnpromptedReply[] = [];
+  const ran = setup(
+    [
+      () => ran.chat('小红', '机器人你好', 'u-小红'),
+      () => ran.chat('阿明', '机器人在吗', 'u-阿明'),
+      // It answered 阿明, so what comes next waits out the minute.
+      () => ran.chat('小蓝', '机器人你几岁', 'u-小蓝'),
+      () => {},
+    ],
+    {
+      picker: () => {
+        const answer = JSON.stringify({ picks });
+        picks[0] = { line: 1, confidence: 0.9 };
+        return Promise.resolve(answer);
+      },
+      reply: (target) => void replies.push(target),
+    },
+  );
+  await ran.autoReply.run();
+
+  expect(replies.map((r) => r.nickname)).toEqual(['阿明']);
+  expect(ran.judged).toEqual(['(1) 00:00:20 [小红] 机器人你好', '(1) 00:00:40 [阿明] 机器人在吗']);
+});
+
 test('a follow-up still goes to the picker when Jev fails on the rest', async () => {
   const replies: UnpromptedReply[] = [];
   const ran = setup(
