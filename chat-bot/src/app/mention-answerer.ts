@@ -1,5 +1,5 @@
 import { errorMessage } from '../core/errors';
-import { buildPrompt } from '../core/prompt';
+import { buildPrompt, type Heard } from '../core/prompt';
 import {
   answerBudget,
   DOUYIN_CHAT_LIMIT,
@@ -30,7 +30,17 @@ export interface Mention extends PromptOptions {
   /** A command's own prompt template instead of the usual one. */
   template?: string;
   /** Not an @: the bot heard the asker talk to or about it, in the chat or on the stream. */
-  unprompted?: 'chat' | 'speech';
+  unprompted?: Heard;
+}
+
+/** What the bot heard someone say to or about it without an @, to answer unprompted. */
+export interface UnpromptedReply {
+  nickname: string;
+  userId: string;
+  /** What they said. */
+  question: string;
+  /** In the chat, or (the streamer) on the stream. */
+  heard: Heard;
 }
 
 /** Gives `mention`'s price back to whoever paid it, if anything was paid. */

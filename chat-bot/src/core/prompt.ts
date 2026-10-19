@@ -48,6 +48,9 @@ export interface RoomSettings {
 const THANKS_OFF_FROM = 99999;
 
 /** The room plus what's particular to one prompt: who asked what, and how long the answer may be. */
+/** Where the bot heard someone talk to or about it without an @: the chat, or (the streamer) the stream. */
+export type Heard = 'chat' | 'speech';
+
 export type PromptInput = RoomPromptInput & {
   /** Who the prompt is about; empty for what the bot says on its own. */
   asker?: string;
@@ -64,7 +67,7 @@ export type PromptInput = RoomPromptInput & {
   askerBalance?: number;
   /** The asker didn't @ the bot: the bot heard them say something to or about it, in the chat or
    * (the streamer) on the stream, and answers unprompted. */
-  unprompted?: 'chat' | 'speech';
+  unprompted?: Heard;
 };
 
 /** `settings` as lines for the prompt, with `asker`'s balance when known. */

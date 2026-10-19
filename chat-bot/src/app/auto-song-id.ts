@@ -6,7 +6,7 @@ import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
 import type { Log } from './ports';
 import type { RoomState } from './room-state';
-import type { SongId } from './song-id-command';
+import type { SongId } from './song-id';
 
 export interface AutoSongIdOptions {
   songId: Pick<SongId, 'prompt' | 'name' | 'namedAt' | 'told'>;

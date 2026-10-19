@@ -176,7 +176,7 @@ Each feature offers its own commands, and `src/main.ts` hands them all to `ChatB
 | 自动回复阈值   | `AutoReply.commands()` in `src/app/auto-reply.ts`                                      |
 | 自动谢礼       | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
 | 设置唤醒词     | `WakeWord.commands()` in `src/app/wake-word.ts`                                        |
-| 识歌           | `songIdCommand` in `src/app/song-id-command.ts`                                        |
+| 识歌, 识歌模型 | `SongId.commands()` in `src/app/song-id.ts`                                            |
 | 识别背景音乐   | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
 | 自动识歌       | `AutoSongId.commands()` in `src/app/auto-song-id.ts`                                   |
 

@@ -4,7 +4,7 @@ import type { Command } from '../src/app/command';
 import { MentionAnswerer, type Mention } from '../src/app/mention-answerer';
 import { RoomFeed } from '../src/app/room-feed';
 import { personaCommand } from '../src/app/room-state';
-import { SongId } from '../src/app/song-id-command';
+import { SongId } from '../src/app/song-id';
 import { ChatHistory } from '../src/core/chat-history';
 import { Wallet, type Account } from '../src/core/wallet';
 import { fakeRoom } from './fake-room';

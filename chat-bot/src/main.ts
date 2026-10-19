@@ -42,7 +42,7 @@ import { Outbox } from './app/outbox';
 import { RoomFeed } from './app/room-feed';
 import { personaCommand, RoomState, screenshotCommand } from './app/room-state';
 import { musicCommand } from './app/music-command';
-import { SongId } from './app/song-id-command';
+import { SongId } from './app/song-id';
 import { TalkNow, WOKEN } from './app/talk-now';
 import { Transcriber } from './app/transcriber';
 import { WakeWord } from './app/wake-word';

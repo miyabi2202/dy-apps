@@ -1,8 +1,8 @@
 import { errorMessage, OutOfCreditError } from '../core/errors';
 import { relevanceRequest, roomLines, type RoomLine } from '../core/relevance';
 import { parseReplyPick, pickLines, pickPrompt, REPLY_PICK_SCHEMA } from '../core/reply-pick';
-import type { UnpromptedReply } from './chat-bot';
 import { done, failed, type Command } from './command';
+import type { UnpromptedReply } from './mention-answerer';
 import type { Outbox } from './outbox';
 import type { AskClaude, FindStreamer, Judge, Log } from './ports';
 import type { RoomState } from './room-state';

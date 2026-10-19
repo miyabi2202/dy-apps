@@ -1,10 +1,16 @@
 import { parseCommand, type CommandCall } from '../core/command';
 import { errorMessage } from '../core/errors';
+import type { Heard } from '../core/prompt';
 import { DOUYIN_CHAT_LIMIT, oneMessage } from '../core/reply';
 import type { Gift, IncomingChat } from '../core/room-events';
 import type { Billing, Charge } from './billing';
 import type { Command, CommandResult } from './command';
-import { refundMention, type Mention, type MentionAnswerer } from './mention-answerer';
+import {
+  refundMention,
+  type Mention,
+  type MentionAnswerer,
+  type UnpromptedReply,
+} from './mention-answerer';
 import type { Outbox } from './outbox';
 import type { Admins, Log } from './ports';
 import type { RoomFeed } from './room-feed';
@@ -42,20 +48,8 @@ interface Unpaid {
   question: string;
   at: number;
   /** For what the bot would say to them unprompted, rather than an @. */
-  unprompted?: Unprompted;
+  unprompted?: Heard;
 }
-
-/** What the bot heard someone say to or about it without an @, to answer unprompted. */
-export interface UnpromptedReply {
-  nickname: string;
-  userId: string;
-  /** What they said. */
-  question: string;
-  /** In the chat, or (the streamer) on the stream. */
-  heard: Unprompted;
-}
-
-type Unprompted = 'chat' | 'speech';
 
 /**
  * Decides what each @mention of the bot is: a question, paid for by the asker and handed to the
@@ -211,7 +205,7 @@ export class ChatBot {
     question: string,
     admin: boolean,
     command?: Command,
-    unprompted?: Unprompted,
+    unprompted?: Heard,
   ): Charge {
     const { nickname: asker, userId } = chat;
     const { billing, log } = this.options;

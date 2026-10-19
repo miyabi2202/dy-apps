@@ -1,4 +1,4 @@
-import { SongId } from '../src/app/song-id-command';
+import { SongId } from '../src/app/song-id';
 import { silentLog } from './fakes';
 
 test('/识歌模型 switches between Codex and Claude, Codex first when there is one', async () => {

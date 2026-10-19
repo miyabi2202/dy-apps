@@ -1,7 +1,7 @@
 import type { Judge, Log } from '../src/app/ports';
 import { fakeRoom } from './fake-room';
 import { AutoReply, type AutoReplyOptions } from '../src/app/auto-reply';
-import type { UnpromptedReply } from '../src/app/chat-bot';
+import type { UnpromptedReply } from '../src/app/mention-answerer';
 import { OutOfCreditError } from '../src/core/errors';
 import { ChatHistory } from '../src/core/chat-history';
 import { Transcript } from '../src/core/transcript';
