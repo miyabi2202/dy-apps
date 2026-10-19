@@ -155,8 +155,10 @@ export class AutoReply {
       lines,
       fresh.filter((line) => !following.includes(line)),
     );
-    if (judged === null) return;
-    const { about, best } = judged;
+    // Jev failing doesn't lose the follow-ups, which never needed it (unless it ran out of money,
+    // which turned auto-reply off).
+    if (judged === null && (!following.length || this.threshold >= 1)) return;
+    const { about, best } = judged ?? { about: [], best: null };
     if (!about.length && !following.length) return;
     if (best) {
       log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });

@@ -187,6 +187,27 @@ test('picks whom to answer as soon as something is about the bot', async () => {
   expect(replies.map((r) => r.question)).toEqual(['机器人你几岁了']);
 });
 
+test('a follow-up still goes to the picker when Jev fails on the rest', async () => {
+  const replies: UnpromptedReply[] = [];
+  const ran = setup(
+    [
+      () => ran.autoReply.answered('u-小红'),
+      () => {
+        ran.chat('小红', '印象深刻', 'u-小红');
+        ran.chat('阿明', '一马当先', 'u-阿明');
+      },
+    ],
+    {
+      judge: () => Promise.reject(new Error('jev answered 500')),
+      picker: () => Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] })),
+      reply: (target) => void replies.push(target),
+    },
+  );
+  await ran.autoReply.run();
+
+  expect(replies.map((r) => r.question)).toEqual(['印象深刻']);
+});
+
 test('what someone says within a minute of the bot answering them goes to the picker, not Jev', async () => {
   const picks: string[] = [];
   const replies: UnpromptedReply[] = [];
