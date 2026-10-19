@@ -10,8 +10,7 @@ export const USAGE =
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
-  '       [--wake-word-prompt wake-word.md] [--thanks-threshold 99999] [--wake-words wake-words.json]\n' +
-  '       [--codex gpt-6-luna] [--auto-song-id]';
+  '       [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -39,11 +38,8 @@ export interface CliOptions {
   configFile: string;
   /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
   autoReplyThreshold: number;
-  wakeWordPromptFile: string;
   /** Thank a viewer whose gifts in 5 minutes come to more than this many diamonds. */
   thanksThreshold: number;
-  /** Each room's wake word, and the default one, which /设置唤醒词 writes to. */
-  wakeWordsFile: string;
   /** The Codex model /识歌 asks first; empty for none. */
   codex: string;
   /** Name the songs the streamer sings without being asked, from the start. */
@@ -91,10 +87,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       // Jev's score at which the bot joins in when someone talks about it: 1, off, by default;
       // /自动回复阈值 0.6 turns it on while the bot runs.
       'auto-reply-threshold': { type: 'string', default: '1' },
-      'wake-word-prompt': { type: 'string', default: join(packageDir, 'wake-word.md') },
       // So high it's off by default; /自动谢礼 lowers it while the bot runs.
       'thanks-threshold': { type: 'string', default: '99999' },
-      'wake-words': { type: 'string', default: join(packageDir, 'wake-words.json') },
       // /识歌 asks Codex (fast and cheap at low effort), which searches with Google; '' for Claude.
       codex: { type: 'string', default: 'gpt-6-luna' },
       // Name the songs the streamer sings without being asked; /自动识歌 switches it while it runs.
@@ -127,9 +121,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     dataDir: values.data,
     configFile: values.config,
     autoReplyThreshold: Number(values['auto-reply-threshold']),
-    wakeWordPromptFile: values['wake-word-prompt'],
     thanksThreshold: Number(values['thanks-threshold']),
-    wakeWordsFile: values['wake-words'],
     codex: values.codex,
     autoSongId: values['auto-song-id'],
   };

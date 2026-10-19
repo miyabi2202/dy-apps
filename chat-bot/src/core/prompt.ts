@@ -38,8 +38,6 @@ export interface RoomSettings {
   autoReplyThreshold: number;
   /** Viewers whose gifts within 5 minutes pass this many diamonds are thanked. */
   thanksThreshold: number;
-  /** What the streamer says to make the bot talk now; empty for none. */
-  wakeWord: string;
   /** Whether the bot names the songs the streamer sings without being asked. */
   autoSongId?: boolean;
 }
@@ -72,15 +70,13 @@ export type PromptInput = RoomPromptInput & {
 
 /** `settings` as lines for the prompt, with `asker`'s balance when known. */
 function settingsText(settings: RoomSettings, asker: string, askerBalance?: number): string {
-  const { mentionCost, screenshots, autoReplyThreshold, thanksThreshold, wakeWord, autoSongId } =
-    settings;
+  const { mentionCost, screenshots, autoReplyThreshold, thanksThreshold, autoSongId } = settings;
   return [
     '直播间现在的设置（机器人管理员可以用指令修改）：',
     `- 每次 @ 你：${mentionCost > 0 ? `${mentionCost} 钻，用观众给主播送过的礼物抵（不会另外扣观众的钱）` : '免费'}`,
     `- 截图：${screenshots ? '开（你能看到直播画面）' : '关（你看不到直播画面）'}`,
     `- 自动回复：${autoReplyThreshold < 1 ? `开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 ${autoReplyThreshold}）` : '关闭'}`,
     `- 自动谢礼：${thanksThreshold >= THANKS_OFF_FROM ? '关闭' : `5 分钟内送礼超过 ${thanksThreshold} 钻的观众会收到感谢`}`,
-    `- 唤醒词：${wakeWord ? `「${wakeWord}」（主播说出来，你就会主动说一句，不收费）` : '无'}`,
     ...(autoSongId === undefined
       ? []
       : [`- 自动识歌：${autoSongId ? '开（主播唱歌时，你会自己认出是什么歌并说出来）' : '关闭'}`]),

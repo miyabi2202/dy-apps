@@ -264,11 +264,11 @@ test('what someone says within a minute of the bot answering them goes to the pi
   expect(replies.map((r) => r.question)).toEqual(['印象深刻']);
 });
 
-test('after it spoke to the room, what the streamer says, on the stream or in the chat, follows up', async () => {
+test('after it answered the streamer, what the streamer says, on the stream or in the chat, follows up', async () => {
   const picks: string[] = [];
   const ran = setup(
     [
-      () => ran.autoReply.spokeToRoom(),
+      () => ran.autoReply.answered('s-1'),
       () => {
         ran.say('那我接一个');
         ran.chat('虾虾', '印象深刻', 's-1');

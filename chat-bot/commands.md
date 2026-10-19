@@ -4,7 +4,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 ## The commands
 
-<!-- prompt.md and wake-word.md get this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
+<!-- prompt.md gets this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
 
 | Command               | What it does                                       | Admins only | Default     |
 | --------------------- | -------------------------------------------------- | ----------- | ----------- |
@@ -12,7 +12,6 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/修改收费 <钻>`      | Change what an @ costs                             | yes         | 1           |
 | `/自动回复阈值 <0–1>` | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
 | `/自动谢礼 <钻>`      | Thank viewers who give more than this in 5 minutes | yes         | 99999 (off) |
-| `/设置唤醒词 <词>`    | The words the streamer says to make the bot talk   | yes         | 我想吃鱼了  |
 | `/截图 <0\|1>`        | Send Claude the live video or not                  | yes         | 0           |
 | `/识歌 [提示]`        | Name the song the streamer sings, from its lyrics  | no          | –           |
 | `/识别背景音乐`       | Name the recording playing, from its sound         | no          | –           |
@@ -20,7 +19,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/拼命解题 [提示]`    | The same, thinking harder                          | yes         | –           |
 | `/自动识歌 <0\|1>`    | Name the songs the streamer sings, unasked         | yes         | 0           |
 
-Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops, except `/设置唤醒词`'s, which is saved; a restart goes back to the command-line options and `config.json`.
+Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops; a restart goes back to the command-line options and `config.json`.
 
 ### /修改人设
 
@@ -74,21 +73,6 @@ Thanks a viewer, with an @ from `gift-thanks.md`, when their gifts within 5 minu
 
 （雅 sends gifts worth 120 diamonds）
 → @雅 谢谢你的礼物，陪主播听歌的时光更暖了
-```
-
-### /设置唤醒词
-
-Sets this room's wake word: when the streamer says it (spoken, not sung, and not by a linked-up guest), the bot says one thing to the streamer now from `wake-word.md`, for free, and then ignores it for a minute. It's matched by sound, so 我想吃余了 counts for 我想吃鱼了. It's saved in `wake-words.json` under the room id, so it lasts across runs; rooms without their own use `default` (`我想吃鱼了`). Set a room's to `""` in that file to turn it off there.
-
-```text
-@默认关闭 /设置唤醒词 小猫饿了
-→ 已处理设置唤醒词请求
-
-（主播：哎，小猫饿啦）
-→ 这首歌唱完要不要聊聊今天吃了什么？
-
-@默认关闭 /设置唤醒词 hello
-→ 唤醒词要有中文，用法：/设置唤醒词 我想吃鱼了
 ```
 
 ### /截图
@@ -177,7 +161,6 @@ Each feature offers its own commands, and `src/main.ts` hands them all to `ChatB
 | 修改收费       | `Billing.commands()` in `src/app/billing.ts`                                           |
 | 自动回复阈值   | `AutoReply.commands()` in `src/app/auto-reply.ts`                                      |
 | 自动谢礼       | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
-| 设置唤醒词     | `WakeWord.commands()` in `src/app/wake-word.ts`                                        |
 | 识歌           | `SongId.commands()` in `src/app/song-id.ts`                                            |
 | 识别背景音乐   | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
 | 自动识歌       | `AutoSongId.commands()` in `src/app/auto-song-id.ts`                                   |

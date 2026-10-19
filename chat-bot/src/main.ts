@@ -28,7 +28,6 @@ import {
 } from './adapters/room-files';
 import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
 import { jev } from './adapters/jev';
-import { wakeWordFile } from './adapters/wake-word-file';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
 import { AutoReply } from './app/auto-reply';
@@ -46,9 +45,7 @@ import { RoomFeed } from './app/room-feed';
 import { personaCommand, RoomState, screenshotCommand } from './app/room-state';
 import { musicCommand } from './app/music-command';
 import { SongId } from './app/song-id';
-import { TalkNow, WOKEN } from './app/talk-now';
 import { Transcriber } from './app/transcriber';
-import { WakeWord } from './app/wake-word';
 import { parseCliOptions, USAGE } from './cli-options';
 import { ChatHistory } from './core/chat-history';
 import type { RoomSettings } from './core/prompt';
@@ -140,8 +137,6 @@ const mentionTemplate = livePrompt('mention', {
   sharedPath: resolve(options.promptFile),
 });
 const history = new ChatHistory(options.historySize);
-// Each room's wake word, read again when the file changes; /设置唤醒词 writes this room's.
-const wakeWords = wakeWordFile(resolve(options.wakeWordsFile), roomId, { log });
 // Three closures point forward: the room's settings (to autoReply, thanker and autoSongId), the
 // autoReply's reply and the answerer's onCommandRequest (to the bot). They run only after the bot
 // exists, since nothing calls room.promptInput() or starts autoReply while this is wired.
@@ -165,7 +160,6 @@ const room = new RoomState({
     mentionCost: billing.cost,
     autoReplyThreshold: autoReply.threshold,
     thanksThreshold: thanker.threshold,
-    wakeWord: wakeWords.get(),
     autoSongId: autoSongId?.on ?? false,
   }),
   // commands.md's list, and the room's own commands, which Claude asks for by name.
@@ -194,12 +188,11 @@ admins.start();
 // Joins in when Jev (with JEV_API_KEY from chat-bot/.env) scores something said in the room as
 // about the bot at --auto-reply-threshold or more (/自动回复阈值 changes it), or when someone it just
 // answered says something. Both Jev and Codex (which picks whom to answer) are needed; without
-// either, only the wake word makes it talk.
+// either, it only talks when @ed.
 const jevKey = process.env.JEV_API_KEY;
 if (!jevKey)
-  log.warn('no JEV_API_KEY in chat-bot/.env: the bot only talks unprompted on the wake word');
-if (!options.codex)
-  log.warn('--codex is empty: auto-reply is off, the bot only talks on the wake word');
+  log.warn('no JEV_API_KEY in chat-bot/.env: auto-reply is off, the bot only talks when @ed');
+if (!options.codex) log.warn('--codex is empty: auto-reply is off, the bot only talks when @ed');
 // Codex reads its working directory, so it gets an empty one.
 const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 // /解题 and /拼命解题: Codex's gpt-6-astra, which on figure puzzles was faster and more often
@@ -302,22 +295,7 @@ const songId = options.codex
       log,
       onTold: (song) => void songIntro.introduce(song),
     })
-  : null; // The streamer saying the room's wake word (from --wake-words, read again when it changes) makes
-// the bot talk now, for free; /设置唤醒词 changes it.
-const talkNow = new TalkNow({
-  ask,
-  outbox,
-  promptTemplate: prompt('wakeWord', resolve(options.wakeWordPromptFile)),
-  room,
-  maxLength: options.maxReplyLength,
-  log,
-  onSaid: () => autoReply.spokeToRoom(),
-});
-const wakeWord = new WakeWord({
-  words: wakeWords,
-  wake: () => talkNow.say('reply', WOKEN),
-  log,
-});
+  : null;
 // And the streamer singing has the song named, when /自动识歌 (or --auto-song-id) turns it on.
 const autoSongId =
   transcriber && songId
@@ -330,10 +308,7 @@ const autoSongId =
         maxLength: options.maxReplyLength,
       })
     : null;
-transcriber?.onLine((line) => {
-  wakeWord.hear(line);
-  autoSongId?.hear(line);
-});
+transcriber?.onLine((line) => autoSongId?.hear(line));
 // Decides what a mention is (a question, or a command) and charges for it.
 const bot: ChatBot = new ChatBot({
   feed,
@@ -350,7 +325,6 @@ const bot: ChatBot = new ChatBot({
     ...billing.commands(),
     ...autoReply.commands(),
     ...thanker.commands(),
-    ...wakeWord.commands(),
     screenshotCommand(room),
     ...(songId?.commands() ?? []),
     solveCommand({ name: '解题', prompt: prompt('solve'), ask: solveAsk('medium', 360_000) }),

@@ -164,7 +164,6 @@ test("tells Claude the room settings, the asker's balance and the commands", asy
     mentionCost: 2,
     autoReplyThreshold: 1,
     thanksThreshold: 100,
-    wakeWord: '我想吃鱼了',
   };
   const { ask, prompts } = setup({
     template: '{{settings}}\n---\n{{commands}}',
@@ -175,7 +174,6 @@ test("tells Claude the room settings, the asker's balance and the commands", asy
   await ask({ userId: 'u-阿明' });
   settings.autoReplyThreshold = 0.6;
   settings.thanksThreshold = 99999;
-  settings.wakeWord = '';
   await ask({ userId: 'u-阿明' });
 
   expect(prompts).toEqual([
@@ -185,13 +183,12 @@ test("tells Claude the room settings, the asker's balance and the commands", asy
       '- 截图：关（你看不到直播画面）',
       '- 自动回复：关闭',
       '- 自动谢礼：5 分钟内送礼超过 100 钻的观众会收到感谢',
-      '- 唤醒词：「我想吃鱼了」（主播说出来，你就会主动说一句，不收费）',
       '- 阿明 送的礼物还剩：7 钻可用',
       '---',
       '## The commands\n\n/识歌',
     ].join('\n'),
     expect.stringContaining(
-      '- 自动回复：开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 0.6）\n- 自动谢礼：关闭\n- 唤醒词：无\n',
+      '- 自动回复：开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 0.6）\n- 自动谢礼：关闭\n',
     ),
   ]);
 });

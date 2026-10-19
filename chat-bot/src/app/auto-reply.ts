@@ -43,7 +43,7 @@ export interface AutoReplyOptions {
  * asking the judge: it's likely a reply (the next move in 成语接龙, say) the judge can't tell.
  */
 const FOLLOW_UP_MS = 60_000;
-/** Whom the bot said something to without @ing anyone: the streamer. */
+/** The streamer, as the bot keeps track of whom it answered: on the stream or in the chat. */
 const STREAMER = '主播';
 
 /** At most this many lines go to the picker, the newest. */
@@ -94,16 +94,6 @@ export class AutoReply {
   stop(): void {
     this.stopped = true;
     this.wake();
-  }
-
-  /**
-   * The bot just said something to the room, which mostly means the streamer: it keeps quiet for
-   * a while, and for FOLLOW_UP_MS what the streamer says goes to the picker, without the judge.
-   */
-  spokeToRoom(): void {
-    const now = this.options.room.now();
-    this.talkedAt = now;
-    this.saidTo.set(STREAMER, now);
   }
 
   /**
