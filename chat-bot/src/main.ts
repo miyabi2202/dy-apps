@@ -161,10 +161,10 @@ const admins = new StreamerAdmin({
   log,
 });
 admins.start();
-// Joins in when Jev (with JEV_API_KEY from chat-bot/.env) scores
-// something said in the room as about the bot at --auto-reply-threshold or more (/自动回复阈值 changes
-// it); and talks when the streamer says the wake word. Both Jev and Codex (which picks whom to
-// answer) are needed to join in; without either, only the wake word makes it talk.
+// Joins in when Jev (with JEV_API_KEY from chat-bot/.env) scores something said in the room as
+// about the bot at --auto-reply-threshold or more (/自动回复阈值 changes it), or when someone it just
+// answered says something. Both Jev and Codex (which picks whom to answer) are needed; without
+// either, only the wake word makes it talk.
 const jevKey = process.env.JEV_API_KEY;
 if (!jevKey)
   log.warn('no JEV_API_KEY in chat-bot/.env: the bot only talks unprompted on the wake word');
@@ -237,7 +237,7 @@ const answerer = new MentionAnswerer({
   onCommandRequest: (mention, name, args) => bot.requestCommand(mention, name, args),
 });
 // /识歌: Codex, which searches with Google (or Claude, with /识歌模型).
-// Once a song is named, says something about it and praises the streamer's singing.
+// Once a song is named, may say up to two more things about it, or nothing.
 const songIntro = new SongIntro({
   ask,
   outbox,
