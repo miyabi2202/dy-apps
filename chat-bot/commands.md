@@ -130,7 +130,7 @@ Has the bot name the songs the streamer sings without anyone asking, as `/识歌
 
 ### /解题
 
-Works out the math, logic or figure puzzle on the screen (or written after the command), for admins only. It always sends a screenshot, even while `/截图` has them off, and asks Codex's `gpt-6-astra` (at medium effort, no web search, up to 6 minutes) with its own prompt `solve.md` (a room's own `solve.md` overrides it). The prompt has it check several rules against every figure before it answers, and say so when two rules fit or it can't tell. It answers in JSON, so only the answer is sent. On three test puzzles astra was right every time, in 16–43 seconds, where Claude Opus and Fable (even with a zoom tool) were slower and sometimes wrong. Answered like any @.
+Works out the math, logic or figure puzzle on the screen (or written after the command), for admins only. It always sends a screenshot, even while `/截图` has them off, and asks Codex's `gpt-6-astra` (at medium effort, no web search, up to 6 minutes, with the `zoom` tool for a closer look at small figures and text) with its own prompt `solve.md` (a room's own `solve.md` overrides it). The prompt has it check several rules against every figure before it answers, and say so when two rules fit or it can't tell. It answers in JSON, so only the answer is sent. On three test puzzles astra was right every time, in 13–43 seconds (zooming only into the blurry live screenshot), where Claude Opus and Fable (even with a zoom tool) were slower and sometimes wrong. Answered like any @.
 
 ```text
 @默认关闭 /解题

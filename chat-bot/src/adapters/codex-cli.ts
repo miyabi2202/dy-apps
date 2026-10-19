@@ -19,6 +19,12 @@ export interface CodexCliOptions {
   systemPrompt?: string;
   /** Whether it may search the web (live); on unless turned off. */
   webSearch?: boolean;
+  /**
+   * The MCP server with the `zoom` tool (zoom-mcp.ts), started with the screenshot's file as its
+   * last argument for a question that has one; its one tool is pre-approved, as codex exec has no
+   * one to ask.
+   */
+  zoom?: { command: string; args: readonly string[] };
   spawnProcess?: typeof spawn;
 }
 
@@ -64,6 +70,7 @@ export function codexCli({
   cwd,
   systemPrompt,
   webSearch = true,
+  zoom,
   spawnProcess = spawn,
 }: CodexCliOptions = {}): AskClaude {
   return ({ prompt, schema, image }) =>
@@ -90,6 +97,16 @@ export function codexCli({
         `web_search="${webSearch ? 'live' : 'disabled'}"`,
         '--json',
         ...(schemaFile ? ['--output-schema', schemaFile] : []),
+        ...(zoom && imageFile
+          ? [
+              '-c',
+              `mcp_servers.zoom.command=${JSON.stringify(zoom.command)}`,
+              '-c',
+              `mcp_servers.zoom.args=${JSON.stringify([...zoom.args, imageFile])}`,
+              '-c',
+              'mcp_servers.zoom.tools.zoom.approval_mode="approve"',
+            ]
+          : []),
         // `-i` takes any number of files, so `--` ends them before the prompt.
         ...(imageFile ? ['-i', imageFile, '--'] : []),
         systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,

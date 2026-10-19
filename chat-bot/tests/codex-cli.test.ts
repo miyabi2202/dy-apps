@@ -77,3 +77,21 @@ test('hands codex the screenshot in a file, before the prompt', () => {
   void codexCli({ spawnProcess })({ prompt: 'hi' }).catch(() => {});
   expect(args).not.toContain('-i');
 });
+
+test('with a screenshot, starts the zoom server on it and approves only its tool; without one, neither', () => {
+  let args: readonly string[] = [];
+  const spawnProcess = ((_command: string, a: readonly string[]) => {
+    args = a;
+    throw new Error('not really running codex');
+  }) as unknown as typeof spawn;
+  const ask = codexCli({ zoom: { command: '/bin/tsx', args: ['/app/zoom-mcp.ts'] }, spawnProcess });
+  void ask({ prompt: 'hi', image: new Uint8Array([0xff, 0xd8]) }).catch(() => {});
+
+  const image = args[args.indexOf('-i') + 1];
+  expect(args).toContain('mcp_servers.zoom.command="/bin/tsx"');
+  expect(args).toContain(`mcp_servers.zoom.args=${JSON.stringify(['/app/zoom-mcp.ts', image])}`);
+  expect(args).toContain('mcp_servers.zoom.tools.zoom.approval_mode="approve"');
+
+  void ask({ prompt: 'hi' }).catch(() => {});
+  expect(args.some((arg) => arg.startsWith('mcp_servers.zoom'))).toBe(false);
+});

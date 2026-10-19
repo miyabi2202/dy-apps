@@ -192,6 +192,7 @@ const solveAsk = (effort: string, timeoutMs: number) =>
     timeoutMs,
     cwd: emptyDir,
     systemPrompt: options.systemPrompt,
+    zoom,
   });
 // Once Jev finds something about the bot, Codex (the cheap model, no web search) picks whom to
 // answer, and each is answered like a mention (charged, with their own talk.txt; the streamer's
