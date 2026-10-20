@@ -13,7 +13,7 @@ export interface AdditionalCommandEntry {
   trigger: RegExp | null;
   /** Its prompt file, relative to the `additional_commands/` folder: can-sing/prompt.md. */
   prompt: string;
-  /** Diamonds an answer costs a viewer (0 free); what an @ costs when not set. */
+  /** Diamonds an answer costs a viewer (0 free; admins never pay); what an @ costs when not set. */
   price?: number;
   /**
    * A file in the room's folder, one phrase a line (a song list's titles, say): a chat containing
