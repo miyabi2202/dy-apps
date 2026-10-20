@@ -37,6 +37,11 @@ export interface Mention extends PromptOptions {
   template?: string;
   /** Not an @: the bot heard the asker talk to or about it, in the chat or on the stream. */
   unprompted?: Heard;
+  /**
+   * Called, after the refund, when Claude said nothing: an @ that a room command's trigger took
+   * («虾虾会生气吗» for 会唱xxx吗) is answered as usual then.
+   */
+  ifEmpty?: () => void;
 }
 
 /** What the bot heard someone say to or about it without an @, to answer unprompted. */
@@ -223,6 +228,7 @@ export class MentionAnswerer {
       if (!messages.length && !toOthers.length) {
         log.warn('claude gave an empty answer', { asker: mention.asker });
         this.refund(mention);
+        mention.ifEmpty?.();
         return;
       }
       // One refund however many of the parts fail.

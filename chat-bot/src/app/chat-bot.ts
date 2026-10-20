@@ -115,6 +115,20 @@ export class ChatBot {
       ({ trigger, adminOnly }) => trigger?.test(question) && (!adminOnly || admin),
     );
     if (own) log.info('additional command triggered', { asker, userId, command: own.id });
+    this.askMention(chat, question, admin, own);
+  }
+
+  /**
+   * Charges for a mention and hands it on, with the room's own command `own` if there is one;
+   * when that command's answer is empty (it wasn't really for it), asked again as usual.
+   */
+  private askMention(
+    chat: IncomingChat,
+    question: string,
+    admin: boolean,
+    own?: AdditionalCommand,
+  ): void {
+    const { nickname: asker, userId } = chat;
     const charge = this.charge(chat, question, admin, undefined, undefined, own);
     if (!charge.ok) return;
     this.ask({
@@ -123,7 +137,16 @@ export class ChatBot {
       paid: charge.paid,
       question,
       history: this.options.room.recentChat(),
-      ...(own && this.commandPrompt(own)),
+      ...(own && {
+        ...this.commandPrompt(own),
+        ifEmpty: () => {
+          this.options.log.info('not for the command, answering as usual', {
+            asker,
+            command: own.id,
+          });
+          this.askMention(chat, question, admin);
+        },
+      }),
     });
   }
 

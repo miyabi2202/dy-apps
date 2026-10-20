@@ -665,3 +665,24 @@ test("a mention matching a room command's trigger is answered with that command 
   expect(prompts).toEqual(['歌单：晴天\n阿明 问的：虾会唱晴天吗']);
   expect(sent).toEqual(['@阿明 会唱哦，《晴天》在歌单里']);
 });
+
+test("a mention a room command's trigger took is answered as usual, at the usual price, when the command says nothing", async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
+  const answers = [JSON.stringify({ message: '' }), JSON.stringify({ message: '会生气的' })];
+  const { say, settle, prompts, sent } = setup({
+    wallet,
+    cost: 1,
+    template: '{{asker}}: {{question}}',
+    ask: () => Promise.resolve(answers.shift()!),
+    additionalCommands: [{ ...CAN_SING, price: 0 }],
+  });
+  say(chat('阿明', `@${BOT.nickname} 虾虾会唱完就生气吗`));
+  await settle();
+
+  expect(prompts).toEqual([
+    '歌单：晴天\n阿明 问的：虾虾会唱完就生气吗',
+    '阿明: 虾虾会唱完就生气吗',
+  ]);
+  expect(sent).toEqual(['@阿明 会生气的']);
+  expect(wallet.balance('u-阿明')).toBe(0);
+});
