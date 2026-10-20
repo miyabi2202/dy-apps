@@ -98,7 +98,8 @@ data/<房间号>/
 
 **@ 了机器人**：
 
-1. Claude 先用 `prompt.md` 回答，指令列表里有这个直播间的指令（`- <id>（<name>）：<when>`）。它认出是这类问题，就在 `command_request` 写指令 id。
+0. @ 的话匹配某个指令的 `trigger`（`adminOnly` 的只算主播和管理员），就直接用这个指令回答，按它的 `price` 收费（`0` 就不收），不走下面两步。所以免费指令不会因为观众没余额被「要先送礼」挡掉。
+1. 否则 Claude 先用 `prompt.md` 回答，指令列表里有这个直播间的指令（`- <id>（<name>）：<when>`）。它认出是这类问题，就在 `command_request` 写指令 id。
 2. 程序换成这个指令的 `prompt.md` 再问一次 Claude，发这次的回答。
 
 ### 怎么写 when

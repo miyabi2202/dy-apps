@@ -573,10 +573,11 @@ test("a mention Claude finds asking for one of the room's own commands is asked 
     ask: () => Promise.resolve(answers.shift()!),
     additionalCommands: [CAN_SING],
   });
-  say(chat('阿明', `@${BOT.nickname} 虾会唱晴天吗`));
+  // Not the trigger's words, so it's the usual prompt that finds the command.
+  say(chat('阿明', `@${BOT.nickname} 晴天在歌单里吗`));
   await settle();
 
-  expect(prompts[1]).toBe('歌单：晴天\n阿明 问的：虾会唱晴天吗');
+  expect(prompts[1]).toBe('歌单：晴天\n阿明 问的：晴天在歌单里吗');
   expect(sent).toEqual(['@阿明 会唱哦，《晴天》在歌单里']);
   expect(wallet.balance('u-阿明')).toBe(0);
 });
@@ -604,7 +605,7 @@ test('a free room command answers a viewer with no balance, without @ or with on
   await settle();
   expect(sent).toEqual(['@阿明 会唱哦，《晴天》在歌单里']);
 
-  say(chat('小红', `@${BOT.nickname} 虾会唱晴天吗`));
+  say(chat('小红', `@${BOT.nickname} 晴天在歌单里吗`));
   await settle();
   expect(sent.at(-1)).toBe('@小红 会唱哦，《晴天》在歌单里');
   expect(wallet.balance('u-小红')).toBe(1);
@@ -660,4 +661,19 @@ test("an admin-only room command that @s others: an admin's request @s each, a v
   });
   await settle();
   expect(sent).toHaveLength(4);
+});
+
+test("a mention matching a room command's trigger is answered with that command at its price, before any charge", async () => {
+  const wallet = memoryWallet();
+  const { say, settle, prompts, sent } = setup({
+    wallet,
+    cost: 1,
+    answer: JSON.stringify({ message: '会唱哦，《晴天》在歌单里' }),
+    additionalCommands: [{ ...CAN_SING, price: 0 }],
+  });
+  say(chat('阿明', `@${BOT.nickname} 虾会唱晴天吗`));
+  await settle();
+
+  expect(prompts).toEqual(['歌单：晴天\n阿明 问的：虾会唱晴天吗']);
+  expect(sent).toEqual(['@阿明 会唱哦，《晴天》在歌单里']);
 });

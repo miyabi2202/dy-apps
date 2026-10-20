@@ -97,7 +97,10 @@ export class ChatBot {
     await this.options.answerer.idle();
   }
 
-  /** Runs the command the mention gives, or charges the asker and hands the question on. */
+  /**
+   * Runs the command the mention gives, or charges the asker and hands the question on: to the
+   * room's own command whose trigger it matches, at that command's price, when there is one.
+   */
   private onMention(chat: IncomingChat, question: string): void {
     const { log } = this.options;
     const { nickname: asker, userId } = chat;
@@ -108,7 +111,11 @@ export class ChatBot {
       this.track(this.onCommand(chat, question, call, admin));
       return;
     }
-    const charge = this.charge(chat, question, admin);
+    const own = this.options.additionalCommands?.find(
+      ({ trigger, adminOnly }) => trigger?.test(question) && (!adminOnly || admin),
+    );
+    if (own) log.info('additional command triggered', { asker, userId, command: own.id });
+    const charge = this.charge(chat, question, admin, undefined, undefined, own);
     if (!charge.ok) return;
     this.ask({
       asker,
@@ -116,6 +123,7 @@ export class ChatBot {
       paid: charge.paid,
       question,
       history: this.options.room.recentChat(),
+      ...(own && this.commandPrompt(own)),
     });
   }
 
