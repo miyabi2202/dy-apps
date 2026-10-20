@@ -1,10 +1,8 @@
-import { parseCommand, type CommandCall } from '../core/command';
-import { errorMessage } from '../core/errors';
-import type { Heard } from '../core/prompt';
-import { DOUYIN_CHAT_LIMIT, oneMessage } from '../core/reply';
+import { parseCommand } from '../core/command';
 import type { Gift, IncomingChat } from '../core/room-events';
 import type { Billing, Charge } from './billing';
-import type { Command, CommandResult } from './command';
+import type { Command } from './command';
+import { CommandRunner, type ChargeRequest } from './command-runner';
 import {
   refundMention,
   type Mention,
@@ -12,10 +10,10 @@ import {
   type UnpromptedReply,
 } from './mention-answerer';
 import type { Outbox } from './outbox';
-import { Pending } from './pending';
 import type { AdditionalCommand, Admins, Log } from './ports';
 import type { RoomFeed } from './room-feed';
 import type { RoomState } from './room-state';
+import { UnpaidMentions } from './unpaid-mentions';
 
 export interface ChatBotOptions {
   /** Where the mentions come from, and the thing to start and stop. */
@@ -48,38 +46,34 @@ export interface ChatBotOptions {
   now?: () => number;
 }
 
-/** A mention waiting for its asker to send a gift and pay for it. */
-interface Unpaid {
-  chat: IncomingChat;
-  question: string;
-  at: number;
-  /** For what the bot would say to them unprompted, rather than an @. */
-  unprompted?: Heard;
-  /** The room's own command to answer it with, by id. */
-  command?: string;
-}
-
 /**
  * Decides what each @mention of the bot is: a question, paid for by the asker and handed to the
  * answerer, or, with a `/` first, one of `commands` (`/修改人设 …`), paid for like a question but
- * at the command's own price. A command takes effect at once and the bot says how it went in a
- * system message. Admin-only commands, and commands nobody has, are ignored from anyone but an
- * admin, unless they have commands of their own to be told about. With billing, a viewer who
+ * at the command's own price, which the CommandRunner runs. With billing, a viewer who
  * can't pay gets a fixed notice, put in the outbox straight away rather than waiting behind the
  * questions for Claude, and their mention (the last one) waits: a gift from them within
- * `waitForGiftMs` (5 minutes) pays for it and has it answered at once.
+ * `waitForGiftMs` (5 minutes) pays for it and has it answered at once (see UnpaidMentions).
  */
 export class ChatBot {
-  /** Commands still running, like one waiting for Claude. */
-  private readonly work = new Pending();
-  private readonly commands: ReadonlyMap<string, Command>;
-  private readonly maxLength: number;
-  /** Each viewer's last mention they couldn't pay for, by user id. */
-  private readonly unpaid = new Map<string, Unpaid>();
+  private readonly runner: CommandRunner;
+  /** Each viewer's last mention they couldn't pay for. */
+  private readonly unpaid: UnpaidMentions;
 
   constructor(private readonly options: ChatBotOptions) {
-    this.commands = new Map((options.commands ?? []).map((command) => [command.name, command]));
-    this.maxLength = options.maxReplyLength ?? DOUYIN_CHAT_LIMIT;
+    this.unpaid = new UnpaidMentions({ now: options.now, waitMs: options.waitForGiftMs });
+    this.runner = new CommandRunner({
+      commands: options.commands ?? [],
+      outbox: options.outbox,
+      room: options.room,
+      log: options.log,
+      charge: (request) => this.charge(request),
+      ask: (mention) => this.ask(mention),
+      refund: (mention) => this.refund(mention),
+      isAdmin: (userId) => this.isAdmin(userId),
+      maxReplyLength: options.maxReplyLength,
+      adminNames: options.adminNames,
+      now: options.now,
+    });
   }
 
   start(): void {
@@ -94,7 +88,7 @@ export class ChatBot {
 
   /** Resolves once Claude has answered every queued mention, and every command has finished. */
   async idle(): Promise<void> {
-    await this.work.idle();
+    await this.runner.idle();
     await this.options.answerer.idle();
   }
 
@@ -109,7 +103,7 @@ export class ChatBot {
     const admin = this.isAdmin(userId);
     const call = parseCommand(question);
     if (call) {
-      this.track(this.onCommand(chat, question, call, admin));
+      this.runner.run(chat, question, call, admin);
       return;
     }
     const own = this.options.additionalCommands?.find(
@@ -130,7 +124,7 @@ export class ChatBot {
     own?: AdditionalCommand,
   ): void {
     const { nickname: asker, userId } = chat;
-    const charge = this.charge(chat, question, admin, undefined, undefined, own);
+    const charge = this.charge({ chat, question, admin, additional: own });
     if (!charge.ok) return;
     this.ask({
       asker,
@@ -153,12 +147,9 @@ export class ChatBot {
 
   /** Answers the giver's unpaid mention, now that they may be able to pay for it. */
   private onGift({ userId }: Gift): void {
-    const unpaid = this.unpaid.get(userId);
+    const unpaid = this.unpaid.claim(userId);
     if (!unpaid) return;
-    this.unpaid.delete(userId);
-    const { now = Date.now, waitForGiftMs = 5 * 60_000, log } = this.options;
-    if (now() - unpaid.at > waitForGiftMs) return;
-    log.info('answering after a gift', { asker: unpaid.chat.nickname, userId });
+    this.options.log.info('answering after a gift', { asker: unpaid.chat.nickname, userId });
     const { chat, question, unprompted, command } = unpaid;
     if (unprompted) {
       const { nickname } = chat;
@@ -199,25 +190,7 @@ export class ChatBot {
       this.ask({ ...mention, paid, ...this.commandPrompt(own) });
       return true;
     }
-    const command = this.commands.get(name);
-    if (!command?.adminOnly) return false;
-    const { log, adminNames = '机器人管理员' } = this.options;
-    const admin = this.isAdmin(userId);
-    log.info('command requested', { asker, userId, name, args, admin });
-    if (!admin) {
-      this.say(asker, 'system', `你无权调用「${name}」指令，只有主播和${adminNames}才可以`);
-      return true;
-    }
-    const question = `/${name}${args ? ` ${args}` : ''}`;
-    const ts = (this.options.now ?? Date.now)();
-    const chat: IncomingChat = { ts, userId, nickname: asker, content: question, mentions: [] };
-    this.track(this.onCommand(chat, question, { name, args }, true));
-    return true;
-  }
-
-  /** Keeps a command that's still running, for idle(). */
-  private track(pending: Promise<void> | undefined): void {
-    if (pending) this.work.track(pending);
+    return this.runner.request(mention, name, args);
   }
 
   /**
@@ -234,7 +207,13 @@ export class ChatBot {
       this.options.log.info('additional command not for them', { asker: nickname, command });
       return;
     }
-    const charge = this.charge(chat, question, this.isAdmin(userId), undefined, heard, own);
+    const charge = this.charge({
+      chat,
+      question,
+      admin: this.isAdmin(userId),
+      unprompted: heard,
+      additional: own,
+    });
     if (!charge.ok) return;
     this.ask({
       asker: nickname,
@@ -280,14 +259,14 @@ export class ChatBot {
    * them `unprompted`, with the room's own command `additional`, at its price) for when they send
    * a gift, and says so.
    */
-  private charge(
-    chat: IncomingChat,
-    question: string,
-    admin: boolean,
-    command?: Command,
-    unprompted?: Heard,
-    additional?: AdditionalCommand,
-  ): Charge {
+  private charge({
+    chat,
+    question,
+    admin,
+    command,
+    unprompted,
+    additional,
+  }: ChargeRequest): Charge {
     const { nickname: asker, userId } = chat;
     const { billing, log } = this.options;
     if (admin || !billing) return { ok: true, paid: 0 };
@@ -295,16 +274,9 @@ export class ChatBot {
     const charge = billing.charge(userId, asker, price);
     if (charge.ok) return charge;
     if (userId) {
-      const { now = Date.now, waitForGiftMs = 5 * 60_000 } = this.options;
-      const at = now();
-      // Only a gift removes an entry, so those that nobody came back for are dropped here.
-      for (const [id, { at: since }] of this.unpaid) {
-        if (at - since > waitForGiftMs) this.unpaid.delete(id);
-      }
-      this.unpaid.set(userId, {
+      this.unpaid.keep(userId, {
         chat,
         question,
-        at,
         ...(unprompted && { unprompted }),
         ...(additional && { command: additional.id }),
       });
@@ -321,83 +293,7 @@ export class ChatBot {
       priced && { name: priced.name, price },
       !!unprompted,
     );
-    if (charge.notify) this.say(asker, 'notice', notice);
+    if (charge.notify) this.runner.say(asker, 'notice', notice);
     return charge;
-  }
-
-  /**
-   * Runs a command the asker may use, once they've paid for it, and tells them how it went;
-   * a call to one they may not use is ignored, or, when they have commands, answered with those.
-   * A command with its own prompt is handed to the answerer like a mention. A promise while a
-   * command that waits (on Claude, say) is still running.
-   */
-  private onCommand(
-    chat: IncomingChat,
-    question: string,
-    { name, args }: CommandCall,
-    admin: boolean,
-  ): Promise<void> | undefined {
-    const { log } = this.options;
-    const { nickname: asker, userId } = chat;
-    const command = this.commands.get(name);
-    if (!command || (command.adminOnly && !admin)) {
-      const usable = [...this.commands.values()].filter((c) => admin || !c.adminOnly);
-      log.info('no such command for them', { asker, userId, name, admin });
-      if (usable.length) {
-        const names = usable.map((c) => c.name).join('、');
-        this.say(asker, 'system', `没有指令「${name}」，可用的有：${names}`);
-      }
-      return;
-    }
-    const charge = this.charge(chat, question, admin, command);
-    if (!charge.ok) return undefined;
-    if (command.prompt) {
-      log.info('command', { asker, userId, name, args, paid: charge.paid });
-      this.ask({
-        asker,
-        userId,
-        paid: charge.paid,
-        question: args,
-        history: this.options.room.recentChat(),
-        template: command.prompt(),
-        tools: command.tools,
-        maxTurns: command.maxTurns,
-        ask: command.ask,
-        pickTranscript: command.pickTranscript,
-        alwaysScreenshot: command.alwaysScreenshot,
-        jsonMessage: command.jsonMessage,
-        atOthers: command.atOthers,
-      });
-      return undefined;
-    }
-    const failed = (err: unknown): CommandResult => {
-      log.error('command failed', { name, error: errorMessage(err) });
-      return { ok: false, reply: `指令「${name}」出错了，没有完成` };
-    };
-    const finish = (result: CommandResult) => {
-      log.info('command', { asker, userId, name, args, ...result, paid: charge.paid });
-      if (!result.ok && userId) this.refund({ asker, userId, paid: charge.paid });
-      if (result.reply) this.say(asker, 'system', result.reply);
-    };
-    let result: CommandResult | Promise<CommandResult>;
-    try {
-      result = command.run(args);
-    } catch (err) {
-      result = failed(err);
-    }
-    // A command that answers at once is done at once, so its refund and reply keep their order.
-    if (!(result instanceof Promise)) {
-      finish(result);
-      return undefined;
-    }
-    return result.catch(failed).then(finish);
-  }
-
-  /** Queues `@asker text` to be sent. */
-  private say(asker: string, kind: 'system' | 'notice', text: string): void {
-    this.options.outbox.push({
-      kind,
-      text: oneMessage(asker, text, this.maxLength) ?? `@${asker} ${text}`,
-    });
   }
 }
