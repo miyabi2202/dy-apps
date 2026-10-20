@@ -315,7 +315,7 @@ test('answers at most 3 at once, the surest first', async () => {
   expect(replies.map((r) => r.nickname)).toEqual(['戊', '丁', '丙']);
 });
 
-test("what one of the room's own commands is for goes to the picker, which may answer it with that command", async () => {
+test("what one of the room's own commands is for goes to the picker, which may answer it with that command, and only with one", async () => {
   const questions: Record<string, string>[] = [];
   const picks: string[] = [];
   const replies: UnpromptedReply[] = [];
@@ -325,6 +325,7 @@ test("what one of the room's own commands is for goes to the picker, which may a
         chat('阿明', '虾虾唱一首晴天吧', 'u-阿明');
         chat('小红', '会唱孤勇者吗', 'u-小红');
         chat('小蓝', '今晚吃火锅', 'u-小蓝');
+        chat('小绿', '虾虾会吃醋吗', 'u-小绿');
       },
     ],
     {
@@ -344,6 +345,7 @@ test("what one of the room's own commands is for goes to the picker, which may a
               { line: 1, confidence: 0.8, command: 'can-sing' },
               { line: 2, confidence: 0.9, command: 'can-sing' },
               { line: 3, confidence: 0.7, command: 'no-such' },
+              { line: 4, confidence: 0.95, command: '' },
             ],
           }),
         );
@@ -351,7 +353,9 @@ test("what one of the room's own commands is for goes to the picker, which may a
       pickTemplate: () => '{{lines}}\n{{commands}}',
       reply: (target) => void replies.push(target),
       streamer: () => null,
-      additionalCommands: [{ id: 'can-sing', when: '在问主播会不会唱某首歌', trigger: /会唱/ }],
+      additionalCommands: [
+        { id: 'can-sing', when: '在问主播会不会唱某首歌', trigger: /会唱|虾虾会.+吗/ },
+      ],
     },
   );
   await autoReply.run();
@@ -376,8 +380,8 @@ test("what one of the room's own commands is for goes to the picker, which may a
       heard: 'chat',
       command: 'can-sing',
     },
-    // A command the room doesn't have: answered as usual.
-    { nickname: '小蓝', userId: 'u-小蓝', question: '今晚吃火锅', heard: 'chat' },
+    // Not 小蓝 (picked with a command the room doesn't have) nor 小绿 (only matched a trigger,
+    // picked to be answered as usual): neither is about the bot.
   ]);
 });
 

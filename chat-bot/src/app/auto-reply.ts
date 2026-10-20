@@ -175,7 +175,7 @@ export class AutoReply {
     // Jev failing doesn't lose the follow-ups, which never needed it (unless it ran out of money,
     // which turned auto-reply off).
     if (judged === null && (!following.length || this.threshold >= 1)) return;
-    const { about, best } = judged ?? { about: [], best: null };
+    const { about, toBot, best } = judged ?? { about: [], toBot: [], best: null };
     if (!about.length && !following.length) return;
     if (best) {
       log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });
@@ -184,19 +184,30 @@ export class AutoReply {
       log.info('following up', { lines: following.map(({ who, text }) => ({ who, text })) });
     }
     // The quiet minute starts only if it answered someone: picking nobody leaves it free to listen.
-    if ((await this.pickAndReply(since, [...about, ...following])) > 0) this.talkedAt = room.now();
+    const picked = await this.pickAndReply(
+      since,
+      [...about, ...following],
+      [...toBot, ...following],
+    );
+    if (picked > 0) this.talkedAt = room.now();
   }
 
   /**
-   * Asks the judge whether each of `fresh` is about the bot: those at least `threshold` likely, and
-   * the likeliest of them (for the log); null when the judge failed.
+   * Asks the judge whether each of `fresh` is about the bot or for one of the room's commands:
+   * those at least `threshold` likely either way, or matching a command's trigger (`about`); of
+   * them, those about the bot itself (`toBot`); and the likeliest (for the log). Null when the judge
+   * failed.
    */
   private async judge(
     lines: readonly RoomLine[],
     fresh: readonly RoomLine[],
-  ): Promise<{ about: RoomLine[]; best: { line: RoomLine; score: number } | null } | null> {
+  ): Promise<{
+    about: RoomLine[];
+    toBot: RoomLine[];
+    best: { line: RoomLine; score: number } | null;
+  } | null> {
     const { judge, room, log, additionalCommands = [] } = this.options;
-    if (!judge || !fresh.length) return { about: [], best: null };
+    if (!judge || !fresh.length) return { about: [], toBot: [], best: null };
     const first = lines.indexOf(fresh[0]!);
     const { state, questions } = relevanceRequest(
       lines.slice(Math.max(0, first - 25), first),
@@ -220,14 +231,16 @@ export class AutoReply {
       const triggered =
         line.userId !== undefined &&
         additionalCommands.some(({ trigger }) => trigger?.test(line.text));
-      return { line, score: Math.max(...asked.map((key) => scores[key] ?? 0)), triggered };
+      const score = Math.max(...asked.map((key) => scores[key] ?? 0));
+      return { line, score, toBot: (scores[`q${i + 1}`] ?? 0) >= this.threshold, triggered };
     });
     const best = scored.reduce((a, b) => (b.score > a.score ? b : a));
     log.debug('judged', { lines: fresh.length, best: best.line.text, score: best.score });
     const about = scored
       .filter(({ score, triggered }) => score >= this.threshold || triggered)
       .map(({ line }) => line);
-    return { about, best: about.length ? best : null };
+    const toBot = scored.filter((s) => s.toBot).map(({ line }) => line);
+    return { about, toBot, best: about.length ? best : null };
   }
 
   /** Whether `line` was said by someone within FOLLOW_UP_MS of the bot saying something to them. */
@@ -246,9 +259,16 @@ export class AutoReply {
   /**
    * Has the picker choose, of what was said since `since`, what the bot should answer now (the
    * room had time to react, so some may need no answer any more), and answers each through
-   * `reply`, as the chatter's or (said on the stream) the streamer's. How many it answered.
+   * `reply`, as the chatter's or (said on the stream) the streamer's. A line is answered as usual
+   * (no command) only if it's in `chatty`, the judge found it about the bot or it follows up: one
+   * that came only for a room command (its `when`, its trigger) is answered with a command or not
+   * at all. How many it answered.
    */
-  private async pickAndReply(since: number, about: readonly RoomLine[]): Promise<number> {
+  private async pickAndReply(
+    since: number,
+    about: readonly RoomLine[],
+    chatty: readonly RoomLine[],
+  ): Promise<number> {
     const { room, log, picker, pickTemplate, reply } = this.options;
     const streamer = this.options.streamer();
     const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName).slice(
@@ -256,6 +276,7 @@ export class AutoReply {
     );
     const key = (line: RoomLine) => `${line.ts} ${line.who} ${line.text}`;
     const aboutKeys = new Set(about.map(key));
+    const chattyKeys = new Set(chatty.map(key));
     const { text, numbered } = pickLines(
       lines,
       (line) =>
@@ -298,6 +319,10 @@ export class AutoReply {
       if (!line) continue;
       // A command the room doesn't have is answered as usual.
       const withCommand = commandIds.has(command) ? { command } : {};
+      if (!withCommand.command && !chattyKeys.has(key(line))) {
+        log.debug('pick dropped: not about the bot, and no command', { text: line.text });
+        continue;
+      }
       const target: UnpromptedReply | null = line.userId
         ? {
             nickname: line.who,
