@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AdditionalCommand, Log } from '../app/ports';
-import { isInside, parseCommandIndex } from '../core/additional-command';
+import { isInside, mentionIn, parseCommandIndex } from '../core/additional-command';
 import { errorMessage } from '../core/errors';
 
 /**
@@ -34,7 +34,7 @@ export function loadAdditionalCommands(
   }
   const { commands, errors } = parseCommandIndex(index);
   for (const error of errors) log.warn('skipping an additional command', { error });
-  return commands.map(({ id, name, when, trigger, prompt: file, price }) => {
+  return commands.map(({ id, name, when, trigger, prompt: file, price, mentions }) => {
     const path = join(dir, file);
     // The last prompt read, if the file can't be read while it runs.
     let last = '';
@@ -46,8 +46,26 @@ export function loadAdditionalCommands(
       }
       return withFiles(last, roomDir, { log, read });
     };
-    log.info('additional command', { id, name, price });
-    return { id, name, when, trigger, prompt, ...(price !== undefined && { price }) };
+    // Read on each use, so a list the bot downloads after it starts counts; empty when missing.
+    const mentioned = mentions
+      ? (text: string) => {
+          try {
+            return mentionIn(text, read(join(roomDir, mentions)));
+          } catch {
+            return null;
+          }
+        }
+      : undefined;
+    log.info('additional command', { id, name, price, mentions });
+    return {
+      id,
+      name,
+      when,
+      trigger,
+      prompt,
+      ...(price !== undefined && { price }),
+      ...(mentioned && { mentioned }),
+    };
   });
 }
 

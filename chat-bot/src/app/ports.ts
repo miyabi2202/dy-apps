@@ -128,6 +128,11 @@ export interface AdditionalCommand {
   prompt: () => string;
   /** Diamonds an answer costs a viewer (0 free; admins never pay); what an @ costs when not set. */
   price?: number;
+  /**
+   * Which of the command's `mentions` phrases (a song list's titles, say) `text` contains, read as
+   * they are now; null for none, or when it has none.
+   */
+  mentioned?: (text: string) => string | null;
 }
 
 /** What the bot says when the streamer starts a song (a cheer, say). */

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadAdditionalCommands } from '../src/adapters/additional-command-files';
-import { parseCommandIndex } from '../src/core/additional-command';
+import { mentionIn, parseCommandIndex } from '../src/core/additional-command';
 
 const fakeLog = () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() });
 
@@ -88,4 +88,36 @@ test('a room without additional_commands/index.json has no commands, and one tha
     'additional_commands/index.json is not JSON, no commands',
     expect.anything(),
   );
+});
+
+test('finds the longest listed phrase a chat contains, ignoring case', () => {
+  const titles = '喂猪\n喂猪歌\nLemon\n\n  晴天  \n';
+  expect(mentionIn('虾虾会喂猪歌吗', titles)).toBe('喂猪歌');
+  expect(mentionIn('会唱lemon吗', titles)).toBe('Lemon');
+  expect(mentionIn('今天晴天', titles)).toBe('晴天');
+  expect(mentionIn('晚上吃什么', titles)).toBeNull();
+});
+
+test("a command's mentions file is read on each use, and a missing one mentions nothing", () => {
+  const room = mkdtempSync(join(tmpdir(), 'additional-command-'));
+  mkdirSync(join(room, 'additional_commands', 'can-sing'), { recursive: true });
+  writeFileSync(
+    join(room, 'additional_commands', 'index.json'),
+    JSON.stringify({
+      'can-sing': {
+        name: '会唱',
+        when: '在问',
+        prompt: 'can-sing/prompt.md',
+        mentions: 'artifacts/titles.txt',
+      },
+    }),
+  );
+  const [command] = loadAdditionalCommands(room, { log: fakeLog() });
+  expect(command!.mentioned!('虾虾会喂猪吗')).toBeNull();
+  mkdirSync(join(room, 'artifacts'));
+  writeFileSync(join(room, 'artifacts', 'titles.txt'), '喂猪\n');
+  expect(command!.mentioned!('虾虾会喂猪吗')).toBe('喂猪');
+  expect(
+    parseCommandIndex({ x: { name: 'x', when: 'y', prompt: 'p.md', mentions: '../t.txt' } }).errors,
+  ).toEqual(['x: mentions must be a file inside the room folder']);
 });

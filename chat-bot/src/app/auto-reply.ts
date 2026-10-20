@@ -35,7 +35,7 @@ export interface AutoReplyOptions {
    * The room's own commands: what's said that one is for (asked of the judge, or matching its
    * trigger) goes to the picker too, which may have it answered with that command.
    */
-  additionalCommands?: readonly Pick<AdditionalCommand, 'id' | 'when' | 'trigger'>[];
+  additionalCommands?: readonly Pick<AdditionalCommand, 'id' | 'when' | 'trigger' | 'mentioned'>[];
 }
 
 /**
@@ -109,7 +109,7 @@ export class AutoReply {
   hear({ userId, content }: { userId?: string; content: string }): void {
     if (this.threshold >= 1 || userId === undefined) return;
     const { additionalCommands = [] } = this.options;
-    if (!additionalCommands.some(({ trigger }) => trigger?.test(content))) return;
+    if (!additionalCommands.some((command) => matchFor(command, content))) return;
     this.options.log.debug('looking now', { content });
     if (this.waiting) this.wake();
     else this.lookNow = true;
@@ -230,7 +230,7 @@ export class AutoReply {
       const asked = [`q${i + 1}`, ...additionalCommands.map((_, j) => `q${i + 1}t${j + 1}`)];
       const triggered =
         line.userId !== undefined &&
-        additionalCommands.some(({ trigger }) => trigger?.test(line.text));
+        additionalCommands.some((command) => matchFor(command, line.text));
       const score = Math.max(...asked.map((key) => scores[key] ?? 0));
       return { line, score, toBot: (scores[`q${i + 1}`] ?? 0) >= this.threshold, triggered };
     });
@@ -288,8 +288,8 @@ export class AutoReply {
         line.userId === undefined
           ? []
           : (this.options.additionalCommands ?? [])
-              .filter(({ trigger }) => trigger?.test(line.text))
-              .map(({ id }) => id),
+              .map((command) => matchFor(command, line.text))
+              .filter((label): label is string => label !== null),
     );
     if (!numbered.length) return 0;
     const prompt = pickPrompt(pickTemplate(), {
@@ -371,4 +371,17 @@ export class AutoReply {
     this.options.log.error('jev is out of credit, auto-reply off', { error: err.message });
     this.options.outbox.push({ kind: 'system', text: '钱包烧干了，自动回复已关闭' });
   }
+}
+
+/**
+ * How `text` is for the room's `command`, for the picker: its id when it matches the trigger, and
+ * which of its `mentions` it contains (`can-sing（提到了它资料里的「喂猪」）`); null when neither.
+ */
+function matchFor(
+  { id, trigger, mentioned }: Pick<AdditionalCommand, 'id' | 'trigger' | 'mentioned'>,
+  text: string,
+): string | null {
+  const phrase = mentioned?.(text) ?? null;
+  if (phrase) return `${id}（提到了它资料里的「${phrase}」）`;
+  return trigger?.test(text) ? id : null;
 }

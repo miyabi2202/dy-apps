@@ -15,11 +15,17 @@ export interface AdditionalCommandEntry {
   prompt: string;
   /** Diamonds an answer costs a viewer (0 free); what an @ costs when not set. */
   price?: number;
+  /**
+   * A file in the room's folder, one phrase a line (a song list's titles, say): a chat containing
+   * one is taken as for this command, like one matching its trigger.
+   */
+  mentions?: string;
 }
 
 /**
  * The commands in `index.json` (already parsed): an object of `"<id>": { "name", "when",
- * "prompt", "trigger"?, "price"? }`, `trigger` a regular expression and `price` whole diamonds.
+ * "prompt", "trigger"?, "price"?, "mentions"? }`, `trigger` a regular expression, `price` whole
+ * diamonds and `mentions` a file in the room's folder.
  * Those that aren't right are left out, each with why.
  */
 export function parseCommandIndex(json: unknown): {
@@ -42,7 +48,7 @@ export function parseCommandIndex(json: unknown): {
 function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
   if (!/^[\w-]+$/.test(id)) return 'the id may have only letters, digits, _ and -';
   if (typeof fields !== 'object' || fields === null) return 'must be an object';
-  const { name, when, prompt, trigger, price } = fields as Record<string, unknown>;
+  const { name, when, prompt, trigger, price, mentions } = fields as Record<string, unknown>;
   for (const [key, value] of Object.entries({ name, when, prompt })) {
     if (typeof value !== 'string' || !value.trim()) return `${key} must be a non-empty string`;
   }
@@ -59,6 +65,9 @@ function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
   if (price !== undefined && !(Number.isInteger(price) && (price as number) >= 0)) {
     return 'price must be whole diamonds, 0 or more';
   }
+  if (mentions !== undefined && !(typeof mentions === 'string' && isInside(mentions))) {
+    return 'mentions must be a file inside the room folder';
+  }
   return {
     id,
     name: name as string,
@@ -66,10 +75,27 @@ function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
     trigger: pattern,
     prompt: prompt as string,
     ...(price !== undefined && { price: price as number }),
+    ...(mentions !== undefined && { mentions: mentions }),
   };
 }
 
 /** Whether `path` is relative and stays inside its folder (no `..`). */
 export function isInside(path: string): boolean {
   return !/^([\\/]|[A-Za-z]:)/.test(path) && !path.split(/[\\/]/).includes('..');
+}
+
+/**
+ * The longest of `phrases` (one a line; blank lines and spaces around them ignored) that `text`
+ * contains, ignoring case; null for none.
+ */
+export function mentionIn(text: string, phrases: string): string | null {
+  const said = text.toLowerCase();
+  let found: string | null = null;
+  for (const line of phrases.split('\n')) {
+    const phrase = line.trim();
+    if (phrase && said.includes(phrase.toLowerCase()) && phrase.length > (found?.length ?? 0)) {
+      found = phrase;
+    }
+  }
+  return found;
 }

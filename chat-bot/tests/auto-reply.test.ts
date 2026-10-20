@@ -431,3 +431,47 @@ test("a chat matching a room command's trigger is looked at at once, not at the 
   autoReply.stop();
   await running;
 });
+
+test("a chat mentioning one of a room command's phrases is looked at at once, and the picker is told which", async () => {
+  let now = 1000;
+  const history = new ChatHistory(100);
+  const transcript = new Transcript(Infinity, () => now);
+  const prompts: string[] = [];
+  const replies: UnpromptedReply[] = [];
+  const autoReply: AutoReply = new AutoReply({
+    outbox: { push: () => {} },
+    judge: (_, questions) =>
+      Promise.resolve(Object.fromEntries(Object.keys(questions).map((k) => [k, 0.1]))),
+    threshold: 0.6,
+    picker: ({ prompt }) => {
+      prompts.push(prompt);
+      return Promise.resolve(
+        JSON.stringify({ picks: [{ line: 1, confidence: 0.9, command: 'can-sing' }] }),
+      );
+    },
+    pickTemplate: () => '{{lines}}',
+    reply: (target) => void replies.push(target),
+    streamer: () => null,
+    room: fakeRoom({ history, transcript, now: () => now }),
+    log: silentLog,
+    sleep: () => new Promise(() => {}),
+    additionalCommands: [
+      {
+        id: 'can-sing',
+        when: '在问主播会不会唱某首歌',
+        trigger: null,
+        mentioned: (t) => (t.includes('喂猪') ? '喂猪' : null),
+      },
+    ],
+  });
+  const running = autoReply.run();
+  now = 2000;
+  history.add({ ts: 2000, userId: 'u-雅', nickname: '雅', content: '虾虾会喂猪吗' });
+  autoReply.hear({ userId: 'u-雅', content: '虾虾会喂猪吗' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(prompts[0]).toContain('虾虾会喂猪吗  → can-sing（提到了它资料里的「喂猪」）');
+  expect(replies.map((r) => r.command)).toEqual(['can-sing']);
+  autoReply.stop();
+  await running;
+});
