@@ -8,7 +8,7 @@ export const USAGE =
   'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
   '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
-  '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
+  '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 0 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
   '       [--auto-reply-interval 60] [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]\n' +
   '       [--malice-watch]';
@@ -30,7 +30,7 @@ export interface CliOptions {
   asr: boolean;
   transcriptMs: number;
   screenshot: boolean;
-  /** Diamonds per @mention; `--test` makes it 0. */
+  /** Diamonds per @mention; 0 (free) unless `--cost` says otherwise. */
   cost: number;
   maxPending: number;
   sendIntervalMs: number;
@@ -81,8 +81,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       },
       // Off by default: most streams don't need Claude to see the video (lessons with a board do).
       screenshot: { type: 'boolean', default: false },
-      cost: { type: 'string', default: '1' },
-      // Test mode: the same as --cost 0.
+      cost: { type: 'string', default: '0' },
+      // Test mode: the same as --cost 0 (the default now).
       test: { type: 'boolean', default: false },
       queue: { type: 'string', default: '20' },
       'send-interval': { type: 'string', default: '10' },
