@@ -5,6 +5,7 @@ import type { IncomingChat } from '../core/room-events';
 import { askJson } from './ask-json';
 import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
+import { Pending } from './pending';
 import type { AskModel, Judge, Log } from './ports';
 import type { RoomState } from './room-state';
 
@@ -48,6 +49,7 @@ const WARNING = '检测到恶意言论';
 export class MaliceWatch {
   on: boolean;
   private pending = 0;
+  private readonly work = new Pending();
 
   constructor(private readonly options: MaliceWatchOptions) {
     this.on = options.on ?? false;
@@ -57,7 +59,12 @@ export class MaliceWatch {
   hear(chat: IncomingChat): void {
     const { userId } = chat;
     if (!this.on || !userId || this.options.exempt?.(userId) || !chat.content.trim()) return;
-    void this.check({ ...chat, userId });
+    this.work.track(this.check({ ...chat, userId }));
+  }
+
+  /** Resolves once every chat heard so far has been checked. */
+  idle(): Promise<void> {
+    return this.work.idle();
   }
 
   /** `/识别恶意言论 1` turns it on, `/识别恶意言论 0` off. */

@@ -3,6 +3,7 @@ import { DOUYIN_CHAT_LIMIT, replyMessages, singleBudget } from '../core/reply';
 import type { Gift } from '../core/room-events';
 import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
+import { Pending } from './pending';
 import type { AskModel, Log, UserTalk } from './ports';
 import type { RoomState } from './room-state';
 
@@ -47,7 +48,7 @@ export class GiftThanker {
   private readonly given = new Map<string, Given[]>();
   /** Viewers past the threshold, waiting out settleMs before they're thanked. */
   private readonly settling = new Set<string>();
-  private readonly running = new Set<Promise<void>>();
+  private readonly work = new Pending();
 
   constructor(private readonly options: GiftThankerOptions) {
     this.threshold = options.threshold;
@@ -70,16 +71,15 @@ export class GiftThanker {
     const { settleMs = 15_000 } = this.options;
     const sleep =
       this.options.sleep ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-    const run = sleep(settleMs)
-      .then(() => {
+    this.work.track(
+      sleep(settleMs).then(() => {
         this.settling.delete(userId);
         const all = this.given.get(userId) ?? [];
         this.given.delete(userId);
         // Thanked by the name they last gave under.
         return this.thank(all.at(-1)?.gift ?? gift, all, total(all));
-      })
-      .finally(() => this.running.delete(run));
-    this.running.add(run);
+      }),
+    );
   }
 
   /** What `{{settings}}` says of it: the threshold. */
@@ -104,8 +104,8 @@ export class GiftThanker {
   }
 
   /** Resolves once every thanks under way has been written (or failed). */
-  async idle(): Promise<void> {
-    while (this.running.size) await Promise.all(this.running);
+  idle(): Promise<void> {
+    return this.work.idle();
   }
 
   private async thank({ userId, nickname }: Gift, given: Given[], total: number): Promise<void> {

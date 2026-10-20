@@ -23,6 +23,11 @@ export interface TranscriberOptions {
   retryMs?: number;
   /** Waits `ms`; tests pass one that doesn't. */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * Calls `run` after `ms`, for the music request's timeout, and returns what stops that;
+   * tests pass one they fire by hand.
+   */
+  timer?: (run: () => void, ms: number) => () => void;
   now?: () => number;
 }
 
@@ -48,11 +53,18 @@ export class Transcriber {
   private readonly retryMs: number;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => number;
+  private readonly timer: (run: () => void, ms: number) => () => void;
 
   constructor(private readonly options: TranscriberOptions) {
     this.retryMs = options.retryMs ?? 10_000;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.now = options.now ?? Date.now;
+    this.timer =
+      options.timer ??
+      ((run, ms) => {
+        const id = setTimeout(run, ms);
+        return () => clearTimeout(id);
+      });
   }
 
   /** Calls `handler` with each sentence as it's heard. */
@@ -107,12 +119,12 @@ export class Transcriber {
     if (!worker || !this.listening) throw new Error('not listening to the stream');
     const id = this.nextMusicId++;
     const answer = await new Promise<MusicAnswer>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const cancel = this.timer(() => {
         this.musicWaiting.delete(id);
         reject(new Error('the worker did not answer'));
       }, timeoutMs);
       this.musicWaiting.set(id, (answered) => {
-        clearTimeout(timer);
+        cancel();
         resolve(answered);
       });
       worker.send(musicRequest(id));

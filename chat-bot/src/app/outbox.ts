@@ -1,5 +1,6 @@
 import type { Log, SendChat } from './ports';
 import { errorMessage } from '../core/errors';
+import { Pending } from './pending';
 
 /** What a message is, most urgent first: the order waiting messages go out in. */
 const KINDS = ['reply', 'system', 'notice', 'talk'] as const;
@@ -57,6 +58,7 @@ export class Outbox {
     talk: [] as OutgoingMessage[],
   };
   private sending = false;
+  private readonly work = new Pending();
   private lastSentAt = -Infinity;
   /** When each notice of the last `noticeFlood.windowMs` was pushed. */
   private noticedAt: number[] = [];
@@ -75,12 +77,12 @@ export class Outbox {
     if (message.kind === 'notice' && this.flooded(message)) return;
     this.queues[message.kind].push(message);
     this.options.log.debug('queued to send', { ...message, waiting: this.waiting() });
-    void this.drain();
+    this.drain();
   }
 
   /** Resolves once everything queued has been sent (or has failed). */
-  async idle(): Promise<void> {
-    while (this.sending) await new Promise((resolve) => setTimeout(resolve, 10));
+  idle(): Promise<void> {
+    return this.work.idle();
   }
 
   /** Whether `notice` is dropped: notices are muted, or it's one too many and mutes them. */
@@ -104,9 +106,13 @@ export class Outbox {
     return true;
   }
 
-  private async drain(): Promise<void> {
+  private drain(): void {
     if (this.sending) return;
     this.sending = true;
+    this.work.track(this.sendAll());
+  }
+
+  private async sendAll(): Promise<void> {
     try {
       for (let message = this.next(); message; message = this.next()) {
         const wait = this.lastSentAt + this.intervalMs - this.now();

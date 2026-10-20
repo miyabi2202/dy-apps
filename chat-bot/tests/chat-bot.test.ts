@@ -93,6 +93,7 @@ function setup(options: SetupOptions = {}) {
     give,
     prompts,
     sent,
+    outbox,
   };
 }
 
@@ -370,13 +371,13 @@ test('/解题 is answered by its own Claude, from its own prompt, with a screens
 test('a low-balance notice goes out while Claude is still answering someone else', async () => {
   let finish: (answer: string) => void = () => {};
   const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
-  const { settle, say, sent } = setup({
+  const { settle, say, sent, outbox } = setup({
     wallet,
     ask: () => new Promise((resolve) => (finish = resolve)),
   });
   say(chat('阿明', '@小助手 慢慢想'));
   say(chat('小红', '@小助手 我没钱'));
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await outbox.idle();
 
   expect(sent).toEqual([
     '@小红 @我要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱），送了马上回你',

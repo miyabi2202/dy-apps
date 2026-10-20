@@ -36,7 +36,7 @@ function setup(scores: Record<string, number>, malicious: string[], answer?: str
     const chat: IncomingChat = { ts: now, userId, nickname, content, mentions: [] };
     history.add(chat);
     watch.hear(chat);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await watch.idle();
   };
   return { watch, say, sent, prompts };
 }

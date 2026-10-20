@@ -145,10 +145,16 @@ test('asks the worker what music is playing, telling a match, no match and a fai
   ];
   let streaming: () => void = () => {};
   const started = new Promise<void>((resolve) => (streaming = resolve));
+  // The music request's timeout, fired by hand.
+  let timedOut: () => void = () => {};
   const transcriber = new Transcriber({
     streamUrl: () => Promise.resolve('url'),
     transcript: new Transcript(),
     log: silentLog,
+    timer: (run) => {
+      timedOut = run;
+      return () => {};
+    },
     spawnWorker: ({ onLine }) => {
       const worker = fakeWorker(
         onLine,
@@ -175,7 +181,9 @@ test('asks the worker what music is playing, telling a match, no match and a fai
   });
   await expect(transcriber.identifyMusic()).resolves.toBeNull();
   await expect(transcriber.identifyMusic()).rejects.toThrow('Shazam is down');
-  await expect(transcriber.identifyMusic(10)).rejects.toThrow('the worker did not answer');
+  const unanswered = transcriber.identifyMusic(10);
+  timedOut();
+  await expect(unanswered).rejects.toThrow('the worker did not answer');
   transcriber.stop();
   await running;
 });

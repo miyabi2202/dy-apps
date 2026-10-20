@@ -18,6 +18,7 @@ import type { ChatLine } from '../core/room-events';
 import type { Billing } from './billing';
 import type { PromptOptions } from './command';
 import type { Outbox } from './outbox';
+import { Pending } from './pending';
 import type { AskModel, Log, UserTalk } from './ports';
 import type { RoomState } from './room-state';
 
@@ -112,6 +113,7 @@ export interface MentionAnswererOptions {
 export class MentionAnswerer {
   private readonly pending: Mention[] = [];
   private busy = false;
+  private readonly work = new Pending();
   private readonly limits: ReplyLimits;
   private readonly maxPending: number;
 
@@ -133,20 +135,22 @@ export class MentionAnswerer {
       return false;
     }
     this.pending.push(mention);
-    void this.drain();
+    this.drain();
     return true;
   }
 
   /** Resolves once Claude has answered every queued mention. */
-  async idle(): Promise<void> {
-    while (this.busy) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
+  idle(): Promise<void> {
+    return this.work.idle();
   }
 
-  private async drain(): Promise<void> {
+  private drain(): void {
     if (this.busy) return;
     this.busy = true;
+    this.work.track(this.answerAll());
+  }
+
+  private async answerAll(): Promise<void> {
     try {
       for (let mention = this.pending.shift(); mention; mention = this.pending.shift()) {
         await this.answer(mention);

@@ -15,19 +15,16 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
   const prompts: string[] = [];
   const named = new Map<string, number>();
   let last: { song: SongAnswer; at: number } | undefined;
-  const tries: Promise<unknown>[] = [];
   const auto = new AutoSongId({
     songId: {
       prompt: () => '{{question}}|{{transcript}}',
       name: ({ prompt }) => {
         prompts.push(prompt);
         const answer = answers.shift();
-        const done = Promise.resolve({
+        return Promise.resolve({
           answer: answer ? { message: '', title: '', artist: '', sure: true, ...answer } : null,
           text: '',
         });
-        tries.push(done);
-        return done;
       },
       namedAt: (title) => named.get(title),
       lastTold: () => last,
@@ -47,8 +44,7 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
     const heard: TranscriptLine = { start: now - 3000, end: now, text, speech: sung ? 0.05 : 0.8 };
     transcript.add(heard);
     auto.hear(heard);
-    await Promise.all(tries);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await auto.idle();
   };
   return { auto, line, sent, prompts };
 }

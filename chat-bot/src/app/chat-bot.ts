@@ -12,6 +12,7 @@ import {
   type UnpromptedReply,
 } from './mention-answerer';
 import type { Outbox } from './outbox';
+import { Pending } from './pending';
 import type { AdditionalCommand, Admins, Log } from './ports';
 import type { RoomFeed } from './room-feed';
 import type { RoomState } from './room-state';
@@ -70,7 +71,7 @@ interface Unpaid {
  */
 export class ChatBot {
   /** Commands still running, like one waiting for Claude. */
-  private readonly running = new Set<Promise<void>>();
+  private readonly work = new Pending();
   private readonly commands: ReadonlyMap<string, Command>;
   private readonly maxLength: number;
   /** Each viewer's last mention they couldn't pay for, by user id. */
@@ -93,7 +94,7 @@ export class ChatBot {
 
   /** Resolves once Claude has answered every queued mention, and every command has finished. */
   async idle(): Promise<void> {
-    while (this.running.size) await Promise.all(this.running);
+    await this.work.idle();
     await this.options.answerer.idle();
   }
 
@@ -216,9 +217,7 @@ export class ChatBot {
 
   /** Keeps a command that's still running, for idle(). */
   private track(pending: Promise<void> | undefined): void {
-    if (!pending) return;
-    const run = pending.finally(() => this.running.delete(run));
-    this.running.add(run);
+    if (pending) this.work.track(pending);
   }
 
   /**

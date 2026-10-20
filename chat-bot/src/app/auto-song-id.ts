@@ -3,6 +3,7 @@ import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
 import { isHandled, isSung, singingSong, type TranscriptLine } from '../core/transcript';
 import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
+import { Pending } from './pending';
 import type { Log } from './ports';
 import type { RoomState } from './room-state';
 import type { SongId } from './song-id';
@@ -54,6 +55,7 @@ export class AutoSongId {
   /** How long after `triedAt` it tries again while the streamer sings on. */
   private waitMs: number | undefined;
   private busy = false;
+  private readonly work = new Pending();
 
   constructor(private readonly options: AutoSongIdOptions) {
     this.on = options.on ?? false;
@@ -69,7 +71,12 @@ export class AutoSongId {
     if (isHandled(song, this.triedAt, line.end, this.waitMs ?? againMs)) return;
     this.triedAt = line.end;
     this.busy = true;
-    void this.nameSong(song.lines).finally(() => (this.busy = false));
+    this.work.track(this.nameSong(song.lines).finally(() => (this.busy = false)));
+  }
+
+  /** Resolves once the song being named has been told to the room, or has failed. */
+  idle(): Promise<void> {
+    return this.work.idle();
   }
 
   /** What `{{settings}}` says of it: whether it's on. */
