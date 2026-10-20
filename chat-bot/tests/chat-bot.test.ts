@@ -11,7 +11,7 @@ import type { AdditionalCommand, Question } from '../src/app/ports';
 import { ChatHistory } from '../src/core/chat-history';
 import type { Wallet } from '../src/core/wallet';
 import { fakeRoom } from './fake-room';
-import { BOT, chat, fakeEvents, fakeOutbox, gift, memoryWallet, silentLog } from './fakes';
+import { BOT, chat, fakeBus, fakeEvents, fakeOutbox, gift, memoryWallet, silentLog } from './fakes';
 
 const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{singleLength}})';
 
@@ -36,6 +36,7 @@ interface SetupOptions {
 /** The whole bot on fake events, Claude and outbox; mentions are answered by the real answerer. */
 function setup(options: SetupOptions = {}) {
   const { events, say, give } = fakeEvents();
+  const bus = fakeBus();
   const prompts: string[] = [];
   const { outbox, sent } = fakeOutbox();
   const history = new ChatHistory(options.historySize ?? 100);
@@ -61,14 +62,16 @@ function setup(options: SetupOptions = {}) {
       },
       outbox,
       room,
+      bus,
       log: silentLog,
       promptTemplate: () => options.template ?? TEMPLATE,
       billing,
       onCommandRequest: (mention, name, args) => bot.requestCommand(mention, name, args),
     });
-  const feed = new RoomFeed({ events, bot: BOT, history, log: silentLog, billing });
+  const feed = new RoomFeed({ events, bus, bot: BOT, history, log: silentLog, billing });
   const bot: ChatBot = new ChatBot({
     feed,
+    bus,
     answerer,
     room,
     outbox,

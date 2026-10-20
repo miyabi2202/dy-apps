@@ -3,6 +3,7 @@ import type { Gift, IncomingChat } from '../core/room-events';
 import type { Billing, Charge } from './billing';
 import type { Command } from './command';
 import { CommandRunner, type ChargeRequest } from './command-runner';
+import type { EventBus } from './event-bus';
 import {
   refundMention,
   type Mention,
@@ -16,8 +17,10 @@ import type { RoomState } from './room-state';
 import { UnpaidMentions } from './unpaid-mentions';
 
 export interface ChatBotOptions {
-  /** Where the mentions come from, and the thing to start and stop. */
-  feed: Pick<RoomFeed, 'onMention' | 'onGift' | 'start' | 'stop'>;
+  /** The thing that listens to the room, to start and stop. */
+  feed: Pick<RoomFeed, 'start' | 'stop'>;
+  /** Where the mentions and gifts come from. */
+  bus: Pick<EventBus, 'on'>;
   /** Answers the questions the bot has been paid for. */
   answerer: Pick<MentionAnswerer, 'ask' | 'idle'>;
   /** The chat before a question goes with it to the answerer. */
@@ -77,8 +80,8 @@ export class ChatBot {
   }
 
   start(): void {
-    this.options.feed.onMention((chat, question) => this.onMention(chat, question));
-    this.options.feed.onGift((gift) => this.onGift(gift));
+    this.options.bus.on('mention', ({ chat, question }) => this.onMention(chat, question));
+    this.options.bus.on('gift', (gift) => this.onGift(gift));
     this.options.feed.start();
   }
 

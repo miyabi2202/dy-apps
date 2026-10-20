@@ -1,10 +1,11 @@
 import { Billing } from '../src/app/billing';
+import type { EventBus } from '../src/app/event-bus';
 import { MentionAnswerer, type Mention } from '../src/app/mention-answerer';
 import type { SettingsPart } from '../src/app/room-state';
 import type { UserTalk } from '../src/app/ports';
 import { Transcript } from '../src/core/transcript';
 import { fakeRoom } from './fake-room';
-import { NOW, fakeOutbox, memoryWallet, silentLog } from './fakes';
+import { NOW, fakeBus, fakeOutbox, memoryWallet, silentLog } from './fakes';
 
 const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{singleLength}})';
 
@@ -20,7 +21,7 @@ interface SetupOptions {
   chatDir?: string;
   persona?: string;
   userTalk?: UserTalk;
-  onAnswered?: (userId: string) => void;
+  bus?: Pick<EventBus, 'emit'>;
   botTalk?: string;
   settings?: () => SettingsPart;
   commands?: () => string;
@@ -53,7 +54,7 @@ function setup(options: SetupOptions = {}) {
     promptTemplate: () => options.template ?? TEMPLATE,
     billing: options.wallet && new Billing({ wallet: options.wallet }),
     userTalk: options.userTalk,
-    onAnswered: options.onAnswered,
+    bus: options.bus,
     maxReplyLength: options.maxReplyLength,
     maxPending: options.maxPending,
   });
@@ -258,6 +259,8 @@ test("remembers each viewer's exchanges and what the bot said, for the next prom
 
 test('an answer that @s others sends each their own message, and counts those in the chat as answered', async () => {
   const answered: string[] = [];
+  const bus = fakeBus();
+  bus.on('answered', ({ userId }) => void answered.push(userId));
   const { ask, sent } = setup({
     answer: JSON.stringify({
       message: '翻完了',
@@ -266,7 +269,7 @@ test('an answer that @s others sends each their own message, and counts those in
         { to: '路过的', message: '你也错了' },
       ],
     }),
-    onAnswered: (userId) => void answered.push(userId),
+    bus,
   });
   await ask({
     userId: 'u-雅',

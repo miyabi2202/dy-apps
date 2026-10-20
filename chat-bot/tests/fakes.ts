@@ -1,3 +1,4 @@
+import { EventBus } from '../src/app/event-bus';
 import { Outbox } from '../src/app/outbox';
 import type { Log, RoomEvents } from '../src/app/ports';
 import type { Gift, IncomingChat } from '../src/core/room-events';
@@ -30,6 +31,9 @@ export function gift(nickname: string, count: number, diamondCount: number): Gif
 export function memoryWallet(accounts: Record<string, Account> = {}) {
   return new Wallet({ load: () => ({ accounts: structuredClone(accounts) }), save: () => {} });
 }
+
+/** A real bus, as the room's features get it. */
+export const fakeBus = () => new EventBus(silentLog);
 
 /** Room events the test fires by hand. */
 export function fakeEvents() {

@@ -35,6 +35,7 @@ import { AutoSongId } from './app/auto-song-id';
 import type { AskModel } from './app/ports';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
+import { EventBus } from './app/event-bus';
 import { GiftThanker } from './app/gift-thanker';
 import { MaliceWatch } from './app/malice-watch';
 import { solveCommand } from './app/solve-command';
@@ -69,6 +70,8 @@ const { roomId, port } = options;
 const log = createLogger(resolve(options.logsDir));
 const config = readConfig(resolve(options.configFile));
 const roomApi = new DyhubRoomApi(port, roomId);
+// Tells whoever subscribed of what happens in the room: mentions, chats, gifts, speech, answers.
+const bus = new EventBus(log);
 const transcript = new Transcript();
 // Everything about the room lives in data/<房间号>/ (see roomFiles).
 const roomDir = join(resolve(options.dataDir), roomId);
@@ -104,6 +107,7 @@ const userTalk = userTalkFiles(files.users);
 const transcriber = options.asr
   ? new Transcriber({
       streamUrl: roomApi.streamUrl,
+      bus,
       transcript,
       record,
       log,
@@ -262,9 +266,10 @@ const thanker = new GiftThanker({
   maxLength: options.maxReplyLength,
   log,
 });
-// Listens to the room: records chat and gifts, credits gifts, and tells the bot of mentions
-// and the thanker of gifts.
+// Listens to the room: records chat and gifts, credits gifts, and tells the bus of mentions, chats
+// and gifts.
 const feed = new RoomFeed({
+  bus,
   events: dyhubEvents(new DyhubClient({ port, roomId, retryMs: 5000 }), () => roomConfig().private),
   bot: { nickname: options.botName, userId: options.botId },
   history,
@@ -273,8 +278,8 @@ const feed = new RoomFeed({
   billing,
 });
 // A chat matching a room command's trigger has auto-reply look now, not at its next check.
-feed.onChat((chat) => autoReply.hear(chat));
-feed.onGift((gift) => {
+bus.on('chat', (chat) => autoReply.hear(chat));
+bus.on('gift', (gift) => {
   gifts.add(room.now(), gift);
   thanker.onGift(gift);
 });
@@ -294,7 +299,7 @@ const maliceWatch = maliceJudge
       log,
     })
   : null;
-feed.onChat((chat) => maliceWatch?.hear(chat));
+bus.on('chat', (chat) => maliceWatch?.hear(chat));
 // Answers each paid question with Claude, one at a time.
 const answerer = new MentionAnswerer({
   ask: ask('mention'),
@@ -307,8 +312,7 @@ const answerer = new MentionAnswerer({
   maxPending: options.maxPending,
   maxReplyLength: options.maxReplyLength,
   maxReplyParts: options.maxReplyParts,
-  // What they say next goes straight to the picker for a minute: it's likely a reply.
-  onAnswered: (userId) => autoReply.answered(userId),
+  bus,
   // 「把你的人设改成小猫」 and the like: run the command if they may.
   onCommandRequest: (mention, name, args) => bot.requestCommand(mention, name, args),
 });
@@ -352,13 +356,15 @@ room.addSettings(() => thanker.settings());
 room.addSettings(() => autoSongId?.settings() ?? { autoSongId: false });
 // And, in a room with on_sing in its room_config.json, its message as the streamer starts a song.
 const onSing = new OnSing({ config: () => roomConfig().onSing, room, outbox, log });
-transcriber?.onLine((line) => {
-  autoSongId?.hear(line);
-  onSing.hear(line);
-});
+bus.on('heard', (line) => autoSongId?.hear(line));
+bus.on('heard', (line) => onSing.hear(line));
+// What someone says next, after the bot answered them, goes straight to the picker for a minute:
+// it's likely a reply.
+bus.on('answered', ({ userId }) => autoReply.answered(userId));
 // Decides what a mention is (a question, or a command) and charges for it.
 const bot: ChatBot = new ChatBot({
   feed,
+  bus,
   answerer,
   room,
   outbox,

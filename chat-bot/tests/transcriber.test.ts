@@ -2,6 +2,7 @@ import { ChatLog } from '../src/adapters/chat-log-files';
 import type { Log, Worker } from '../src/app/ports';
 import { Transcriber } from '../src/app/transcriber';
 import { currentSong, Transcript } from '../src/core/transcript';
+import { fakeBus } from './fakes';
 
 const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 
@@ -60,10 +61,14 @@ test('keeps what the worker hears, giving the same worker a fresh stream URL whe
     now: () => Date.UTC(2026, 9, 16, 8, 0, 0),
     append: (_path, text) => (written += text),
   });
+  const bus = fakeBus();
+  const heard: string[] = [];
+  bus.on('heard', (line) => heard.push(line.text));
   const urls = ['url-1', null, 'url-2'];
   const workers: ReturnType<typeof fakeWorker>[] = [];
   const transcriber: Transcriber = new Transcriber({
     streamUrl: () => Promise.resolve(urls.shift() ?? null),
+    bus,
     transcript,
     record: chatLog,
     log: silentLog,
@@ -77,8 +82,6 @@ test('keeps what the worker hears, giving the same worker a fresh stream URL whe
     },
     sleep: () => Promise.resolve(),
   });
-  const heard: string[] = [];
-  transcriber.onLine((line) => heard.push(line.text));
   await transcriber.run();
 
   expect(heard).toEqual(['从 url-1 听到', '从 url-2 听到']);
@@ -117,6 +120,7 @@ test('is ready once the models load, before any stream; and starts a worker that
   const transcriber = new Transcriber({
     // No stream yet: keeps asking.
     streamUrl: () => Promise.resolve(null),
+    bus: fakeBus(),
     transcript: new Transcript(),
     log: silentLog,
     spawnWorker: ({ onLine }) => {
@@ -149,6 +153,7 @@ test('asks the worker what music is playing, telling a match, no match and a fai
   let timedOut: () => void = () => {};
   const transcriber = new Transcriber({
     streamUrl: () => Promise.resolve('url'),
+    bus: fakeBus(),
     transcript: new Transcript(),
     log: silentLog,
     timer: (run) => {

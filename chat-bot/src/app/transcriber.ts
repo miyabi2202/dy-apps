@@ -1,16 +1,14 @@
 import { speechRecord } from '../core/chat-record';
 import { errorMessage } from '../core/errors';
 import { musicRequest, parseMusicLine, type MusicAnswer, type MusicMatch } from '../core/music';
-import {
-  parseStatusLine,
-  parseWorkerLine,
-  type Transcript,
-  type TranscriptLine,
-} from '../core/transcript';
+import { parseStatusLine, parseWorkerLine, type Transcript } from '../core/transcript';
+import type { EventBus } from './event-bus';
 import type { Log, RoomRecord, SpawnWorker, StreamUrl, Worker } from './ports';
 
 export interface TranscriberOptions {
   streamUrl: StreamUrl;
+  /** Where it tells of each sentence heard (`heard`), once it's in the transcript. */
+  bus: Pick<EventBus, 'emit'>;
   transcript: Transcript;
   /** Where each sentence is also recorded, as said by 主播. */
   record?: RoomRecord;
@@ -44,7 +42,6 @@ export class Transcriber {
   private nextMusicId = 1;
   /** Music requests waiting for the worker's answer, by id. */
   private readonly musicWaiting = new Map<number, (answer: MusicAnswer) => void>();
-  private readonly lineHandlers: ((line: TranscriptLine) => void)[] = [];
   /** Called when the worker says its models are loaded, or that its stream ended. */
   private onReady = () => {};
   private onStreamEnded = () => {};
@@ -65,11 +62,6 @@ export class Transcriber {
         const id = setTimeout(run, ms);
         return () => clearTimeout(id);
       });
-  }
-
-  /** Calls `handler` with each sentence as it's heard. */
-  onLine(handler: (line: TranscriptLine) => void): void {
-    this.lineHandlers.push(handler);
   }
 
   /**
@@ -182,7 +174,7 @@ export class Transcriber {
         this.options.record?.add(speechRecord(line));
         const { text: heard, lang, speech, music, speaker, host, voice } = line;
         log.info('heard', { text: heard, lang, speech, music, speaker, host, voice });
-        for (const handler of this.lineHandlers) handler(line);
+        this.options.bus.emit('heard', line);
       },
       onLog: (text) => log.debug('asr', { text }),
     });

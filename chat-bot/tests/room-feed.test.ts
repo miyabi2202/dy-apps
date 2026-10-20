@@ -3,7 +3,7 @@ import { Billing } from '../src/app/billing';
 import { RoomFeed } from '../src/app/room-feed';
 import { ChatHistory } from '../src/core/chat-history';
 import type { ChatLine, Gift } from '../src/core/room-events';
-import { BOT, NOW, chat, fakeEvents, gift, memoryWallet, silentLog } from './fakes';
+import { BOT, NOW, chat, fakeBus, fakeEvents, gift, memoryWallet, silentLog } from './fakes';
 
 function setup(
   options: {
@@ -14,8 +14,10 @@ function setup(
 ) {
   const { events, say, give } = fakeEvents();
   const history = new ChatHistory(options.historySize ?? 100);
+  const bus = fakeBus();
   const feed = new RoomFeed({
     events,
+    bus,
     bot: BOT,
     history,
     log: silentLog,
@@ -24,10 +26,10 @@ function setup(
   });
   const mentions: { asker: string; question: string; history: ChatLine[] }[] = [];
   const gifts: Gift[] = [];
-  feed.onMention((from, question) =>
+  bus.on('mention', ({ chat: from, question }) =>
     mentions.push({ asker: from.nickname, question, history: history.recent() }),
   );
-  feed.onGift((given) => gifts.push(given));
+  bus.on('gift', (given) => gifts.push(given));
   feed.start();
   return { say, give, history, mentions, gifts };
 }

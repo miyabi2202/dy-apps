@@ -18,6 +18,7 @@ import type { UnpromptedReply } from '../core/reply-pick';
 import type { ChatLine } from '../core/room-events';
 import type { Billing } from './billing';
 import type { PromptOptions } from './command';
+import type { EventBus } from './event-bus';
 import type { Outbox } from './outbox';
 import { Pending } from './pending';
 import type { AskModel, Log, UserTalk } from './ports';
@@ -85,10 +86,10 @@ export interface MentionAnswererOptions {
    */
   onCommandRequest?: (mention: Mention, name: string, args: string) => boolean;
   /**
-   * Told each viewer it answered, once the answer to them is sent: the asker, and each of the others
-   * an answer @s who said something lately (found by nickname in the chat).
+   * Tells of each viewer it answered (`answered`), once the answer to them is sent: the asker, and
+   * each of the others an answer @s who said something lately (found by nickname in the chat).
    */
-  onAnswered?: (userId: string) => void;
+  bus?: Pick<EventBus, 'emit'>;
   /** Mentions waiting for Claude beyond this are dropped, so a busy room can't pile up a
    * backlog nobody remembers asking. */
   maxPending?: number;
@@ -235,7 +236,7 @@ export class MentionAnswerer {
       // Each is told answered once the last message to them is sent, so their minute to answer
       // back doesn't run out while it waits to go out.
       const answered = (userId: string | undefined) =>
-        userId === undefined ? undefined : () => this.options.onAnswered?.(userId);
+        userId === undefined ? undefined : () => this.options.bus?.emit('answered', { userId });
       messages.forEach((text, i) => {
         const last = i === messages.length - 1;
         outbox.push({
