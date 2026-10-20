@@ -92,22 +92,21 @@ export interface MentionAnswererOptions {
    * an answer @s who said something lately (found by nickname in the chat).
    */
   onAnswered?: (userId: string) => void;
-  /** Mentions not yet answered beyond this are dropped, so a busy room can't pile up a
+  /** Mentions waiting for Claude beyond this are dropped, so a busy room can't pile up a
    * backlog nobody remembers asking. */
   maxPending?: number;
 }
 
 /**
  * Answers mentions: the question and the chat before it go to Claude, and the answer joins the
- * outbox to be sent to the room, split into numbered messages when it's long. Each goes to `ask`
- * at once (its AiDriver queues it, so a few are answered at a time), and each answer is sent as
- * soon as it's ready, without waiting for earlier ones. A mention
+ * outbox to be sent to the room, split into numbered messages when it's long. Claude answers
+ * one mention at a time, in order, without waiting for earlier answers to go out. A mention
  * that can't be answered (Claude failed, or said nothing, or Douyin refused the message) is
  * refunded.
  */
 export class MentionAnswerer {
-  /** How many are not answered yet. */
-  private pending = 0;
+  private readonly pending: Mention[] = [];
+  private busy = false;
   private readonly limits: ReplyLimits;
   private readonly maxPending: number;
 
@@ -121,22 +120,34 @@ export class MentionAnswerer {
 
   /** Queues a mention for Claude; false when the queue is full and it was dropped. */
   ask(mention: Mention): boolean {
-    if (this.pending >= this.maxPending) {
+    if (this.pending.length >= this.maxPending) {
       this.options.log.warn('too many waiting, dropping one', {
         asker: mention.asker,
         question: mention.question,
       });
       return false;
     }
-    this.pending++;
-    void this.answer(mention).finally(() => this.pending--);
+    this.pending.push(mention);
+    void this.drain();
     return true;
   }
 
   /** Resolves once Claude has answered every queued mention. */
   async idle(): Promise<void> {
-    while (this.pending) {
+    while (this.busy) {
       await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  private async drain(): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      for (let mention = this.pending.shift(); mention; mention = this.pending.shift()) {
+        await this.answer(mention);
+      }
+    } finally {
+      this.busy = false;
     }
   }
 

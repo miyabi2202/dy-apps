@@ -242,41 +242,6 @@ test('/自动回复间隔 0 answers the next one without waiting', async () => {
   });
 });
 
-test('with a concurrency of 2, the next check starts while a pick is running, on only what is new', async () => {
-  const prompts: string[] = [];
-  const finish: ((answer: string) => void)[] = [];
-  const replies: UnpromptedReply[] = [];
-  const ran = setup(
-    [
-      () => ran.chat('小红', '机器人你好', 'u-小红'),
-      () => ran.chat('阿明', '机器人在吗', 'u-阿明'),
-    ],
-    {
-      concurrency: 2,
-      pickTemplate: () => '{{lines}}',
-      // The first pick ends only once the second has started.
-      picker: ({ prompt }) => {
-        prompts.push(prompt);
-        return new Promise((resolve) => {
-          finish.push(resolve);
-          if (finish.length === 2)
-            for (const done of finish)
-              done(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));
-        });
-      },
-      reply: (target) => void replies.push(target),
-    },
-  );
-  await ran.autoReply.run();
-
-  expect(replies.map((r) => r.nickname)).toEqual(['小红', '阿明']);
-  // Each may pick only what's new to it.
-  expect(prompts[0]).toContain('(1)★ 00:00:20 [小红]');
-  expect(prompts[0]).not.toContain('★ 00:00:40 [阿明]');
-  expect(prompts[1]).toContain('(1)★ 00:00:40 [阿明]');
-  expect(prompts[1]).not.toContain('★ 00:00:20 [小红]');
-});
-
 test('a follow-up still goes to the picker when Jev fails on the rest', async () => {
   const replies: UnpromptedReply[] = [];
   const ran = setup(

@@ -12,7 +12,6 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/修改收费 <钻>`       | Change what an @ costs                             | yes         | 1           |
 | `/自动回复阈值 <0–1>`  | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
 | `/自动回复间隔 <秒>`   | How long it keeps quiet after joining in           | yes         | 60          |
-| `/并发数 <1–5>`        | How many Claude and Codex calls run at once        | yes         | 2           |
 | `/自动谢礼 <钻>`       | Thank viewers who give more than this in 5 minutes | yes         | 99999 (off) |
 | `/截图 <0\|1>`         | Send Claude the live video or not                  | yes         | 0           |
 | `/识歌 [提示]`         | Name the song the streamer sings, from its lyrics  | no          | –           |
@@ -73,18 +72,6 @@ How many seconds auto-reply keeps quiet after it answered someone unprompted: wh
 
 @默认关闭 /自动回复间隔 半分钟
 → 间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20
-```
-
-### /并发数
-
-How many calls to Claude (@ answers, room commands, gift thanks), and how many to Codex (auto-reply picks, song ID, malice checks, /解题), run at once; the rest wait their turn in that AI's queue. Auto-reply runs that many checks at once too. It starts at `--concurrency` (2). Lowering it doesn't stop what's running: new calls wait until fewer are.
-
-```text
-@默认关闭 /并发数 3
-→ 已处理并发数请求
-
-@默认关闭 /并发数 20
-→ 并发数要写成 1 到 5 的整数，用法：/并发数 2
 ```
 
 ### /自动谢礼
@@ -198,7 +185,6 @@ Each feature offers its own commands, and `src/main.ts` hands them all to `ChatB
 | 修改人设, 截图             | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
 | 修改收费                   | `Billing.commands()` in `src/app/billing.ts`                                           |
 | 自动回复阈值, 自动回复间隔 | `AutoReply.commands()` in `src/app/auto-reply.ts`                                      |
-| 并发数                     | `concurrencyCommand` in `src/app/ai-driver.ts`                                         |
 | 自动谢礼                   | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
 | 识歌                       | `SongId.commands()` in `src/app/song-id.ts`                                            |
 | 识别背景音乐               | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
