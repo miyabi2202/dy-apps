@@ -178,7 +178,7 @@ Commands are logged as `command` in `logs/chat-bot.log` (`command requested` for
 
 ## Where they're defined
 
-Each feature offers its own commands, and `src/main.ts` hands them all to `ChatBot` in the order the help list shows them:
+Each feature offers its own commands, and `src/wiring/bot.ts` hands them all to `ChatBot` in the order the help list shows them:
 
 | Command                    | Defined in                                                                             |
 | -------------------------- | -------------------------------------------------------------------------------------- |
@@ -224,4 +224,4 @@ export function jokeCommand(prompt: () => string): Command {
 }
 ```
 
-Then add it to the `commands` list in `src/main.ts`, add a row to the tables above, and test it next to its feature (see `tests/auto-reply.test.ts`, `tests/billing.test.ts`, `tests/room-state.test.ts`).
+Then add it to the `COMMANDS` list in `src/wiring/bot.ts`, add a row to the tables above, and test it next to its feature (see `tests/auto-reply.test.ts`, `tests/billing.test.ts`, `tests/room-state.test.ts`).
