@@ -28,13 +28,21 @@ stream that ends or whose URL expires is back in seconds; a new URL while one is
 it. The worker exits when stdin closes. Given a URL on the command line instead, it listens to just
 that one and exits when it ends.
 
+With `--serve PORT` it doesn't exit: it listens on 127.0.0.1:PORT and speaks the same lines (the
+`{"ready": true}` and the rest, one JSON object a line, UTF-8) to whoever connects, one bot at a
+time; it starts listening before the models load, and a bot that connects meanwhile gets `ready` once
+they have. When the bot disconnects its stream is stopped (ffmpeg killed), but the models and the
+voiceprints it learned stay loaded, and the next connection is told `{"ready": true}` at once. That
+way restarting the bot doesn't reload the models. The bot starts it detached if nothing is listening
+(src/adapters/asr-worker.ts); stop it with `pkill -f "transcribe.py --serve"`.
+
 The bot can also ask what music is playing, by writing `{"music_id": 1}` (any id) as a line to
 stdin: the worker looks up the last 15 s with Shazam (shazamio: the fingerprint is worked out
 here, and only it is sent) and prints `{"music_id": 1, "title": "…", "artist": "…"}`, with both
 null when nothing matched, or `{"music_id": 1, "error": "…"}`. A song playing under the streamer's
 talk is usually still found; the streamer singing it themselves usually isn't.
 
-    uv run transcribe.py [<stream url>] [--device auto|cpu|mps|cuda] [--realtime] [--model-dir DIR]
+    uv run transcribe.py [<stream url> | --serve PORT] [--device auto|cpu|mps|cuda] [--realtime] [--model-dir DIR]
         [--lid-dir DIR] [--same-voice 0.6]
 
 FireRedASR2-AED (4.7 GB) is downloaded into --model-dir and FireRedLID (3.5 GB) into --lid-dir on
@@ -52,6 +60,7 @@ import logging
 import os
 import queue
 import re
+import socket
 import subprocess
 import sys
 import threading
@@ -296,13 +305,18 @@ def load_models(
     return vad, asr, lid, sensevoice, voice, Voices(same_voice)
 
 
-# stdout is shared by the transcript and music answers, one whole JSON line at a time.
+# Where the transcript and music answers go (stdout, or the bot's connection with --serve), one
+# whole JSON line at a time.
 print_lock = threading.Lock()
+sink = lambda text: print(text, flush=True)  # noqa: E731
 
 
 def print_line(line: dict) -> None:
     with print_lock:
-        print(json.dumps(line, ensure_ascii=False), flush=True)
+        try:
+            sink(json.dumps(line, ensure_ascii=False))
+        except OSError:
+            pass  # the bot is gone: it's told nothing, and the session is ending anyway
 
 
 def as_wav(chunks: list[bytes]) -> bytes:
@@ -345,13 +359,13 @@ class Stream:
                 self.ffmpeg.terminate()
 
 
-def read_requests(urls: queue.Queue, music: queue.Queue, stream: Stream) -> None:
+def read_requests(lines, urls: queue.Queue, music: queue.Queue, stream: Stream) -> None:
     """
-    Reads the bot's lines from stdin: `{"url": …}` (stop the stream being listened to, if any,
-    and listen to this one) goes to `urls`, `{"music_id": …}` to `music`. When stdin closes (the
-    bot is gone), puts None on both and stops the stream, so the worker exits.
+    Reads the bot's `lines` (stdin, or its connection): `{"url": …}` (stop the stream being
+    listened to, if any, and listen to this one) goes to `urls`, `{"music_id": …}` to `music`. When
+    they end (the bot is gone), puts None on both and stops the stream, so the session ends.
     """
-    for request in sys.stdin:
+    for request in lines:
         try:
             message = json.loads(request)
             if "url" in message:
@@ -462,6 +476,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("url", nargs="?", help="listen to this stream and exit when it ends, "
                         "instead of waiting for URLs on stdin")
+    parser.add_argument("--serve", type=int, metavar="PORT",
+                        help="stay running as a service on 127.0.0.1:PORT, speaking the stdin/stdout lines "
+                        "to one bot at a time over a TCP connection, keeping the models loaded between bots")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--realtime", action="store_true", help="read input at its own speed (for testing with a file)")
     parser.add_argument("--same-voice", type=float, default=SAME_VOICE,
@@ -470,6 +487,9 @@ def main() -> None:
     parser.add_argument("--lid-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedLID"))
     args = parser.parse_args()
 
+    # Listening before the models load: a bot that connects meanwhile waits in the backlog for
+    # `ready`, and one that finds the port taken knows a service is there and doesn't start another.
+    server = socket.create_server(("127.0.0.1", args.serve)) if args.serve else None
     device = pick_device(args.device)
     log(f"loading models on {device}")
     if device == "cpu":
@@ -479,24 +499,57 @@ def main() -> None:
         models = load_models(device, args.model_dir, args.lid_dir, args.same_voice)
     logging.getLogger().setLevel(logging.WARNING)
 
+    # The latest MUSIC_SECONDS of audio, for naming the music when the bot asks.
+    recent: collections.deque = collections.deque(maxlen=MUSIC_SECONDS * 1000 // CHUNK_MS)
+
+    if args.url:
+        listen(args.url, models, recent, Stream(), args.realtime)
+    elif server:
+        log(f"serving on 127.0.0.1:{args.serve}")
+        serve(server, models, recent, args.realtime)
+    else:
+        session(sys.stdin, models, recent, args.realtime)
+
+
+def session(lines, models: tuple, recent: collections.deque, realtime: bool) -> None:
+    """
+    One bot's session: says it's ready, then listens to each URL it sends (a newer one replaces
+    the one playing) and says when a stream ended, and answers its music requests, until `lines`
+    end.
+    """
     urls: queue.Queue = queue.Queue()
     music: queue.Queue = queue.Queue()
     stream = Stream()
-    # The latest MUSIC_SECONDS of audio, for naming the music when the bot asks.
-    recent: collections.deque = collections.deque(maxlen=MUSIC_SECONDS * 1000 // CHUNK_MS)
-    threading.Thread(target=read_requests, args=(urls, music, stream), daemon=True).start()
+    threading.Thread(target=read_requests, args=(lines, urls, music, stream), daemon=True).start()
     threading.Thread(target=answer_music_requests, args=(music, recent), daemon=True).start()
-
-    if args.url:
-        listen(args.url, models, recent, stream, args.realtime)
-        return
     print_line({"ready": True})
     while (url := urls.get()) is not None:
         # A newer URL waiting means this one was replaced before it started.
         if not urls.empty():
             continue
-        code = listen(url, models, recent, stream, args.realtime)
+        code = listen(url, models, recent, stream, realtime)
         print_line({"stream_ended": True, "code": code})
+
+
+def serve(server: socket.socket, models: tuple, recent: collections.deque, realtime: bool) -> None:
+    """
+    Serves the same JSON lines over `server`, a local TCP socket, to one bot at a time, for good:
+    the models and voiceprints stay loaded between bots, so a restarted bot is back in a moment.
+    When a bot disconnects its stream is stopped and the next connection gets a fresh
+    `{"ready": true}`.
+    """
+    global sink
+    while True:
+        conn, _ = server.accept()
+        log("bot connected")
+        with conn, conn.makefile("r", encoding="utf-8") as lines:
+            sink = lambda text: conn.sendall(f"{text}\n".encode())  # noqa: E731
+            try:
+                session(lines, models, recent, realtime)
+            except OSError:
+                pass
+        sink = lambda text: None  # noqa: E731
+        log("bot disconnected, waiting for the next one")
 
 
 if __name__ == "__main__":

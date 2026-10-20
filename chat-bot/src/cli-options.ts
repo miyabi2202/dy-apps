@@ -11,7 +11,7 @@ export const USAGE =
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 0 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
   '       [--auto-reply-interval 60] [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]\n' +
-  '       [--malice-watch]';
+  '       [--malice-watch] [--asr-port 8758]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -48,6 +48,8 @@ export interface CliOptions {
   autoSongId: boolean;
   /** @ viewers who keep posting malicious chat, from the start. */
   maliceWatch: boolean;
+  /** The local port of the speech service, which outlives the bot. */
+  asrPort: number;
 }
 
 /** `args` (without node and the script) as options, or null when they're unusable. */
@@ -101,6 +103,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'auto-song-id': { type: 'boolean', default: false },
       // @ viewers who keep posting malicious chat; /识别恶意言论 switches it while it runs.
       'malice-watch': { type: 'boolean', default: false },
+      // The speech service (asr/transcribe.py --serve) listens here; the bot starts it if it isn't there.
+      'asr-port': { type: 'string', default: '8758' },
     },
   });
   const roomId = values.room ?? '';
@@ -134,5 +138,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     codex: values.codex,
     autoSongId: values['auto-song-id'],
     maliceWatch: values['malice-watch'],
+    asrPort: Number(values['asr-port']),
   };
 }

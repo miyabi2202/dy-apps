@@ -6,7 +6,7 @@ How to run the chat bot for the user, e.g. when they say 「启动机器人，�
 
 The user gives a room number (the digits in `live.douyin.com/<id>`). Run both processes with the Bash tool's `run_in_background`, never `&` or `nohup`, so they can be stopped later.
 
-1. **Check nothing is running yet**: `lsof -nP -iTCP:8757 -sTCP:LISTEN` and `pgrep -fl "transcribe.py|chat-bot/src/main"`. If DyHub is already up, skip step 2; if a bot is already running, ask before starting a second one.
+1. **Check nothing is running yet**: `lsof -nP -iTCP:8757 -sTCP:LISTEN` and `pgrep -fl "transcribe.py|chat-bot/src/main"`. If DyHub is already up, skip step 2; if a bot is already running (`chat-bot/src/main`), ask before starting a second one. A `transcribe.py --serve` process alone is the speech service from an earlier run: leave it, the bot connects to it and skips the 35 s model load.
 2. **DyHub**, from `~/coding/dyhub` (the miyabi2202 fork, `main`): `npm run dev`. Wait until `curl -s localhost:8757/api/rooms` answers.
 3. **Check the login**: `curl -s localhost:8757/api/cookie` must show `"hasLogin":true` (and `expiresAt` in the future). Without it the bot can't send chat and gifts don't arrive: tell the user to log in from the console at http://localhost:8757 (网页登录) and stop here.
 4. **The bot**, from `chat-bot/`:
@@ -22,7 +22,7 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
 5. **Confirm it's working** from the bot's output, and tell the user:
    - `dyhub ready` within seconds: connected to the room's chat.
    - `transcribing {"url": …}`: DyHub has the stream. If it never comes, the room isn't live.
-   - `heard {"text": …}` soon after `dyhub ready`: speech recognition is running. The bot loads the speech models (about half a minute) before it enters the room, so `dyhub ready` itself comes that much later. The first run ever downloads about 10 GB of models first.
+   - `heard {"text": …}` soon after `dyhub ready`: speech recognition is running. The bot connects to the speech service on port 8758 (`--asr-port`) and starts it, detached and logging to `logs/asr.log`, when it isn't running; it loads the speech models (about half a minute) before the bot enters the room, so `dyhub ready` comes that much later, unless the service is already up from an earlier run, and then it's immediate. The first run ever downloads about 10 GB of models first.
    - `gift {…}` lines as viewers send gifts, with their new balance.
 
 ## While it runs
@@ -74,11 +74,11 @@ How the bot tells viewers apart: set `"private": true` in the room's `data/<房�
 
 ## Stop
 
-Stop the bot's background task first, then DyHub's (TaskStop), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or DyHub process is left. Balances are kept across a restart; starting clears them only when `wallet.json` was last saved more than 24 hours ago (`wallet.clearIfOlderThan`).
+Stop the bot's background task first, then DyHub's (TaskStop), then the speech service, which outlives the bot on purpose (`pkill -f "transcribe.py --serve"`; leave it running when the bot is only being restarted), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or DyHub process is left. Balances are kept across a restart; starting clears them only when `wallet.json` was last saved more than 24 hours ago (`wallet.clearIfOlderThan`).
 
 ## Troubleshooting
 
-- `stream ended, asking for it again` now and then is normal (the stream URL expires or the stream drops): the worker keeps its models loaded and gets the new URL within seconds, or every 10 s while there's no stream. `transcriber stopped, restarting` means the worker itself died and is reloading its models. If either repeats, `GET localhost:8757/api/rooms/<房间号>/stream` shows whether DyHub still has a stream.
+- `stream ended, asking for it again` now and then is normal (the stream URL expires or the stream drops): the worker keeps its models loaded and gets the new URL within seconds, or every 10 s while there's no stream. `transcriber stopped, restarting` means the connection to the speech service ended: the bot connects again within 10 s, and starts the service if it died (its models then load again; `logs/asr.log` has its output and why it died). `the speech service did not come up` after about 10 minutes means it never listened: read `logs/asr.log`. If either repeats, `GET localhost:8757/api/rooms/<房间号>/stream` shows whether DyHub still has a stream.
 - `reply did not show up in the room chat`: Douyin may be throttling the account; suggest a pause.
 - `could not answer mention … claude …`: run `claude -p` by hand to check Claude Code works; the mention was refunded.
 - `jev is out of credit, auto-reply off`: the TypeSafe account ran dry; the bot told the room (`钱包烧干了，自动回复已关闭`) and set the threshold to 10. Tell the user to top it up, then an admin can turn it back on with `/自动回复阈值 0.6`.

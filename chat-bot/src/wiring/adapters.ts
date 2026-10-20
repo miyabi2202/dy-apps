@@ -1,8 +1,8 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { DyhubClient } from '@dy-apps/services';
-import { uvWorker } from '../adapters/asr-worker';
+import { connectWorker, startSpeechService } from '../adapters/asr-worker';
 import { claudeCli } from '../adapters/claude-cli';
 import { codexCli } from '../adapters/codex-cli';
 import { dyhubEvents } from '../adapters/dyhub-events';
@@ -44,7 +44,17 @@ export function registerAdapters(container: Container): void {
         () => roomConfig().private,
       );
     })
-    .register(SPAWN_WORKER, (c) => uvWorker(join(c.resolve(PACKAGE_DIR), 'asr')))
+    // The speech service keeps its models loaded across restarts of the bot: connect to it, and
+    // start it (detached, logging to logs/asr.log) when it isn't running.
+    .register(SPAWN_WORKER, (c) => {
+      const { asrPort, logsDir } = c.resolve(OPTIONS);
+      const asrDir = join(c.resolve(PACKAGE_DIR), 'asr');
+      return connectWorker({
+        port: asrPort,
+        start: () =>
+          startSpeechService({ asrDir, port: asrPort, logFile: join(resolve(logsDir), 'asr.log') }),
+      });
+    })
     .register(WALLET_STORAGE, (c) => jsonFileStorage(join(c.resolve(ROOM_DIR), 'wallet.json')))
     .register(CLAUDE_CLI, (c) => {
       const options = c.resolve(OPTIONS);
