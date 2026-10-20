@@ -302,7 +302,7 @@ test("starts filling in the room's room_config.json: an option seeds a missing s
   });
   container.register(DOWNLOADS, () => () => {});
   container.resolve(BILLING);
-  expect(JSON.parse(readFileSync(path, 'utf8')).mentionCost).toBe(2);
+  expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ mentionCost: 2 });
   expect(container.resolve(BILLING).cost).toBe(2);
   expect(warned).toContain('setting from room_config, ignoring option');
 });
