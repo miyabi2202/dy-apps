@@ -20,8 +20,10 @@ export interface RoomStateOptions {
   transcript?: Transcript;
   /** How far back `{{transcript}}` goes. */
   transcriptMs?: number;
-  /** Who the bot plays to start with, for `{{persona}}`. */
-  persona?: string;
+  /** Who the bot plays, for `{{persona}}`, read each time so edits apply at once. */
+  persona?: () => string;
+  /** Keeps a persona /修改人设 set, so the next `persona()` reads it, and so does the next run. */
+  savePersona?: (persona: string) => void;
   /** Background on the room for `{{context}}`, read each time so edits apply at once. */
   context?: () => string;
   /** What the bot says about itself for `{{intro}}`, read each time so edits apply at once. */
@@ -51,17 +53,27 @@ export interface RoomStateOptions {
  * prompt they have in common, so none of them wires these up on its own.
  */
 export class RoomState {
-  /** Who the bot plays; admins change it while the bot runs. */
-  persona: string;
   readonly botName: string;
   private readonly clock: () => number;
   private screenshotsOn: boolean;
+  /** The persona, without a `persona` to read it from. */
+  private ownPersona = '';
 
   constructor(private readonly options: RoomStateOptions) {
-    this.persona = options.persona ?? '';
     this.screenshotsOn = options.screenshotsOn ?? true;
     this.botName = options.botName;
     this.clock = options.now ?? Date.now;
+  }
+
+  /** Who the bot plays; admins change it while the bot runs. */
+  get persona(): string {
+    const { persona } = this.options;
+    return persona ? persona().trim() : this.ownPersona;
+  }
+
+  set persona(persona: string) {
+    this.ownPersona = persona;
+    this.options.savePersona?.(persona);
   }
 
   now(): number {
@@ -129,7 +141,7 @@ export class RoomState {
   }
 }
 
-/** `/修改人设 …`: changes who the bot plays, until it stops. */
+/** `/修改人设 …`: changes who the bot plays (in the room's persona.md, so it stays). */
 export function personaCommand(room: Pick<RoomState, 'persona'>): Command {
   return {
     name: '修改人设',

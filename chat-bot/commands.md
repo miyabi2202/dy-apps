@@ -25,7 +25,7 @@ Admin-only commands are free; the others are for anyone, and cost what an @ does
 
 ### /修改人设
 
-Sets who the bot plays: every prompt gets `你的人设是<人设>`. It starts as `persona` in `config.json`.
+Sets who the bot plays: every prompt gets `你的人设是<人设>`. It's kept in the room's `data/<房间号>/persona.md`, which is read on every use: `/修改人设` writes it, so it stays after a restart, and a persona too long to type in the room can be written there directly.
 
 ```text
 @默认关闭 /修改人设 爱讲冷笑话的小猫

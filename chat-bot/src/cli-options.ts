@@ -10,7 +10,8 @@ export const USAGE =
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
-  '       [--auto-reply-interval 60] [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]';
+  '       [--auto-reply-interval 60] [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]\n' +
+  '       [--malice-watch]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -34,7 +35,7 @@ export interface CliOptions {
   maxPending: number;
   sendIntervalMs: number;
   dataDir: string;
-  /** Admins and the starting persona. */
+  /** The admins. */
   configFile: string;
   /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
   autoReplyThreshold: number;
@@ -45,6 +46,8 @@ export interface CliOptions {
   codex: string;
   /** Name the songs the streamer sings without being asked, from the start. */
   autoSongId: boolean;
+  /** @ viewers who keep posting malicious chat, from the start. */
+  maliceWatch: boolean;
 }
 
 /** `args` (without node and the script) as options, or null when they're unusable. */
@@ -96,6 +99,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       codex: { type: 'string', default: 'gpt-6-luna' },
       // Name the songs the streamer sings without being asked; /自动识歌 switches it while it runs.
       'auto-song-id': { type: 'boolean', default: false },
+      // @ viewers who keep posting malicious chat; /识别恶意言论 switches it while it runs.
+      'malice-watch': { type: 'boolean', default: false },
     },
   });
   const roomId = values.room ?? '';
@@ -128,5 +133,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     thanksThreshold: Number(values['thanks-threshold']),
     codex: values.codex,
     autoSongId: values['auto-song-id'],
+    maliceWatch: values['malice-watch'],
   };
 }

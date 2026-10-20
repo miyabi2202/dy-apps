@@ -7,8 +7,6 @@ import { HIDDEN_ID, isHiddenViewer } from './dyhub-events';
 export interface BotConfig {
   /** Douyin user ids of the admins. */
   admins: string[];
-  /** Who the bot plays at start; commands can change it while it runs. */
-  persona: string;
   /** Who the admins are, as viewers know them, for 「只有主播和…才可以」; `机器人管理员` by default. */
   adminNames: string;
 }
@@ -17,14 +15,12 @@ export interface BotConfig {
 export function readConfig(path: string, read = (p: string) => readFileSync(p, 'utf8')): BotConfig {
   const raw = JSON.parse(read(path)) as Partial<Record<keyof BotConfig, unknown>>;
   const admins = raw.admins ?? [];
-  const persona = raw.persona ?? '';
   const adminNames = raw.adminNames ?? '机器人管理员';
   if (!isUserIdList(admins)) {
     throw new Error(`${path}: admins must be a list of user ids, like ["7664182420958889017"]`);
   }
-  if (typeof persona !== 'string') throw new Error(`${path}: persona must be a string`);
   if (typeof adminNames !== 'string') throw new Error(`${path}: adminNames must be a string`);
-  return { admins, persona, adminNames };
+  return { admins, adminNames };
 }
 
 function isUserIdList(value: unknown): value is string[] {

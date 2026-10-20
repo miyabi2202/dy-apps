@@ -7,6 +7,8 @@ import { errorMessage } from '../core/errors';
 export interface RoomFiles {
   /** Background on the room, for the prompts' `{{context}}`. */
   context: string;
+  /** Who the bot plays, for `{{persona}}`; /修改人设 writes it. */
+  persona: string;
   /** Everything the bot sent in the room. */
   botTalk: string;
   /** Where each viewer's folder of exchanges with the bot goes. */
@@ -41,6 +43,7 @@ export function roomFiles(dir: string): RoomFiles {
   mkdirSync(dir, { recursive: true });
   const files = {
     context: join(dir, 'context.md'),
+    persona: join(dir, 'persona.md'),
     botTalk: join(dir, 'bot_logs.md'),
     users: dir,
     config: join(dir, 'room_config.json'),

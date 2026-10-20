@@ -8,6 +8,7 @@
 data/<房间号>/
   room_config.json        直播间设置（见下）
   context.md              直播间背景，每个提示词都会带上
+  persona.md              机器人在这个直播间的人设，/修改人设 会改写它
   artifacts/              下载下来、或者手动放进来的资料（歌单之类）
   additional_commands/    这个直播间自己的指令（见下）
     index.json
@@ -117,7 +118,7 @@ data/<房间号>/
 | --------------------------- | --------------------------------------------------------------------------------------------- |
 | `{{file:<路径>}}`           | 直播间文件夹里那个文件的内容，比如 `{{file:artifacts/songs.txt}}`。读不到就是「（读取失败）」 |
 | `{{asker}}` `{{question}}`  | 谁问的、问了什么                                                                              |
-| `{{botName}}` `{{persona}}` | 机器人的昵称、人设                                                                            |
+| `{{botName}}` `{{persona}}` | 机器人的昵称、人设（`persona.md`）                                                            |
 | `{{context}}`               | 直播间的 context.md                                                                           |
 | `{{today}}` `{{now}}`       | 日期和星期（`2026-10-20 星期二`）、时间（`10:30:00`）                                         |
 | `{{singleLength}}`          | 一条弹幕最多多少字（已经去掉了 @ 的长度）                                                     |
@@ -149,11 +150,11 @@ Love Story｜Taylor Swift｜英语
 
 ## 改了要不要重启
 
-| 文件                                                                                                | 改了马上生效？         |
-| --------------------------------------------------------------------------------------------------- | ---------------------- |
-| `context.md`、各个 `prompt.md`、`artifacts/` 里的文件、`room_config.json` 的 `private` 和 `on_sing` | ✓ 每次用都重新读       |
-| `additional_commands/index.json`                                                                    | ✗ 只在启动时读，要重启 |
-| `room_config.json` 的 `download`                                                                    | ✗ 只在启动时读         |
+| 文件                                                                                                              | 改了马上生效？         |
+| ----------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `context.md`、`persona.md`、各个 `prompt.md`、`artifacts/` 里的文件、`room_config.json` 的 `private` 和 `on_sing` | ✓ 每次用都重新读       |
+| `additional_commands/index.json`                                                                                  | ✗ 只在启动时读，要重启 |
+| `room_config.json` 的 `download`                                                                                  | ✗ 只在启动时读         |
 
 ## 看日志确认
 

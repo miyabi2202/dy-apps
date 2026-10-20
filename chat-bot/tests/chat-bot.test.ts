@@ -39,9 +39,12 @@ function setup(options: SetupOptions = {}) {
   const prompts: string[] = [];
   const { outbox, sent } = fakeOutbox();
   const history = new ChatHistory(options.historySize ?? 100);
+  // The room's persona.md, which /修改人设 writes.
+  let persona = options.persona ?? '';
   const room = fakeRoom({
     history,
-    persona: options.persona,
+    persona: () => persona,
+    savePersona: (next) => void (persona = next),
     // A live video to screenshot, with screenshots off (/截图 0).
     ...(options.screenshot && {
       screenshot: () => Promise.resolve(new Uint8Array([0xff, 0xd8])),

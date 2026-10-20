@@ -3,15 +3,13 @@ import type { Log } from '../src/app/ports';
 
 const fromText = (text: string) => () => text;
 
-test('reads admins and the persona, and rejects admins that are not user ids', () => {
-  expect(readConfig('config.json', fromText('{"admins": ["123"], "persona": "小猫"}'))).toEqual({
+test('reads admins, and rejects admins that are not user ids', () => {
+  expect(readConfig('config.json', fromText('{"admins": ["123"]}'))).toEqual({
     admins: ['123'],
-    persona: '小猫',
     adminNames: '机器人管理员',
   });
   expect(readConfig('config.json', fromText('{}'))).toEqual({
     admins: [],
-    persona: '',
     adminNames: '机器人管理员',
   });
   expect(readConfig('config.json', fromText('{"adminNames": "雅"}')).adminNames).toBe('雅');

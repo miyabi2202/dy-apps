@@ -14,11 +14,13 @@ test('gives every prompt the room as it is now: chat, recent speech, persona, co
   transcript.add({ start: NOW - 20 * 60_000, end: NOW - 19 * 60_000, text: '太早了' });
   transcript.add({ start: NOW - 3000, end: NOW, text: '大家好' });
   let context = '主播是猫猫';
+  let persona = '数学老师\n';
   const room = fakeRoom({
     history,
     transcript,
     transcriptMs: 5 * 60_000,
-    persona: '数学老师',
+    persona: () => persona,
+    savePersona: (next) => void (persona = next),
     context: () => context,
     botTalk: { recent: () => '你好呀' },
     chatDir: '/data/chat',
@@ -39,10 +41,13 @@ test('gives every prompt the room as it is now: chat, recent speech, persona, co
     botTalk: '你好呀',
   });
 
-  // Persona and context are read each time.
-  room.persona = '小猫';
+  // Persona and context are read each time, and /修改人设 saves the persona.
+  persona = '小狗';
   context = '主播今天生日';
-  expect(room.promptInput()).toMatchObject({ persona: '小猫', context: '主播今天生日' });
+  expect(room.promptInput()).toMatchObject({ persona: '小狗', context: '主播今天生日' });
+  room.persona = '小猫';
+  expect(persona).toBe('小猫');
+  expect(room.promptInput()).toMatchObject({ persona: '小猫' });
 });
 
 test('screenshots go to Claude only while on, and admins switch them with /截图', async () => {

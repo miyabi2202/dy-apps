@@ -3,7 +3,7 @@
  *
  *     pnpm start --room 259175310675 --bot-name 默认关闭
  */
-import { existsSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -155,15 +155,16 @@ const gifts = new RecentGifts();
 // Three closures point forward: the room's settings (to autoReply, thanker and autoSongId), the
 // autoReply's reply and the answerer's onCommandRequest (to the bot). They run only after the bot
 // exists, since nothing calls room.promptInput() or starts autoReply while this is wired.
-// What the room looks like now, for every prompt. The bot plays config.persona until
-// /修改人设 changes it for this run. The prompts also get the settings admins can change, and
-// the list of commands from commands.md, so the bot can tell viewers what it can do.
+// What the room looks like now, for every prompt. The bot plays the room's persona.md, read on
+// every use like context.md and written by /修改人设. The prompts also get the settings admins can
+// change, and the list of commands from commands.md, so the bot can tell viewers what it can do.
 const room = new RoomState({
   history,
   gifts,
   transcript,
   transcriptMs: options.transcriptMs,
-  persona: config.persona,
+  persona: liveText(files.persona),
+  savePersona: (persona) => writeFileSync(files.persona, `${persona}\n`),
   context,
   intro,
   botTalk,
@@ -277,8 +278,9 @@ feed.onGift((gift) => {
   gifts.add(room.now(), gift);
   thanker.onGift(gift);
 });
-// @s a viewer whose chat is found malicious, once /识别恶意言论 1 turns it on: Jev scores each chat,
-// and Codex decides on the few it lets through, with the chat around them. Off without either.
+// @s a viewer whose chat is found malicious, once --malice-watch or /识别恶意言论 1 turns it on: Jev
+// scores each chat, and Codex decides on the few it lets through, with the chat around them. Off
+// without either.
 const maliceWatch = judge
   ? new MaliceWatch({
       judge,
@@ -287,6 +289,7 @@ const maliceWatch = judge
       outbox,
       room,
       exempt: (userId) => admins.has(userId),
+      on: options.maliceWatch,
       log,
     })
   : null;
@@ -383,7 +386,7 @@ log.info('starting', {
   screenshot: options.screenshot,
   cost: options.cost,
   admins: config.admins,
-  persona: config.persona,
+  persona: room.persona,
   autoReplyThreshold: options.autoReplyThreshold,
   autoReplyIntervalMs: options.autoReplyIntervalMs,
   thanksThreshold: options.thanksThreshold,

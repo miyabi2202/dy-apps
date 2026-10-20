@@ -33,7 +33,7 @@ function setup(options: SetupOptions = {}) {
   const room = fakeRoom({
     transcript: options.transcript,
     screenshot: options.screenshot,
-    persona: options.persona,
+    persona: () => options.persona ?? '',
     chatDir: options.chatDir,
     botTalk: options.botTalk === undefined ? undefined : { recent: () => options.botTalk ?? '' },
     settings: options.settings,
