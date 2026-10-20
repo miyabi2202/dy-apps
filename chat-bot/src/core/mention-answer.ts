@@ -21,24 +21,27 @@ export const MESSAGE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+/** Messages to others than the asker, each sent as its own `@to message`. */
+const OTHERS = {
+  type: 'array',
+  description: '要 @ 的其他人，每人一条；没有就是空数组',
+  items: {
+    type: 'object',
+    properties: {
+      to: { type: 'string', description: '对方的昵称，不带 @' },
+      message: { type: 'string', description: '发给他的话，不要在开头写他的名字' },
+    },
+    required: ['to', 'message'],
+    additionalProperties: false,
+  },
+} as const;
+
 /** MESSAGE_SCHEMA, and messages to others, each sent as its own `@to message`. */
 export const MESSAGES_SCHEMA = {
   type: 'object',
   properties: {
     message: { type: 'string', description: '回给提问的人的话，不用回就是空字符串' },
-    others: {
-      type: 'array',
-      description: '要 @ 的其他人，每人一条；没有就是空数组',
-      items: {
-        type: 'object',
-        properties: {
-          to: { type: 'string', description: '对方的昵称，不带 @' },
-          message: { type: 'string', description: '发给他的话，不要在开头写他的名字' },
-        },
-        required: ['to', 'message'],
-        additionalProperties: false,
-      },
-    },
+    others: OTHERS,
   },
   required: ['message', 'others'],
   additionalProperties: false,
@@ -63,11 +66,15 @@ export function parseOthers(text: string): OtherMessage[] {
   });
 }
 
-/** The JSON Schema MentionAnswer follows (strict: every field required, no others). */
+/**
+ * The JSON Schema MentionAnswer follows (strict: every field required, no others), with
+ * MESSAGES_SCHEMA's `others` for when they ask the bot to say something to someone else.
+ */
 export const MENTION_ANSWER_SCHEMA = {
   type: 'object',
   properties: {
-    message: { type: 'string', description: '要发到直播间的回复' },
+    message: { type: 'string', description: '回给提问的人的话，不用回就是空字符串' },
+    others: OTHERS,
     command_request: {
       type: 'string',
       description:
@@ -78,7 +85,7 @@ export const MENTION_ANSWER_SCHEMA = {
       description: '指令后面要跟的内容，按指令说明的用法写，比如 100；没有就是空字符串',
     },
   },
-  required: ['message', 'command_request', 'command_args'],
+  required: ['message', 'others', 'command_request', 'command_args'],
   additionalProperties: false,
 } as const;
 

@@ -281,3 +281,17 @@ test('an answer that @s others sends each their own message, and counts those in
   // In the order they went out; 路过的 said nothing lately, so there's no one to follow up.
   expect(answered).toEqual(['u-雅', 'u-白']);
 });
+
+test("the usual prompt's answer may @ someone else instead of the asker", async () => {
+  const { ask, sent } = setup({
+    answer: JSON.stringify({
+      message: '',
+      others: [{ to: '🍄老杨', message: '杨叔早上好，谢谢山药' }],
+      command_request: '',
+      command_args: '',
+    }),
+  });
+  await ask({ userId: 'u-红', asker: '红枫不会', question: '来跟我杨叔打个招呼' });
+
+  expect(sent).toEqual(['@🍄老杨 杨叔早上好，谢谢山药']);
+});

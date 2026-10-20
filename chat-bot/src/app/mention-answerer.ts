@@ -208,8 +208,9 @@ export class MentionAnswerer {
         }
       }
       const messages = replyMessages(mention.asker, answer, limits);
-      // Each of the others gets one message of their own, after the asker's.
-      const others = mention.atOthers ? parseOthers(raw) : [];
+      // Each of the others gets one message of their own, after the asker's: the usual prompt's
+      // answer may have them too (「跟杨叔打个招呼」).
+      const others = usual || mention.atOthers ? parseOthers(raw) : [];
       const single = { ...limits, maxParts: 1 };
       // The others are known by nickname only: whoever said something under it most lately.
       const chat = [...mention.history, ...room.recentChat()].reverse();
