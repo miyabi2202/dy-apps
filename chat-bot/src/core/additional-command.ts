@@ -24,13 +24,15 @@ export interface AdditionalCommandEntry {
   adminOnly?: boolean;
   /** Its answer may @ others too, each in a message of their own (MESSAGES_SCHEMA). */
   atOthers?: boolean;
+  /** Seconds after it's answered before it's answered again, for anyone. */
+  cooldown?: number;
 }
 
 /**
  * The commands in `index.json` (already parsed): an object of `"<id>": { "name", "when",
- * "prompt", "trigger"?, "price"?, "mentions"?, "adminOnly"?, "atOthers"? }`, `trigger` a regular
- * expression, `price` whole diamonds, `mentions` a file in the room's folder, and the last two
- * true or false.
+ * "prompt", "trigger"?, "price"?, "mentions"?, "adminOnly"?, "atOthers"?, "cooldown"? }`,
+ * `trigger` a regular expression, `price` whole diamonds, `mentions` a file in the room's folder,
+ * `adminOnly` and `atOthers` true or false, and `cooldown` whole seconds.
  * Those that aren't right are left out, each with why.
  */
 export function parseCommandIndex(json: unknown): {
@@ -53,10 +55,8 @@ export function parseCommandIndex(json: unknown): {
 function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
   if (!/^[\w-]+$/.test(id)) return 'the id may have only letters, digits, _ and -';
   if (typeof fields !== 'object' || fields === null) return 'must be an object';
-  const { name, when, prompt, trigger, price, mentions, adminOnly, atOthers } = fields as Record<
-    string,
-    unknown
-  >;
+  const { name, when, prompt, trigger, price, mentions, adminOnly, atOthers, cooldown } =
+    fields as Record<string, unknown>;
   for (const [key, value] of Object.entries({ name, when, prompt })) {
     if (typeof value !== 'string' || !value.trim()) return `${key} must be a non-empty string`;
   }
@@ -79,6 +79,9 @@ function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
   for (const [key, value] of Object.entries({ adminOnly, atOthers })) {
     if (value !== undefined && typeof value !== 'boolean') return `${key} must be true or false`;
   }
+  if (cooldown !== undefined && !(Number.isInteger(cooldown) && (cooldown as number) >= 0)) {
+    return 'cooldown must be whole seconds, 0 or more';
+  }
   return {
     id,
     name: name as string,
@@ -89,6 +92,7 @@ function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
     ...(mentions !== undefined && { mentions: mentions }),
     ...(adminOnly === true && { adminOnly }),
     ...(atOthers === true && { atOthers }),
+    ...(cooldown !== undefined && { cooldown: cooldown as number }),
   };
 }
 

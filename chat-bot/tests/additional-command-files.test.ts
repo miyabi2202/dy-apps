@@ -50,6 +50,12 @@ test('reads the index: the commands by id, each checked', () => {
   expect(parseCommandIndex({ x: { ...flagged, adminOnly: 'yes' } }).errors).toEqual([
     'x: adminOnly must be true or false',
   ]);
+  expect(parseCommandIndex({ x: { ...flagged, cooldown: 120 } }).commands[0]).toMatchObject({
+    cooldown: 120,
+  });
+  expect(parseCommandIndex({ x: { ...flagged, cooldown: 1.5 } }).errors).toEqual([
+    'x: cooldown must be whole seconds, 0 or more',
+  ]);
 });
 
 test("loads the room's commands, each prompt with the room's files it names filled in, read on every use", () => {
