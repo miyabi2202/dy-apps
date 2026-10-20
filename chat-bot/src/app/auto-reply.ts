@@ -323,11 +323,23 @@ export class AutoReply {
     for (const { line: n, confidence, command } of sure) {
       const line = numbered[n - 1];
       if (!line) continue;
-      // A command the room doesn't have is answered as usual.
-      const withCommand = commandIds.has(command) ? { command } : {};
+      // A command the room doesn't have is answered as usual. A line that came only for a room
+      // command (its trigger or mentions) and was picked to be answered as usual goes to that
+      // command instead, which knows its data and sends nothing when it isn't for it.
+      let withCommand: { command?: string } = commandIds.has(command) ? { command } : {};
       if (!withCommand.command && !chattyKeys.has(key(line))) {
-        log.debug('pick dropped: not about the bot, and no command', { text: line.text });
-        continue;
+        const matched = (this.options.additionalCommands ?? []).find(
+          (c) => line.userId !== undefined && matchFor(c, line.text) !== null,
+        );
+        if (!matched) {
+          log.debug('pick dropped: not about the bot, and no command', { text: line.text });
+          continue;
+        }
+        log.debug('pick handed to the command it came for', {
+          text: line.text,
+          command: matched.id,
+        });
+        withCommand = { command: matched.id };
       }
       const target: UnpromptedReply | null = line.userId
         ? {

@@ -366,6 +366,15 @@ test("what one of the room's own commands is for goes to the picker, which may a
   expect(picks[0]).toContain('(3)  00:00:20 [小蓝] 今晚吃火锅');
   expect(picks[0]).toContain('- can-sing：在问主播会不会唱某首歌');
   expect(replies).toEqual([
+    // 小绿 only matched the trigger and was picked to be answered as usual: it goes to the command
+    // it came for. Not 小蓝 (picked with a command the room doesn't have): not about the bot.
+    {
+      nickname: '小绿',
+      userId: 'u-小绿',
+      question: '虾虾会吃醋吗',
+      heard: 'chat',
+      command: 'can-sing',
+    },
     {
       nickname: '小红',
       userId: 'u-小红',
@@ -380,8 +389,6 @@ test("what one of the room's own commands is for goes to the picker, which may a
       heard: 'chat',
       command: 'can-sing',
     },
-    // Not 小蓝 (picked with a command the room doesn't have) nor 小绿 (only matched a trigger,
-    // picked to be answered as usual): neither is about the bot.
   ]);
 });
 
