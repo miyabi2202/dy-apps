@@ -1,29 +1,12 @@
-import type { DyhubClient, DyhubCommentEvent, DyhubGiftEvent, DyhubUser } from '@dy-apps/services';
+import type { DyhubClient, DyhubCommentEvent, DyhubGiftEvent } from '@dy-apps/services';
 import type { RoomEvents } from '../app/ports';
 import type { Gift, IncomingChat } from '../core/room-events';
-
-/** The id Douyin gives every viewer in a 私密 room, where viewers hide who they are. */
-export const HIDDEN_ID = '111111';
-
-/**
- * Who sent an event. In a 私密 room (`hidden`), viewers all share HIDDEN_ID and the same default avatar, and show only
- * their nickname's first character (`苦***`), so they're told apart by that and their wealth level,
- * taken not to change while the bot runs: `111111-苦***-31`.
- */
-/** Whether `userId` is a 私密 room's viewer, as userIdOf gives it. */
-export function isHiddenViewer(userId: string): boolean {
-  return userId.startsWith(`${HIDDEN_ID}-`);
-}
-
-export function userIdOf({ id, nickname, payLevel }: DyhubUser, hidden: boolean): string {
-  if (!hidden || id !== HIDDEN_ID) return id;
-  return `${HIDDEN_ID}-${nickname}-${payLevel ?? 0}`;
-}
+import { viewerIdOf } from '../core/viewer-id';
 
 export function chatFrom(event: DyhubCommentEvent, hidden = false): IncomingChat {
   return {
     ts: event.ts,
-    userId: event.user && userIdOf(event.user, hidden),
+    userId: event.user && viewerIdOf(event.user, hidden),
     nickname: event.user?.nickname ?? '匿名',
     content: event.data.content,
     mentions: (event.data.parts ?? []).flatMap((part) =>
@@ -36,7 +19,7 @@ export function chatFrom(event: DyhubCommentEvent, hidden = false): IncomingChat
 export function giftFrom(event: DyhubGiftEvent, newGifts: number, hidden = false): Gift | null {
   if (!event.user || newGifts <= 0) return null;
   return {
-    userId: userIdOf(event.user, hidden),
+    userId: viewerIdOf(event.user, hidden),
     nickname: event.user.nickname,
     name: event.data.giftName ?? '礼物',
     count: newGifts,

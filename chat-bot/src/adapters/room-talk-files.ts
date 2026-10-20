@@ -3,6 +3,7 @@ import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { BotTalk, UserTalk } from '../app/ports';
 import { exchangeLines, lastLines, talkLine } from '../core/talk-record';
+import { isDouyinUserId } from '../core/viewer-id';
 
 export interface TalkFileOptions {
   /** How many of the latest lines `recent` gives, to keep prompts from growing without end. */
@@ -44,7 +45,7 @@ export function botTalkFile(path: string, options: TalkFileOptions = {}): BotTal
  * a hash of it.
  */
 function folderOf(userId: string): string {
-  if (/^\d+$/.test(userId)) return userId;
+  if (isDouyinUserId(userId)) return userId;
   return createHash('sha256').update(userId).digest('hex').slice(0, 16);
 }
 

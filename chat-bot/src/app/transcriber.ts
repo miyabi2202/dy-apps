@@ -1,7 +1,12 @@
 import { speechRecord } from '../core/chat-record';
 import { errorMessage } from '../core/errors';
 import { musicRequest, parseMusicLine, type MusicAnswer, type MusicMatch } from '../core/music';
-import { parseWorkerLine, type Transcript, type TranscriptLine } from '../core/transcript';
+import {
+  parseStatusLine,
+  parseWorkerLine,
+  type Transcript,
+  type TranscriptLine,
+} from '../core/transcript';
 import type { Log, RoomRecord, SpawnWorker, StreamUrl, Worker } from './ports';
 
 export interface TranscriberOptions {
@@ -172,17 +177,4 @@ export class Transcriber {
     this.worker = worker;
     return worker;
   }
-}
-
-/** The worker's `{"ready": true}` (models loaded) or `{"stream_ended": true, …}`, or null. */
-function parseStatusLine(text: string): 'ready' | 'stream_ended' | null {
-  if (!text.startsWith('{')) return null;
-  try {
-    const json = JSON.parse(text) as Record<string, unknown>;
-    if (json.ready === true) return 'ready';
-    if (json.stream_ended === true) return 'stream_ended';
-  } catch {
-    // Not JSON: not a status.
-  }
-  return null;
 }

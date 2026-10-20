@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { Admins, Log } from '../app/ports';
 import { errorMessage } from '../core/errors';
-import { HIDDEN_ID, isHiddenViewer } from './dyhub-events';
+import { HIDDEN_ID, isHiddenViewer } from '../core/viewer-id';
 
 /** The bot's settings that live in `config.json` rather than on the command line. */
 export interface BotConfig {

@@ -102,6 +102,19 @@ export function parseWorkerLine(text: string): TranscriptLine | null {
   };
 }
 
+/** The worker's `{"ready": true}` (models loaded) or `{"stream_ended": true, …}`, or null. */
+export function parseStatusLine(text: string): 'ready' | 'stream_ended' | null {
+  if (!text.startsWith('{')) return null;
+  try {
+    const json = JSON.parse(text) as Record<string, unknown>;
+    if (json.ready === true) return 'ready';
+    if (json.stream_ended === true) return 'stream_ended';
+  } catch {
+    // Not JSON: not a status.
+  }
+  return null;
+}
+
 /** What the streamer said lately, oldest first. Lines older than `keepMs` are forgotten. */
 export class Transcript {
   private lines: TranscriptLine[] = [];
