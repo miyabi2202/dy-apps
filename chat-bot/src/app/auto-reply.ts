@@ -19,7 +19,8 @@ import {
 import { askJson } from './ask-json';
 import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
-import type { AdditionalCommand, AskModel, FindStreamer, Judge, Log } from './ports';
+import { setting } from './setting';
+import type { AdditionalCommand, AskModel, FindStreamer, Judge, Log, SettingsStore } from './ports';
 import type { RoomState } from './room-state';
 
 export interface AutoReplyOptions {
@@ -27,8 +28,10 @@ export interface AutoReplyOptions {
   outbox: Pick<Outbox, 'push'>;
   /** Says how likely each new chat or sentence is about the bot. Without it, it never talks unprompted. */
   judge?: Judge;
-  /** Talk when something new is about the bot at least this likely; 1 or more never, without asking. */
+  /** Talk when something new is about the bot at least this likely; 1 or more never, without asking. Without `settings`, what it starts as. */
   threshold: number;
+  /** The room's settings, where the threshold and the quiet time are kept. */
+  settings?: SettingsStore;
   /** The chat, transcript and the rest of what the prompt knows about the room. */
   room: RoomState;
   log: Log;
@@ -78,10 +81,8 @@ const OFF_FOR_NO_CREDIT = 10;
  * goes to the picker without the judge.
  */
 export class AutoReply {
-  /** Talk when something is about the bot at least this likely; 1 or more never. */
-  threshold: number;
-  /** At least this long between two things it says unprompted; 0 doesn't wait. */
-  quietMs: number;
+  private readonly thresholdSetting: ReturnType<typeof setting<'autoReplyThreshold'>>;
+  private readonly quietSetting: ReturnType<typeof setting<'autoReplyIntervalSeconds'>>;
   private stopped = false;
   /** Ends the current wait early: to stop, or to look now. */
   private wake: () => void = () => {};
@@ -98,10 +99,32 @@ export class AutoReply {
   private readonly saidTo = new Map<string, number>();
 
   constructor(private readonly options: AutoReplyOptions) {
-    this.threshold = options.threshold;
-    this.quietMs = options.quietMs ?? 60_000;
+    this.thresholdSetting = setting(options.settings, 'autoReplyThreshold', options.threshold);
+    this.quietSetting = setting(
+      options.settings,
+      'autoReplyIntervalSeconds',
+      (options.quietMs ?? 60_000) / 1000,
+    );
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.seen = options.room.now();
+  }
+
+  /** Talk when something is about the bot at least this likely; 1 or more never. */
+  get threshold(): number {
+    return this.thresholdSetting.get();
+  }
+
+  set threshold(threshold: number) {
+    this.thresholdSetting.set(threshold);
+  }
+
+  /** At least this long between two things it says unprompted; 0 doesn't wait. */
+  get quietMs(): number {
+    return this.quietSetting.get() * 1000;
+  }
+
+  set quietMs(ms: number) {
+    this.quietSetting.set(ms / 1000);
   }
 
   /** Runs until `stop()`. */

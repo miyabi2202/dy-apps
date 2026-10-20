@@ -21,7 +21,19 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/自动识歌 <0\|1>`     | Name the songs the streamer sings, unasked         | yes         | 0           |
 | `/识别恶意言论 <0\|1>` | @ viewers who keep posting malicious chat          | yes         | 0           |
 
-Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops; a restart goes back to the command-line options and `config.json`.
+Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). A command that changes a setting writes it to the room's `data/<房间号>/room_config.json` (one field each, in the table below), so it stays after a restart, and the bot reads that file again whenever it changes: editing the field by hand does the same as the command, with no restart. `/修改人设` writes `persona.md` instead. A command-line option only seeds a room's setting the first time, when its `room_config.json` has no such field; after that the file wins, and an option that differs from it is a `setting from room_config, ignoring option` warning at start.
+
+| Command                | `room_config.json` field   | Default |
+| ---------------------- | -------------------------- | ------- |
+| `/修改收费 <钻>`       | `mentionCost`              | `0`     |
+| `/自动回复阈值 <0–1>`  | `autoReplyThreshold`       | `1`     |
+| `/自动回复间隔 <秒>`   | `autoReplyIntervalSeconds` | `60`    |
+| `/自动谢礼 <钻>`       | `thanksThreshold`          | `99999` |
+| `/自动识歌 <0\|1>`     | `autoSongId`               | `false` |
+| `/识别恶意言论 <0\|1>` | `maliceWatch`              | `false` |
+| `/截图 <0\|1>`         | `screenshots`              | `false` |
+
+When Jev runs out of money the bot sets `autoReplyThreshold` to `10` (off) in the file too.
 
 ### /修改人设
 

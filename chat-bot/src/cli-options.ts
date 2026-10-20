@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { isRoomId, parsePort } from '@dy-apps/services';
 import { DOUYIN_CHAT_LIMIT } from './core/reply';
+import { SETTING_DEFAULTS, type Settings } from './core/settings';
 import { DEFAULT_TRANSCRIPT_WINDOW_MS } from './core/transcript';
 
 export const USAGE =
@@ -42,6 +43,12 @@ export interface CliOptions {
   autoReplyIntervalMs: number;
   /** Thank a viewer whose gifts in 5 minutes come to more than this many diamonds. */
   thanksThreshold: number;
+  /**
+   * The settings the command line gave, by their room_config.json names: the ones it didn't give
+   * are left out, so the room's own (kept in its room_config.json) stay. A given one only fills in a
+   * room's setting the first time, when its file has none (see fillRoomConfig).
+   */
+  given: Partial<Settings>;
   /** The Codex model for /识歌, auto-reply and malice watch; empty turns all three off. */
   codex: string;
   /** Name the songs the streamer sings without being asked, from the start. */
@@ -82,8 +89,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
         default: String(DEFAULT_TRANSCRIPT_WINDOW_MS / 60_000),
       },
       // Off by default: most streams don't need Claude to see the video (lessons with a board do).
-      screenshot: { type: 'boolean', default: false },
-      cost: { type: 'string', default: '0' },
+      screenshot: { type: 'boolean' },
+      cost: { type: 'string' },
       // Test mode: the same as --cost 0 (the default now).
       test: { type: 'boolean', default: false },
       queue: { type: 'string', default: '20' },
@@ -92,17 +99,17 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       config: { type: 'string', default: join(packageDir, 'config.json') },
       // Jev's score at which the bot joins in when someone talks about it: 1, off, by default;
       // /自动回复阈值 0.6 turns it on while the bot runs.
-      'auto-reply-threshold': { type: 'string', default: '1' },
+      'auto-reply-threshold': { type: 'string' },
       // Seconds it keeps quiet after talking unprompted; /自动回复间隔 changes it while the bot runs.
-      'auto-reply-interval': { type: 'string', default: '60' },
+      'auto-reply-interval': { type: 'string' },
       // So high it's off by default; /自动谢礼 lowers it while the bot runs.
-      'thanks-threshold': { type: 'string', default: '99999' },
+      'thanks-threshold': { type: 'string' },
       // /识歌, auto-reply and malice watch ask Codex (fast and cheap at medium effort); '' turns them off.
       codex: { type: 'string', default: 'gpt-6-luna' },
       // Name the songs the streamer sings without being asked; /自动识歌 switches it while it runs.
-      'auto-song-id': { type: 'boolean', default: false },
+      'auto-song-id': { type: 'boolean' },
       // @ viewers who keep posting malicious chat; /识别恶意言论 switches it while it runs.
-      'malice-watch': { type: 'boolean', default: false },
+      'malice-watch': { type: 'boolean' },
       // The speech service (asr/transcribe.py --serve) listens here; the bot starts it if it isn't there.
       'asr-port': { type: 'string', default: '8758' },
     },
@@ -111,6 +118,24 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
   const port = parsePort(values.port);
   const botName = values['bot-name'];
   if (!isRoomId(roomId) || port === null || !botName) return null;
+  const given: Partial<Settings> = {
+    ...(values.test
+      ? { mentionCost: 0 }
+      : values.cost !== undefined && { mentionCost: Number(values.cost) }),
+    ...(values['auto-reply-threshold'] !== undefined && {
+      autoReplyThreshold: Number(values['auto-reply-threshold']),
+    }),
+    ...(values['auto-reply-interval'] !== undefined && {
+      autoReplyIntervalSeconds: Number(values['auto-reply-interval']),
+    }),
+    ...(values['thanks-threshold'] !== undefined && {
+      thanksThreshold: Number(values['thanks-threshold']),
+    }),
+    ...(values['auto-song-id'] !== undefined && { autoSongId: values['auto-song-id'] }),
+    ...(values['malice-watch'] !== undefined && { maliceWatch: values['malice-watch'] }),
+    ...(values.screenshot !== undefined && { screenshots: values.screenshot }),
+  };
+  const settings = { ...SETTING_DEFAULTS, ...given };
   return {
     roomId,
     port,
@@ -126,18 +151,19 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     logsDir: values.logs,
     asr: values.asr,
     transcriptMs: Number(values['transcript-minutes']) * 60_000,
-    screenshot: values.screenshot,
-    cost: values.test ? 0 : Number(values.cost),
+    screenshot: settings.screenshots,
+    cost: settings.mentionCost,
     maxPending: Number(values.queue),
     sendIntervalMs: Number(values['send-interval']) * 1000,
     dataDir: values.data,
     configFile: values.config,
-    autoReplyThreshold: Number(values['auto-reply-threshold']),
-    autoReplyIntervalMs: Number(values['auto-reply-interval']) * 1000,
-    thanksThreshold: Number(values['thanks-threshold']),
+    autoReplyThreshold: settings.autoReplyThreshold,
+    autoReplyIntervalMs: settings.autoReplyIntervalSeconds * 1000,
+    thanksThreshold: settings.thanksThreshold,
     codex: values.codex,
-    autoSongId: values['auto-song-id'],
-    maliceWatch: values['malice-watch'],
+    autoSongId: settings.autoSongId,
+    maliceWatch: settings.maliceWatch,
+    given,
     asrPort: Number(values['asr-port']),
   };
 }

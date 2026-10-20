@@ -15,6 +15,7 @@ import {
   PROMPT,
   ROOM,
   ROOM_CONFIG,
+  SETTINGS,
   SONG_ID,
   SONG_INTRO,
   TRANSCRIBER,
@@ -65,6 +66,7 @@ export function registerSongs(container: Container): void {
               outbox: c.resolve(OUTBOX),
               log: c.resolve(LOG),
               on: options.autoSongId,
+              settings: c.resolve(SETTINGS),
               maxLength: options.maxReplyLength,
             })
           : null;

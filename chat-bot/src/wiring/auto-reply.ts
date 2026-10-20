@@ -16,6 +16,7 @@ import {
   OUTBOX,
   PROMPT,
   ROOM,
+  SETTINGS,
   THANKER,
   USER_TALK,
 } from './tokens';
@@ -40,6 +41,7 @@ export function registerAutoReply(container: Container): void {
         judge: c.resolve(JUDGE)('about-the-bot'),
         threshold: options.autoReplyThreshold,
         quietMs: options.autoReplyIntervalMs,
+        settings: c.resolve(SETTINGS),
         room,
         log: c.resolve(LOG),
         picker: options.codex
@@ -73,6 +75,7 @@ export function registerAutoReply(container: Container): void {
         outbox: c.resolve(OUTBOX),
         promptTemplate: c.resolve(PROMPT)('giftThanks'),
         threshold: options.thanksThreshold,
+        settings: c.resolve(SETTINGS),
         room,
         userTalk: c.resolve(USER_TALK),
         maxLength: options.maxReplyLength,

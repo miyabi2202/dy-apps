@@ -15,6 +15,8 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
    pnpm start --room <房间号> --bot-name 默认关闭 --bot-id 7692586790687114297
    ```
 
+   A room's settings (`--cost`, `--screenshot`, `--auto-reply-threshold`, …) live in its `data/<房间号>/room_config.json`: an option only seeds one the first time, when the file has no such field; after that the file wins (the bot warns `setting from room_config, ignoring option` when an option differs). To change a setting later use the command (`/自动回复阈值 0.6`, which writes the file) or edit the field in `room_config.json` by hand: either takes effect at once, no restart. Fields and defaults are in [docs/room-setup.md](docs/room-setup.md).
+
    Add `--screenshot` when the stream is a lesson or game where Claude needs to see the video (a board, a question on screen); the user may ask for it. Without it, an admin can still turn screenshots on in the room while it runs: `/截图 1` (and `/截图 0` to turn them off). Every command is listed in [commands.md](commands.md).
 
    `默认关闭` / `7692586790687114297` is the Douyin account DyHub is logged in as. If the user logged in with another account, get its nickname from them and its uid from the `user.id` of one of its own chat messages (in `logs/chat-bot.log`).

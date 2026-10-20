@@ -15,7 +15,8 @@ import {
   type TranscriptLine,
 } from '../core/transcript';
 import { done, failed, type Command } from './command';
-import type { BotTalk, Log, Screenshot } from './ports';
+import type { BotTalk, Log, Screenshot, SettingsStore } from './ports';
+import { setting } from './setting';
 
 /** What a feature adds to the room's settings (everything but screenshots, which the room keeps). */
 export type SettingsPart = Omit<RoomSettings, 'screenshots'>;
@@ -41,8 +42,10 @@ export interface RoomStateOptions {
   botTalk?: Pick<BotTalk, 'recent'>;
   /** A JPEG of the live video, sent to Claude with a prompt while screenshots are on. */
   screenshot?: Screenshot;
-  /** Whether to start with screenshots on (when there's a `screenshot`); /截图 switches it. */
+  /** Whether to start with screenshots on (when there's a `screenshot`); /截图 switches it. Without `settings`, what it starts as. */
   screenshotsOn?: boolean;
+  /** The room's settings, where that is kept (`screenshots`). */
+  settings?: SettingsStore;
   /** The folder of the room's chat record files, for `{{chatDir}}`. */
   chatDir?: string;
   /** The sentences prompts say around what they fill in (wording.md), read each time. */
@@ -67,14 +70,18 @@ export class RoomState {
   readonly botName: string;
   readonly wording: Wording;
   private readonly clock: () => number;
-  private screenshotsOn: boolean;
+  private readonly screenshotsSetting: ReturnType<typeof setting<'screenshots'>>;
   /** The persona, without a `persona` to read it from. */
   private ownPersona = '';
   /** The parts of the room's settings the features keep, for `{{settings}}`. */
   private readonly settingsParts: (() => SettingsPart)[] = [];
 
   constructor(private readonly options: RoomStateOptions) {
-    this.screenshotsOn = options.screenshotsOn ?? true;
+    this.screenshotsSetting = setting(
+      options.settings,
+      'screenshots',
+      options.screenshotsOn ?? true,
+    );
     this.botName = options.botName;
     this.wording = options.wording;
     this.clock = options.now ?? Date.now;
@@ -157,18 +164,18 @@ export class RoomState {
   private settings(): RoomSettings | undefined {
     if (!this.settingsParts.length) return undefined;
     return Object.assign({}, ...this.settingsParts.map((part) => part()), {
-      screenshots: this.screenshotsOn,
+      screenshots: this.screenshots,
     }) as RoomSettings;
   }
 
   /** Whether prompts get the live video; admins switch it while the bot runs. */
   get screenshots(): boolean {
-    return this.screenshotsOn;
+    return this.screenshotsSetting.get();
   }
 
   set screenshots(on: boolean) {
-    if (on === this.screenshotsOn) return;
-    this.screenshotsOn = on;
+    if (on === this.screenshots) return;
+    this.screenshotsSetting.set(on);
     this.options.log.info('screenshot', { enabled: on });
   }
 
@@ -177,7 +184,7 @@ export class RoomState {
    * asking DyHub) or when there's no screenshot to be had: prompting goes on.
    */
   async screenshot(always = false): Promise<Uint8Array | undefined> {
-    if (!this.screenshotsOn && !always) return undefined;
+    if (!this.screenshots && !always) return undefined;
     try {
       return await this.options.screenshot?.();
     } catch (err) {

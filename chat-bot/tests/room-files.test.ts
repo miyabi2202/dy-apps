@@ -1,3 +1,4 @@
+import { SETTING_DEFAULTS } from '../src/core/settings';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,13 +30,13 @@ test('room_config.json starts not private, and is read again as it changes', () 
   expect(JSON.parse(readFileSync(config, 'utf8'))).toEqual({ private: false });
   const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
   const roomConfig = liveRoomConfig(config, { log });
-  expect(roomConfig()).toEqual({ private: false, aliases: [] });
+  expect(roomConfig()).toEqual({ private: false, aliases: [], ...SETTING_DEFAULTS });
 
   writeFileSync(config, '{ "private": true }');
-  expect(roomConfig()).toEqual({ private: true, aliases: [] });
+  expect(roomConfig()).toEqual({ private: true, aliases: [], ...SETTING_DEFAULTS });
 
   writeFileSync(config, '{ "private": "yes" }');
-  expect(roomConfig()).toEqual({ private: true, aliases: [] });
+  expect(roomConfig()).toEqual({ private: true, aliases: [], ...SETTING_DEFAULTS });
   expect(log.warn).toHaveBeenCalled();
 
   writeFileSync(config, '{ "on_sing": { "message": "缇娅 缇娅", "probability": 0.67 } }');
@@ -43,6 +44,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
     aliases: [],
+    ...SETTING_DEFAULTS,
   });
 
   writeFileSync(config, '{ "on_sing": { "message": "缇娅 缇娅", "probability": "2/3" } }');
@@ -50,6 +52,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
     aliases: [],
+    ...SETTING_DEFAULTS,
   });
 });
 
@@ -62,7 +65,11 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
     private: true,
     streamer: { nickname: '晨曦FM ⁹⁰¹', uid: '7500039236442915865' },
   });
-  expect(liveRoomConfig(config, { log })()).toEqual({ private: true, aliases: [] });
+  expect(liveRoomConfig(config, { log })()).toEqual({
+    private: true,
+    aliases: [],
+    ...SETTING_DEFAULTS,
+  });
 
   writeFileSync(config, '{ "private": ');
   saveStreamer(config, { uid: '1', nickname: '阿明' }, { log });

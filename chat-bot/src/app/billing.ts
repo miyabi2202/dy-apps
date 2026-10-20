@@ -1,11 +1,15 @@
 import type { Gift } from '../core/room-events';
 import type { Wallet } from '../core/wallet';
 import { done, failed, type Command } from './command';
+import type { SettingsStore } from './ports';
+import { setting } from './setting';
 
 export interface BillingOptions {
   wallet: Wallet;
-  /** Diamonds one @mention costs; 0 makes them free. */
+  /** Diamonds one @mention costs; 0 makes them free. Without `settings`, what it starts as. */
   cost?: number;
+  /** The room's settings, where the price is kept (`mentionCost`). */
+  settings?: SettingsStore;
   /** Tell a viewer their balance is too low at most this often. */
   noticeCooldownMs?: number;
   now?: () => number;
@@ -23,17 +27,25 @@ export type Charge =
  * so at most once per `noticeCooldownMs`.
  */
 export class Billing {
-  /** Admins can change it while the bot runs. */
-  cost: number;
+  private readonly price: ReturnType<typeof setting<'mentionCost'>>;
   readonly noticeCooldownMs: number;
   /** When each viewer was last told their balance is too low. */
   private readonly noticedAt = new Map<string, number>();
   private readonly now: () => number;
 
   constructor(private readonly options: BillingOptions) {
-    this.cost = options.cost ?? 1;
+    this.price = setting(options.settings, 'mentionCost', options.cost ?? 1);
     this.noticeCooldownMs = options.noticeCooldownMs ?? 60_000;
     this.now = options.now ?? Date.now;
+  }
+
+  /** Diamonds one @mention costs; admins change it while the bot runs. */
+  get cost(): number {
+    return this.price.get();
+  }
+
+  set cost(cost: number) {
+    this.price.set(cost);
   }
 
   credit(gift: Gift): void {

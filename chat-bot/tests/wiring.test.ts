@@ -7,6 +7,7 @@ import { parseCliOptions } from '../src/cli-options';
 import { buildContainer } from '../src/wiring';
 import {
   APP,
+  BILLING,
   AUTO_SONG_ID,
   BOT,
   CLAUDE_CLI,
@@ -274,4 +275,34 @@ test('a command asked for in words runs through the bot, which the answerer reac
 
   expect(bot.sent).toEqual(['@雅 已处理修改人设请求']);
   expect(readFileSync(join(bot.dir, 'data', '123', 'persona.md'), 'utf8')).toBe('小猫\n');
+});
+
+test("starts filling in the room's room_config.json: an option seeds a missing setting, and what the file has wins", () => {
+  const first = build(['--no-asr', '--cost', '2']);
+  first.container.resolve(APP);
+  const path = join(first.dir, 'data', '123', 'room_config.json');
+  expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({
+    private: false,
+    aliases: [],
+    mentionCost: 2,
+    autoReplyThreshold: 1,
+  });
+
+  // The next start, with another option: the file's value stays, with a warning.
+  const options = parseCliOptions(
+    ['--room', '123', '--bot-name', '小助手', '--data', join(first.dir, 'data'), '--cost', '9'],
+    PACKAGE_DIR,
+  )!;
+  const warned: string[] = [];
+  const container = buildContainer({
+    options,
+    packageDir: PACKAGE_DIR,
+    log: { debug() {}, info() {}, error() {}, warn: (message) => void warned.push(message) },
+    env: {},
+  });
+  container.register(DOWNLOADS, () => () => {});
+  container.resolve(BILLING);
+  expect(JSON.parse(readFileSync(path, 'utf8')).mentionCost).toBe(2);
+  expect(container.resolve(BILLING).cost).toBe(2);
+  expect(warned).toContain('setting from room_config, ignoring option');
 });

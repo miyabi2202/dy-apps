@@ -10,6 +10,7 @@ import {
   ON_SING,
   OPTIONS,
   ROOM,
+  SETTINGS,
   SONG_INTRO,
   TRANSCRIBER,
   WALLET,
@@ -48,19 +49,21 @@ export function registerApp(container: Container): void {
       async start() {
         admins.start();
         downloads();
+        // The room's settings now: from its room_config.json, else the options that filled it in.
+        const settings = c.resolve(SETTINGS).get();
         log.info('starting', {
           roomId: options.roomId,
           port: options.port,
           botName: options.botName,
           asr: options.asr,
-          screenshot: options.screenshot,
-          cost: options.cost,
+          screenshot: settings.screenshots,
+          cost: settings.mentionCost,
           admins: config.admins,
           persona: room.persona,
-          autoReplyThreshold: options.autoReplyThreshold,
-          autoReplyIntervalMs: options.autoReplyIntervalMs,
-          thanksThreshold: options.thanksThreshold,
-          autoSongId: options.autoSongId,
+          autoReplyThreshold: settings.autoReplyThreshold,
+          autoReplyIntervalMs: settings.autoReplyIntervalSeconds * 1000,
+          thanksThreshold: settings.thanksThreshold,
+          autoSongId: settings.autoSongId,
         });
         void transcriber?.run();
         await transcriber?.ready();

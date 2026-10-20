@@ -4,7 +4,7 @@
  */
 import type { CodexCliOptions } from '../adapters/codex-cli';
 import type { DyhubRoomApi } from '../adapters/dyhub-room-api';
-import type { RoomConfig, RoomFiles } from '../adapters/room-files';
+import type { RoomConfig, RoomFiles, roomConfigFile } from '../adapters/room-files';
 import type { BotConfig } from '../adapters/config-file';
 import type { AutoReply } from '../app/auto-reply';
 import type { AutoSongId } from '../app/auto-song-id';
@@ -25,6 +25,7 @@ import type {
   Log,
   RoomEvents,
   RoomRecord,
+  SettingsStore,
   SpawnWorker,
   UserTalk,
 } from '../app/ports';
@@ -77,7 +78,11 @@ export const JUDGE = token<(task: string) => Judge | undefined>('judge');
 export const ROOM_DIR = token<string>('roomDir');
 export const CHAT_DIR = token<string>('chatDir');
 export const ROOM_FILES = token<RoomFiles>('roomFiles');
+/** The room's room_config.json, read hot and written by `update`. */
+export const ROOM_CONFIG_FILE = token<ReturnType<typeof roomConfigFile>>('roomConfigFile');
 export const ROOM_CONFIG = token<() => RoomConfig>('roomConfig');
+/** The settings admins can change, kept in room_config.json. */
+export const SETTINGS = token<SettingsStore>('settings');
 export const BOT_CONFIG = token<BotConfig>('botConfig');
 export const ADMINS = token<StreamerAdmin>('admins');
 export const BUS = token<EventBus>('bus');

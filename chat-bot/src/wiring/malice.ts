@@ -11,6 +11,7 @@ import {
   OUTBOX,
   PROMPT,
   ROOM,
+  SETTINGS,
 } from './tokens';
 
 /**
@@ -31,6 +32,7 @@ export function registerMalice(container: Container): void {
       room: c.resolve(ROOM),
       exempt: (userId) => admins.has(userId),
       on: c.resolve(OPTIONS).maliceWatch,
+      settings: c.resolve(SETTINGS),
       log: c.resolve(LOG),
     });
     c.resolve(BUS).on('chat', (chat) => maliceWatch.hear(chat));

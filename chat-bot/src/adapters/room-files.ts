@@ -2,7 +2,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Log, OnSingConfig } from '../app/ports';
 import { errorMessage } from '../core/errors';
+import { SETTING_DEFAULTS, settingsFrom, type Settings } from '../core/settings';
 import { wordingOf, type Wording } from '../core/wording';
+import { writeTextAtomic } from './atomic-file';
 
 /** The files someone can edit for one room, to change the bot there while it runs. */
 export interface RoomFiles {
@@ -19,7 +21,7 @@ export interface RoomFiles {
 }
 
 /** What `room_config.json` says about a room. */
-export interface RoomConfig {
+export interface RoomConfig extends Settings {
   /** A 私密 room: its viewers hide who they are, and come in under one shared user id. */
   private: boolean;
   /** What the bot says, now and then, as the streamer starts a song (`on_sing`); none when absent. */
@@ -34,7 +36,10 @@ export interface Streamer {
   nickname: string;
 }
 
-const DEFAULT_ROOM_CONFIG: RoomConfig = { private: false, aliases: [] };
+const DEFAULT_ROOM_CONFIG: RoomConfig = { private: false, aliases: [], ...SETTING_DEFAULTS };
+
+/** Every field a room's room_config.json is filled in with (see fillRoomConfig), and its default. */
+const ROOM_FIELDS = { private: false, aliases: [], ...SETTING_DEFAULTS };
 
 /**
  * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and `wallet.json`): an
@@ -59,33 +64,114 @@ export function roomFiles(dir: string): RoomFiles {
 }
 
 /**
- * The room's `room_config.json` as it is now: read on each call, parsed again when it changed. A
- * file that can't be read or checked keeps the last good settings (the defaults at first).
+ * The room's `room_config.json`, read hot: `get()` reads the file on each call and parses it again
+ * when it changed (a file that can't be read or checked keeps the last good settings, the defaults
+ * at first), so a hand edit takes effect at once. `update(patch)` writes fields into the file,
+ * keeping every other field, and the next `get()` already has them: nothing reloads, so nothing
+ * flaps.
+ */
+export function roomConfigFile(
+  path: string,
+  {
+    log,
+    read = (p) => readFileSync(p, 'utf8'),
+    write = writeTextAtomic,
+  }: {
+    log: Log;
+    read?: (path: string) => string;
+    write?: (path: string, text: string) => void;
+  },
+): { get(): RoomConfig; update(patch: Record<string, unknown>): void } {
+  let config = DEFAULT_ROOM_CONFIG;
+  let seen: string | null = null;
+  const load = (text: string) => {
+    seen = text;
+    const raw = JSON.parse(text) as Record<string, unknown>;
+    const isPrivate = raw.private ?? false;
+    if (typeof isPrivate !== 'boolean') throw new Error('private must be true or false');
+    const onSing = raw.on_sing === undefined ? undefined : onSingConfig(raw.on_sing);
+    config = {
+      private: isPrivate,
+      ...(onSing && { onSing }),
+      aliases: aliasList(raw.aliases),
+      ...settingsFrom(raw),
+    };
+    log.info('room config', { ...config });
+  };
+  return {
+    get() {
+      try {
+        const text = read(path);
+        if (text !== seen) load(text);
+      } catch (err) {
+        log.warn('could not read room_config.json, keeping the last settings', {
+          error: errorMessage(err),
+        });
+      }
+      return config;
+    },
+    update(patch) {
+      const current = JSON.parse(read(path)) as Record<string, unknown>;
+      const text = `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`;
+      // Checked before it's written, so a change can't make the file unreadable.
+      load(text);
+      write(path, text);
+    },
+  };
+}
+
+/**
+ * The room's `room_config.json` as it is now (see roomConfigFile): read on each call, parsed again
+ * when it changed.
  */
 export function liveRoomConfig(
   path: string,
-  { log, read = (p) => readFileSync(p, 'utf8') }: { log: Log; read?: (path: string) => string },
+  options: { log: Log; read?: (path: string) => string },
 ): () => RoomConfig {
-  let config = DEFAULT_ROOM_CONFIG;
-  let seen: string | null = null;
-  return () => {
-    try {
-      const text = read(path);
-      if (text === seen) return config;
-      seen = text;
-      const raw = JSON.parse(text) as { private?: unknown; on_sing?: unknown; aliases?: unknown };
-      const isPrivate = raw.private ?? false;
-      if (typeof isPrivate !== 'boolean') throw new Error('private must be true or false');
-      const onSing = raw.on_sing === undefined ? undefined : onSingConfig(raw.on_sing);
-      config = { private: isPrivate, ...(onSing && { onSing }), aliases: aliasList(raw.aliases) };
-      log.info('room config', { ...config });
-    } catch (err) {
-      log.warn('could not read room_config.json, keeping the last settings', {
-        error: errorMessage(err),
-      });
+  const file = roomConfigFile(path, options);
+  return () => file.get();
+}
+
+/**
+ * Fills in `room_config.json` at start so it has every field (see ROOM_FIELDS): one that's missing
+ * is written with the command-line option `given` for it, else its default. One that's there wins
+ * over an option (the file is the room's memory: a restart with other options keeps it), with a
+ * warning when a given option differs. Other fields (`on_sing`, `download`, `streamer`…) stay as they
+ * are, and the file is written (atomically) only when something was missing. One that isn't JSON is
+ * left alone.
+ */
+export function fillRoomConfig(
+  path: string,
+  given: Partial<Settings>,
+  {
+    log,
+    read = (p) => readFileSync(p, 'utf8'),
+    write = writeTextAtomic,
+  }: {
+    log: Log;
+    read?: (path: string) => string;
+    write?: (path: string, text: string) => void;
+  },
+): void {
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(read(path)) as Record<string, unknown>;
+  } catch (err) {
+    log.warn('could not fill in room_config.json', { error: errorMessage(err) });
+    return;
+  }
+  const filled: Record<string, unknown> = { ...raw };
+  const defaults: Record<string, unknown> = { ...ROOM_FIELDS };
+  for (const [field, fallback] of Object.entries(defaults)) {
+    const option = (given as Record<string, unknown>)[field];
+    if (raw[field] === undefined) {
+      filled[field] = option ?? fallback;
+    } else if (option !== undefined && option !== raw[field]) {
+      log.warn('setting from room_config, ignoring option', { field, config: raw[field], option });
     }
-    return config;
-  };
+  }
+  if (Object.keys(filled).length === Object.keys(raw).length) return;
+  write(path, `${JSON.stringify(filled, null, 2)}\n`);
 }
 
 /** `aliases` as a list of names (none when absent), or an error saying what's wrong with it. */
@@ -119,7 +205,7 @@ export function saveStreamer(
   {
     log,
     read = (p) => readFileSync(p, 'utf8'),
-    write = writeFileSync,
+    write = writeTextAtomic,
   }: { log: Log; read?: (path: string) => string; write?: (path: string, text: string) => void },
 ): void {
   try {

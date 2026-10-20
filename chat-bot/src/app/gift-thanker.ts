@@ -5,7 +5,8 @@ import { done, failed, type Command } from './command';
 import { ModelFeature } from './model-feature';
 import type { Outbox } from './outbox';
 import { Pending } from './pending';
-import type { AskModel, Log, UserTalk } from './ports';
+import type { AskModel, Log, SettingsStore, UserTalk } from './ports';
+import { setting } from './setting';
 import type { RoomState } from './room-state';
 
 export interface GiftThankerOptions {
@@ -13,8 +14,10 @@ export interface GiftThankerOptions {
   outbox: Pick<Outbox, 'push'>;
   /** The prompt (see buildPrompt), read each time so edits apply at once. */
   promptTemplate: () => string;
-  /** Thank someone whose gifts within `windowMs` come to more than this many diamonds. */
+  /** Thank someone whose gifts within `windowMs` come to more than this many diamonds. Without `settings`, what it starts as. */
   threshold: number;
+  /** The room's settings, where the threshold is kept (`thanksThreshold`). */
+  settings?: SettingsStore;
   windowMs?: number;
   /** Once past the threshold, wait this long for the rest of a combo, so it's one thanks. */
   settleMs?: number;
@@ -50,7 +53,7 @@ interface Thanks {
  * be changed while it runs.
  */
 export class GiftThanker extends ModelFeature<Thanks, string> {
-  threshold: number;
+  private readonly thresholdSetting: ReturnType<typeof setting<'thanksThreshold'>>;
   private readonly windowMs: number;
   /** Each viewer's gifts not thanked yet, by user id. */
   private readonly given = new Map<string, Given[]>();
@@ -60,8 +63,17 @@ export class GiftThanker extends ModelFeature<Thanks, string> {
 
   constructor(private readonly options: GiftThankerOptions) {
     super(options.log);
-    this.threshold = options.threshold;
+    this.thresholdSetting = setting(options.settings, 'thanksThreshold', options.threshold);
     this.windowMs = options.windowMs ?? 5 * 60_000;
+  }
+
+  /** The diamonds a giver's gifts in the window must pass to be thanked; admins change it while it runs. */
+  get threshold(): number {
+    return this.thresholdSetting.get();
+  }
+
+  set threshold(threshold: number) {
+    this.thresholdSetting.set(threshold);
   }
 
   /**

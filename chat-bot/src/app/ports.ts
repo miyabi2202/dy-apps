@@ -5,7 +5,14 @@
 import type { AdditionalCommandEntry } from '../core/additional-command';
 import type { ChatRecord } from '../core/chat-record';
 import type { Gift, IncomingChat } from '../core/room-events';
+import type { Settings } from '../core/settings';
 import type { Exchange } from '../core/talk-record';
+
+/** The room's settings, kept in its room_config.json: read each time (so a hand edit counts), and written when something changes one. */
+export interface SettingsStore {
+  get(): Settings;
+  set(patch: Partial<Settings>): void;
+}
 
 /** Who the admins are, by user id; it may change while the bot runs. */
 export interface Admins {

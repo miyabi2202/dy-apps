@@ -4,7 +4,8 @@ import { ChatLog } from '../adapters/chat-log-files';
 import { liveAdmins, readConfig } from '../adapters/config-file';
 import { loadAdditionalCommands } from '../adapters/additional-command-files';
 import {
-  liveRoomConfig,
+  fillRoomConfig,
+  roomConfigFile,
   livePrompt,
   liveSection,
   liveText,
@@ -44,9 +45,11 @@ import {
   ROOM,
   ROOM_API,
   ROOM_CONFIG,
+  ROOM_CONFIG_FILE,
   ROOM_DIR,
   ROOM_EVENTS,
   ROOM_FILES,
+  SETTINGS,
   TRANSCRIPT,
   USER_TALK,
   WALLET,
@@ -74,9 +77,27 @@ export function registerRoom(container: Container): void {
     .register(ROOM_FILES, (c) => roomFiles(c.resolve(ROOM_DIR)))
     // The room's room_config.json, read again when it changes: whether it's a 私密 room, and what
     // the bot says when the streamer starts a song.
-    .register(ROOM_CONFIG, (c) =>
-      liveRoomConfig(c.resolve(ROOM_FILES).config, { log: c.resolve(LOG) }),
-    )
+    .register(ROOM_CONFIG_FILE, (c) => {
+      const { config } = c.resolve(ROOM_FILES);
+      const log = c.resolve(LOG);
+      // Every field is there from now on: a missing one is the command-line option for it, else
+      // its default. The file is the room's memory: what's in it wins over an option.
+      fillRoomConfig(config, c.resolve(OPTIONS).given, { log });
+      return roomConfigFile(config, { log });
+    })
+    .register(ROOM_CONFIG, (c) => {
+      const file = c.resolve(ROOM_CONFIG_FILE);
+      return () => file.get();
+    })
+    // What admins change with commands is written to room_config.json, and a hand edit there is
+    // picked up at once.
+    .register(SETTINGS, (c) => {
+      const file = c.resolve(ROOM_CONFIG_FILE);
+      return {
+        get: () => file.get(),
+        set: (patch) => file.update(patch),
+      };
+    })
     .register(BOT_CONFIG, (c) => readConfig(resolve(c.resolve(OPTIONS).configFile)))
     // The admins from config.json (read again when it changes, so admins can be added or removed
     // while it runs), and the room's streamer once DyHub has read the room page (saved in
@@ -102,7 +123,11 @@ export function registerRoom(container: Container): void {
       return wallet;
     })
     .register(BILLING, (c) => {
-      const billing = new Billing({ wallet: c.resolve(WALLET), cost: c.resolve(OPTIONS).cost });
+      const billing = new Billing({
+        wallet: c.resolve(WALLET),
+        cost: c.resolve(OPTIONS).cost,
+        settings: c.resolve(SETTINGS),
+      });
       c.resolve(ROOM).addSettings(() => billing.settings());
       return billing;
     })
@@ -148,6 +173,7 @@ export function registerRoom(container: Container): void {
         // Off unless --screenshot; /截图 switches it while the bot runs.
         screenshot: c.resolve(ROOM_API).screenshot,
         screenshotsOn: options.screenshot,
+        settings: c.resolve(SETTINGS),
         chatDir: c.resolve(CHAT_DIR),
         botName: options.botName,
         aliases: () => roomConfig().aliases,

@@ -6,7 +6,8 @@ import { done, failed, type Command } from './command';
 import { ModelFeature } from './model-feature';
 import type { Outbox } from './outbox';
 import { Pending } from './pending';
-import type { Log } from './ports';
+import type { Log, SettingsStore } from './ports';
+import { setting } from './setting';
 import type { RoomState } from './room-state';
 import type { SongId } from './song-id';
 
@@ -15,8 +16,10 @@ export interface AutoSongIdOptions {
   room: RoomState;
   outbox: Pick<Outbox, 'push'>;
   log: Log;
-  /** Whether it starts on; `/自动识歌` switches it. */
+  /** Whether it starts on; `/自动识歌` switches it. Without `settings`, what it starts as. */
   on?: boolean;
+  /** The room's settings, where it's kept (`autoSongId`). */
+  settings?: SettingsStore;
   /** Douyin's chat length limit. */
   maxLength?: number;
   /** While the streamer goes on singing, name the song again this often, for the next song. */
@@ -38,7 +41,7 @@ const SONG_LINES = 5;
  * it finds that one still being sung, it looks again after `sameAgainMs` instead.
  */
 export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null> {
-  on: boolean;
+  private readonly onSetting: ReturnType<typeof setting<'autoSongId'>>;
   /** When it last tried. */
   private triedAt = -Infinity;
   /** How long after `triedAt` it tries again while the streamer sings on. */
@@ -48,7 +51,16 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
 
   constructor(private readonly options: AutoSongIdOptions) {
     super(options.log);
-    this.on = options.on ?? false;
+    this.onSetting = setting(options.settings, 'autoSongId', options.on ?? false);
+  }
+
+  /** Whether it names the songs; admins switch it while the bot runs. */
+  get on(): boolean {
+    return this.onSetting.get();
+  }
+
+  set on(on: boolean) {
+    this.onSetting.set(on);
   }
 
   /** Called with each line the streamer says or sings, after it joined the transcript. */
