@@ -1,7 +1,7 @@
 import { errorMessage } from '../core/errors';
 import { buildPrompt } from '../core/prompt';
 import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
-import { currentSong, isGuest, isSung, singingNow, type TranscriptLine } from '../core/transcript';
+import { isHandled, isSung, singingSong, type TranscriptLine } from '../core/transcript';
 import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
 import type { Log } from './ports';
@@ -62,19 +62,15 @@ export class AutoSongId {
 
   /** Called with each line the streamer says or sings, after it joined the transcript. */
   hear(line: TranscriptLine): void {
-    if (!this.on || this.busy || !isSung(line) || isGuest(line)) return;
+    if (!this.on || this.busy) return;
     const { room, againMs = 180_000 } = this.options;
-    const lines = room.recentTranscript().filter((l) => !isGuest(l));
-    const song = currentSong(lines);
-    if (song.filter(isSung).length < SONG_LINES || !singingNow(lines, line.end)) return;
-    // Again only once a new song started (after a pause), or after `againMs` of singing on. The
-    // song's start can't be compared: it moves as its first lines drop out of the transcript.
-    const songStart = song.find(isSung)?.start ?? line.start;
-    const waitMs = this.waitMs ?? againMs;
-    if (songStart <= this.triedAt && line.end - this.triedAt < waitMs) return;
+    const song = singingSong(room.recentTranscript(), line);
+    if (!song || song.lines.filter(isSung).length < SONG_LINES) return;
+    // Again only once a new song started (after a pause), or after `againMs` of singing on.
+    if (isHandled(song, this.triedAt, line.end, this.waitMs ?? againMs)) return;
     this.triedAt = line.end;
     this.busy = true;
-    void this.nameSong(song).finally(() => (this.busy = false));
+    void this.nameSong(song.lines).finally(() => (this.busy = false));
   }
 
   /** `/自动识歌 1` turns it on, `/自动识歌 0` off. */

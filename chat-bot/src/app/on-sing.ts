@@ -1,4 +1,4 @@
-import { currentSong, isGuest, isSung, singingNow, type TranscriptLine } from '../core/transcript';
+import { isHandled, singingSong, type TranscriptLine } from '../core/transcript';
 import type { Outbox } from './outbox';
 import type { Log, OnSingConfig } from './ports';
 import type { RoomState } from './room-state';
@@ -30,12 +30,9 @@ export class OnSing {
   hear(line: TranscriptLine): void {
     const { room, outbox, log, againMs = 180_000, random = Math.random } = this.options;
     const config = this.options.config();
-    if (!config || !isSung(line) || isGuest(line)) return;
-    const lines = room.recentTranscript().filter((l) => !isGuest(l));
-    if (!singingNow(lines, line.end)) return;
-    // As in AutoSongId: the song's start moves as its first lines drop out of the transcript.
-    const songStart = currentSong(lines).find(isSung)?.start ?? line.start;
-    if (songStart <= this.rolledAt && line.end - this.rolledAt < againMs) return;
+    if (!config) return;
+    const song = singingSong(room.recentTranscript(), line);
+    if (!song || isHandled(song, this.rolledAt, line.end, againMs)) return;
     this.rolledAt = line.end;
     if (random() >= config.probability) {
       log.info('on sing: not this song');

@@ -67,6 +67,45 @@ export function singingNow(lines: readonly TranscriptLine[], at: number): boolea
   return sung >= 3 && sung >= 0.7 * lately.length;
 }
 
+/** The song being sung as `line` comes in, and when it started. */
+export interface SungSong {
+  /** What the streamer said and sang since it started (not a linked-up guest's lines). */
+  lines: TranscriptLine[];
+  /** When its first sung line started. */
+  start: number;
+}
+
+/**
+ * The song the streamer is singing as of `line`, a line they just said or sang (`transcript`
+ * already has it): null when `line` is spoken or a guest's, or they aren't singing (see
+ * singingNow).
+ */
+export function singingSong(
+  transcript: readonly TranscriptLine[],
+  line: TranscriptLine,
+): SungSong | null {
+  if (!isSung(line) || isGuest(line)) return null;
+  const lines = transcript.filter((l) => !isGuest(l));
+  if (!singingNow(lines, line.end)) return null;
+  const song = currentSong(lines);
+  return { lines: song, start: song.find(isSung)?.start ?? line.start };
+}
+
+/**
+ * Whether `song` was already dealt with at `handledAt` (when the last one was named, rolled for…):
+ * a new song starts after a pause, and the same one counts again after `againMs` of singing on.
+ * The song's start can't just be compared with that: it moves as its first lines drop out of the
+ * transcript.
+ */
+export function isHandled(
+  song: SungSong,
+  handledAt: number,
+  now: number,
+  againMs: number,
+): boolean {
+  return song.start <= handledAt && now - handledAt < againMs;
+}
+
 /** A line the transcription worker prints: one sentence, times in seconds. */
 interface WorkerLine {
   start: number;
