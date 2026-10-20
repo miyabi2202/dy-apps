@@ -18,7 +18,7 @@ import type { ChatLine } from '../core/room-events';
 import type { Billing } from './billing';
 import type { PromptOptions } from './command';
 import type { Outbox } from './outbox';
-import type { AskClaude, Log, UserTalk } from './ports';
+import type { AskModel, Log, UserTalk } from './ports';
 import type { RoomState } from './room-state';
 
 /**
@@ -68,7 +68,7 @@ export function refundMention(
 }
 
 export interface MentionAnswererOptions {
-  ask: AskClaude;
+  ask: AskModel;
   /** Where replies go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
   /** What the room looks like now, for every prompt. */

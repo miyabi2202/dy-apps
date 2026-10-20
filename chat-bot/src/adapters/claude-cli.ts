@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AskClaude, Question } from '../app/ports';
+import type { AskModel, Question } from '../app/ports';
 
 export interface ClaudeCliOptions {
   /** The `claude` executable; found on PATH by default. */
@@ -94,7 +94,7 @@ export function claudeCli({
   effort,
   zoom,
   spawnProcess = spawn,
-}: ClaudeCliOptions = {}): AskClaude {
+}: ClaudeCliOptions = {}): AskModel {
   const argsFor = (question: Question, mcpConfig: string | null) => {
     const allowed = question.tools ?? tools;
     const preApproved = [

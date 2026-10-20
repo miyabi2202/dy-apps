@@ -1,5 +1,5 @@
 import type { TranscriptLine } from '../core/transcript';
-import type { AskClaude } from './ports';
+import type { AskModel } from './ports';
 
 /**
  * What a command came to: `reply` is what the bot says back, nothing when empty (the command
@@ -39,7 +39,7 @@ export interface PromptOptions {
   /** Give up after this many of Claude's turns, to cap the cost (and refund). */
   maxTurns?: number;
   /** Who answers it, when not the usual Claude. */
-  ask?: AskClaude;
+  ask?: AskModel;
   /** The part of what the streamer said lately that the prompt gets, when not all of it. */
   pickTranscript?: (lines: readonly TranscriptLine[]) => TranscriptLine[];
   /** Send a screenshot of the live video even while /截图 has them off. */

@@ -5,12 +5,12 @@ import type { SongAnswer } from '../core/song-answer';
 import { parseSongIntro, SONG_INTRO_SCHEMA } from '../core/song-intro-answer';
 import { currentSong, isGuest } from '../core/transcript';
 import type { Outbox } from './outbox';
-import type { AskClaude, Log } from './ports';
+import type { AskModel, Log } from './ports';
 import type { RoomState } from './room-state';
 
 export interface SongIntroOptions {
   /** Claude, with web search and fetch. */
-  ask: AskClaude;
+  ask: AskModel;
   outbox: Pick<Outbox, 'push'>;
   /** The prompt (see buildPrompt), read each time so edits apply at once. */
   promptTemplate: () => string;

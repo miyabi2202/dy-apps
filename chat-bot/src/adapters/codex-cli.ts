@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AskClaude } from '../app/ports';
+import type { AskModel } from '../app/ports';
 
 export interface CodexCliOptions {
   /** The `codex` executable (OpenAI's Codex CLI); found on PATH by default. */
@@ -72,7 +72,7 @@ export function codexCli({
   webSearch = true,
   zoom,
   spawnProcess = spawn,
-}: CodexCliOptions = {}): AskClaude {
+}: CodexCliOptions = {}): AskModel {
   return ({ prompt, schema, image }) =>
     new Promise((resolve, reject) => {
       // codex reads the answer's schema, and the screenshot, from files.

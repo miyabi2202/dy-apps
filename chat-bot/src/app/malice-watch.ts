@@ -5,14 +5,14 @@ import { DOUYIN_CHAT_LIMIT } from '../core/reply';
 import type { IncomingChat } from '../core/room-events';
 import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
-import type { AskClaude, Judge, Log } from './ports';
+import type { AskModel, Judge, Log } from './ports';
 import type { RoomState } from './room-state';
 
 export interface MaliceWatchOptions {
   /** Jev: scores each chat on its own, so only a few go on to the model. */
   judge: Judge;
   /** The model that decides, with the room's chat around it (Codex). */
-  ask: AskClaude;
+  ask: AskModel;
   /** The model's prompt (see buildPrompt), read each time so edits apply at once. */
   promptTemplate: () => string;
   outbox: Pick<Outbox, 'push'>;

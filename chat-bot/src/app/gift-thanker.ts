@@ -4,11 +4,11 @@ import { DOUYIN_CHAT_LIMIT, replyMessages, singleBudget } from '../core/reply';
 import type { Gift } from '../core/room-events';
 import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
-import type { AskClaude, Log, UserTalk } from './ports';
+import type { AskModel, Log, UserTalk } from './ports';
 import type { RoomState } from './room-state';
 
 export interface GiftThankerOptions {
-  ask: AskClaude;
+  ask: AskModel;
   outbox: Pick<Outbox, 'push'>;
   /** The prompt (see buildPrompt), read each time so edits apply at once. */
   promptTemplate: () => string;

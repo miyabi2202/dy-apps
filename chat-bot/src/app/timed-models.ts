@@ -1,5 +1,5 @@
 import { errorMessage } from '../core/errors';
-import type { AskClaude, Judge, Log } from './ports';
+import type { AskModel, Judge, Log } from './ports';
 
 /** Which model a call goes to, and what it's for (`reply-pick`, `song-id`, `mention`…). */
 export interface ModelTask {
@@ -34,7 +34,7 @@ function timed<T>(
 }
 
 /** `ask`, logged as `what` (see timed). */
-export function timedAsk(what: ModelTask, ask: AskClaude, log: Log, now = Date.now): AskClaude {
+export function timedAsk(what: ModelTask, ask: AskModel, log: Log, now = Date.now): AskModel {
   return (question) => timed(what, log, now, () => ask(question));
 }
 

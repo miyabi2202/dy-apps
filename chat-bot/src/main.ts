@@ -32,7 +32,7 @@ import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
 import { AutoReply } from './app/auto-reply';
 import { AutoSongId } from './app/auto-song-id';
-import type { AskClaude } from './app/ports';
+import type { AskModel } from './app/ports';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { GiftThanker } from './app/gift-thanker';
@@ -237,7 +237,7 @@ const solveAsk = (task: string, effort: string, timeoutMs: number) =>
 // answer, and each is answered like a mention (charged, with their own talk.txt; the streamer's
 // too, by their uid).
 // Never asked: without Codex there's no judge either.
-const noPicker: AskClaude = () => Promise.reject(new Error('--codex is empty'));
+const noPicker: AskModel = () => Promise.reject(new Error('--codex is empty'));
 const jevJudge = jevKey && options.codex ? jev({ apiKey: jevKey }) : undefined;
 // Jev, logged per use like the models above.
 const judge = (task: string) => jevJudge && timedJudge({ model: 'jev', task }, jevJudge, log);

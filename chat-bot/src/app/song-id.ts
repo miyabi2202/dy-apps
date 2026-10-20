@@ -1,13 +1,13 @@
 import { parseSongAnswer, SONG_ANSWER_SCHEMA, type SongAnswer } from '../core/song-answer';
 import type { Command } from './command';
 import { currentSong } from '../core/transcript';
-import type { AskClaude, Log, Question } from './ports';
+import type { AskModel, Log, Question } from './ports';
 
 export interface SongIdOptions {
   /** The prompt (see buildPrompt), read each time so edits apply at once. */
   prompt: () => string;
   /** Codex, which searches the web live (Google among others), so it finds lyrics. */
-  codex: AskClaude;
+  codex: AskModel;
   log: Log;
   now?: () => number;
   /** Told each song named to the room, after its message, to say more about it. */

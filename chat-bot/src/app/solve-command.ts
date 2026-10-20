@@ -1,5 +1,5 @@
 import type { Command } from './command';
-import type { AskClaude } from './ports';
+import type { AskModel } from './ports';
 
 export interface SolveCommandOptions {
   /** `解题`, or `拼命解题` for the one that thinks harder. */
@@ -7,7 +7,7 @@ export interface SolveCommandOptions {
   /** The prompt (solve.md, see buildPrompt), read each time so edits apply at once. */
   prompt: () => string;
   /** Codex's gpt-6-astra, at the effort and with the time the command gets. */
-  ask: AskClaude;
+  ask: AskModel;
 }
 
 /**

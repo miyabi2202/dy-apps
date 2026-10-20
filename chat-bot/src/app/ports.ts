@@ -63,20 +63,23 @@ export type Screenshot = () => Promise<Uint8Array>;
 /** The room's stream URL, or null while there isn't one (not live, or DyHub still opening it). */
 export type StreamUrl = () => Promise<string | null>;
 
-/** One question for Claude: the prompt, and optionally a JPEG to look at with it. */
+/** One question for a model (Claude or Codex): the prompt, and optionally a JPEG to look at with it. */
 export interface Question {
   prompt: string;
   image?: Uint8Array;
-  /** The tools Claude may use for this question, when not all of the usual ones. */
+  /** The tools Claude may use for this question, when not all of the usual ones. Codex ignores it. */
   tools?: readonly string[];
-  /** Give up after this many turns (each a step of thinking and tool use), to cap the cost. */
+  /**
+   * Give up after this many turns (each a step of thinking and tool use), to cap the cost. Codex
+   * ignores it.
+   */
   maxTurns?: number;
   /** A JSON Schema the answer must follow: the answer is then that JSON. */
   schema?: object;
 }
 
-/** Asks Claude one question and resolves with its answer. */
-export type AskClaude = (question: Question) => Promise<string>;
+/** Asks a model (Claude or Codex) one question and resolves with its answer. */
+export type AskModel = (question: Question) => Promise<string>;
 
 /**
  * Scores, from 0 to 1, how likely the answer to each of `questions` (by key) is yes, given

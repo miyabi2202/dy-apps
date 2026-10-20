@@ -4,7 +4,7 @@ import { parseReplyPick, pickLines, pickPrompt, REPLY_PICK_SCHEMA } from '../cor
 import { done, failed, type Command } from './command';
 import type { UnpromptedReply } from './mention-answerer';
 import type { Outbox } from './outbox';
-import type { AdditionalCommand, AskClaude, FindStreamer, Judge, Log } from './ports';
+import type { AdditionalCommand, AskModel, FindStreamer, Judge, Log } from './ports';
 import type { RoomState } from './room-state';
 
 export interface AutoReplyOptions {
@@ -24,7 +24,7 @@ export interface AutoReplyOptions {
   /** At least this long between two things it says unprompted, or after being asked to talk. */
   quietMs?: number;
   /** Picks whom to answer of what's about the bot (Codex, cheap). */
-  picker: AskClaude;
+  picker: AskModel;
   /** The picker's prompt (see pickPrompt), read each time so edits apply at once. */
   pickTemplate: () => string;
   /** Answers one thing someone said to or about the bot, like a mention (ChatBot.replyUnprompted). */
