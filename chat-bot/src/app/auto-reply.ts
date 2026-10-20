@@ -284,6 +284,12 @@ export class AutoReply {
         line.ts > since &&
         (line.userId !== undefined || (line.who === '主播' && streamer !== null)),
       new Set(lines.filter((line) => aboutKeys.has(key(line)))),
+      (line) =>
+        line.userId === undefined
+          ? []
+          : (this.options.additionalCommands ?? [])
+              .filter(({ trigger }) => trigger?.test(line.text))
+              .map(({ id }) => id),
     );
     if (!numbered.length) return 0;
     const prompt = pickPrompt(pickTemplate(), {

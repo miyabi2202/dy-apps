@@ -37,3 +37,23 @@ test('numbers only the lines that may be answered, stars the ones about the bot,
     ].join('\n'),
   );
 });
+
+test("marks the lines matching a room command's trigger with the command", () => {
+  const line = (who: string, text: string): RoomLine => ({
+    ts: 20_000,
+    who,
+    userId: `u-${who}`,
+    text,
+    candidate: true,
+  });
+  const lines = [line('阿明', '虾虾会喂猪吗'), line('小红', '今晚吃火锅')];
+  const { text } = pickLines(
+    lines,
+    () => true,
+    new Set(),
+    (l) => (l.text.includes('会') ? ['can-sing'] : []),
+  );
+  expect(text).toBe(
+    '(1)  00:00:20 [阿明] 虾虾会喂猪吗  → can-sing\n(2)  00:00:20 [小红] 今晚吃火锅',
+  );
+});
