@@ -606,3 +606,55 @@ test('a free room command answers a viewer with no balance, without @ or with on
   expect(sent.at(-1)).toBe('@小红 会唱哦，《晴天》在歌单里');
   expect(wallet.balance('u-小红')).toBe(1);
 });
+
+test("an admin-only room command that @s others: an admin's request @s each, a viewer's gets Claude's own reply", async () => {
+  const OLD_SCORES: AdditionalCommand = {
+    id: 'old-scores',
+    name: '翻旧账',
+    when: '主播要翻旧账',
+    trigger: null,
+    prompt: () => '{{asker}} 要：{{question}}',
+    price: 0,
+    adminOnly: true,
+    atOthers: true,
+  };
+  const asked = JSON.stringify({
+    message: '我翻翻',
+    command_request: 'old-scores',
+    command_args: '',
+  });
+  const answers = [
+    asked,
+    JSON.stringify({
+      message: '翻完了，两位',
+      others: [
+        { to: '@白生漓', message: '报了5还喊秒了，答案是3' },
+        { to: '静弦', message: '一眼看出个7' },
+        { to: '没话说', message: ' ' },
+      ],
+    }),
+    asked,
+  ];
+  const { say, bot, settle, sent } = setup({
+    admins: ['u-雅'],
+    ask: () => Promise.resolve(answers.shift()!),
+    additionalCommands: [OLD_SCORES],
+  });
+  say(chat('雅', `@${BOT.nickname} 翻旧账 5分钟`));
+  await settle();
+  expect(sent).toEqual(['@雅 翻完了，两位', '@白生漓 报了5还喊秒了，答案是3', '@静弦 一眼看出个7']);
+
+  say(chat('阿明', `@${BOT.nickname} 翻旧账`));
+  await settle();
+  expect(sent.at(-1)).toBe('@阿明 我翻翻');
+  // Nor when auto-reply picks a viewer's line for it.
+  bot.replyUnprompted({
+    nickname: '阿明',
+    userId: 'u-阿明',
+    question: '翻旧账',
+    heard: 'chat',
+    command: 'old-scores',
+  });
+  await settle();
+  expect(sent).toHaveLength(4);
+});

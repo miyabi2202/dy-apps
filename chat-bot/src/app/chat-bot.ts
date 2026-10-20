@@ -151,6 +151,11 @@ export class ChatBot {
     const { asker, userId } = mention;
     // One of the room's own: answered with its prompt instead, already paid for.
     const own = this.additionalCommand(name);
+    if (own?.adminOnly && !this.isAdmin(userId)) {
+      // Not theirs to ask for: Claude's own reply goes out instead.
+      this.options.log.info('additional command not for them', { asker, userId, command: own.id });
+      return false;
+    }
     if (own) {
       this.options.log.info('additional command requested', { asker, userId, command: own.id });
       // The @ was paid for at an @'s price; a cheaper command gives the difference back.
@@ -159,7 +164,7 @@ export class ChatBot {
         this.refund({ asker, userId, paid: paid - own.price });
         paid = own.price;
       }
-      this.ask({ ...mention, paid, template: own.prompt(), jsonMessage: true });
+      this.ask({ ...mention, paid, ...this.commandPrompt(own) });
       return true;
     }
     const command = this.commands.get(name);
@@ -195,6 +200,10 @@ export class ChatBot {
     const chat: IncomingChat = { ts, userId, nickname, content: question, mentions: [] };
     const own = command === undefined ? undefined : this.additionalCommand(command);
     this.options.log.info('unprompted', { asker: nickname, userId, question, heard, command });
+    if (own?.adminOnly && !this.isAdmin(userId)) {
+      this.options.log.info('additional command not for them', { asker: nickname, command });
+      return;
+    }
     const charge = this.charge(chat, question, this.isAdmin(userId), undefined, heard, own);
     if (!charge.ok) return;
     this.ask({
@@ -204,8 +213,15 @@ export class ChatBot {
       question,
       history: this.options.room.recentChat(),
       unprompted: heard,
-      ...(own && { template: own.prompt(), jsonMessage: true }),
+      ...(own && this.commandPrompt(own)),
     });
+  }
+
+  /** How the room's own command `own` is answered: with its prompt, in JSON. */
+  private commandPrompt(
+    own: AdditionalCommand,
+  ): Pick<Mention, 'template' | 'jsonMessage' | 'atOthers'> {
+    return { template: own.prompt(), jsonMessage: true, ...(own.atOthers && { atOthers: true }) };
   }
 
   /** The room's own command `name` (its id, or what it's for), if there is one. */
@@ -320,6 +336,7 @@ export class ChatBot {
         pickTranscript: command.pickTranscript,
         alwaysScreenshot: command.alwaysScreenshot,
         jsonMessage: command.jsonMessage,
+        atOthers: command.atOthers,
       });
       return undefined;
     }

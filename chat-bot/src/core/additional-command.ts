@@ -20,12 +20,17 @@ export interface AdditionalCommandEntry {
    * one is taken as for this command, like one matching its trigger.
    */
   mentions?: string;
+  /** Only admins (and the streamer) may have it answered. */
+  adminOnly?: boolean;
+  /** Its answer may @ others too, each in a message of their own (MESSAGES_SCHEMA). */
+  atOthers?: boolean;
 }
 
 /**
  * The commands in `index.json` (already parsed): an object of `"<id>": { "name", "when",
- * "prompt", "trigger"?, "price"?, "mentions"? }`, `trigger` a regular expression, `price` whole
- * diamonds and `mentions` a file in the room's folder.
+ * "prompt", "trigger"?, "price"?, "mentions"?, "adminOnly"?, "atOthers"? }`, `trigger` a regular
+ * expression, `price` whole diamonds, `mentions` a file in the room's folder, and the last two
+ * true or false.
  * Those that aren't right are left out, each with why.
  */
 export function parseCommandIndex(json: unknown): {
@@ -48,7 +53,10 @@ export function parseCommandIndex(json: unknown): {
 function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
   if (!/^[\w-]+$/.test(id)) return 'the id may have only letters, digits, _ and -';
   if (typeof fields !== 'object' || fields === null) return 'must be an object';
-  const { name, when, prompt, trigger, price, mentions } = fields as Record<string, unknown>;
+  const { name, when, prompt, trigger, price, mentions, adminOnly, atOthers } = fields as Record<
+    string,
+    unknown
+  >;
   for (const [key, value] of Object.entries({ name, when, prompt })) {
     if (typeof value !== 'string' || !value.trim()) return `${key} must be a non-empty string`;
   }
@@ -68,6 +76,9 @@ function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
   if (mentions !== undefined && !(typeof mentions === 'string' && isInside(mentions))) {
     return 'mentions must be a file inside the room folder';
   }
+  for (const [key, value] of Object.entries({ adminOnly, atOthers })) {
+    if (value !== undefined && typeof value !== 'boolean') return `${key} must be true or false`;
+  }
   return {
     id,
     name: name as string,
@@ -76,6 +87,8 @@ function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
     prompt: prompt as string,
     ...(price !== undefined && { price: price as number }),
     ...(mentions !== undefined && { mentions: mentions }),
+    ...(adminOnly === true && { adminOnly }),
+    ...(atOthers === true && { atOthers }),
   };
 }
 

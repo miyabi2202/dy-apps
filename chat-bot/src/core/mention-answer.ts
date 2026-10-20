@@ -21,6 +21,48 @@ export const MESSAGE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+/** MESSAGE_SCHEMA, and messages to others, each sent as its own `@to message`. */
+export const MESSAGES_SCHEMA = {
+  type: 'object',
+  properties: {
+    message: { type: 'string', description: '回给提问的人的话，不用回就是空字符串' },
+    others: {
+      type: 'array',
+      description: '要 @ 的其他人，每人一条；没有就是空数组',
+      items: {
+        type: 'object',
+        properties: {
+          to: { type: 'string', description: '对方的昵称，不带 @' },
+          message: { type: 'string', description: '发给他的话，不要在开头写他的名字' },
+        },
+        required: ['to', 'message'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['message', 'others'],
+  additionalProperties: false,
+} as const;
+
+/** One message to someone other than the asker, from MESSAGES_SCHEMA's `others`. */
+export interface OtherMessage {
+  to: string;
+  message: string;
+}
+
+/** MESSAGES_SCHEMA's `others` in `text`, those with a name and something to say; [] for none. */
+export function parseOthers(text: string): OtherMessage[] {
+  const others = parseJsonObject(text)?.others;
+  if (!Array.isArray(others)) return [];
+  return others.flatMap((other: unknown) => {
+    if (typeof other !== 'object' || other === null) return [];
+    const { to, message } = other as Record<string, unknown>;
+    if (typeof to !== 'string' || typeof message !== 'string') return [];
+    const name = to.trim().replace(/^@/, '').trim();
+    return name && message.trim() ? [{ to: name, message }] : [];
+  });
+}
+
 /** The JSON Schema MentionAnswer follows (strict: every field required, no others). */
 export const MENTION_ANSWER_SCHEMA = {
   type: 'object',

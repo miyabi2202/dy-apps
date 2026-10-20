@@ -34,7 +34,7 @@ export function loadAdditionalCommands(
   }
   const { commands, errors } = parseCommandIndex(index);
   for (const error of errors) log.warn('skipping an additional command', { error });
-  return commands.map(({ id, name, when, trigger, prompt: file, price, mentions }) => {
+  return commands.map(({ id, name, when, trigger, prompt: file, price, mentions, ...flags }) => {
     const path = join(dir, file);
     // The last prompt read, if the file can't be read while it runs.
     let last = '';
@@ -56,7 +56,7 @@ export function loadAdditionalCommands(
           }
         }
       : undefined;
-    log.info('additional command', { id, name, price, mentions });
+    log.info('additional command', { id, name, price, mentions, ...flags });
     return {
       id,
       name,
@@ -65,6 +65,7 @@ export function loadAdditionalCommands(
       prompt,
       ...(price !== undefined && { price }),
       ...(mentioned && { mentioned }),
+      ...flags,
     };
   });
 }

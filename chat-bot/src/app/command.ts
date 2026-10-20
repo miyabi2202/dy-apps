@@ -46,6 +46,11 @@ export interface PromptOptions {
   alwaysScreenshot?: boolean;
   /** Claude answers in JSON, `{ "message": … }`, and only the message is sent. */
   jsonMessage?: boolean;
+  /**
+   * With jsonMessage, Claude may @ others too, `{ "message": …, "others": [{ "to", "message" }] }`:
+   * each goes out as its own `@to message`, after the asker's (none when it's empty).
+   */
+  atOthers?: boolean;
 }
 
 /** A command that worked, saying `reply` back. */

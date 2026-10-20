@@ -133,6 +133,10 @@ export interface AdditionalCommand {
    * they are now; null for none, or when it has none.
    */
   mentioned?: (text: string) => string | null;
+  /** Only admins (and the streamer) may have it answered. */
+  adminOnly?: boolean;
+  /** Its answer may @ others too, each in a message of their own. */
+  atOthers?: boolean;
 }
 
 /** What the bot says when the streamer starts a song (a cheer, say). */

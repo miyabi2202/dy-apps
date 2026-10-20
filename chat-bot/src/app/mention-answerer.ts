@@ -7,7 +7,13 @@ import {
   singleBudget,
   type ReplyLimits,
 } from '../core/reply';
-import { MENTION_ANSWER_SCHEMA, MESSAGE_SCHEMA, parseMentionAnswer } from '../core/mention-answer';
+import {
+  MENTION_ANSWER_SCHEMA,
+  MESSAGE_SCHEMA,
+  MESSAGES_SCHEMA,
+  parseMentionAnswer,
+  parseOthers,
+} from '../core/mention-answer';
 import type { ChatLine } from '../core/room-events';
 import type { Billing } from './billing';
 import type { PromptOptions } from './command';
@@ -158,9 +164,15 @@ export class MentionAnswerer {
       const started = room.now();
       const { tools, maxTurns } = mention;
       // The usual prompt answers in MENTION_ANSWER_SCHEMA; a command's own prompt, as it says,
-      // or in MESSAGE_SCHEMA.
+      // or in MESSAGE_SCHEMA (MESSAGES_SCHEMA when it may @ others too).
       const usual = mention.template === undefined;
-      const schema = usual ? MENTION_ANSWER_SCHEMA : mention.jsonMessage ? MESSAGE_SCHEMA : null;
+      const schema = usual
+        ? MENTION_ANSWER_SCHEMA
+        : mention.jsonMessage
+          ? mention.atOthers
+            ? MESSAGES_SCHEMA
+            : MESSAGE_SCHEMA
+          : null;
       const raw = await (mention.ask ?? ask)({
         prompt,
         image,
@@ -182,7 +194,11 @@ export class MentionAnswerer {
         }
       }
       const messages = replyMessages(mention.asker, answer, limits);
-      if (!messages.length) {
+      // Each of the others gets one message of their own, after the asker's.
+      const others = mention.atOthers ? parseOthers(raw) : [];
+      const single = { ...limits, maxParts: 1 };
+      const toOthers = others.flatMap(({ to, message }) => replyMessages(to, message, single));
+      if (!messages.length && !toOthers.length) {
         log.warn('claude gave an empty answer', { asker: mention.asker });
         this.refund(mention);
         return;
@@ -194,10 +210,13 @@ export class MentionAnswerer {
         refunded = true;
         this.refund(mention);
       };
-      for (const text of messages) outbox.push({ kind: 'reply', text, onFailed });
+      for (const text of [...messages, ...toOthers]) outbox.push({ kind: 'reply', text, onFailed });
+      if (others.length)
+        log.info('at others', { asker: mention.asker, to: others.map((o) => o.to) });
       if (mention.userId) {
         const { asker: nickname, question } = mention;
-        userTalk?.add(mention.userId, { nickname, question, answer: messages.join(' ') });
+        const said = [...messages, ...toOthers].join(' ');
+        userTalk?.add(mention.userId, { nickname, question, answer: said });
         this.options.onAnswered?.(mention.userId);
       }
     } catch (err) {

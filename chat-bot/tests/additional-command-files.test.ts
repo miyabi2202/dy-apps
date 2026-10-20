@@ -42,6 +42,14 @@ test('reads the index: the commands by id, each checked', () => {
     parseCommandIndex({ x: { name: 'x', when: 'y', prompt: 'p.md', trigger: '(' } }).errors,
   ).toEqual(['x: trigger is not a regular expression: (']);
   expect(parseCommandIndex([]).errors).toEqual(['index.json must be an object of commands by id']);
+  const flagged = { name: 'x', when: 'y', prompt: 'p.md', adminOnly: true, atOthers: true };
+  expect(parseCommandIndex({ x: flagged }).commands[0]).toMatchObject({
+    adminOnly: true,
+    atOthers: true,
+  });
+  expect(parseCommandIndex({ x: { ...flagged, adminOnly: 'yes' } }).errors).toEqual([
+    'x: adminOnly must be true or false',
+  ]);
 });
 
 test("loads the room's commands, each prompt with the room's files it names filled in, read on every use", () => {
