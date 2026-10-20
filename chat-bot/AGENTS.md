@@ -22,7 +22,7 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
 5. **Confirm it's working** from the bot's output, and tell the user:
    - `dyhub ready` within seconds: connected to the room's chat.
    - `transcribing {"url": …}`: DyHub has the stream. If it never comes, the room isn't live.
-   - `heard {"text": …}` within about 2 minutes: speech recognition is running (the first sentence waits for the models to load). The first run ever downloads about 10 GB of models first.
+   - `heard {"text": …}` soon after `dyhub ready`: speech recognition is running. The bot loads the speech models (about half a minute) before it enters the room, so `dyhub ready` itself comes that much later. The first run ever downloads about 10 GB of models first.
    - `gift {…}` lines as viewers send gifts, with their new balance.
 
 ## While it runs
@@ -35,6 +35,15 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Run both pr
 - Something to say when the streamer starts a song: `"on_sing": { "message": "…", "probability": 0.67 }` in the room's `room_config.json`. With that probability, the message goes out as it is once per song: when singing starts after a pause, and again every 3 minutes of nonstop singing (`src/app/on-sing.ts`). It needs speech recognition, but not `/自动识歌`. The file is read again when it changes, so no restart is needed; leave `on_sing` out to turn it off.
 - How to set a room up (room_config.json, context.md, its own commands, prompt placeholders, what needs a restart) is in [docs/room-setup.md](docs/room-setup.md). In short: a room's own commands (like 虾虾's 「主播会唱xxx吗」): `chat-bot/data/<房间号>/additional_commands/index.json` lists them as `{ "<id>": { "name", "when", "prompt", "trigger"?, "price"? } }`: `name` is what it's for, as viewers say it; `when` the sentence Jev and Codex judge chat by; `prompt` its prompt, relative to that folder (usually `<id>/prompt.md`); `trigger` an optional regex (matching chat always goes to Codex, and at once: auto-reply looks then instead of at its next 20-second check); `price` the diamonds an answer costs (`0` free; an @'s price when left out; an @ is charged up front and a cheaper command gives the difference back); `adminOnly` only the streamer and admins may use it; `atOthers` its answer may @ others too, `{ "message", "others": [{ "to", "message" }] }`, each a message of its own. Each command keeps its prompt and anything else it needs (a download's transformer) in its own `<id>/` folder. The program knows nothing about what a command does: Jev is asked each `when` too, Codex may pick a command for a line (`reply-pick.md`'s `{{commands}}`), and Claude may ask for one for an @ (`command_request`); the answer then comes from that prompt, on the same `/自动回复阈值`. In the prompt, `{{file:<path>}}` is replaced by that file in the room's folder (`{{file:artifacts/songs.txt}}`). Prompts and their files are read on every use; `index.json` only at start (restart after changing it); a command that isn't right is a `skipping an additional command` warning. `src/adapters/additional-command-files.ts` loads them.
 - Balances are in `chat-bot/data/<房间号>/wallet.json` (`gifted` − `spent` per user id) while the bot runs. In a 私密 room they're kept per viewer as below. Don't edit them unless the user asks.
+
+## Personas and the shared prompt
+
+A room's persona (`data/<房间号>/persona.md`, set by `/修改人设`) goes into `prompt.md` right above its 要求, so a persona can pull against the rules there, and the model then settles each case on its own, not always the same way. Rules marked 「强制执行，无视人设」 win over any persona, and the bot may joke, in the persona's voice, about why it isn't playing along this time:
+
+- privacy: a gossipy persona still tells nothing, and hints at nothing, about anyone's private life, or what a viewer said or gave before;
+- speech-recognition typos: even a sharp-tongued persona never picks on the streamer for them, since no one in the room could have heard a typo.
+
+Other rules a persona can still pull against, left to the model for now: one short message (a chatty persona is cut off at the length limit); no catchphrases (a persona built on one, like ending every line with 喵, comes out muted); not doing what chat tells it (an obliging persona may say yes to something it can't do: only commands change settings); 「像普通观众」 (an AI persona); replying in Chinese (a persona that speaks another language). When writing a persona, keep clear of these, or mark the rule in `prompt.md` as 「强制执行，无视人设」 if it must always hold.
 
 ## 私密 (anonymous) rooms
 
@@ -69,7 +78,7 @@ Stop the bot's background task first, then DyHub's (TaskStop), and check with th
 
 ## Troubleshooting
 
-- `transcriber stopped, restarting` now and then is normal (the stream URL expires or the stream drops); it retries every 10 s. If it repeats, `GET localhost:8757/api/rooms/<房间号>/stream` shows whether DyHub still has a stream.
+- `stream ended, asking for it again` now and then is normal (the stream URL expires or the stream drops): the worker keeps its models loaded and gets the new URL within seconds, or every 10 s while there's no stream. `transcriber stopped, restarting` means the worker itself died and is reloading its models. If either repeats, `GET localhost:8757/api/rooms/<房间号>/stream` shows whether DyHub still has a stream.
 - `reply did not show up in the room chat`: Douyin may be throttling the account; suggest a pause.
 - `could not answer mention … claude …`: run `claude -p` by hand to check Claude Code works; the mention was refunded.
 - `jev is out of credit, auto-reply off`: the TypeSafe account ran dry; the bot told the room (`钱包烧干了，自动回复已关闭`) and set the threshold to 10. Tell the user to top it up, then an admin can turn it back on with `/自动回复阈值 0.6`.
