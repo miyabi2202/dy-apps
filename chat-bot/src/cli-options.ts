@@ -10,7 +10,7 @@ export const USAGE =
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
-  '       [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]';
+  '       [--auto-reply-interval 60] [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -38,6 +38,7 @@ export interface CliOptions {
   configFile: string;
   /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
   autoReplyThreshold: number;
+  autoReplyIntervalMs: number;
   /** Thank a viewer whose gifts in 5 minutes come to more than this many diamonds. */
   thanksThreshold: number;
   /** The Codex model /识歌 asks first; empty for none. */
@@ -87,6 +88,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       // Jev's score at which the bot joins in when someone talks about it: 1, off, by default;
       // /自动回复阈值 0.6 turns it on while the bot runs.
       'auto-reply-threshold': { type: 'string', default: '1' },
+      // Seconds it keeps quiet after talking unprompted; /自动回复间隔 changes it while the bot runs.
+      'auto-reply-interval': { type: 'string', default: '60' },
       // So high it's off by default; /自动谢礼 lowers it while the bot runs.
       'thanks-threshold': { type: 'string', default: '99999' },
       // /识歌 asks Codex (fast and cheap at low effort), which searches with Google; '' for Claude.
@@ -121,6 +124,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     dataDir: values.data,
     configFile: values.config,
     autoReplyThreshold: Number(values['auto-reply-threshold']),
+    autoReplyIntervalMs: Number(values['auto-reply-interval']) * 1000,
     thanksThreshold: Number(values['thanks-threshold']),
     codex: values.codex,
     autoSongId: values['auto-song-id'],

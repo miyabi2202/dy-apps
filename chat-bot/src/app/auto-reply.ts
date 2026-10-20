@@ -65,6 +65,8 @@ const OFF_FOR_NO_CREDIT = 10;
 export class AutoReply {
   /** Talk when something is about the bot at least this likely; 1 or more never. */
   threshold: number;
+  /** At least this long between two things it says unprompted; 0 doesn't wait. */
+  quietMs: number;
   private stopped = false;
   /** Ends the current wait early: to stop, or to look now. */
   private wake: () => void = () => {};
@@ -82,6 +84,7 @@ export class AutoReply {
 
   constructor(private readonly options: AutoReplyOptions) {
     this.threshold = options.threshold;
+    this.quietMs = options.quietMs ?? 60_000;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.seen = options.room.now();
   }
@@ -124,7 +127,10 @@ export class AutoReply {
     this.saidTo.set(userId === streamer?.uid ? STREAMER : userId, this.options.room.now());
   }
 
-  /** `/自动回复阈值 0.6` sets the threshold (1 or more: never unprompted). */
+  /**
+   * `/自动回复阈值 0.6` sets the threshold (1 or more: never unprompted); `/自动回复间隔 20` how many
+   * seconds it keeps quiet after talking.
+   */
   commands(): Command[] {
     return [
       {
@@ -137,6 +143,18 @@ export class AutoReply {
           this.threshold = Number(args);
           this.options.log.info('talk threshold', { threshold: this.threshold });
           return done('已处理自动回复阈值请求');
+        },
+      },
+      {
+        name: '自动回复间隔',
+        adminOnly: true,
+        price: 0,
+        run: (args) => {
+          if (!/^\d+$/.test(args))
+            return failed('间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20');
+          this.quietMs = Number(args) * 1000;
+          this.options.log.info('talk interval', { quietMs: this.quietMs });
+          return done('已处理自动回复间隔请求');
         },
       },
     ];
@@ -153,14 +171,14 @@ export class AutoReply {
 
   /** Asks the judge about what's new since it last looked, and talks if it's about the bot. */
   private async check(): Promise<void> {
-    const { judge, room, log, quietMs = 60_000 } = this.options;
+    const { judge, room, log } = this.options;
     const now = room.now();
     if (!judge || this.threshold >= 1) {
       this.seen = now;
       return;
     }
     // While it keeps quiet, what's said waits to be looked at after.
-    if (now - this.talkedAt < quietMs) return;
+    if (now - this.talkedAt < this.quietMs) return;
     const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName);
     const since = Math.max(this.seen, this.talkedAt);
     const fresh = lines.filter((line) => line.candidate && line.ts > since && line.ts <= now);
@@ -183,7 +201,7 @@ export class AutoReply {
     if (following.length) {
       log.info('following up', { lines: following.map(({ who, text }) => ({ who, text })) });
     }
-    // The quiet minute starts only if it answered someone: picking nobody leaves it free to listen.
+    // The quiet time starts only if it answered someone: picking nobody leaves it free to listen.
     const picked = await this.pickAndReply(
       since,
       [...about, ...following],

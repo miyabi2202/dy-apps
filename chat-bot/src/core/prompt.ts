@@ -39,6 +39,8 @@ export interface RoomSettings {
   screenshots: boolean;
   /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
   autoReplyThreshold: number;
+  /** How long it keeps quiet after talking unprompted. */
+  autoReplyIntervalMs?: number;
   /** Viewers whose gifts within 5 minutes pass this many diamonds are thanked. */
   thanksThreshold: number;
   /** Whether the bot names the songs the streamer sings without being asked. */
@@ -73,12 +75,15 @@ export type PromptInput = RoomPromptInput & {
 
 /** `settings` as lines for the prompt, with `asker`'s balance when known. */
 function settingsText(settings: RoomSettings, asker: string, askerBalance?: number): string {
-  const { mentionCost, screenshots, autoReplyThreshold, thanksThreshold, autoSongId } = settings;
+  const { mentionCost, screenshots, autoReplyThreshold, autoReplyIntervalMs } = settings;
+  const { thanksThreshold, autoSongId } = settings;
+  const interval =
+    autoReplyIntervalMs === undefined ? '' : `，两次之间至少隔 ${autoReplyIntervalMs / 1000} 秒`;
   return [
     '直播间现在的设置（机器人管理员可以用指令修改）：',
     `- 每次 @ 你：${mentionCost > 0 ? `${mentionCost} 钻，用观众给主播送过的礼物抵（不会另外扣观众的钱）` : '免费'}`,
     `- 截图：${screenshots ? '开（你能看到直播画面）' : '关（你看不到直播画面）'}`,
-    `- 自动回复：${autoReplyThreshold < 1 ? `开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 ${autoReplyThreshold}）` : '关闭'}`,
+    `- 自动回复：${autoReplyThreshold < 1 ? `开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 ${autoReplyThreshold}${interval}）` : '关闭'}`,
     `- 自动谢礼：${thanksThreshold >= THANKS_OFF_FROM ? '关闭' : `5 分钟内送礼超过 ${thanksThreshold} 钻的观众会收到感谢`}`,
     ...(autoSongId === undefined
       ? []

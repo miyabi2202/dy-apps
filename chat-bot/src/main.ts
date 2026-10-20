@@ -166,6 +166,7 @@ const room = new RoomState({
   settings: (): Omit<RoomSettings, 'screenshots'> => ({
     mentionCost: billing.cost,
     autoReplyThreshold: autoReply.threshold,
+    autoReplyIntervalMs: autoReply.quietMs,
     thanksThreshold: thanker.threshold,
     autoSongId: autoSongId?.on ?? false,
   }),
@@ -223,6 +224,7 @@ const autoReply = new AutoReply({
   outbox,
   judge: jevKey && options.codex ? jev({ apiKey: jevKey }) : undefined,
   threshold: options.autoReplyThreshold,
+  quietMs: options.autoReplyIntervalMs,
   room,
   log,
   picker: options.codex
@@ -385,6 +387,7 @@ log.info('starting', {
   admins: config.admins,
   persona: config.persona,
   autoReplyThreshold: options.autoReplyThreshold,
+  autoReplyIntervalMs: options.autoReplyIntervalMs,
   thanksThreshold: options.thanksThreshold,
   autoSongId: options.autoSongId,
 });

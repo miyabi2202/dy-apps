@@ -213,6 +213,35 @@ test('keeps quiet for a minute only after it answered someone, not when the pick
   expect(ran.judged).toEqual(['(1) 00:00:20 [小红] 机器人你好', '(1) 00:00:40 [阿明] 机器人在吗']);
 });
 
+test('/自动回复间隔 0 answers the next one without waiting', async () => {
+  const replies: UnpromptedReply[] = [];
+  const ran = setup(
+    [
+      () => {
+        expect(run('自动回复间隔', '0')).toEqual({ ok: true, reply: '已处理自动回复间隔请求' });
+        ran.chat('阿明', '机器人在吗', 'u-阿明');
+      },
+      () => ran.chat('小蓝', '机器人你几岁', 'u-小蓝'),
+    ],
+    {
+      picker: () => Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] })),
+      reply: (target) => void replies.push(target),
+    },
+  );
+  const run = (name: string, args: string) =>
+    ran.autoReply
+      .commands()
+      .find((command) => command.name === name)
+      ?.run?.(args);
+  await ran.autoReply.run();
+
+  expect(replies.map((r) => r.nickname)).toEqual(['阿明', '小蓝']);
+  expect(run('自动回复间隔', '半分钟')).toEqual({
+    ok: false,
+    reply: '间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20',
+  });
+});
+
 test('a follow-up still goes to the picker when Jev fails on the rest', async () => {
   const replies: UnpromptedReply[] = [];
   const ran = setup(

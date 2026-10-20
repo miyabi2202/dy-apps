@@ -11,6 +11,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/修改人设 <人设>`     | Change who the bot plays                           | yes         | none        |
 | `/修改收费 <钻>`       | Change what an @ costs                             | yes         | 1           |
 | `/自动回复阈值 <0–1>`  | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
+| `/自动回复间隔 <秒>`   | How long it keeps quiet after joining in           | yes         | 60          |
 | `/自动谢礼 <钻>`       | Thank viewers who give more than this in 5 minutes | yes         | 99999 (off) |
 | `/截图 <0\|1>`         | Send Claude the live video or not                  | yes         | 0           |
 | `/识歌 [提示]`         | Name the song the streamer sings, from its lyrics  | no          | –           |
@@ -48,7 +49,7 @@ Sets how many diamonds a viewer pays per @ (and per `/识歌`); `0` makes them f
 
 ### /自动回复阈值
 
-How sure the bot must be that something said in the room is about it before it joins in unprompted. Every 20 seconds it asks Jev (TypeSafe's fast classifier, `JEV_API_KEY` in `chat-bot/.env`) how likely each new chat, and each thing the streamer said, is said to the bot, about it (even as 它) or picking up what it said; the streamer reading chat aloud is told apart by sound and doesn't count as them saying it. For a minute after the bot answers someone (or, talking to the room, the streamer, on the stream or from their own account), what that person says skips Jev and goes straight to Codex, since a reply to the bot (the next move in 成语接龙, say) often doesn't mention it and Jev can't tell. When one scores at or above the threshold, or such a follow-up comes, Codex (`gpt-6-luna` at medium effort, no web search, about 9 seconds) picks from `reply-pick.md` whom to answer, each with a confidence from 0 to 1, and only those at the threshold or more are answered: of what was said since, the lines that still need an answer (none when someone answered already or the talk moved on; at most 3, one per person). Each is answered like an @ from that person, with `prompt.md` (telling Claude they didn't @ it), their own past exchanges, and an @ in front, in one message: charged at a mention's price (free for admins and the streamer, whose spoken lines are answered as theirs, by the uid DyHub found), and someone who can't pay is told `你在跟我说话吗？要先给主播送礼：…，送了马上回你` and answered once they send a gift within 5 minutes. Without Codex (`--codex ''`) this is off whatever the threshold, and the bot warns of it at start. It keeps quiet for at least a minute after talking. It starts at `--auto-reply-threshold` (1, off); `1` or more turns it off, and Jev isn't asked at all. `0.6` is a good value to turn it on with. When Jev's account runs out of money, the bot says `钱包烧干了，自动回复已关闭` in the room and sets it to 10 (off) until an admin sets it again.
+How sure the bot must be that something said in the room is about it before it joins in unprompted. Every 20 seconds it asks Jev (TypeSafe's fast classifier, `JEV_API_KEY` in `chat-bot/.env`) how likely each new chat, and each thing the streamer said, is said to the bot, about it (even as 它) or picking up what it said; the streamer reading chat aloud is told apart by sound and doesn't count as them saying it. For a minute after the bot answers someone (or, talking to the room, the streamer, on the stream or from their own account), what that person says skips Jev and goes straight to Codex, since a reply to the bot (the next move in 成语接龙, say) often doesn't mention it and Jev can't tell. When one scores at or above the threshold, or such a follow-up comes, Codex (`gpt-6-luna` at medium effort, no web search, about 9 seconds) picks from `reply-pick.md` whom to answer, each with a confidence from 0 to 1, and only those at the threshold or more are answered: of what was said since, the lines that still need an answer (none when someone answered already or the talk moved on; at most 3, one per person). Each is answered like an @ from that person, with `prompt.md` (telling Claude they didn't @ it), their own past exchanges, and an @ in front, in one message: charged at a mention's price (free for admins and the streamer, whose spoken lines are answered as theirs, by the uid DyHub found), and someone who can't pay is told `你在跟我说话吗？要先给主播送礼：…，送了马上回你` and answered once they send a gift within 5 minutes. Without Codex (`--codex ''`) this is off whatever the threshold, and the bot warns of it at start. It keeps quiet for at least a minute after talking (`/自动回复间隔` changes that). It starts at `--auto-reply-threshold` (1, off); `1` or more turns it off, and Jev isn't asked at all. `0.6` is a good value to turn it on with. When Jev's account runs out of money, the bot says `钱包烧干了，自动回复已关闭` in the room and sets it to 10 (off) until an admin sets it again.
 
 ```text
 @默认关闭 /自动回复阈值 0.7
@@ -59,6 +60,18 @@ How sure the bot must be that something said in the room is about it before it j
 
 @默认关闭 /自动回复阈值 一半
 → 阈值要写成 0 到 1 之间的小数，1 表示关闭，用法：/自动回复阈值 0.6
+```
+
+### /自动回复间隔
+
+How many seconds auto-reply keeps quiet after it answered someone unprompted: what's said meanwhile is looked at once it's over. It starts at `--auto-reply-interval` (60). `0` doesn't wait, for a busy room: it still looks only every 20 seconds (at once for a room command's trigger), and the outbox still sends one message every `--send-interval` seconds. @s are never held back by it.
+
+```text
+@默认关闭 /自动回复间隔 0
+→ 已处理自动回复间隔请求
+
+@默认关闭 /自动回复间隔 半分钟
+→ 间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20
 ```
 
 ### /自动谢礼
@@ -167,16 +180,16 @@ Commands are logged as `command` in `logs/chat-bot.log` (`command requested` for
 
 Each feature offers its own commands, and `src/main.ts` hands them all to `ChatBot` in the order the help list shows them:
 
-| Command        | Defined in                                                                             |
-| -------------- | -------------------------------------------------------------------------------------- |
-| 修改人设, 截图 | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
-| 修改收费       | `Billing.commands()` in `src/app/billing.ts`                                           |
-| 自动回复阈值   | `AutoReply.commands()` in `src/app/auto-reply.ts`                                      |
-| 自动谢礼       | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
-| 识歌           | `SongId.commands()` in `src/app/song-id.ts`                                            |
-| 识别背景音乐   | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
-| 自动识歌       | `AutoSongId.commands()` in `src/app/auto-song-id.ts`                                   |
-| 识别恶意言论   | `MaliceWatch.commands()` in `src/app/malice-watch.ts`                                  |
+| Command                    | Defined in                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------------- |
+| 修改人设, 截图             | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
+| 修改收费                   | `Billing.commands()` in `src/app/billing.ts`                                           |
+| 自动回复阈值, 自动回复间隔 | `AutoReply.commands()` in `src/app/auto-reply.ts`                                      |
+| 自动谢礼                   | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
+| 识歌                       | `SongId.commands()` in `src/app/song-id.ts`                                            |
+| 识别背景音乐               | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
+| 自动识歌                   | `AutoSongId.commands()` in `src/app/auto-song-id.ts`                                   |
+| 识别恶意言论               | `MaliceWatch.commands()` in `src/app/malice-watch.ts`                                  |
 
 The `Command` type and the `done` / `failed` helpers are in `src/app/command.ts`.
 
