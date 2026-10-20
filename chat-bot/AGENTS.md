@@ -55,6 +55,14 @@ How the bot tells viewers apart: set `"private": true` in the room's `data/<房�
 - Don't rely on a viewer's full nickname, avatar, `secUid` or fan club; with only `苦***`, the feature should still do its job (answer an @, thank a gift, charge and refund the right viewer).
 - Add a test with 私密 viewers (id `111111`, a `X***` nickname, a wealth level) when the feature handles users.
 
+## A room's own commands
+
+**A room's own commands live in that room's folder; the program knows nothing about them beyond the protocol.** What a command is for, what it reads, its rules and examples all belong in `data/<房间号>/` (`additional_commands/index.json`, its `prompt.md`, its files). The protocol is what the program reads (an id with `name`, `when`, `trigger`, `prompt`, `price`; `{{file:…}}` in the prompt; a download's `transformer`), and the docs are in [docs/room-setup.md](docs/room-setup.md). When you add or change one:
+
+- Don't put a command's specifics in `src/` or the shared prompts: no song lists, song or schedule wording, no command ids or names in logic, and no example of one command in rules every command gets (`reply-pick.ts`'s room-command rules, `reply-pick.md`). Something a command needs Jev or Codex to know goes in its `when`.
+- Don't make the program read a room's files in their own format. A file a prompt needs goes in through `{{file:…}}`, already in the shape the prompt wants; turning a download into that shape is the room's `transformer`'s job.
+- If a command needs something the protocol can't give it, add a general part to the protocol (like `{{today}}`) and document it in docs/room-setup.md, rather than handling that one command in code.
+
 ## Stop
 
 Stop the bot's background task first, then DyHub's (TaskStop), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or DyHub process is left. Stopping clears every balance (`wallet.clear()` on exit); starting clears them too.
