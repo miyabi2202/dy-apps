@@ -11,7 +11,7 @@ import { DyhubClient } from '@dy-apps/services';
 import { uvWorker } from './adapters/asr-worker';
 import { ChatLog } from './adapters/chat-log-files';
 import { claudeCli } from './adapters/claude-cli';
-import { codexCli } from './adapters/codex-cli';
+import { type CodexCliOptions, codexCli } from './adapters/codex-cli';
 import { liveAdmins, readConfig } from './adapters/config-file';
 import { dyhubEvents } from './adapters/dyhub-events';
 import { DyhubRoomApi } from './adapters/dyhub-room-api';
@@ -212,38 +212,37 @@ if (!jevKey)
 if (!options.codex) log.warn('--codex is empty: auto-reply is off, the bot only talks when @ed');
 // Codex reads its working directory, so it gets an empty one.
 const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
+// Codex with the room's usual settings; `over` changes what a use needs differently.
+const codex = (over: CodexCliOptions) =>
+  codexCli({
+    cwd: emptyDir,
+    systemPrompt: options.systemPrompt,
+    model: options.codex,
+    effort: 'medium',
+    ...over,
+  });
 // /解题 and /拼命解题: Codex's gpt-6-astra, which on figure puzzles was faster and more often
 // right than Claude Opus or Fable, even with their zoom tool; /拼命解题 thinks harder.
 const solveAsk = (effort: string, timeoutMs: number) =>
-  codexCli({
-    model: 'gpt-6-astra',
-    effort,
-    webSearch: false,
-    timeoutMs,
-    cwd: emptyDir,
-    systemPrompt: options.systemPrompt,
-    zoom,
-  });
+  codex({ model: 'gpt-6-astra', effort, webSearch: false, timeoutMs, zoom });
 // Once Jev finds something about the bot, Codex (the cheap model, no web search) picks whom to
 // answer, and each is answered like a mention (charged, with their own talk.txt; the streamer's
 // too, by their uid).
 // Never asked: without Codex there's no judge either.
 const noPicker: AskClaude = () => Promise.reject(new Error('--codex is empty'));
+const judge = jevKey && options.codex ? jev({ apiKey: jevKey }) : undefined;
 const autoReply = new AutoReply({
   outbox,
-  judge: jevKey && options.codex ? jev({ apiKey: jevKey }) : undefined,
+  judge,
   threshold: options.autoReplyThreshold,
   quietMs: options.autoReplyIntervalMs,
   room,
   log,
   picker: options.codex
-    ? codexCli({
-        model: options.codex,
+    ? codex({
         // Low sometimes picked nobody when someone clearly wanted an answer; medium is ~4 s slower.
         effort: 'medium',
         webSearch: false,
-        cwd: emptyDir,
-        systemPrompt: options.systemPrompt,
       })
     : noPicker,
   pickTemplate: prompt('replyPick'),
@@ -280,24 +279,17 @@ feed.onGift((gift) => {
 });
 // @s a viewer whose chat is found malicious, once /识别恶意言论 1 turns it on: Jev scores each chat,
 // and Codex decides on the few it lets through, with the chat around them. Off without either.
-const maliceWatch =
-  jevKey && options.codex
-    ? new MaliceWatch({
-        judge: jev({ apiKey: jevKey }),
-        ask: codexCli({
-          model: options.codex,
-          effort: 'medium',
-          webSearch: false,
-          cwd: emptyDir,
-          systemPrompt: options.systemPrompt,
-        }),
-        promptTemplate: prompt('malice'),
-        outbox,
-        room,
-        exempt: (userId) => admins.has(userId),
-        log,
-      })
-    : null;
+const maliceWatch = judge
+  ? new MaliceWatch({
+      judge,
+      ask: codex({ webSearch: false }),
+      promptTemplate: prompt('malice'),
+      outbox,
+      room,
+      exempt: (userId) => admins.has(userId),
+      log,
+    })
+  : null;
 feed.onChat((chat) => maliceWatch?.hear(chat));
 // Answers each paid question with Claude, one at a time.
 const answerer = new MentionAnswerer({
@@ -329,12 +321,9 @@ const songIntro = new SongIntro({
 const songId = options.codex
   ? new SongId({
       prompt: prompt('songId'),
-      codex: codexCli({
-        model: options.codex,
+      codex: codex({
         // Low sometimes answered without searching at all; medium always searched, ~8 s slower.
         effort: 'medium',
-        cwd: emptyDir,
-        systemPrompt: options.systemPrompt,
       }),
       log,
       onTold: (song) => void songIntro.introduce(song),
