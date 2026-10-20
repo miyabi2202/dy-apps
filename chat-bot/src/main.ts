@@ -36,6 +36,7 @@ import type { AskClaude } from './app/ports';
 import { Billing } from './app/billing';
 import { ChatBot } from './app/chat-bot';
 import { GiftThanker } from './app/gift-thanker';
+import { MaliceWatch } from './app/malice-watch';
 import { solveCommand } from './app/solve-command';
 import { OnSing } from './app/on-sing';
 import { SongIntro } from './app/song-intro';
@@ -266,6 +267,27 @@ feed.onGift((gift) => {
   gifts.add(room.now(), gift);
   thanker.onGift(gift);
 });
+// @s a viewer found malicious twice in 5 minutes, once /识别恶意言论 1 turns it on: Jev scores each chat,
+// and Codex decides on the few it lets through, with the chat around them. Off without either.
+const maliceWatch =
+  jevKey && options.codex
+    ? new MaliceWatch({
+        judge: jev({ apiKey: jevKey }),
+        ask: codexCli({
+          model: options.codex,
+          effort: 'medium',
+          webSearch: false,
+          cwd: emptyDir,
+          systemPrompt: options.systemPrompt,
+        }),
+        promptTemplate: prompt('malice'),
+        outbox,
+        room,
+        exempt: (userId) => admins.has(userId),
+        log,
+      })
+    : null;
+feed.onChat((chat) => maliceWatch?.hear(chat));
 // Answers each paid question with Claude, one at a time.
 const answerer = new MentionAnswerer({
   ask,
@@ -346,6 +368,7 @@ const bot: ChatBot = new ChatBot({
     solveCommand({ name: '解题', prompt: prompt('solve'), ask: solveAsk('medium', 360_000) }),
     solveCommand({ name: '拼命解题', prompt: prompt('solve'), ask: solveAsk('high', 600_000) }),
     ...(autoSongId?.commands() ?? []),
+    ...(maliceWatch?.commands() ?? []),
     // Only when listening to the stream.
     ...(transcriber ? [musicCommand(() => transcriber.identifyMusic(), log)] : []),
   ],

@@ -6,18 +6,19 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 <!-- prompt.md gets this whole section, up to the next ##, as {{commands}}: keep it about using the commands. -->
 
-| Command               | What it does                                       | Admins only | Default     |
-| --------------------- | -------------------------------------------------- | ----------- | ----------- |
-| `/修改人设 <人设>`    | Change who the bot plays                           | yes         | none        |
-| `/修改收费 <钻>`      | Change what an @ costs                             | yes         | 1           |
-| `/自动回复阈值 <0–1>` | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
-| `/自动谢礼 <钻>`      | Thank viewers who give more than this in 5 minutes | yes         | 99999 (off) |
-| `/截图 <0\|1>`        | Send Claude the live video or not                  | yes         | 0           |
-| `/识歌 [提示]`        | Name the song the streamer sings, from its lyrics  | no          | –           |
-| `/识别背景音乐`       | Name the recording playing, from its sound         | no          | –           |
-| `/解题 [提示]`        | Work out the puzzle on screen                      | yes         | –           |
-| `/拼命解题 [提示]`    | The same, thinking harder                          | yes         | –           |
-| `/自动识歌 <0\|1>`    | Name the songs the streamer sings, unasked         | yes         | 0           |
+| Command                | What it does                                       | Admins only | Default     |
+| ---------------------- | -------------------------------------------------- | ----------- | ----------- |
+| `/修改人设 <人设>`     | Change who the bot plays                           | yes         | none        |
+| `/修改收费 <钻>`       | Change what an @ costs                             | yes         | 1           |
+| `/自动回复阈值 <0–1>`  | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
+| `/自动谢礼 <钻>`       | Thank viewers who give more than this in 5 minutes | yes         | 99999 (off) |
+| `/截图 <0\|1>`         | Send Claude the live video or not                  | yes         | 0           |
+| `/识歌 [提示]`         | Name the song the streamer sings, from its lyrics  | no          | –           |
+| `/识别背景音乐`        | Name the recording playing, from its sound         | no          | –           |
+| `/解题 [提示]`         | Work out the puzzle on screen                      | yes         | –           |
+| `/拼命解题 [提示]`     | The same, thinking harder                          | yes         | –           |
+| `/自动识歌 <0\|1>`     | Name the songs the streamer sings, unasked         | yes         | 0           |
+| `/识别恶意言论 <0\|1>` | @ viewers who keep posting malicious chat          | yes         | 0           |
 
 Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). Changes last until the bot stops; a restart goes back to the command-line options and `config.json`.
 
@@ -137,6 +138,17 @@ Names the recording playing in the stream, from the last 15 s of its audio, by i
 → @雅 我找不到
 ```
 
+### /识别恶意言论
+
+Watches the chat for malicious messages (insults, attacks on looks or age, and sexual innuendo, including puns like 劳女 for 捞女 and digs dressed up with [比心]), and @s a viewer whose chats were found malicious twice within 5 minutes with `检测到恶意言论`. Never flagging an ordinary viewer matters more than catching every one. Jev scores each chat on its own, and only those at 0.5 or more (about 4%) go to Codex (the `--codex` model, medium effort, no web search) with the prompt `malice.md` (a room's own `malice.md` overrides it), the 90 seconds of chat and speech before it, and the viewer's own chat from the last 5 minutes; Codex is told to say no when unsure. One malicious chat on its own isn't @ed: on 2000 chats from friendly rooms Codex flagged one, a regular's teasing, and the second strike leaves that out. The streamer and admins are never judged. Each verdict is logged as `malice judged`, each @ as `malice warned`. Off by default; until the bot stops. Needs `JEV_API_KEY` and `--codex`.
+
+```text
+@默认关闭 /识别恶意言论 1
+→ 已处理识别恶意言论请求
+（不*** 发了「主包是劳女[比心]」，又发了「主包玩的比较花[调皮]」）
+→ @不*** 检测到恶意言论
+```
+
 ## How a command is handled
 
 `ChatBot` (`src/app/chat-bot.ts`) parses the mention (`src/core/command.ts`), then:
@@ -164,6 +176,7 @@ Each feature offers its own commands, and `src/main.ts` hands them all to `ChatB
 | 识歌           | `SongId.commands()` in `src/app/song-id.ts`                                            |
 | 识别背景音乐   | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
 | 自动识歌       | `AutoSongId.commands()` in `src/app/auto-song-id.ts`                                   |
+| 识别恶意言论   | `MaliceWatch.commands()` in `src/app/malice-watch.ts`                                  |
 
 The `Command` type and the `done` / `failed` helpers are in `src/app/command.ts`.
 

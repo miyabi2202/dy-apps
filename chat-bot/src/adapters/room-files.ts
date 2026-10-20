@@ -126,6 +126,7 @@ export const PROMPT_FILES = {
   giftThanks: 'gift-thanks.md',
   songIntro: 'song-intro.md',
   solve: 'solve.md',
+  malice: 'malice.md',
 } as const;
 
 export type PromptName = keyof typeof PROMPT_FILES;
