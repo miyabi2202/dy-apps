@@ -65,7 +65,7 @@ How the bot tells viewers apart: set `"private": true` in the room's `data/<æˆ¿é
 
 ## Stop
 
-Stop the bot's background task first, then DyHub's (TaskStop), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or DyHub process is left. Stopping clears every balance (`wallet.clear()` on exit); starting clears them too.
+Stop the bot's background task first, then DyHub's (TaskStop), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or DyHub process is left. Balances are kept across a restart; starting clears them only when `wallet.json` was last saved more than 24 hours ago (`wallet.clearIfOlderThan`).
 
 ## Troubleshooting
 

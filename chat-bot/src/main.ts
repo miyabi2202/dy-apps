@@ -72,9 +72,9 @@ const roomApi = new DyhubRoomApi(port, roomId);
 const transcript = new Transcript();
 // Everything about the room lives in data/<房间号>/ (see roomFiles).
 const roomDir = join(resolve(options.dataDir), roomId);
-// Balances last one run: cleared on exit, and on start in case the last run didn't exit cleanly.
+// Balances outlast a restart: they're cleared on start only when last saved over a day ago.
 const wallet = new Wallet(jsonFileStorage(join(roomDir, 'wallet.json')));
-wallet.clear();
+wallet.clearIfOlderThan(24 * 60 * 60_000);
 // Everything said, chatted and gifted, 100 records a file; Claude may read this folder.
 const chatDir = join(roomDir, 'chat');
 mkdirSync(chatDir, { recursive: true });
@@ -401,7 +401,7 @@ const shutdown = () => {
   bot.stop();
   transcriber?.stop();
   autoReply.stop();
-  wallet.clear();
+  wallet.touch();
   log.on('finish', () => process.exit(0));
   log.end();
 };

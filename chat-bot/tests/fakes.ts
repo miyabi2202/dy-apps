@@ -28,7 +28,7 @@ export function gift(nickname: string, count: number, diamondCount: number): Gif
 
 /** A wallet kept in memory, starting from `accounts`. */
 export function memoryWallet(accounts: Record<string, Account> = {}) {
-  return new Wallet({ load: () => structuredClone(accounts), save: () => {} });
+  return new Wallet({ load: () => ({ accounts: structuredClone(accounts) }), save: () => {} });
 }
 
 /** Room events the test fires by hand. */

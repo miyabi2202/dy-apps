@@ -1,19 +1,26 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { Account, WalletStorage } from '../core/wallet';
+import type { Account, StoredWallet, WalletStorage } from '../core/wallet';
 
-/** Balances kept in a JSON file. */
+/**
+ * Balances kept in a JSON file, `{ "savedAt": <ms>, "accounts": { <user id>: … } }`; an older file
+ * that is just the accounts loads with no `savedAt`.
+ */
 export function jsonFileStorage(path: string): WalletStorage {
   return {
     load() {
       try {
-        return JSON.parse(readFileSync(path, 'utf8')) as Record<string, Account>;
+        const raw = JSON.parse(readFileSync(path, 'utf8')) as Partial<StoredWallet>;
+        if (typeof raw.accounts === 'object' && raw.accounts !== null) {
+          return { accounts: raw.accounts, savedAt: raw.savedAt };
+        }
+        return { accounts: raw as Record<string, Account> };
       } catch {
-        return {};
+        return { accounts: {} };
       }
     },
-    save(accounts) {
-      writeJsonAtomic(path, accounts);
+    save(wallet) {
+      writeJsonAtomic(path, wallet);
     },
   };
 }

@@ -9,7 +9,7 @@ import { solveCommand } from '../src/app/solve-command';
 import { MESSAGE_SCHEMA } from '../src/core/mention-answer';
 import type { AdditionalCommand, Question } from '../src/app/ports';
 import { ChatHistory } from '../src/core/chat-history';
-import { Wallet, type Account } from '../src/core/wallet';
+import type { Wallet } from '../src/core/wallet';
 import { fakeRoom } from './fake-room';
 import { BOT, chat, fakeEvents, fakeOutbox, gift, memoryWallet, silentLog } from './fakes';
 
@@ -365,18 +365,6 @@ test('/解题 is answered by its own Claude, from its own prompt, with a screens
   expect(asked[0]!.image).toBeDefined();
   expect(asked[0]!.schema).toEqual(MESSAGE_SCHEMA);
   expect(sent).toEqual(['@阿明 选C，按面积分']);
-});
-
-test('clearing the wallet forgets every balance', () => {
-  const saved: Record<string, Account>[] = [];
-  const wallet = new Wallet({
-    load: () => ({ 'u-阿明': { nickname: '阿明', gifted: 5, spent: 1 } }),
-    save: (accounts) => saved.push(structuredClone(accounts)),
-  });
-  wallet.clear();
-
-  expect(wallet.balance('u-阿明')).toBe(0);
-  expect(saved).toEqual([{}]);
 });
 
 test('a low-balance notice goes out while Claude is still answering someone else', async () => {

@@ -2,7 +2,7 @@ import { Billing } from '../src/app/billing';
 import { Wallet } from '../src/core/wallet';
 
 test('/修改收费 sets what a mention costs', async () => {
-  const wallet = new Wallet({ load: () => ({}), save: () => {} });
+  const wallet = new Wallet({ load: () => ({ accounts: {} }), save: () => {} });
   const billing = new Billing({ wallet, cost: 1 });
   const run = (args: string) => billing.commands()[0]?.run?.(args);
 
