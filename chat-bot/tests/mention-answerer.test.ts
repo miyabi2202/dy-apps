@@ -285,7 +285,7 @@ test('an answer that @s others sends each their own message, and counts those in
 test("the usual prompt's answer may @ someone else instead of the asker", async () => {
   const { ask, sent } = setup({
     answer: JSON.stringify({
-      message: '',
+      message: '招呼打好啦',
       others: [{ to: '🍄老杨', message: '杨叔早上好，谢谢山药' }],
       command_request: '',
       command_args: '',

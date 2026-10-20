@@ -207,10 +207,10 @@ export class MentionAnswerer {
           return;
         }
       }
-      const messages = replyMessages(mention.asker, answer, limits);
-      // Each of the others gets one message of their own, after the asker's: the usual prompt's
-      // answer may have them too (「跟杨叔打个招呼」).
+      // Each of the others gets one message of their own, after the asker's. The usual prompt's
+      // answer may have them too (「跟杨叔打个招呼」), and then says nothing to the asker.
       const others = usual || mention.atOthers ? parseOthers(raw) : [];
+      const messages = usual && others.length ? [] : replyMessages(mention.asker, answer, limits);
       const single = { ...limits, maxParts: 1 };
       // The others are known by nickname only: whoever said something under it most lately.
       const chat = [...mention.history, ...room.recentChat()].reverse();
