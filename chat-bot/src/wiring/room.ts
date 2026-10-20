@@ -133,6 +133,7 @@ export function registerRoom(container: Container): void {
         'The commands',
       );
       const gifts = c.resolve(GIFTS);
+      const roomConfig = c.resolve(ROOM_CONFIG);
       const room = new RoomState({
         history: c.resolve(HISTORY),
         gifts,
@@ -149,6 +150,7 @@ export function registerRoom(container: Container): void {
         screenshotsOn: options.screenshot,
         chatDir: c.resolve(CHAT_DIR),
         botName: options.botName,
+        aliases: () => roomConfig().aliases,
         // What prompts say around what they fill in, shared by every room.
         wording: liveWording(join(c.resolve(PACKAGE_DIR), 'wording.md')),
         // commands.md's list, and the room's own commands, which Claude asks for by name.

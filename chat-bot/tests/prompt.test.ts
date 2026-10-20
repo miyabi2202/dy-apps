@@ -49,3 +49,16 @@ test('{{today}} is the date and the weekday', () => {
     '2026-10-20 星期二 09:30:00',
   );
 });
+
+test('{{aliases}} says the room’s other names for the bot mean it too, and is nothing without any', () => {
+  expect(buildPrompt('{{persona}}{{aliases}}|', { ...input, persona: '小猫' })).toBe(
+    '你的人设是小猫|',
+  );
+  expect(buildPrompt('{{aliases}}', { ...input, aliases: [] })).toBe('');
+  const filled = buildPrompt('{{persona}}{{aliases}}', {
+    ...input,
+    persona: '小猫',
+    aliases: ['Fairy', '菲瑞'],
+  });
+  expect(filled).toMatch(/^你的人设是小猫\n.*「Fairy、菲瑞」/);
+});

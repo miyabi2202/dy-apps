@@ -76,6 +76,8 @@ export interface Question {
   maxTurns?: number;
   /** A JSON Schema the answer must follow: the answer is then that JSON. */
   schema?: object;
+  /** Why it's asked, for the log (`alias`, `judge`…); the models ignore it. */
+  why?: string;
 }
 
 /** Asks a model (Claude or Codex) one question and resolves with its answer. */

@@ -24,6 +24,8 @@ export interface RoomConfig {
   private: boolean;
   /** What the bot says, now and then, as the streamer starts a song (`on_sing`); none when absent. */
   onSing?: OnSingConfig;
+  /** Other names viewers and the streamer call the bot (`aliases`), as speech recognition may write them. */
+  aliases: string[];
 }
 
 /** The room's streamer, which the bot writes into `room_config.json` once it knows. */
@@ -32,7 +34,7 @@ export interface Streamer {
   nickname: string;
 }
 
-const DEFAULT_ROOM_CONFIG: RoomConfig = { private: false };
+const DEFAULT_ROOM_CONFIG: RoomConfig = { private: false, aliases: [] };
 
 /**
  * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and `wallet.json`): an
@@ -51,7 +53,7 @@ export function roomFiles(dir: string): RoomFiles {
   };
   if (!existsSync(files.context)) writeFileSync(files.context, '');
   if (!existsSync(files.config)) {
-    writeFileSync(files.config, `${JSON.stringify(DEFAULT_ROOM_CONFIG, null, 2)}\n`);
+    writeFileSync(files.config, `${JSON.stringify({ private: false }, null, 2)}\n`);
   }
   return files;
 }
@@ -71,11 +73,11 @@ export function liveRoomConfig(
       const text = read(path);
       if (text === seen) return config;
       seen = text;
-      const raw = JSON.parse(text) as { private?: unknown; on_sing?: unknown };
+      const raw = JSON.parse(text) as { private?: unknown; on_sing?: unknown; aliases?: unknown };
       const isPrivate = raw.private ?? false;
       if (typeof isPrivate !== 'boolean') throw new Error('private must be true or false');
       const onSing = raw.on_sing === undefined ? undefined : onSingConfig(raw.on_sing);
-      config = { private: isPrivate, ...(onSing && { onSing }) };
+      config = { private: isPrivate, ...(onSing && { onSing }), aliases: aliasList(raw.aliases) };
       log.info('room config', { ...config });
     } catch (err) {
       log.warn('could not read room_config.json, keeping the last settings', {
@@ -84,6 +86,15 @@ export function liveRoomConfig(
     }
     return config;
   };
+}
+
+/** `aliases` as a list of names (none when absent), or an error saying what's wrong with it. */
+function aliasList(raw: unknown): string[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || !raw.every((name) => typeof name === 'string')) {
+    throw new Error('aliases must be a list of names, like ["Fairy", "菲瑞"]');
+  }
+  return raw.map((name) => name.trim()).filter(Boolean);
 }
 
 /** `on_sing` as a OnSingConfig, or an error saying what's wrong with it. */

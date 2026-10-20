@@ -5,6 +5,8 @@ import type { AskModel, Judge, Log } from './ports';
 export interface ModelTask {
   model: 'claude' | 'codex' | 'jev';
   task: string;
+  /** Why this call, when the task has more than one reason to be asked (see Question.why). */
+  why?: string;
 }
 
 /**
@@ -13,21 +15,26 @@ export interface ModelTask {
  * call ran and what it cost in time. Jev, asked every few seconds, logs at debug.
  */
 function timed<T>(
-  { model, task }: ModelTask,
+  { model, task, why }: ModelTask,
   log: Log,
   now: () => number,
   call: () => Promise<T>,
 ): Promise<T> {
   const level = model === 'jev' ? 'debug' : 'info';
   const started = now();
-  log[level](`${model} asking`, { task });
+  log[level](`${model} asking`, { task, ...(why && { why }) });
   return call().then(
     (answer) => {
-      log[level](`${model} answered`, { task, ms: now() - started });
+      log[level](`${model} answered`, { task, ...(why && { why }), ms: now() - started });
       return answer;
     },
     (err: unknown) => {
-      log.warn(`${model} failed`, { task, ms: now() - started, error: errorMessage(err) });
+      log.warn(`${model} failed`, {
+        task,
+        ...(why && { why }),
+        ms: now() - started,
+        error: errorMessage(err),
+      });
       throw err;
     },
   );
@@ -35,7 +42,8 @@ function timed<T>(
 
 /** `ask`, logged as `what` (see timed). */
 export function timedAsk(what: ModelTask, ask: AskModel, log: Log, now = Date.now): AskModel {
-  return (question) => timed(what, log, now, () => ask(question));
+  return (question) =>
+    timed(question.why ? { ...what, why: question.why } : what, log, now, () => ask(question));
 }
 
 /** `judge`, logged as `what` (see timed). */

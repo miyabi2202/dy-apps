@@ -30,6 +30,7 @@ test('gives every prompt the room as it is now: chat, recent speech, persona, co
 
   expect(room.promptInput()).toEqual({
     wording: testWording,
+    aliases: [],
     history: [
       { ts: NOW, userId: 'u-1', nickname: '阿明', content: '二' },
       { ts: NOW, userId: 'u-1', nickname: '阿明', content: '三' },

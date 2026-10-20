@@ -98,9 +98,11 @@ export function pickPrompt(
     persona: string;
     botTalk: string;
     commands?: readonly { id: string; when: string }[];
+    /** The room's other names for the bot. */
+    aliases?: readonly string[];
   },
 ): string {
-  const { commands = [], ...rest } = values;
+  const { commands = [], aliases = [], ...rest } = values;
   const all: Record<string, string> = {
     ...rest,
     commands: commands.length
@@ -113,6 +115,7 @@ export function pickPrompt(
         ].join('\n')
       : '',
     persona: values.persona ? `它的人设：${values.persona}。` : '',
+    aliases: aliases.length ? wording('aliases-it', { names: aliases.join('、') }) : '',
     botTalk: values.botTalk.trim() || '（暂无）',
     readMark: readMark('某人'),
   };

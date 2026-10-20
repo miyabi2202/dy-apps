@@ -29,25 +29,27 @@ test('room_config.json starts not private, and is read again as it changes', () 
   expect(JSON.parse(readFileSync(config, 'utf8'))).toEqual({ private: false });
   const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
   const roomConfig = liveRoomConfig(config, { log });
-  expect(roomConfig()).toEqual({ private: false });
+  expect(roomConfig()).toEqual({ private: false, aliases: [] });
 
   writeFileSync(config, '{ "private": true }');
-  expect(roomConfig()).toEqual({ private: true });
+  expect(roomConfig()).toEqual({ private: true, aliases: [] });
 
   writeFileSync(config, '{ "private": "yes" }');
-  expect(roomConfig()).toEqual({ private: true });
+  expect(roomConfig()).toEqual({ private: true, aliases: [] });
   expect(log.warn).toHaveBeenCalled();
 
   writeFileSync(config, '{ "on_sing": { "message": "缇娅 缇娅", "probability": 0.67 } }');
   expect(roomConfig()).toEqual({
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
+    aliases: [],
   });
 
   writeFileSync(config, '{ "on_sing": { "message": "缇娅 缇娅", "probability": "2/3" } }');
   expect(roomConfig()).toEqual({
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
+    aliases: [],
   });
 });
 
@@ -60,7 +62,7 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
     private: true,
     streamer: { nickname: '晨曦FM ⁹⁰¹', uid: '7500039236442915865' },
   });
-  expect(liveRoomConfig(config, { log })()).toEqual({ private: true });
+  expect(liveRoomConfig(config, { log })()).toEqual({ private: true, aliases: [] });
 
   writeFileSync(config, '{ "private": ');
   saveStreamer(config, { uid: '1', nickname: '阿明' }, { log });
@@ -118,4 +120,21 @@ describe('livePrompt', () => {
     const { packageDir, roomDir } = dirs();
     expect(() => livePrompt('replyPick', { packageDir, roomDir })).toThrow();
   });
+});
+
+const noLog = { debug() {}, info() {}, warn() {}, error() {} };
+
+test("room_config.json's aliases are the other names of the bot, read again as they change", () => {
+  const { config } = roomFiles(mkdtempSync(join(tmpdir(), 'room-files-')));
+  const warned: string[] = [];
+  const log = { ...noLog, warn: (message: string) => void warned.push(message) };
+  const roomConfig = liveRoomConfig(config, { log });
+
+  writeFileSync(config, '{ "aliases": ["Fairy", " 菲瑞 ", ""] }');
+  expect(roomConfig().aliases).toEqual(['Fairy', '菲瑞']);
+  writeFileSync(config, '{ "aliases": "Fairy" }');
+  expect(roomConfig().aliases).toEqual(['Fairy', '菲瑞']);
+  expect(warned).toEqual(['could not read room_config.json, keeping the last settings']);
+  writeFileSync(config, '{}');
+  expect(roomConfig().aliases).toEqual([]);
 });

@@ -22,6 +22,8 @@ export interface RoomPromptInput {
   persona?: string;
   /** The bot's own nickname, to spot its own messages in the chat. */
   botName?: string;
+  /** Other names the bot is called in this room, which mean it too. */
+  aliases?: readonly string[];
   /** Background on the room: who the streamer is, what's talked about, what to mind. */
   context?: string;
   /** What the bot says about itself when asked: who made it, what it can and can't do. */
@@ -124,7 +126,7 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
  * `unprompted`, that it heard them talk to or about it), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
  * most the answer may use over several, `{{now}}` the time, `{{today}}` the date and weekday
  * (`2026-10-20 星期二`), `{{chatDir}}` the folder of chat
- * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{botName}}`
+ * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{aliases}}` a line saying the room's other names for the bot mean it too (empty without any), `{{botName}}`
  * the bot's own nickname, `{{context}}` the room's background under a heading (empty
  * without one), `{{intro}}` what the bot says about itself, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
@@ -161,6 +163,9 @@ export function buildPrompt(template: string, input: PromptInput): string {
     today: localDate(now),
     chatDir: chatDir ?? '（无）',
     persona: persona ? `你的人设是${persona}` : '',
+    aliases: input.aliases?.length
+      ? `\n${wording('aliases-you', { names: input.aliases.join('、') })}`
+      : '',
     botName: botName ?? '',
     context: context?.trim() ? wording('context', { context: context.trim() }) : '',
     intro: intro?.trim() ? wording('intro', { intro: intro.trim() }) : '',

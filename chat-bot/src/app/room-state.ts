@@ -47,6 +47,8 @@ export interface RoomStateOptions {
   chatDir?: string;
   /** The sentences prompts say around what they fill in (wording.md), read each time. */
   wording: Wording;
+  /** Other names the bot is called in this room (room_config.json's `aliases`), read each time. */
+  aliases?: () => readonly string[];
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
   botName: string;
   /** The commands viewers can run, for `{{commands}}`, read each time so edits apply at once. */
@@ -93,6 +95,11 @@ export class RoomState {
     return this.clock();
   }
 
+  /** Other names the bot is called in this room, which mean it too. */
+  aliases(): readonly string[] {
+    return this.options.aliases?.() ?? [];
+  }
+
   /** The room's recent chat, oldest first. */
   recentChat(): ChatLine[] {
     return this.options.history.recent();
@@ -123,6 +130,7 @@ export class RoomState {
     const { chatDir, context, intro, botTalk, commands } = this.options;
     return {
       wording: this.wording,
+      aliases: this.aliases(),
       history: this.recentChat(),
       gifts: this.options.gifts?.recent(this.now()),
       transcript: this.recentTranscript(),

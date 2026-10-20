@@ -73,12 +73,14 @@ export function relevanceRequest(
   persona: string,
   wording: Wording,
   topics: readonly string[] = [],
+  aliases: readonly string[] = [],
 ): RelevanceRequest {
   const line = (l: RoomLine) => `${clock(l.ts)} [${l.who}] ${l.text}`;
   const state = [
     wording('relevance-state', {
       botName,
       persona: persona ? `它的人设：${persona}。` : '',
+      aliases: aliases.length ? wording('aliases-it', { names: aliases.join('、') }) : '',
       readMark: readMark('某人'),
     }),
     '',

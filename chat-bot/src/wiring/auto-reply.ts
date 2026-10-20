@@ -58,6 +58,7 @@ export function registerAutoReply(container: Container): void {
       room.addSettings(() => autoReply.settings());
       // A chat matching a room command's trigger has auto-reply look now, not at its next check.
       bus.on('chat', (chat) => autoReply.hear(chat));
+      bus.on('heard', (line) => autoReply.hearSpeech(line));
       // What someone says next, after the bot answered them, goes straight to the picker for a
       // minute: it's likely a reply.
       bus.on('answered', ({ userId }) => autoReply.answered(userId));

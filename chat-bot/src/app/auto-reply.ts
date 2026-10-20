@@ -1,3 +1,4 @@
+import { matchName } from '../core/alias';
 import { errorMessage, OutOfCreditError } from '../core/errors';
 import {
   lineKey,
@@ -126,10 +127,29 @@ export class AutoReply {
   hear({ userId, content }: { userId?: string; content: string }): void {
     if (this.threshold >= 1 || userId === undefined) return;
     const { additionalCommands = [] } = this.options;
-    if (!additionalCommands.some((command) => matchFor(command, content))) return;
+    const named = matchName(content, this.names()) !== undefined;
+    if (!named && !additionalCommands.some((command) => matchFor(command, content))) return;
+    this.lookAtOnce(content);
+  }
+
+  /**
+   * The streamer said something: one with the bot's name or an alias in it (「Fairy 你来唱一首」,
+   * as speech recognition wrote it) is surely about the bot, so it looks now, like for a chat.
+   */
+  hearSpeech({ text }: { text: string }): void {
+    if (this.threshold >= 1 || matchName(text, this.names()) === undefined) return;
+    this.lookAtOnce(text);
+  }
+
+  private lookAtOnce(content: string): void {
     this.options.log.debug('looking now', { content });
     if (this.waiting) this.wake();
     else this.lookNow = true;
+  }
+
+  /** The names that mean the bot: its nickname, and the room's aliases for it. */
+  private names(): string[] {
+    return [this.options.room.botName, ...this.options.room.aliases()];
   }
 
   /**
@@ -206,15 +226,24 @@ export class AutoReply {
     if (!fresh.length) return;
     // What someone the bot just answered says goes to the picker as it is; the rest, to the judge.
     const following = fresh.filter((line) => this.followsUp(line));
+    // Someone calling the bot by its name or an alias is about it without asking the judge too;
+    // the picker still decides whether to answer.
+    const names = this.names();
+    const aliased = new Map<string, string>();
+    for (const line of fresh) {
+      const alias = matchName(line.text, names);
+      if (alias !== undefined) aliased.set(lineKey(line), alias);
+    }
+    const direct = fresh.filter((line) => following.includes(line) || aliased.has(lineKey(line)));
     const judged = await this.judge(
       lines,
-      fresh.filter((line) => !following.includes(line)),
+      fresh.filter((line) => !direct.includes(line)),
     );
     // Jev failing doesn't lose the follow-ups, which never needed it (unless it ran out of money,
     // which turned auto-reply off).
-    if (judged === null && (!following.length || this.threshold >= 1)) return;
+    if (judged === null && (!direct.length || this.threshold >= 1)) return;
     const { about, toBot, best } = judged ?? { about: [], toBot: [], best: null };
-    if (!about.length && !following.length) return;
+    if (!about.length && !direct.length) return;
     if (best) {
       log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });
     }
@@ -222,11 +251,17 @@ export class AutoReply {
       log.info('following up', { lines: following.map(({ who, text }) => ({ who, text })) });
     }
     // The quiet time starts only if it answered someone: picking nobody leaves it free to listen.
-    const picked = await this.pickAndReply(
-      since,
-      [...about, ...following],
-      [...toBot, ...following],
-    );
+    const why = aliased.size
+      ? 'alias'
+      : following.length
+        ? 'follow-up'
+        : about.some((line) => !toBot.includes(line))
+          ? 'trigger'
+          : 'judge';
+    const picked = await this.pickAndReply(since, [...about, ...direct], [...toBot, ...direct], {
+      why,
+      aliased,
+    });
     if (picked > 0) this.talkedAt = room.now();
   }
 
@@ -254,6 +289,7 @@ export class AutoReply {
       room.persona,
       room.wording,
       additionalCommands.map(({ when }) => when),
+      room.aliases(),
     );
     let scores: Record<string, number>;
     try {
@@ -299,6 +335,7 @@ export class AutoReply {
     since: number,
     about: readonly RoomLine[],
     chatty: readonly RoomLine[],
+    { why, aliased }: { why: string; aliased: ReadonlyMap<string, string> },
   ): Promise<number> {
     const { room, log, picker, pickTemplate, reply } = this.options;
     const streamer = this.options.streamer();
@@ -328,12 +365,38 @@ export class AutoReply {
       persona: room.persona,
       botTalk: room.botTalk(),
       commands: this.options.additionalCommands,
+      aliases: room.aliases(),
     });
-    let picks: ReplyPick[] | null;
+    // The lines that came for the bot's name or an alias, for the log: how often that's right.
+    const named = numbered.filter((line) => aliased.has(lineKey(line)));
+    for (const line of named) {
+      log.info('alias matched', {
+        alias: aliased.get(lineKey(line)),
+        who: line.who,
+        text: line.text,
+      });
+    }
+    const aliasPick = (picked: readonly { userId: string; question: string }[], fail?: string) => {
+      for (const line of named) {
+        const n = numbered.indexOf(line) + 1;
+        const confidence = picks?.find((p) => p.line === n)?.confidence;
+        const answered = picked.some(
+          (t) => t.question === line.text && t.userId === (line.userId ?? streamer?.uid),
+        );
+        log.info('alias pick', {
+          alias: aliased.get(lineKey(line)),
+          text: line.text,
+          answered,
+          confidence,
+          ...(fail && { error: fail }),
+        });
+      }
+    };
+    let picks: ReplyPick[] | null = null;
     try {
       ({ value: picks } = await askJson(
         picker,
-        { prompt },
+        { prompt, why },
         {
           schema: REPLY_PICK_SCHEMA,
           parse: parseReplyPick,
@@ -344,9 +407,13 @@ export class AutoReply {
       ));
     } catch (err) {
       log.warn('could not pick whom to answer', { error: errorMessage(err) });
+      aliasPick([], errorMessage(err));
       return 0;
     }
-    if (!picks) return 0;
+    if (!picks) {
+      aliasPick([], 'the answer is not json');
+      return 0;
+    }
     log.debug('picks', {
       picks: picks.map(({ line, confidence }) => ({ text: numbered[line - 1]?.text, confidence })),
     });
@@ -363,6 +430,7 @@ export class AutoReply {
           ?.id,
       note: (message, meta) => log.debug(message, meta),
     });
+    aliasPick(picked);
     log.info('picked whom to answer', {
       picked: picked.map(({ nickname, question, confidence, command }) => ({
         nickname,
