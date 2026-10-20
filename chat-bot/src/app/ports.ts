@@ -2,6 +2,7 @@
  * What the bot needs from the outside world. `adapters/` implements these with DyHub, the Claude
  * CLI, files and processes; tests pass fakes.
  */
+import type { AdditionalCommandEntry } from '../core/additional-command';
 import type { ChatRecord } from '../core/chat-record';
 import type { Gift, IncomingChat } from '../core/room-events';
 import type { Exchange } from '../core/talk-record';
@@ -115,29 +116,15 @@ export type SpawnWorker = (
  * asked for in so many words, or picked for what someone said without an @, it's answered with
  * its own prompt, like a mention.
  */
-export interface AdditionalCommand {
-  /** Its file's name without `.md`, which the picker and Claude call it by: can-sing. */
-  id: string;
-  /** What it's for, as viewers would say it: 主播会唱xxx吗. */
-  name: string;
-  /** When to use it: 在问主播会不会唱某首歌…. */
-  when: string;
-  /** What's said that's surely for it, even when the judge doesn't think so; null for none. */
-  trigger: RegExp | null;
+export type AdditionalCommand = Omit<AdditionalCommandEntry, 'prompt' | 'mentions'> & {
   /** The prompt, its song list filled in, read each time so edits apply at once. */
   prompt: () => string;
-  /** Diamonds an answer costs a viewer (0 free; admins never pay); what an @ costs when not set. */
-  price?: number;
   /**
    * Which of the command's `mentions` phrases (a song list's titles, say) `text` contains, read as
    * they are now; null for none, or when it has none.
    */
   mentioned?: (text: string) => string | null;
-  /** Only admins (and the streamer) may have it answered. */
-  adminOnly?: boolean;
-  /** Its answer may @ others too, each in a message of their own. */
-  atOthers?: boolean;
-}
+};
 
 /** What the bot says when the streamer starts a song (a cheer, say). */
 export interface OnSingConfig {
