@@ -96,3 +96,51 @@ export function relevanceRequest(
   );
   return { state, questions };
 }
+
+/** The key of `line` that stays the same when the room's lines are made again from the chat. */
+export const lineKey = (line: RoomLine): string => `${line.ts} ${line.who} ${line.text}`;
+
+/** What the judge's scores made of the new lines. */
+export interface Relevance {
+  /** The lines at least `threshold` likely about the bot or for a room command, or matching a trigger. */
+  about: RoomLine[];
+  /** Of them, those about the bot itself. */
+  toBot: RoomLine[];
+  /** The likeliest of all of `fresh`, to log. */
+  best: { line: RoomLine; score: number };
+}
+
+/**
+ * The judge's `scores` (by question key, see relevanceRequest) for the `fresh` lines, given
+ * `topics` room commands. A line's score is the likeliest of what it may be: about the bot, or
+ * for one of the commands; one `triggered` (matching a command's trigger) is taken as for it.
+ * `fresh` isn't empty.
+ */
+export function scoreRelevance(
+  fresh: readonly RoomLine[],
+  scores: Readonly<Record<string, number>>,
+  {
+    threshold,
+    topics,
+    triggered,
+  }: { threshold: number; topics: number; triggered: (line: RoomLine) => boolean },
+): Relevance {
+  const scored = fresh.map((line, i) => {
+    const asked = [`q${i + 1}`, ...Array.from({ length: topics }, (_, j) => `q${i + 1}t${j + 1}`)];
+    const score = Math.max(...asked.map((key) => scores[key] ?? 0));
+    return {
+      line,
+      score,
+      toBot: (scores[`q${i + 1}`] ?? 0) >= threshold,
+      triggered: triggered(line),
+    };
+  });
+  const best = scored.reduce((a, b) => (b.score > a.score ? b : a));
+  return {
+    about: scored
+      .filter(({ score, triggered }) => score >= threshold || triggered)
+      .map(({ line }) => line),
+    toBot: scored.filter((s) => s.toBot).map(({ line }) => line),
+    best: { line: best.line, score: best.score },
+  };
+}

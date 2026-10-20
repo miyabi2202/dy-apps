@@ -1,5 +1,6 @@
 import { parseJsonObject } from './json-answer';
 import { clock } from './local-time';
+import type { Heard } from './prompt';
 import { readMark } from './reading';
 import type { RoomLine } from './relevance';
 
@@ -114,4 +115,85 @@ export function pickPrompt(
     readMark: readMark('某人'),
   };
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => all[key] ?? match);
+}
+
+/** What the bot heard someone say to or about it without an @, to answer unprompted. */
+export interface UnpromptedReply {
+  nickname: string;
+  userId: string;
+  /** What they said. */
+  question: string;
+  /** In the chat, or (the streamer) on the stream. */
+  heard: Heard;
+  /** The room's own command to answer it with (AdditionalCommand's id); the usual prompt without. */
+  command?: string;
+}
+
+/** What `chooseTargets` needs to know about the room. */
+export interface TargetRules {
+  /** A pick is acted on only if it's at least this sure. */
+  threshold: number;
+  /** At most this many are answered. */
+  max: number;
+  /** The streamer, so what they said on the stream is answered as theirs; null while unknown. */
+  streamer: { uid: string; nickname: string } | null;
+  /** The ids of the room's own commands. */
+  commandIds: ReadonlySet<string>;
+  /** Whether `line` may be answered as usual: the judge found it about the bot, or it follows up. */
+  chatty: (line: RoomLine) => boolean;
+  /** The id of the room command `line` came for (its trigger, its mentions), if any. */
+  cameFor: (line: RoomLine) => string | undefined;
+  /** Told why a pick was dropped or sent to a command, for the log. */
+  note: (message: string, meta: object) => void;
+}
+
+/**
+ * Whom to answer, of the `picks` the picker made of the `numbered` lines: only what it's sure
+ * enough of, surest first, one answer for each person (the first, so the surest), at most
+ * `max`, as the chatter's or (said on the stream) the streamer's. A command the room doesn't have
+ * is answered as usual. A line that came only for a room command (its trigger or mentions) and
+ * was picked to be answered as usual goes to that command instead, which knows its data and sends
+ * nothing when it isn't for it; one that isn't about the bot and has no command is dropped.
+ */
+export function chooseTargets(
+  picks: readonly Pick[],
+  numbered: readonly RoomLine[],
+  { threshold, max, streamer, commandIds, chatty, cameFor, note }: TargetRules,
+): (UnpromptedReply & { confidence: number })[] {
+  const targets = new Map<string, UnpromptedReply & { confidence: number }>();
+  const sure = picks
+    .filter(({ confidence }) => confidence >= threshold)
+    .sort((a, b) => b.confidence - a.confidence);
+  for (const { line: n, confidence, command } of sure) {
+    const line = numbered[n - 1];
+    if (!line) continue;
+    let withCommand: { command?: string } = commandIds.has(command) ? { command } : {};
+    if (!withCommand.command && !chatty(line)) {
+      const matched = cameFor(line);
+      if (!matched) {
+        note('pick dropped: not about the bot, and no command', { text: line.text });
+        continue;
+      }
+      note('pick handed to the command it came for', { text: line.text, command: matched });
+      withCommand = { command: matched };
+    }
+    const target: UnpromptedReply | null = line.userId
+      ? {
+          nickname: line.who,
+          userId: line.userId,
+          question: line.text,
+          heard: 'chat',
+          ...withCommand,
+        }
+      : streamer && {
+          nickname: streamer.nickname,
+          userId: streamer.uid,
+          question: line.text,
+          heard: 'speech',
+          ...withCommand,
+        };
+    if (target && !targets.has(target.userId))
+      targets.set(target.userId, { ...target, confidence });
+  }
+  return [...targets.values()].slice(0, max);
 }

@@ -14,6 +14,7 @@ import {
   parseMentionAnswer,
   parseOthers,
 } from '../core/mention-answer';
+import type { UnpromptedReply } from '../core/reply-pick';
 import type { ChatLine } from '../core/room-events';
 import type { Billing } from './billing';
 import type { PromptOptions } from './command';
@@ -45,17 +46,7 @@ export interface Mention extends PromptOptions {
   ifEmpty?: () => void;
 }
 
-/** What the bot heard someone say to or about it without an @, to answer unprompted. */
-export interface UnpromptedReply {
-  nickname: string;
-  userId: string;
-  /** What they said. */
-  question: string;
-  /** In the chat, or (the streamer) on the stream. */
-  heard: Heard;
-  /** The room's own command to answer it with (AdditionalCommand's id); the usual prompt without. */
-  command?: string;
-}
+export type { UnpromptedReply };
 
 /** Gives `mention`'s price back to whoever paid it, if anything was paid. */
 export function refundMention(

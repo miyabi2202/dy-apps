@@ -1,15 +1,22 @@
 import { errorMessage, OutOfCreditError } from '../core/errors';
-import { relevanceRequest, roomLines, type RoomLine } from '../core/relevance';
 import {
+  lineKey,
+  relevanceRequest,
+  roomLines,
+  scoreRelevance,
+  type RoomLine,
+} from '../core/relevance';
+import {
+  chooseTargets,
   parseReplyPick,
   type Pick as ReplyPick,
   pickLines,
   pickPrompt,
   REPLY_PICK_SCHEMA,
+  type UnpromptedReply,
 } from '../core/reply-pick';
 import { askJson } from './ask-json';
 import { done, failed, type Command } from './command';
-import type { UnpromptedReply } from './mention-answerer';
 import type { Outbox } from './outbox';
 import type { AdditionalCommand, AskModel, FindStreamer, Judge, Log } from './ports';
 import type { RoomState } from './room-state';
@@ -255,22 +262,14 @@ export class AutoReply {
       else log.warn('could not judge', { error: errorMessage(err) });
       return null;
     }
-    // A line's score is the likeliest of what it may be: about the bot, or for one of the commands.
-    // A chat matching a command's trigger is taken as for it.
-    const scored = fresh.map((line, i) => {
-      const asked = [`q${i + 1}`, ...additionalCommands.map((_, j) => `q${i + 1}t${j + 1}`)];
-      const triggered =
+    const { about, toBot, best } = scoreRelevance(fresh, scores, {
+      threshold: this.threshold,
+      topics: additionalCommands.length,
+      triggered: (line) =>
         line.userId !== undefined &&
-        additionalCommands.some((command) => matchFor(command, line.text));
-      const score = Math.max(...asked.map((key) => scores[key] ?? 0));
-      return { line, score, toBot: (scores[`q${i + 1}`] ?? 0) >= this.threshold, triggered };
+        additionalCommands.some((command) => matchFor(command, line.text)),
     });
-    const best = scored.reduce((a, b) => (b.score > a.score ? b : a));
     log.debug('judged', { lines: fresh.length, best: best.line.text, score: best.score });
-    const about = scored
-      .filter(({ score, triggered }) => score >= this.threshold || triggered)
-      .map(({ line }) => line);
-    const toBot = scored.filter((s) => s.toBot).map(({ line }) => line);
     return { about, toBot, best: about.length ? best : null };
   }
 
@@ -305,16 +304,15 @@ export class AutoReply {
     const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName).slice(
       -PICK_LINES,
     );
-    const key = (line: RoomLine) => `${line.ts} ${line.who} ${line.text}`;
-    const aboutKeys = new Set(about.map(key));
-    const chattyKeys = new Set(chatty.map(key));
+    const aboutKeys = new Set(about.map(lineKey));
+    const chattyKeys = new Set(chatty.map(lineKey));
     const { text, numbered } = pickLines(
       lines,
       (line) =>
         line.candidate &&
         line.ts > since &&
         (line.userId !== undefined || (line.who === '主播' && streamer !== null)),
-      new Set(lines.filter((line) => aboutKeys.has(key(line)))),
+      new Set(lines.filter((line) => aboutKeys.has(lineKey(line)))),
       (line) =>
         line.userId === undefined
           ? []
@@ -352,51 +350,18 @@ export class AutoReply {
       picks: picks.map(({ line, confidence }) => ({ text: numbered[line - 1]?.text, confidence })),
     });
     // Only what it's sure enough of (the same threshold as the judge's), surest first, one each.
-    const targets = new Map<string, UnpromptedReply & { confidence: number }>();
-    const sure = picks
-      .filter(({ confidence }) => confidence >= this.threshold)
-      .sort((a, b) => b.confidence - a.confidence);
-    const commandIds = new Set((this.options.additionalCommands ?? []).map(({ id }) => id));
-    for (const { line: n, confidence, command } of sure) {
-      const line = numbered[n - 1];
-      if (!line) continue;
-      // A command the room doesn't have is answered as usual. A line that came only for a room
-      // command (its trigger or mentions) and was picked to be answered as usual goes to that
-      // command instead, which knows its data and sends nothing when it isn't for it.
-      let withCommand: { command?: string } = commandIds.has(command) ? { command } : {};
-      if (!withCommand.command && !chattyKeys.has(key(line))) {
-        const matched = (this.options.additionalCommands ?? []).find(
-          (c) => line.userId !== undefined && matchFor(c, line.text) !== null,
-        );
-        if (!matched) {
-          log.debug('pick dropped: not about the bot, and no command', { text: line.text });
-          continue;
-        }
-        log.debug('pick handed to the command it came for', {
-          text: line.text,
-          command: matched.id,
-        });
-        withCommand = { command: matched.id };
-      }
-      const target: UnpromptedReply | null = line.userId
-        ? {
-            nickname: line.who,
-            userId: line.userId,
-            question: line.text,
-            heard: 'chat',
-            ...withCommand,
-          }
-        : streamer && {
-            nickname: streamer.nickname,
-            userId: streamer.uid,
-            question: line.text,
-            heard: 'speech',
-            ...withCommand,
-          };
-      if (target && !targets.has(target.userId))
-        targets.set(target.userId, { ...target, confidence });
-    }
-    const picked = [...targets.values()].slice(0, MAX_PICKS);
+    const { additionalCommands = [] } = this.options;
+    const picked = chooseTargets(picks, numbered, {
+      threshold: this.threshold,
+      max: MAX_PICKS,
+      streamer,
+      commandIds: new Set(additionalCommands.map(({ id }) => id)),
+      chatty: (line) => chattyKeys.has(lineKey(line)),
+      cameFor: (line) =>
+        additionalCommands.find((c) => line.userId !== undefined && matchFor(c, line.text) !== null)
+          ?.id,
+      note: (message, meta) => log.debug(message, meta),
+    });
     log.info('picked whom to answer', {
       picked: picked.map(({ nickname, question, confidence, command }) => ({
         nickname,
