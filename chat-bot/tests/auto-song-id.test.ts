@@ -14,6 +14,7 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
   const sent: string[] = [];
   const prompts: string[] = [];
   const named = new Map<string, number>();
+  let last: { song: SongAnswer; at: number } | undefined;
   const tries: Promise<unknown>[] = [];
   const auto = new AutoSongId({
     songId: {
@@ -29,7 +30,11 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
         return done;
       },
       namedAt: (title) => named.get(title),
-      told: ({ title }) => named.set(title, now),
+      lastTold: () => last,
+      told: (song) => {
+        named.set(song.title, now);
+        last = { song, at: now };
+      },
     },
     room: fakeRoom({ transcript, now: () => now }),
     outbox: { push: ({ text }) => sent.push(text) },
@@ -76,6 +81,9 @@ test('names it again every 3 minutes of singing on, but never says the same song
 
   expect(prompts).toHaveLength(3);
   expect(sent).toEqual(['这首是《晴天》', '这首是《七里香》']);
+  // Asked again, it's told what it named last, so the model can tell it's still that song.
+  expect(prompts[0]).not.toMatch(/已经说过/);
+  expect(prompts[1]).toMatch(/你 3 分钟前已经说过这首是《晴天》。.*除非|只有上次说错了/);
 });
 
 test('/自动识歌 turns it on and off; off, it names nothing', async () => {

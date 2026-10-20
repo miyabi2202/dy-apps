@@ -21,6 +21,8 @@ export interface SongIdOptions {
 export class SongId {
   /** When each song it named was last named, by title. */
   private readonly named = new Map<string, number>();
+  /** The last song it told the room, and when. */
+  private last: { song: SongAnswer; at: number } | undefined;
 
   constructor(private readonly options: SongIdOptions) {}
 
@@ -52,10 +54,17 @@ export class SongId {
     return this.named.get(title);
   }
 
+  /** The last song told to the room (by /识歌 or on its own), and when; undefined for none yet. */
+  lastTold(): { song: SongAnswer; at: number } | undefined {
+    return this.last;
+  }
+
   /** Remembers that `song` was told to the room now (when it's sure of it), and says so. */
   told(song: SongAnswer): void {
     if (!song.title || !song.sure) return;
-    this.named.set(song.title, (this.options.now ?? Date.now)());
+    const at = (this.options.now ?? Date.now)();
+    this.named.set(song.title, at);
+    this.last = { song, at };
     this.options.onTold?.(song);
   }
 
