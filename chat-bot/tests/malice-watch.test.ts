@@ -44,39 +44,31 @@ function setup(scores: Record<string, number>, malicious: string[], answer?: str
 // A 私密 room's viewer, as the adapter gives them.
 const HIDDEN = '111111-不***-25';
 
-test('@s a viewer found malicious twice within 5 minutes, never one found once', async () => {
+test('@s whoever sends a chat the model finds malicious, among those Jev lets through', async () => {
   const bad = ['玩的还很花[看]', '主包是劳女[比心]', '主包玩的比较花[调皮]'] as const;
   const { say, sent, prompts } = setup(
-    { [bad[0]]: 0.77, [bad[1]]: 0.74, [bad[2]]: 0.69, 感觉她胖了: 0.8, 笑死: 0.04 },
-    [bad[1], bad[2], '感觉她胖了'],
+    { [bad[0]]: 0.77, [bad[1]]: 0.74, [bad[2]]: 0.69, 笑死: 0.04 },
+    [bad[1], bad[2]],
   );
-  await say(0, 'u-1', '海老', '感觉她胖了');
   await say(10, 'u-2', 'C***', '笑死');
   await say(20, HIDDEN, '不***', bad[0]);
-  await say(50, HIDDEN, '不***', bad[1]);
   expect(sent).toEqual([]);
+  await say(50, HIDDEN, '不***', bad[1]);
   await say(60, HIDDEN, '不***', bad[2]);
-  expect(sent).toEqual(['@不*** 检测到恶意言论']);
+  expect(sent).toEqual(['@不*** 检测到恶意言论', '@不*** 检测到恶意言论']);
   // Jev let 笑死 go by, so the model never saw it; it sees what came before, and the viewer's own.
-  expect(prompts).toHaveLength(4);
-  expect(prompts[3]).toContain('C***: 笑死');
-  expect(prompts[3]).toContain(`${bad[0]}\n${bad[1]}\n【要判断的弹幕】不***：${bad[2]}`);
-  // The one-off, much later, is a first strike again.
-  await say(600, 'u-1', '海老', '感觉她胖了');
-  expect(sent).toHaveLength(1);
+  expect(prompts).toHaveLength(3);
+  expect(prompts[2]).toContain('C***: 笑死');
+  expect(prompts[2]).toContain(`${bad[0]}\n${bad[1]}\n【要判断的弹幕】不***：${bad[2]}`);
 });
 
-test('strikes more than 5 minutes apart, an answer that is not JSON, and admins count for nothing', async () => {
+test('an answer that is not JSON, and admins, count for nothing', async () => {
   const { say, sent } = setup({ 滚: 0.9 }, ['滚']);
-  await say(0, 'u-1', '甲', '滚');
-  await say(400, 'u-1', '甲', '滚');
   await say(0, 'streamer', '主播', '滚');
-  await say(1, 'streamer', '主播', '滚');
   expect(sent).toEqual([]);
 
   const unsure = setup({ 滚: 0.9 }, [], '我觉得是恶意的');
   await unsure.say(0, 'u-1', '甲', '滚');
-  await unsure.say(1, 'u-1', '甲', '滚');
   expect(unsure.sent).toEqual([]);
 });
 

@@ -140,12 +140,12 @@ Names the recording playing in the stream, from the last 15 s of its audio, by i
 
 ### /识别恶意言论
 
-Watches the chat for malicious messages (insults, attacks on looks or age, and sexual innuendo, including puns like 劳女 for 捞女 and digs dressed up with [比心]), and @s a viewer whose chats were found malicious twice within 5 minutes with `检测到恶意言论`. Never flagging an ordinary viewer matters more than catching every one. Jev scores each chat on its own, and only those at 0.5 or more (about 4%) go to Codex (the `--codex` model, medium effort, no web search) with the prompt `malice.md` (a room's own `malice.md` overrides it), the 90 seconds of chat and speech before it, and the viewer's own chat from the last 5 minutes; Codex is told to say no when unsure. One malicious chat on its own isn't @ed: on 2000 chats from friendly rooms Codex flagged one, a regular's teasing, and the second strike leaves that out. The streamer and admins are never judged. Each verdict is logged as `malice judged`, each @ as `malice warned`. Off by default; until the bot stops. Needs `JEV_API_KEY` and `--codex`.
+Watches the chat for malicious messages (insults, attacks on looks or age, and sexual innuendo, including puns like 劳女 for 捞女 and digs dressed up with [比心]), and @s the viewer with `检测到恶意言论` as soon as one of their chats is found malicious. Never flagging an ordinary viewer matters more than catching every one. Jev scores each chat on its own, and only those at 0.5 or more (about 4%) go to Codex (the `--codex` model, medium effort, no web search) with the prompt `malice.md` (a room's own `malice.md` overrides it), the 90 seconds of chat and speech before it, and the viewer's own chat from the last 5 minutes; Codex is told to say no when unsure. On 2000 chats from friendly rooms Codex flagged one, a regular's teasing (感觉她胖了[看]). The streamer and admins are never judged. Each verdict is logged as `malice judged`, each @ as `malice warned`. Off by default; until the bot stops. Needs `JEV_API_KEY` and `--codex`.
 
 ```text
 @默认关闭 /识别恶意言论 1
 → 已处理识别恶意言论请求
-（不*** 发了「主包是劳女[比心]」，又发了「主包玩的比较花[调皮]」）
+（不*** 发了「主包是劳女[比心]」）
 → @不*** 检测到恶意言论
 ```
 

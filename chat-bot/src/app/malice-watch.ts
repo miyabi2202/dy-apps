@@ -16,7 +16,7 @@ export interface MaliceWatchOptions {
   /** The model's prompt (see buildPrompt), read each time so edits apply at once. */
   promptTemplate: () => string;
   outbox: Pick<Outbox, 'push'>;
-  room: Pick<RoomState, 'promptInput' | 'now'>;
+  room: Pick<RoomState, 'promptInput'>;
   /** Viewers never judged: the streamer and the bot's admins. */
   exempt?: (userId: string) => boolean;
   log: Log;
@@ -24,9 +24,6 @@ export interface MaliceWatchOptions {
   on?: boolean;
   /** Jev's score from which a chat goes on to the model. */
   threshold?: number;
-  /** How many of one viewer's chats must be malicious within `windowMs` before they're @ed. */
-  strikes?: number;
-  windowMs?: number;
   /** How much chat around it the model sees. */
   contextMs?: number;
   /** At most this many chats with the model at once; more are let go. */
@@ -51,15 +48,12 @@ const WARNING = '检测到恶意言论';
  * Watches the chat for malicious messages (insults, sexual innuendo, attacks on looks or age),
  * caring most about never flagging an ordinary viewer. Jev scores every chat on its own with
  * MALICE_QUESTION; one scoring `threshold` or more goes to the model with the chat and the
- * streamer's speech around it, told to say no when unsure. A viewer the model finds malicious
- * `strikes` times within `windowMs` is @ed with WARNING, and starts afresh. On 2000 chats from
- * friendly rooms, Jev let 4% through and the model flagged one, a regular teasing; two strikes
- * leave that out, and still catch someone who keeps at it.
+ * streamer's speech around it, told to say no when unsure. Each chat the model finds malicious
+ * has its sender @ed with WARNING. On 2000 chats from friendly rooms, Jev let 4% through and the
+ * model flagged one, a regular teasing.
  */
 export class MaliceWatch {
   on: boolean;
-  /** When each viewer was found malicious, by user id. */
-  private readonly found = new Map<string, number[]>();
   private pending = 0;
 
   constructor(private readonly options: MaliceWatchOptions) {
@@ -106,7 +100,7 @@ export class MaliceWatch {
       try {
         const verdict = await this.decide(chat);
         log.info('malice judged', { who: chat.nickname, text: chat.content, score, ...verdict });
-        if (verdict.malicious) this.strike(chat);
+        if (verdict.malicious) this.warn(chat);
       } finally {
         this.pending--;
       }
@@ -147,15 +141,8 @@ export class MaliceWatch {
     };
   }
 
-  private strike({ userId, nickname }: IncomingChat & { userId: string }): void {
-    const { outbox, room, log, strikes = 2, windowMs = 5 * 60_000 } = this.options;
-    const now = room.now();
-    const found = [...(this.found.get(userId) ?? []), now].filter((at) => now - at <= windowMs);
-    if (found.length < strikes) {
-      this.found.set(userId, found);
-      return;
-    }
-    this.found.delete(userId);
+  private warn({ userId, nickname }: IncomingChat & { userId: string }): void {
+    const { outbox, log } = this.options;
     log.info('malice warned', { nickname, userId });
     outbox.push({ kind: 'reply', text: `@${nickname} ${WARNING}` });
   }

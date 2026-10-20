@@ -267,7 +267,7 @@ feed.onGift((gift) => {
   gifts.add(room.now(), gift);
   thanker.onGift(gift);
 });
-// @s a viewer found malicious twice in 5 minutes, once /识别恶意言论 1 turns it on: Jev scores each chat,
+// @s a viewer whose chat is found malicious, once /识别恶意言论 1 turns it on: Jev scores each chat,
 // and Codex decides on the few it lets through, with the chat around them. Off without either.
 const maliceWatch =
   jevKey && options.codex
