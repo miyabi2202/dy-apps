@@ -157,8 +157,8 @@ export default tseslint.config(
             },
             {
               target: ['./core', './app', './adapters'],
-              from: './*.ts',
-              message: 'Only the entry imports main.ts and cli-options.ts.',
+              from: ['./*.ts', './wiring/**'],
+              message: 'Only the entry imports main.ts, cli-options.ts and wiring/.',
             },
             {
               target: './adapters',

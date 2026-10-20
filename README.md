@@ -52,7 +52,8 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   reply-pick.md           #   the prompt for picking whom to answer unprompted
   intro.md                #   what the bot says about itself when asked (in prompt.md)
   config.json             #   admins (user ids) and the starting persona
-  src/main.ts             #   entry: real objects wired by hand (options parsed in cli-options.ts)
+  src/main.ts             #   entry: options (cli-options.ts), the container built, started and stopped
+  src/wiring/             #   the IoC container (container.ts) and what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot)
   src/core/               #   pure logic: mentions, prompt, reply splitting, wallet, chat record and talk record formats
   src/app/                #   use cases: ChatBot (commands, charging), RoomFeed (chat and gifts in), MentionAnswerer (questions to Claude), RoomState (what prompts know about the room), Billing, Outbox, Transcriber; ports.ts for the outside
   src/adapters/           #   DyHub, the Claude CLI, the ASR process, files and logging
@@ -141,7 +142,7 @@ The site, apps and shared libraries share one `package.json`, `tsconfig.json` an
 - an app imports another app, or the site
 - `ui` or `services` imports an app or the site
 - `services` imports `ui`
-- in `chat-bot/src`, `core` imports `app` or `adapters`; `app` imports `adapters`; `adapters` imports from `app` anything but `ports.ts`; `app/ports.ts` imports another `app` module; any of them imports `main.ts` or `cli-options.ts`; or two modules there import each other (`import-x/no-cycle`, which doesn't count type-only imports). `core` and `app` may not import `node:*`, `@dy-apps/services` or `winston` either (`@typescript-eslint/no-restricted-imports`): only adapters and the entry touch the outside world
+- in `chat-bot/src`, `core` imports `app` or `adapters`; `app` imports `adapters`; `adapters` imports from `app` anything but `ports.ts`; `app/ports.ts` imports another `app` module; any of them imports `main.ts`, `cli-options.ts` or `wiring/`; or two modules there import each other (`import-x/no-cycle`, which doesn't count type-only imports). `core` and `app` may not import `node:*`, `@dy-apps/services` or `winston` either (`@typescript-eslint/no-restricted-imports`): only adapters and the entry touch the outside world
 
 Apps import the shared libraries by name, `@dy-apps/ui` and `@dy-apps/services`. Those names come from `frontend/config/aliases.js`, which Vite, StyleX, Jest and Storybook read; `paths` in `frontend/tsconfig.json` repeats them for TypeScript.
 
