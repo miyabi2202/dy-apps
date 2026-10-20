@@ -47,6 +47,7 @@ import { RoomFeed } from './app/room-feed';
 import { personaCommand, RoomState, screenshotCommand } from './app/room-state';
 import { musicCommand } from './app/music-command';
 import { SongId } from './app/song-id';
+import { timedAsk, timedJudge } from './app/timed-models';
 import { Transcriber } from './app/transcriber';
 import { parseCliOptions, USAGE } from './cli-options';
 import { ChatHistory } from './core/chat-history';
@@ -118,7 +119,7 @@ const zoom = {
   args: [join(packageDir, 'src', 'adapters', 'zoom-mcp.ts')],
 };
 // An empty working directory, so Claude Code picks up no project's CLAUDE.md or settings.
-const ask = claudeCli({
+const claude = claudeCli({
   cwd: tmpdir(),
   tools: options.tools,
   readDirs: [chatDir],
@@ -128,6 +129,8 @@ const ask = claudeCli({
   timeoutMs: 240_000,
   zoom,
 });
+// Each use of a model logs as it starts and ends, with its time (`claude asking`, `claude answered`).
+const ask = (task: string) => timedAsk({ model: 'claude', task }, claude, log);
 // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
 const outbox = new Outbox({
   send: roomApi.sendChat,
@@ -214,33 +217,39 @@ if (!options.codex) log.warn('--codex is empty: auto-reply is off, the bot only 
 // Codex reads its working directory, so it gets an empty one.
 const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 // Codex with the room's usual settings; `over` changes what a use needs differently.
-const codex = (over: CodexCliOptions) =>
-  codexCli({
-    cwd: emptyDir,
-    systemPrompt: options.systemPrompt,
-    model: options.codex,
-    effort: 'medium',
-    ...over,
-  });
+const codex = (task: string, over: CodexCliOptions) =>
+  timedAsk(
+    { model: 'codex', task },
+    codexCli({
+      cwd: emptyDir,
+      systemPrompt: options.systemPrompt,
+      model: options.codex,
+      effort: 'medium',
+      ...over,
+    }),
+    log,
+  );
 // /解题 and /拼命解题: Codex's gpt-6-astra, which on figure puzzles was faster and more often
 // right than Claude Opus or Fable, even with their zoom tool; /拼命解题 thinks harder.
-const solveAsk = (effort: string, timeoutMs: number) =>
-  codex({ model: 'gpt-6-astra', effort, webSearch: false, timeoutMs, zoom });
+const solveAsk = (task: string, effort: string, timeoutMs: number) =>
+  codex(task, { model: 'gpt-6-astra', effort, webSearch: false, timeoutMs, zoom });
 // Once Jev finds something about the bot, Codex (the cheap model, no web search) picks whom to
 // answer, and each is answered like a mention (charged, with their own talk.txt; the streamer's
 // too, by their uid).
 // Never asked: without Codex there's no judge either.
 const noPicker: AskClaude = () => Promise.reject(new Error('--codex is empty'));
-const judge = jevKey && options.codex ? jev({ apiKey: jevKey }) : undefined;
+const jevJudge = jevKey && options.codex ? jev({ apiKey: jevKey }) : undefined;
+// Jev, logged per use like the models above.
+const judge = (task: string) => jevJudge && timedJudge({ model: 'jev', task }, jevJudge, log);
 const autoReply = new AutoReply({
   outbox,
-  judge,
+  judge: judge('about-the-bot'),
   threshold: options.autoReplyThreshold,
   quietMs: options.autoReplyIntervalMs,
   room,
   log,
   picker: options.codex
-    ? codex({
+    ? codex('reply-pick', {
         // Low sometimes picked nobody when someone clearly wanted an answer; medium is ~4 s slower.
         effort: 'medium',
         webSearch: false,
@@ -253,7 +262,7 @@ const autoReply = new AutoReply({
 });
 // Thanks a viewer whose gifts in 5 minutes pass --thanks-threshold (changed with /自动谢礼).
 const thanker = new GiftThanker({
-  ask,
+  ask: ask('gift-thanks'),
   outbox,
   promptTemplate: prompt('giftThanks'),
   threshold: options.thanksThreshold,
@@ -281,10 +290,11 @@ feed.onGift((gift) => {
 // @s a viewer whose chat is found malicious, once --malice-watch or /识别恶意言论 1 turns it on: Jev
 // scores each chat, and Codex decides on the few it lets through, with the chat around them. Off
 // without either.
-const maliceWatch = judge
+const maliceJudge = judge('malice');
+const maliceWatch = maliceJudge
   ? new MaliceWatch({
-      judge,
-      ask: codex({ webSearch: false }),
+      judge: maliceJudge,
+      ask: codex('malice', { webSearch: false }),
       promptTemplate: prompt('malice'),
       outbox,
       room,
@@ -296,7 +306,7 @@ const maliceWatch = judge
 feed.onChat((chat) => maliceWatch?.hear(chat));
 // Answers each paid question with Claude, one at a time.
 const answerer = new MentionAnswerer({
-  ask,
+  ask: ask('mention'),
   outbox,
   room,
   log,
@@ -314,7 +324,7 @@ const answerer = new MentionAnswerer({
 // /识歌 and /自动识歌: Codex, which searches with Google; without Codex, neither.
 // Once a song is named, may say up to two more things about it, or nothing.
 const songIntro = new SongIntro({
-  ask,
+  ask: ask('song-intro'),
   outbox,
   promptTemplate: prompt('songIntro'),
   room,
@@ -324,7 +334,7 @@ const songIntro = new SongIntro({
 const songId = options.codex
   ? new SongId({
       prompt: prompt('songId'),
-      codex: codex({
+      codex: codex('song-id', {
         // Low sometimes answered without searching at all; medium always searched, ~8 s slower.
         effort: 'medium',
       }),
@@ -368,8 +378,16 @@ const bot: ChatBot = new ChatBot({
     ...thanker.commands(),
     screenshotCommand(room),
     ...(songId?.commands() ?? []),
-    solveCommand({ name: '解题', prompt: prompt('solve'), ask: solveAsk('medium', 360_000) }),
-    solveCommand({ name: '拼命解题', prompt: prompt('solve'), ask: solveAsk('high', 600_000) }),
+    solveCommand({
+      name: '解题',
+      prompt: prompt('solve'),
+      ask: solveAsk('solve', 'medium', 360_000),
+    }),
+    solveCommand({
+      name: '拼命解题',
+      prompt: prompt('solve'),
+      ask: solveAsk('solve-hard', 'high', 600_000),
+    }),
     ...(autoSongId?.commands() ?? []),
     ...(maliceWatch?.commands() ?? []),
     // Only when listening to the stream.
