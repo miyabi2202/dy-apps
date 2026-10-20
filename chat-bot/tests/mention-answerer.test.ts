@@ -205,26 +205,26 @@ test('gives the diamond back when the mention cannot be answered', async () => {
   expect(wallet.balance('u-阿明')).toBe(1);
 });
 
-test('drops what waits beyond the limit, answering the rest in order', async () => {
+test('drops what waits beyond the limit, sending each answer once it is ready', async () => {
   const finish: ((answer: string) => void)[] = [];
   const { answerer, sent } = setup({
-    maxPending: 1,
+    maxPending: 2,
     ask: () => new Promise((resolve) => finish.push(resolve)),
   });
   const mention = (asker: string): Mention => ({ asker, paid: 0, question: '在吗', history: [] });
 
-  // The first is with Claude at once, the second waits, the third doesn't fit.
+  // Two are with Claude (its driver decides how many run at once), the third doesn't fit.
   expect(answerer.ask(mention('甲'))).toBe(true);
   expect(answerer.ask(mention('乙'))).toBe(true);
   expect(answerer.ask(mention('丙'))).toBe(false);
   const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
   await tick();
-  finish[0]?.('一');
-  await tick();
   finish[1]?.('二');
+  await tick();
+  finish[0]?.('一');
   await answerer.idle();
 
-  expect(sent).toEqual(['@甲 一', '@乙 二']);
+  expect(sent).toEqual(['@乙 二', '@甲 一']);
 });
 
 test("remembers each viewer's exchanges and what the bot said, for the next prompt", async () => {

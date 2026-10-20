@@ -23,6 +23,8 @@ export interface AutoReplyOptions {
   checkMs?: number;
   /** At least this long between two things it says unprompted, or after being asked to talk. */
   quietMs?: number;
+  /** How many checks (each a judge and a picker call) may run at once, each on what's new since the last. */
+  concurrency?: number;
   /** Picks whom to answer of what's about the bot (Codex, cheap). */
   picker: AskClaude;
   /** The picker's prompt (see pickPrompt), read each time so edits apply at once. */
@@ -81,6 +83,8 @@ export class AutoReply {
   private talkedAt = -Infinity;
   /** When the bot last said something to each person, by user id (STREAMER for the streamer). */
   private readonly saidTo = new Map<string, number>();
+  /** The checks still running. */
+  private readonly checking = new Set<Promise<void>>();
 
   constructor(private readonly options: AutoReplyOptions) {
     this.threshold = options.threshold;
@@ -91,13 +95,17 @@ export class AutoReply {
 
   /** Runs until `stop()`. */
   async run(): Promise<void> {
-    const { checkMs = 20_000 } = this.options;
+    const { checkMs = 20_000, concurrency = 1 } = this.options;
     while (!this.stopped) {
       if (this.lookNow) this.lookNow = false;
       else await this.wait(checkMs);
       if (this.stopped) break;
-      await this.check();
+      // Each check takes what's new since the last one started, so the next may start before it ends.
+      const check: Promise<void> = this.check().finally(() => this.checking.delete(check));
+      this.checking.add(check);
+      while (this.checking.size >= concurrency) await Promise.race(this.checking);
     }
+    await Promise.all(this.checking);
   }
 
   stop(): void {
@@ -180,7 +188,7 @@ export class AutoReply {
     // While it keeps quiet, what's said waits to be looked at after.
     if (now - this.talkedAt < this.quietMs) return;
     const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName);
-    const since = Math.max(this.seen, this.talkedAt);
+    const since = this.seen;
     const fresh = lines.filter((line) => line.candidate && line.ts > since && line.ts <= now);
     this.seen = now;
     if (!fresh.length) return;
@@ -204,6 +212,7 @@ export class AutoReply {
     // The quiet time starts only if it answered someone: picking nobody leaves it free to listen.
     const picked = await this.pickAndReply(
       since,
+      now,
       [...about, ...following],
       [...toBot, ...following],
     );
@@ -275,7 +284,7 @@ export class AutoReply {
   }
 
   /**
-   * Has the picker choose, of what was said since `since`, what the bot should answer now (the
+   * Has the picker choose, of what was said after `since` up to `until`, what the bot should answer now (the
    * room had time to react, so some may need no answer any more), and answers each through
    * `reply`, as the chatter's or (said on the stream) the streamer's. A line is answered as usual
    * (no command) only if it's in `chatty`, the judge found it about the bot or it follows up: one
@@ -284,6 +293,7 @@ export class AutoReply {
    */
   private async pickAndReply(
     since: number,
+    until: number,
     about: readonly RoomLine[],
     chatty: readonly RoomLine[],
   ): Promise<number> {
@@ -300,6 +310,7 @@ export class AutoReply {
       (line) =>
         line.candidate &&
         line.ts > since &&
+        line.ts <= until &&
         (line.userId !== undefined || (line.who === '主播' && streamer !== null)),
       new Set(lines.filter((line) => aboutKeys.has(key(line)))),
       (line) =>

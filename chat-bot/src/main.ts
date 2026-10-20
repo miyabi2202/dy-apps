@@ -30,6 +30,7 @@ import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
 import { jev } from './adapters/jev';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
+import { AiDriver } from './app/ai-driver';
 import { AutoReply } from './app/auto-reply';
 import { AutoSongId } from './app/auto-song-id';
 import type { AskClaude } from './app/ports';
@@ -117,17 +118,23 @@ const zoom = {
   command: join(packageDir, 'node_modules', '.bin', 'tsx'),
   args: [join(packageDir, 'src', 'adapters', 'zoom-mcp.ts')],
 };
+// Every call to Claude, and every call to Codex, waits in that AI's queue, and up to --concurrency
+// of each run at once.
+const claude = new AiDriver({ name: 'claude', concurrency: options.concurrency, log });
+const codex = new AiDriver({ name: 'codex', concurrency: options.concurrency, log });
 // An empty working directory, so Claude Code picks up no project's CLAUDE.md or settings.
-const ask = claudeCli({
-  cwd: tmpdir(),
-  tools: options.tools,
-  readDirs: [chatDir],
-  model: options.model,
-  systemPrompt: options.systemPrompt,
-  // Zooming into a screenshot can make an answer take a minute or two.
-  timeoutMs: 240_000,
-  zoom,
-});
+const ask = claude.wrap(
+  claudeCli({
+    cwd: tmpdir(),
+    tools: options.tools,
+    readDirs: [chatDir],
+    model: options.model,
+    systemPrompt: options.systemPrompt,
+    // Zooming into a screenshot can make an answer take a minute or two.
+    timeoutMs: 240_000,
+    zoom,
+  }),
+);
 // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
 const outbox = new Outbox({
   send: roomApi.sendChat,
@@ -206,15 +213,17 @@ const emptyDir = mkdtempSync(join(tmpdir(), 'chat-bot-agent-'));
 // /解题 and /拼命解题: Codex's gpt-6-astra, which on figure puzzles was faster and more often
 // right than Claude Opus or Fable, even with their zoom tool; /拼命解题 thinks harder.
 const solveAsk = (effort: string, timeoutMs: number) =>
-  codexCli({
-    model: 'gpt-6-astra',
-    effort,
-    webSearch: false,
-    timeoutMs,
-    cwd: emptyDir,
-    systemPrompt: options.systemPrompt,
-    zoom,
-  });
+  codex.wrap(
+    codexCli({
+      model: 'gpt-6-astra',
+      effort,
+      webSearch: false,
+      timeoutMs,
+      cwd: emptyDir,
+      systemPrompt: options.systemPrompt,
+      zoom,
+    }),
+  );
 // Once Jev finds something about the bot, Codex (the cheap model, no web search) picks whom to
 // answer, and each is answered like a mention (charged, with their own talk.txt; the streamer's
 // too, by their uid).
@@ -225,17 +234,20 @@ const autoReply = new AutoReply({
   judge: jevKey && options.codex ? jev({ apiKey: jevKey }) : undefined,
   threshold: options.autoReplyThreshold,
   quietMs: options.autoReplyIntervalMs,
+  concurrency: options.concurrency,
   room,
   log,
   picker: options.codex
-    ? codexCli({
-        model: options.codex,
-        // Low sometimes picked nobody when someone clearly wanted an answer; medium is ~4 s slower.
-        effort: 'medium',
-        webSearch: false,
-        cwd: emptyDir,
-        systemPrompt: options.systemPrompt,
-      })
+    ? codex.wrap(
+        codexCli({
+          model: options.codex,
+          // Low sometimes picked nobody when someone clearly wanted an answer; medium is ~4 s slower.
+          effort: 'medium',
+          webSearch: false,
+          cwd: emptyDir,
+          systemPrompt: options.systemPrompt,
+        }),
+      )
     : noPicker,
   pickTemplate: prompt('replyPick'),
   reply: (target) => bot.replyUnprompted(target),
@@ -275,13 +287,15 @@ const maliceWatch =
   jevKey && options.codex
     ? new MaliceWatch({
         judge: jev({ apiKey: jevKey }),
-        ask: codexCli({
-          model: options.codex,
-          effort: 'medium',
-          webSearch: false,
-          cwd: emptyDir,
-          systemPrompt: options.systemPrompt,
-        }),
+        ask: codex.wrap(
+          codexCli({
+            model: options.codex,
+            effort: 'medium',
+            webSearch: false,
+            cwd: emptyDir,
+            systemPrompt: options.systemPrompt,
+          }),
+        ),
         promptTemplate: prompt('malice'),
         outbox,
         room,
@@ -290,7 +304,7 @@ const maliceWatch =
       })
     : null;
 feed.onChat((chat) => maliceWatch?.hear(chat));
-// Answers each paid question with Claude, one at a time.
+// Answers each paid question with Claude, a few at a time (its AiDriver).
 const answerer = new MentionAnswerer({
   ask,
   outbox,
@@ -320,13 +334,15 @@ const songIntro = new SongIntro({
 const songId = options.codex
   ? new SongId({
       prompt: prompt('songId'),
-      codex: codexCli({
-        model: options.codex,
-        // Low sometimes answered without searching at all; medium always searched, ~8 s slower.
-        effort: 'medium',
-        cwd: emptyDir,
-        systemPrompt: options.systemPrompt,
-      }),
+      codex: codex.wrap(
+        codexCli({
+          model: options.codex,
+          // Low sometimes answered without searching at all; medium always searched, ~8 s slower.
+          effort: 'medium',
+          cwd: emptyDir,
+          systemPrompt: options.systemPrompt,
+        }),
+      ),
       log,
       onTold: (song) => void songIntro.introduce(song),
     })
@@ -388,6 +404,7 @@ log.info('starting', {
   persona: config.persona,
   autoReplyThreshold: options.autoReplyThreshold,
   autoReplyIntervalMs: options.autoReplyIntervalMs,
+  concurrency: options.concurrency,
   thanksThreshold: options.thanksThreshold,
   autoSongId: options.autoSongId,
 });
