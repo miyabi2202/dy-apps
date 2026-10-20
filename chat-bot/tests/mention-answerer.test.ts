@@ -20,6 +20,7 @@ interface SetupOptions {
   chatDir?: string;
   persona?: string;
   userTalk?: UserTalk;
+  onAnswered?: (userId: string) => void;
   botTalk?: string;
   settings?: RoomStateOptions['settings'];
   commands?: () => string;
@@ -52,6 +53,7 @@ function setup(options: SetupOptions = {}) {
     promptTemplate: () => options.template ?? TEMPLATE,
     billing: options.wallet && new Billing({ wallet: options.wallet }),
     userTalk: options.userTalk,
+    onAnswered: options.onAnswered,
     maxReplyLength: options.maxReplyLength,
     maxPending: options.maxPending,
   });
@@ -252,4 +254,30 @@ test("remembers each viewer's exchanges and what the bot said, for the next prom
     '你好呀|阿明问：在吗\n你答：@阿明 你好呀|还记得我吗',
     '你好呀|（暂无）|我呢',
   ]);
+});
+
+test('an answer that @s others sends each their own message, and counts those in the chat as answered', async () => {
+  const answered: string[] = [];
+  const { ask, sent } = setup({
+    answer: JSON.stringify({
+      message: '翻完了',
+      others: [
+        { to: '白生漓', message: '报了 5，答案是 3' },
+        { to: '路过的', message: '你也错了' },
+      ],
+    }),
+    onAnswered: (userId) => void answered.push(userId),
+  });
+  await ask({
+    userId: 'u-雅',
+    asker: '雅',
+    template: '翻旧账',
+    jsonMessage: true,
+    atOthers: true,
+    history: [{ ts: NOW, nickname: '白生漓', userId: 'u-白', content: '秒了，5' }],
+  });
+
+  expect(sent).toEqual(['@雅 翻完了', '@白生漓 报了 5，答案是 3', '@路过的 你也错了']);
+  // In the order they went out; 路过的 said nothing lately, so there's no one to follow up.
+  expect(answered).toEqual(['u-雅', 'u-白']);
 });

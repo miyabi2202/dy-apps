@@ -43,3 +43,28 @@ test('sends replies, then system messages, then notices, at least the interval a
   expect(failed).toEqual(['坏的']);
   expect(delivered).toEqual(['一', '二', '系统', '提醒']);
 });
+
+test("tells a message's own onSent once it's sent, at its turn, and not when sending fails", async () => {
+  let now = 0;
+  const told: [string, number][] = [];
+  const outbox = new Outbox({
+    send: (text) =>
+      text === '坏的' ? Promise.reject(new Error('风控')) : Promise.resolve({ echoed: true }),
+    log: silentLog,
+    intervalMs: 10_000,
+    now: () => now,
+    sleep: (ms) => {
+      now += ms;
+      return Promise.resolve();
+    },
+  });
+  for (const text of ['一', '坏的', '二']) {
+    outbox.push({ kind: 'reply', text, onSent: () => told.push([text, now]) });
+  }
+  await outbox.idle();
+
+  expect(told).toEqual([
+    ['一', 0],
+    ['二', 20_000],
+  ]);
+});

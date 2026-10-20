@@ -14,6 +14,8 @@ export interface OutgoingMessage {
   kind: (typeof KINDS)[number];
   /** Called when DyHub couldn't send it, e.g. to refund the question it answers. */
   onFailed?: () => void;
+  /** Called once it's sent. */
+  onSent?: () => void;
 }
 
 export interface OutboxOptions {
@@ -98,6 +100,7 @@ export class Outbox {
       log.info(`${kind} sent`, { text, echoed, waiting: this.waiting() });
       if (!echoed) log.warn(`${kind} did not show up in the room chat`, { text });
       this.options.onSent?.(message);
+      message.onSent?.();
     } catch (err) {
       log.error(`could not send ${kind}`, {
         text,

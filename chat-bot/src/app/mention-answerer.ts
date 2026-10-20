@@ -87,7 +87,10 @@ export interface MentionAnswererOptions {
    * said they may not), so Claude's own reply isn't sent.
    */
   onCommandRequest?: (mention: Mention, name: string, args: string) => boolean;
-  /** Told each viewer it answered, once the answer is on its way. */
+  /**
+   * Told each viewer it answered, once the answer to them is sent: the asker, and each of the others
+   * an answer @s who said something lately (found by nickname in the chat).
+   */
   onAnswered?: (userId: string) => void;
   /** Mentions not yet answered beyond this are dropped, so a busy room can't pile up a
    * backlog nobody remembers asking. */
@@ -197,7 +200,14 @@ export class MentionAnswerer {
       // Each of the others gets one message of their own, after the asker's.
       const others = mention.atOthers ? parseOthers(raw) : [];
       const single = { ...limits, maxParts: 1 };
-      const toOthers = others.flatMap(({ to, message }) => replyMessages(to, message, single));
+      // The others are known by nickname only: whoever said something under it most lately.
+      const chat = [...mention.history, ...room.recentChat()].reverse();
+      const toOthers = others.flatMap(({ to, message }) =>
+        replyMessages(to, message, single).map((text) => ({
+          text,
+          userId: chat.find((line) => line.nickname === to && line.userId)?.userId,
+        })),
+      );
       if (!messages.length && !toOthers.length) {
         log.warn('claude gave an empty answer', { asker: mention.asker });
         this.refund(mention);
@@ -210,14 +220,28 @@ export class MentionAnswerer {
         refunded = true;
         this.refund(mention);
       };
-      for (const text of [...messages, ...toOthers]) outbox.push({ kind: 'reply', text, onFailed });
+      // Each is told answered once the last message to them is sent, so their minute to answer
+      // back doesn't run out while it waits to go out.
+      const answered = (userId: string | undefined) =>
+        userId === undefined ? undefined : () => this.options.onAnswered?.(userId);
+      messages.forEach((text, i) => {
+        const last = i === messages.length - 1;
+        outbox.push({
+          kind: 'reply',
+          text,
+          onFailed,
+          onSent: last ? answered(mention.userId) : undefined,
+        });
+      });
+      for (const { text, userId } of toOthers) {
+        outbox.push({ kind: 'reply', text, onFailed, onSent: answered(userId) });
+      }
       if (others.length)
         log.info('at others', { asker: mention.asker, to: others.map((o) => o.to) });
       if (mention.userId) {
         const { asker: nickname, question } = mention;
-        const said = [...messages, ...toOthers].join(' ');
+        const said = [...messages, ...toOthers.map(({ text }) => text)].join(' ');
         userTalk?.add(mention.userId, { nickname, question, answer: said });
-        this.options.onAnswered?.(mention.userId);
       }
     } catch (err) {
       log.error('could not answer mention', {
