@@ -190,6 +190,7 @@ Each feature offers its own commands, and `src/main.ts` hands them all to `ChatB
 | 识别背景音乐               | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |
 | 自动识歌                   | `AutoSongId.commands()` in `src/app/auto-song-id.ts`                                   |
 | 识别恶意言论               | `MaliceWatch.commands()` in `src/app/malice-watch.ts`                                  |
+| 解题, 拼命解题             | `solveCommand` in `src/app/solve-command.ts`                                           |
 
 The `Command` type and the `done` / `failed` helpers are in `src/app/command.ts`.
 

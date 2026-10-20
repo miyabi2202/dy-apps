@@ -41,7 +41,7 @@ export interface CliOptions {
   autoReplyIntervalMs: number;
   /** Thank a viewer whose gifts in 5 minutes come to more than this many diamonds. */
   thanksThreshold: number;
-  /** The Codex model /识歌 asks first; empty for none. */
+  /** The Codex model for /识歌, auto-reply and malice watch; empty turns all three off. */
   codex: string;
   /** Name the songs the streamer sings without being asked, from the start. */
   autoSongId: boolean;
@@ -92,7 +92,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'auto-reply-interval': { type: 'string', default: '60' },
       // So high it's off by default; /自动谢礼 lowers it while the bot runs.
       'thanks-threshold': { type: 'string', default: '99999' },
-      // /识歌 asks Codex (fast and cheap at low effort), which searches with Google; '' for Claude.
+      // /识歌, auto-reply and malice watch ask Codex (fast and cheap at medium effort); '' turns them off.
       codex: { type: 'string', default: 'gpt-6-luna' },
       // Name the songs the streamer sings without being asked; /自动识歌 switches it while it runs.
       'auto-song-id': { type: 'boolean', default: false },

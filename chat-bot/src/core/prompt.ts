@@ -50,10 +50,10 @@ export interface RoomSettings {
 /** A threshold this high means thanks are off: nobody gives that much in 5 minutes. */
 const THANKS_OFF_FROM = 99999;
 
-/** The room plus what's particular to one prompt: who asked what, and how long the answer may be. */
 /** Where the bot heard someone talk to or about it without an @: the chat, or (the streamer) the stream. */
 export type Heard = 'chat' | 'speech';
 
+/** The room plus what's particular to one prompt: who asked what, and how long the answer may be. */
 export type PromptInput = RoomPromptInput & {
   /** Who the prompt is about; empty for what the bot says on its own. */
   asker?: string;
