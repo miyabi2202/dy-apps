@@ -10,7 +10,7 @@ export const USAGE =
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 1 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
-  '       [--auto-reply-interval 60] [--concurrency 3]\n' +
+  '       [--auto-reply-interval 60] [--concurrency 2]\n' +
   '       [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]';
 
 /** The command line, checked and converted; see the README for what each option does. */
@@ -93,7 +93,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       // Seconds it keeps quiet after talking unprompted; /自动回复间隔 changes it while the bot runs.
       'auto-reply-interval': { type: 'string', default: '60' },
       // How many Claude answers, and auto-reply checks (Jev, then Codex), run at once.
-      concurrency: { type: 'string', default: '3' },
+      concurrency: { type: 'string', default: '2' },
       // So high it's off by default; /自动谢礼 lowers it while the bot runs.
       'thanks-threshold': { type: 'string', default: '99999' },
       // /识歌 asks Codex (fast and cheap at low effort), which searches with Google; '' for Claude.
