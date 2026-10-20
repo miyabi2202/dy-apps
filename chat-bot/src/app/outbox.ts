@@ -18,11 +18,24 @@ export interface OutgoingMessage {
   onSent?: () => void;
 }
 
+/** When notices come too fast, one message to the whole room instead. */
+export interface NoticeFlood {
+  /** More notices than this within `windowMs` is a flood. */
+  max: number;
+  windowMs: number;
+  /** After a flood, notices are dropped for this long. */
+  muteMs: number;
+  /** What the room is told instead, without an @. */
+  text: () => string;
+}
+
 export interface OutboxOptions {
   send: SendChat;
   log: Log;
   /** Told of each message DyHub sent, e.g. to remember what the bot has said. */
   onSent?: (message: OutgoingMessage) => void;
+  /** Without it, every notice is sent. */
+  noticeFlood?: NoticeFlood;
   /** At least this long between two messages, so the account doesn't look like a spammer. */
   intervalMs?: number;
   now?: () => number;
@@ -33,7 +46,8 @@ export interface OutboxOptions {
  * Every message the bot says goes through here: queued, then sent one at a time, at least
  * `intervalMs` apart. Each kind waits in its own queue, in order, and a waiting reply always goes
  * before a waiting system message, which goes before a waiting notice. Whoever made the message
- * doesn't wait for it to go out.
+ * doesn't wait for it to go out. When notices flood in (`noticeFlood`), the waiting ones are
+ * dropped, the room is told once for all, and new ones are dropped for a while.
  */
 export class Outbox {
   private readonly queues = {
@@ -44,6 +58,9 @@ export class Outbox {
   };
   private sending = false;
   private lastSentAt = -Infinity;
+  /** When each notice of the last `noticeFlood.windowMs` was pushed. */
+  private noticedAt: number[] = [];
+  private noticesMutedUntil = -Infinity;
   private readonly intervalMs: number;
   private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
@@ -55,6 +72,7 @@ export class Outbox {
   }
 
   push(message: OutgoingMessage): void {
+    if (message.kind === 'notice' && this.flooded(message)) return;
     this.queues[message.kind].push(message);
     this.options.log.debug('queued to send', { ...message, waiting: this.waiting() });
     void this.drain();
@@ -63,6 +81,27 @@ export class Outbox {
   /** Resolves once everything queued has been sent (or has failed). */
   async idle(): Promise<void> {
     while (this.sending) await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  /** Whether `notice` is dropped: notices are muted, or it's one too many and mutes them. */
+  private flooded(notice: OutgoingMessage): boolean {
+    const flood = this.options.noticeFlood;
+    if (!flood) return false;
+    const now = this.now();
+    if (now < this.noticesMutedUntil) {
+      this.options.log.debug('notice dropped, notices muted', { text: notice.text });
+      return true;
+    }
+    this.noticedAt = this.noticedAt.filter((at) => now - at < flood.windowMs);
+    this.noticedAt.push(now);
+    if (this.noticedAt.length <= flood.max) return false;
+    const dropped = this.queues.notice.length + 1;
+    this.queues.notice = [];
+    this.noticedAt = [];
+    this.noticesMutedUntil = now + flood.muteMs;
+    this.options.log.info('too many notices, telling the room once', { dropped });
+    this.push({ kind: 'system', text: flood.text() });
+    return true;
   }
 
   private async drain(): Promise<void> {

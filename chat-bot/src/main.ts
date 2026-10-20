@@ -134,6 +134,15 @@ const outbox = new Outbox({
   log,
   intervalMs: options.sendIntervalMs,
   onSent: ({ text }) => botTalk.add(text),
+  // More than 3 「要先给主播送礼」 in a minute looks like spam: the room is told once, without an
+  // @, and no more for 5 minutes (those who gift are still answered).
+  noticeFlood: {
+    max: 3,
+    windowMs: 60_000,
+    muteMs: 5 * 60_000,
+    text: () =>
+      `想让我回你的，要先给主播送礼：每次${billing.cost}钻，从你送的里扣（不另外扣钱），送了马上回你`,
+  },
 });
 // The mention prompt is the one with no room override; --prompt may point elsewhere.
 const mentionTemplate = livePrompt('mention', {

@@ -68,3 +68,43 @@ test("tells a message's own onSent once it's sent, at its turn, and not when sen
     ['二', 20_000],
   ]);
 });
+
+test('a fourth notice within a minute drops the waiting ones, tells the room once, and mutes notices for five minutes', async () => {
+  let now = 0;
+  const sent: string[] = [];
+  const outbox = new Outbox({
+    send: (text) => {
+      sent.push(text);
+      return Promise.resolve({ echoed: true });
+    },
+    log: silentLog,
+    intervalMs: 10_000,
+    noticeFlood: {
+      max: 3,
+      windowMs: 60_000,
+      muteMs: 300_000,
+      text: () => '想让我回你的，要先送礼',
+    },
+    now: () => now,
+    sleep: (ms) => {
+      now += ms;
+      return Promise.resolve();
+    },
+  });
+  // All pushed before anything after the first is sent.
+  outbox.push({ kind: 'notice', text: '@甲 送礼' }); // already going out
+  outbox.push({ kind: 'notice', text: '@乙 送礼' });
+  now = 59_000;
+  outbox.push({ kind: 'notice', text: '@丙 送礼' });
+  outbox.push({ kind: 'notice', text: '@丁 送礼' });
+  outbox.push({ kind: 'reply', text: '回答' });
+  now = 359_000 - 1;
+  outbox.push({ kind: 'notice', text: '@戊 送礼' });
+  now = 359_000;
+  outbox.push({ kind: 'notice', text: '@己 送礼' });
+
+  await outbox.idle();
+
+  // 乙 and 丙 were waiting and 丁 was one too many; 戊 came while muted, 己 just after.
+  expect(sent).toEqual(['@甲 送礼', '回答', '想让我回你的，要先送礼', '@己 送礼']);
+});
