@@ -75,8 +75,6 @@ export class ChatBot {
   private readonly maxLength: number;
   /** Each viewer's last mention they couldn't pay for, by user id. */
   private readonly unpaid = new Map<string, Unpaid>();
-  /** When each of the room's own commands was last handed to be answered, by id. */
-  private readonly answeredAt = new Map<string, number>();
 
   constructor(private readonly options: ChatBotOptions) {
     this.commands = new Map((options.commands ?? []).map((command) => [command.name, command]));
@@ -146,8 +144,8 @@ export class ChatBot {
    * Someone asked, in so many words, for what an admin-only command does (Claude found it in their
    * mention, or in what they said to the bot): an admin's runs as if they'd typed it, and anyone
    * else is told they may not. One of the room's own commands (主播会唱xxx吗) is asked again with
-   * its own prompt, already paid for, unless it's cooling down. False for anything else, so
-   * Claude's own reply goes out instead (the others cost diamonds, already paid for the mention).
+   * its own prompt, already paid for. False for anything else, so Claude's own reply goes out
+   * instead (the others cost diamonds, already paid for the mention).
    */
   requestCommand(mention: Mention, name: string, args: string): boolean {
     const { asker, userId } = mention;
@@ -158,7 +156,6 @@ export class ChatBot {
       this.options.log.info('additional command not for them', { asker, userId, command: own.id });
       return false;
     }
-    if (own && this.coolingDown(own)) return false;
     if (own) {
       this.options.log.info('additional command requested', { asker, userId, command: own.id });
       // The @ was paid for at an @'s price; a cheaper command gives the difference back.
@@ -196,8 +193,7 @@ export class ChatBot {
   /**
    * Answers what someone said to or about the bot without an @ (auto-reply picked it), like a
    * mention: they pay for it (nothing for the streamer or an admin), and one who can't is told
-   * so, in other words, and answered once they send a gift. A room command that's cooling down
-   * is dropped.
+   * so, in other words, and answered once they send a gift.
    */
   replyUnprompted({ nickname, userId, question, heard, command }: UnpromptedReply): void {
     const ts = (this.options.now ?? Date.now)();
@@ -208,7 +204,6 @@ export class ChatBot {
       this.options.log.info('additional command not for them', { asker: nickname, command });
       return;
     }
-    if (own && this.coolingDown(own)) return;
     const charge = this.charge(chat, question, this.isAdmin(userId), undefined, heard, own);
     if (!charge.ok) return;
     this.ask({
@@ -222,20 +217,10 @@ export class ChatBot {
     });
   }
 
-  /** Whether `own` was answered less than its `cooldown` ago (e.g. 翻旧账 picked twice). */
-  private coolingDown(own: AdditionalCommand): boolean {
-    const last = this.answeredAt.get(own.id);
-    const now = (this.options.now ?? Date.now)();
-    if (last === undefined || now - last >= (own.cooldown ?? 0) * 1000) return false;
-    this.options.log.info('additional command cooling down', { command: own.id });
-    return true;
-  }
-
-  /** How the room's own command `own` is answered: with its prompt, in JSON; it's answered now. */
+  /** How the room's own command `own` is answered: with its prompt, in JSON. */
   private commandPrompt(
     own: AdditionalCommand,
   ): Pick<Mention, 'template' | 'jsonMessage' | 'atOthers'> {
-    this.answeredAt.set(own.id, (this.options.now ?? Date.now)());
     return { template: own.prompt(), jsonMessage: true, ...(own.atOthers && { atOthers: true }) };
   }
 

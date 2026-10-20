@@ -137,8 +137,6 @@ export interface AdditionalCommand {
   adminOnly?: boolean;
   /** Its answer may @ others too, each in a message of their own. */
   atOthers?: boolean;
-  /** Seconds after it's answered before it's answered again, for anyone. */
-  cooldown?: number;
 }
 
 /** What the bot says when the streamer starts a song (a cheer, say). */
