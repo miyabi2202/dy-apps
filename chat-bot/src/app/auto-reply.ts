@@ -69,6 +69,8 @@ export class AutoReply {
   threshold: number;
   /** At least this long between two things it says unprompted; 0 doesn't wait. */
   quietMs: number;
+  /** How many checks may run at once. */
+  concurrency: number;
   private stopped = false;
   /** Ends the current wait early: to stop, or to look now. */
   private wake: () => void = () => {};
@@ -89,13 +91,14 @@ export class AutoReply {
   constructor(private readonly options: AutoReplyOptions) {
     this.threshold = options.threshold;
     this.quietMs = options.quietMs ?? 60_000;
+    this.concurrency = options.concurrency ?? 1;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.seen = options.room.now();
   }
 
   /** Runs until `stop()`. */
   async run(): Promise<void> {
-    const { checkMs = 20_000, concurrency = 1 } = this.options;
+    const { checkMs = 20_000 } = this.options;
     while (!this.stopped) {
       if (this.lookNow) this.lookNow = false;
       else await this.wait(checkMs);
@@ -103,7 +106,7 @@ export class AutoReply {
       // Each check takes what's new since the last one started, so the next may start before it ends.
       const check: Promise<void> = this.check().finally(() => this.checking.delete(check));
       this.checking.add(check);
-      while (this.checking.size >= concurrency) await Promise.race(this.checking);
+      while (this.checking.size >= this.concurrency) await Promise.race(this.checking);
     }
     await Promise.all(this.checking);
   }

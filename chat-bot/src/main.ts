@@ -30,7 +30,7 @@ import { botTalkFile, userTalkFiles } from './adapters/room-talk-files';
 import { jev } from './adapters/jev';
 import { jsonFileStorage } from './adapters/wallet-file';
 import { createLogger } from './adapters/winston-logger';
-import { AiDriver } from './app/ai-driver';
+import { AiDriver, concurrencyCommand } from './app/ai-driver';
 import { AutoReply } from './app/auto-reply';
 import { AutoSongId } from './app/auto-song-id';
 import type { AskClaude } from './app/ports';
@@ -119,7 +119,7 @@ const zoom = {
   args: [join(packageDir, 'src', 'adapters', 'zoom-mcp.ts')],
 };
 // Every call to Claude, and every call to Codex, waits in that AI's queue, and up to --concurrency
-// of each run at once.
+// of each run at once (/并发数 changes it).
 const claude = new AiDriver({ name: 'claude', concurrency: options.concurrency, log });
 const codex = new AiDriver({ name: 'codex', concurrency: options.concurrency, log });
 // An empty working directory, so Claude Code picks up no project's CLAUDE.md or settings.
@@ -380,6 +380,7 @@ const bot: ChatBot = new ChatBot({
     personaCommand(room),
     ...billing.commands(),
     ...autoReply.commands(),
+    concurrencyCommand([claude, codex, autoReply], log),
     ...thanker.commands(),
     screenshotCommand(room),
     ...(songId?.commands() ?? []),
