@@ -1,7 +1,9 @@
 import { errorMessage } from '../core/errors';
 import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
+import type { SongAnswer } from '../core/song-answer';
 import { isHandled, isSung, singingSong, type TranscriptLine } from '../core/transcript';
 import { done, failed, type Command } from './command';
+import { ModelFeature } from './model-feature';
 import type { Outbox } from './outbox';
 import { Pending } from './pending';
 import type { Log } from './ports';
@@ -48,7 +50,7 @@ function lastSongNote(title: string, artist: string, minutes: number): string {
  * model names for sure is said, and not one named (by it or by `/识歌`) within `repeatMs`; when
  * it finds that one still being sung, it looks again after `sameAgainMs` instead.
  */
-export class AutoSongId {
+export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null> {
   on: boolean;
   /** When it last tried. */
   private triedAt = -Infinity;
@@ -58,6 +60,7 @@ export class AutoSongId {
   private readonly work = new Pending();
 
   constructor(private readonly options: AutoSongIdOptions) {
+    super(options.log);
     this.on = options.on ?? false;
   }
 
@@ -112,7 +115,28 @@ export class AutoSongId {
     return UNASKED + lastSongNote(last.song.title, last.song.artist, minutes);
   }
 
-  private async nameSong(song: TranscriptLine[]): Promise<void> {
+  private nameSong(song: TranscriptLine[]): Promise<void> {
+    this.waitMs = undefined;
+    return this.run(song);
+  }
+
+  protected buildPrompt(song: TranscriptLine[]): string {
+    const { songId, room, maxLength = DOUYIN_CHAT_LIMIT, repeatMs = 60 * 60_000 } = this.options;
+    return room.prompt(songId.prompt(), {
+      transcript: song,
+      asker: '直播间',
+      question: this.question(repeatMs),
+      singleLength: maxLength,
+      maxLength,
+    });
+  }
+
+  /** The song it named, or null when the answer isn't one (logged by SongId). */
+  protected async ask(_song: TranscriptLine[], prompt: string): Promise<SongAnswer | null> {
+    return (await this.options.songId.name({ prompt })).answer;
+  }
+
+  protected deliver(_song: TranscriptLine[], answer: SongAnswer | null): void {
     const {
       songId,
       room,
@@ -122,33 +146,24 @@ export class AutoSongId {
       repeatMs = 60 * 60_000,
       sameAgainMs = 60_000,
     } = this.options;
-    this.waitMs = undefined;
-    try {
-      const prompt = room.prompt(songId.prompt(), {
-        transcript: song,
-        asker: '直播间',
-        question: this.question(repeatMs),
-        singleLength: maxLength,
-        maxLength,
-      });
-      const { answer } = await songId.name({ prompt });
-      // Only a song it's sure of is said: a guess (「听着像…不太确定」) isn't.
-      if (!answer?.title || !answer.sure) {
-        log.info('auto song id found nothing sure', { title: answer?.title });
-        return;
-      }
-      const last = songId.namedAt(answer.title);
-      const text = plainMessage(answer.message, maxLength);
-      if (!text || (last !== undefined && room.now() - last < repeatMs)) {
-        // Still the song it named: she may move on soon, so it looks again sooner.
-        this.waitMs = sameAgainMs;
-        log.info('auto song id: still the song told lately', { title: answer.title });
-        return;
-      }
-      outbox.push({ kind: 'talk', text });
-      songId.told(answer);
-    } catch (err) {
-      log.warn('auto song id failed', { error: errorMessage(err) });
+    // Only a song it's sure of is said: a guess (「听着像…不太确定」) isn't.
+    if (!answer?.title || !answer.sure) {
+      log.info('auto song id found nothing sure', { title: answer?.title });
+      return;
     }
+    const last = songId.namedAt(answer.title);
+    const text = plainMessage(answer.message, maxLength);
+    if (!text || (last !== undefined && room.now() - last < repeatMs)) {
+      // Still the song it named: she may move on soon, so it looks again sooner.
+      this.waitMs = sameAgainMs;
+      log.info('auto song id: still the song told lately', { title: answer.title });
+      return;
+    }
+    outbox.push({ kind: 'talk', text });
+    songId.told(answer);
+  }
+
+  protected failed(_song: TranscriptLine[], err: unknown): void {
+    this.options.log.warn('auto song id failed', { error: errorMessage(err) });
   }
 }

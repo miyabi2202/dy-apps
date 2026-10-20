@@ -4,6 +4,7 @@ import { DOUYIN_CHAT_LIMIT } from '../core/reply';
 import type { IncomingChat } from '../core/room-events';
 import { askJson } from './ask-json';
 import { done, failed, type Command } from './command';
+import { ModelFeature } from './model-feature';
 import type { Outbox } from './outbox';
 import { Pending } from './pending';
 import type { AskModel, Judge, Log } from './ports';
@@ -35,6 +36,15 @@ export interface MaliceWatchOptions {
 export const MALICE_QUESTION =
   '这条弹幕是不是在恶意贬低主播或观众：骂人、攻击外貌身材年龄（包括用谐音字、错别字、拼音缩写来绕开屏蔽的说法）、或者性暗示（暗指她私生活乱、陪睡、卖身、有金主、靠男人捞钱这类，配了爱心笑脸表情、装作夸人也算）？朋友间的玩笑、吐槽唱得不好、正常提问都不算。';
 
+/** A chat from someone, with a user id. */
+type Heard = IncomingChat & { userId: string };
+
+/** A chat Jev scored `score` for the model to decide on. */
+interface Suspect {
+  chat: Heard;
+  score: number;
+}
+
 /** What the bot says to someone it found malicious, after their @. */
 const WARNING = '检测到恶意言论';
 
@@ -46,12 +56,13 @@ const WARNING = '检测到恶意言论';
  * has its sender @ed with WARNING. On 2000 chats from friendly rooms, Jev let 4% through and the
  * model flagged one, a regular teasing.
  */
-export class MaliceWatch {
+export class MaliceWatch extends ModelFeature<Suspect, MaliceAnswer> {
   on: boolean;
   private pending = 0;
   private readonly work = new Pending();
 
   constructor(private readonly options: MaliceWatchOptions) {
+    super(options.log);
     this.on = options.on ?? false;
   }
 
@@ -86,31 +97,31 @@ export class MaliceWatch {
     ];
   }
 
-  private async check(chat: IncomingChat & { userId: string }): Promise<void> {
+  private async check(chat: Heard): Promise<void> {
     const { judge, log, threshold = 0.5, maxPending = 3 } = this.options;
+    let score: number;
     try {
       const scores = await judge(`抖音直播间弹幕：${chat.content}`, { malice: MALICE_QUESTION });
-      const score = scores.malice ?? 0;
-      if (score < threshold) return;
-      if (this.pending >= maxPending) {
-        log.warn('malice watch busy, letting a chat go', { text: chat.content, score });
-        return;
-      }
-      this.pending++;
-      try {
-        const verdict = await this.decide(chat);
-        log.info('malice judged', { who: chat.nickname, text: chat.content, score, ...verdict });
-        if (verdict.malicious) this.warn(chat);
-      } finally {
-        this.pending--;
-      }
+      score = scores.malice ?? 0;
     } catch (err) {
-      log.warn('could not check for malice', { text: chat.content, error: errorMessage(err) });
+      this.couldNotCheck(chat, err);
+      return;
+    }
+    if (score < threshold) return;
+    if (this.pending >= maxPending) {
+      log.warn('malice watch busy, letting a chat go', { text: chat.content, score });
+      return;
+    }
+    this.pending++;
+    try {
+      await this.run({ chat, score });
+    } finally {
+      this.pending--;
     }
   }
 
-  private async decide(chat: IncomingChat): Promise<MaliceAnswer> {
-    const { ask, room, contextMs = 90_000 } = this.options;
+  protected buildPrompt({ chat }: Suspect): string {
+    const { room, contextMs = 90_000 } = this.options;
     // What came before the chat is its background; more may have come in while Jev scored it.
     const before = room
       .recentChat()
@@ -119,7 +130,7 @@ export class MaliceWatch {
           line.ts <= chat.ts &&
           !(line.ts === chat.ts && line.userId === chat.userId && line.content === chat.content),
       );
-    const prompt = room.prompt(this.options.promptTemplate(), {
+    return room.prompt(this.options.promptTemplate(), {
       history: before.filter((line) => chat.ts - line.ts <= contextMs),
       transcript: room
         .recentTranscript()
@@ -133,8 +144,11 @@ export class MaliceWatch {
       singleLength: DOUYIN_CHAT_LIMIT,
       maxLength: DOUYIN_CHAT_LIMIT,
     });
+  }
+
+  protected async ask(_suspect: Suspect, prompt: string): Promise<MaliceAnswer> {
     const { value } = await askJson(
-      ask,
+      this.options.ask,
       { prompt },
       { schema: MALICE_SCHEMA, parse: parseMaliceAnswer, notJson: 'malice answer is not json' },
       this.options.log,
@@ -143,7 +157,28 @@ export class MaliceWatch {
     return value ?? { malicious: false, reason: '' };
   }
 
-  private warn({ userId, nickname }: IncomingChat & { userId: string }): void {
+  protected deliver({ chat, score }: Suspect, verdict: MaliceAnswer): void {
+    this.options.log.info('malice judged', {
+      who: chat.nickname,
+      text: chat.content,
+      score,
+      ...verdict,
+    });
+    if (verdict.malicious) this.warn(chat);
+  }
+
+  protected failed({ chat }: Suspect, err: unknown): void {
+    this.couldNotCheck(chat, err);
+  }
+
+  private couldNotCheck(chat: Heard, err: unknown): void {
+    this.options.log.warn('could not check for malice', {
+      text: chat.content,
+      error: errorMessage(err),
+    });
+  }
+
+  private warn({ userId, nickname }: Heard): void {
     const { outbox, log } = this.options;
     log.info('malice warned', { nickname, userId });
     outbox.push({ kind: 'reply', text: `@${nickname} ${WARNING}` });

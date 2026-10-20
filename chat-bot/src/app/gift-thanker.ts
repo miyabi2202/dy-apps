@@ -2,6 +2,7 @@ import { errorMessage } from '../core/errors';
 import { DOUYIN_CHAT_LIMIT, replyMessages, singleBudget } from '../core/reply';
 import type { Gift } from '../core/room-events';
 import { done, failed, type Command } from './command';
+import { ModelFeature } from './model-feature';
 import type { Outbox } from './outbox';
 import { Pending } from './pending';
 import type { AskModel, Log, UserTalk } from './ports';
@@ -33,6 +34,13 @@ interface Given {
   gift: Gift;
 }
 
+/** Thanks to give: the last gift's giver, and everything they gave, `total` diamonds. */
+interface Thanks {
+  gift: Gift;
+  given: Given[];
+  total: number;
+}
+
 /**
  * Thanks a viewer whose gifts within `windowMs` (5 minutes) come to more than `threshold`
  * diamonds: Claude reads the room's chat, the viewer's own messages and their past exchanges
@@ -41,7 +49,7 @@ interface Given {
  * after counts afresh, and is thanked again once it passes the threshold too. The threshold can
  * be changed while it runs.
  */
-export class GiftThanker {
+export class GiftThanker extends ModelFeature<Thanks, string> {
   threshold: number;
   private readonly windowMs: number;
   /** Each viewer's gifts not thanked yet, by user id. */
@@ -51,6 +59,7 @@ export class GiftThanker {
   private readonly work = new Pending();
 
   constructor(private readonly options: GiftThankerOptions) {
+    super(options.log);
     this.threshold = options.threshold;
     this.windowMs = options.windowMs ?? 5 * 60_000;
   }
@@ -77,7 +86,7 @@ export class GiftThanker {
         const all = this.given.get(userId) ?? [];
         this.given.delete(userId);
         // Thanked by the name they last gave under.
-        return this.thank(all.at(-1)?.gift ?? gift, all, total(all));
+        return this.run({ gift: all.at(-1)?.gift ?? gift, given: all, total: total(all) });
       }),
     );
   }
@@ -108,41 +117,58 @@ export class GiftThanker {
     return this.work.idle();
   }
 
-  private async thank({ userId, nickname }: Gift, given: Given[], total: number): Promise<void> {
-    const { ask, outbox, room, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
+  protected buildPrompt({ gift: { userId, nickname }, given, total }: Thanks): string {
+    const { room, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
+    return room.prompt(this.options.promptTemplate(), {
+      asker: nickname,
+      question: this.question(given, total),
+      singleLength: singleBudget(nickname, this.limits()),
+      maxLength,
+      userHistory: this.options.userTalk?.recent(userId),
+      userChat: room
+        .recentChat()
+        .filter((chat) => chat.userId === userId)
+        .map((chat) => chat.content)
+        .join('\n'),
+    });
+  }
+
+  protected async ask(
+    { gift: { userId, nickname }, given, total }: Thanks,
+    prompt: string,
+  ): Promise<string | undefined> {
+    const { log } = this.options;
+    log.info('thanking', { nickname, userId, gifts: this.gifts(given), total });
+    log.debug('thanks prompt', { prompt });
+    const [text] = replyMessages(nickname, await this.options.ask({ prompt }), this.limits());
+    if (!text) log.warn('claude had no thanks to give', { nickname });
+    return text;
+  }
+
+  protected deliver({ gift: { userId, nickname }, given, total }: Thanks, text: string): void {
+    this.options.outbox.push({ kind: 'reply', text });
+    const question = `（${this.question(given, total)}）`;
+    this.options.userTalk?.add(userId, { nickname, question, answer: text });
+  }
+
+  protected failed({ gift: { nickname } }: Thanks, err: unknown): void {
+    this.options.log.error('could not thank', { nickname, error: errorMessage(err) });
+  }
+
+  private limits() {
+    return { maxLength: this.options.maxLength ?? DOUYIN_CHAT_LIMIT, maxParts: 1 };
+  }
+
+  /** What was given, as `玫瑰×3、小心心×1`. */
+  private gifts(given: readonly Given[]): string {
     const counts = new Map<string, number>();
     for (const { gift } of given) counts.set(gift.name, (counts.get(gift.name) ?? 0) + gift.count);
-    const gifts = [...counts].map(([name, count]) => `${name}×${count}`).join('、');
-    const question = `刚刚送了 ${gifts}，一共 ${total} 钻`;
-    const limits = { maxLength, maxParts: 1 };
-    try {
-      const prompt = room.prompt(this.options.promptTemplate(), {
-        asker: nickname,
-        question,
-        singleLength: singleBudget(nickname, limits),
-        maxLength,
-        userHistory: this.options.userTalk?.recent(userId),
-        userChat: room
-          .recentChat()
-          .filter((chat) => chat.userId === userId)
-          .map((chat) => chat.content)
-          .join('\n'),
-      });
-      log.info('thanking', { nickname, userId, gifts, total });
-      log.debug('thanks prompt', { prompt });
-      const [text] = replyMessages(nickname, await ask({ prompt }), limits);
-      if (!text) {
-        log.warn('claude had no thanks to give', { nickname });
-        return;
-      }
-      outbox.push({ kind: 'reply', text });
-      this.options.userTalk?.add(userId, { nickname, question: `（${question}）`, answer: text });
-    } catch (err) {
-      log.error('could not thank', {
-        nickname,
-        error: errorMessage(err),
-      });
-    }
+    return [...counts].map(([name, count]) => `${name}×${count}`).join('、');
+  }
+
+  /** What the prompt says they did. */
+  private question(given: readonly Given[], total: number): string {
+    return `刚刚送了 ${this.gifts(given)}，一共 ${total} 钻`;
   }
 }
 
