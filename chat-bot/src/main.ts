@@ -260,6 +260,8 @@ const feed = new RoomFeed({
   record,
   billing,
 });
+// A chat matching a room command's trigger has auto-reply look now, not at its next check.
+feed.onChat((chat) => autoReply.hear(chat));
 feed.onGift((gift) => {
   gifts.add(room.now(), gift);
   thanker.onGift(gift);

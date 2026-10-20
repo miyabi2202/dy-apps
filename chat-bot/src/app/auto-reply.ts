@@ -66,8 +66,12 @@ export class AutoReply {
   /** Talk when something is about the bot at least this likely; 1 or more never. */
   threshold: number;
   private stopped = false;
-  /** Ends the current wait early, when it stops. */
+  /** Ends the current wait early: to stop, or to look now. */
   private wake: () => void = () => {};
+  /** Whether it's waiting; when not, a chat to look at now waits for the next wait to end at once. */
+  private waiting = false;
+  /** Something was said to look at now while it wasn't waiting. */
+  private lookNow = false;
   private readonly sleep: (ms: number) => Promise<void>;
   /** Up to when the room has been looked at; what was said before it is old news. */
   private seen: number;
@@ -86,7 +90,9 @@ export class AutoReply {
   async run(): Promise<void> {
     const { checkMs = 20_000 } = this.options;
     while (!this.stopped) {
-      if ((await this.wait(checkMs)) === 'woken' || this.stopped) continue;
+      if (this.lookNow) this.lookNow = false;
+      else await this.wait(checkMs);
+      if (this.stopped) break;
       await this.check();
     }
   }
@@ -94,6 +100,19 @@ export class AutoReply {
   stop(): void {
     this.stopped = true;
     this.wake();
+  }
+
+  /**
+   * A chat just came in: one matching a room command's trigger (主播会唱xxx吗) is surely for the bot,
+   * so it looks now instead of at the next check. The rest wait for it, so the room has time to answer.
+   */
+  hear({ userId, content }: { userId?: string; content: string }): void {
+    if (this.threshold >= 1 || userId === undefined) return;
+    const { additionalCommands = [] } = this.options;
+    if (!additionalCommands.some(({ trigger }) => trigger?.test(content))) return;
+    this.options.log.debug('looking now', { content });
+    if (this.waiting) this.wake();
+    else this.lookNow = true;
   }
 
   /**
@@ -125,10 +144,11 @@ export class AutoReply {
 
   /** Waits `ms`, or until woken: which of the two ended it. */
   private wait(ms: number): Promise<'elapsed' | 'woken'> {
-    return new Promise((resolve) => {
+    this.waiting = true;
+    return new Promise<'elapsed' | 'woken'>((resolve) => {
       this.wake = () => resolve('woken');
       void this.sleep(ms).then(() => resolve('elapsed'));
-    });
+    }).finally(() => (this.waiting = false));
   }
 
   /** Asks the judge about what's new since it last looked, and talks if it's about the bot. */

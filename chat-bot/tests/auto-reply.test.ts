@@ -380,3 +380,50 @@ test("what one of the room's own commands is for goes to the picker, which may a
     { nickname: '小蓝', userId: 'u-小蓝', question: '今晚吃火锅', heard: 'chat' },
   ]);
 });
+
+test("a chat matching a room command's trigger is looked at at once, not at the next check", async () => {
+  let now = 1000;
+  const history = new ChatHistory(100);
+  const transcript = new Transcript(Infinity, () => now);
+  const replies: UnpromptedReply[] = [];
+  const autoReply: AutoReply = new AutoReply({
+    outbox: { push: () => {} },
+    judge: (_, questions) =>
+      Promise.resolve(Object.fromEntries(Object.keys(questions).map((k) => [k, 0.1]))),
+    threshold: 0.6,
+    picker: () =>
+      Promise.resolve(
+        JSON.stringify({
+          picks: [
+            { line: 1, confidence: 0.1, command: '' },
+            { line: 2, confidence: 0.9, command: 'can-sing' },
+          ],
+        }),
+      ),
+    pickTemplate: () => '{{lines}}',
+    reply: (target) => void replies.push(target),
+    streamer: () => null,
+    room: fakeRoom({ history, transcript, now: () => now }),
+    log: silentLog,
+    // The next check never comes by itself.
+    sleep: () => new Promise(() => {}),
+    additionalCommands: [{ id: 'can-sing', when: '在问主播会不会唱某首歌', trigger: /会唱/ }],
+  });
+  const running = autoReply.run();
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  now = 2000;
+  history.add({ ts: 2000, userId: 'u-阿明', nickname: '阿明', content: '今晚吃火锅' });
+  autoReply.hear({ userId: 'u-阿明', content: '今晚吃火锅' });
+  await settle();
+  expect(replies).toEqual([]);
+
+  now = 3000;
+  history.add({ ts: 3000, userId: 'u-小红', nickname: '小红', content: '主播会唱晴天吗' });
+  autoReply.hear({ userId: 'u-小红', content: '主播会唱晴天吗' });
+  await settle();
+  expect(replies.map((r) => [r.question, r.command])).toEqual([['主播会唱晴天吗', 'can-sing']]);
+
+  autoReply.stop();
+  await running;
+});

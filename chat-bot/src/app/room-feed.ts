@@ -26,12 +26,18 @@ export interface RoomFeedOptions {
 export class RoomFeed {
   private readonly mentionHandlers: ((chat: IncomingChat, question: string) => void)[] = [];
   private readonly giftHandlers: ((gift: Gift) => void)[] = [];
+  private readonly chatHandlers: ((chat: IncomingChat) => void)[] = [];
 
   constructor(private readonly options: RoomFeedOptions) {}
 
   /** Calls `handler` for each @mention of the bot, before the chat it's in joins the history. */
   onMention(handler: (chat: IncomingChat, question: string) => void): void {
     this.mentionHandlers.push(handler);
+  }
+
+  /** Calls `handler` for each chat from someone but the bot, once it's in the history. */
+  onChat(handler: (chat: IncomingChat) => void): void {
+    this.chatHandlers.push(handler);
   }
 
   /** Calls `handler` for each gift worth diamonds, once it's been credited. */
@@ -50,6 +56,7 @@ export class RoomFeed {
         for (const handler of this.mentionHandlers) handler(chat, question);
       }
       history.add(chat);
+      if (!isFromBot(chat, bot)) for (const handler of this.chatHandlers) handler(chat);
     });
     events.onGift((gift) => {
       record?.add(giftRecord(gift));
