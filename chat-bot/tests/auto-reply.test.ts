@@ -53,7 +53,12 @@ function setup(rounds: (() => void)[], options: Partial<AutoReplyOptions> = {}) 
   const chat = (nickname: string, content: string, userId?: string) =>
     history.add({ ts: now, nickname, content, ...(userId && { userId }) });
   const say = (text: string) => transcript.add({ start: now - 2000, end: now, text, speech: 0.8 });
-  return { autoReply, sent, judged, chat, say };
+  /** Moves the clock on by `ms` and runs `then`, as if it happened while something was awaited. */
+  const later = (ms: number, then: () => void) => {
+    now += ms;
+    then();
+  };
+  return { autoReply, sent, judged, chat, say, later };
 }
 
 test('asks Jev nothing at a threshold of 1 or more, until /自动回复阈值 lowers it', async () => {
@@ -510,4 +515,21 @@ test("a chat mentioning one of a room command's phrases is looked at at once, an
   expect(replies.map((r) => r.command)).toEqual(['can-sing']);
   autoReply.stop();
   await running;
+});
+
+test('what is said while it picks whom to answer is looked at in the next check', async () => {
+  let picked = 0;
+  const replies: UnpromptedReply[] = [];
+  const ran = setup([() => ran.chat('阿明', '机器人在吗', 'u-阿明'), () => {}, () => {}], {
+    quietMs: 0,
+    picker: () => {
+      // 小红 says something while the picker thinks about 阿明.
+      if (picked++ === 0) ran.later(5000, () => ran.chat('小红', '机器人翻旧账', 'u-小红'));
+      return Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));
+    },
+    reply: (target) => void replies.push(target),
+  });
+  await ran.autoReply.run();
+
+  expect(replies.map((r) => r.question)).toEqual(['机器人在吗', '机器人翻旧账']);
 });

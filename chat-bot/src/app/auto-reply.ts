@@ -180,7 +180,8 @@ export class AutoReply {
     // While it keeps quiet, what's said waits to be looked at after.
     if (now - this.talkedAt < this.quietMs) return;
     const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName);
-    const since = Math.max(this.seen, this.talkedAt);
+    // Since the last check began, so what was said while it picked and answered is looked at now.
+    const since = this.seen;
     const fresh = lines.filter((line) => line.candidate && line.ts > since && line.ts <= now);
     this.seen = now;
     if (!fresh.length) return;
