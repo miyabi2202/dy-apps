@@ -9,7 +9,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | Command                | What it does                                       | Admins only | Default     |
 | ---------------------- | -------------------------------------------------- | ----------- | ----------- |
 | `/修改人设 <人设>`     | Change who the bot plays                           | yes         | none        |
-| `/修改收费 <钻>`       | Change what an @ costs                             | yes         | 1           |
+| `/修改收费 <钻>`       | Change what an @ costs                             | yes         | 0 (free)    |
 | `/自动回复阈值 <0–1>`  | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
 | `/自动回复间隔 <秒>`   | How long it keeps quiet after joining in           | yes         | 60          |
 | `/自动谢礼 <钻>`       | Thank viewers who give more than this in 5 minutes | yes         | 99999 (off) |
@@ -37,7 +37,7 @@ Sets who the bot plays: every prompt gets `你的人设是<人设>`. It's kept i
 
 ### /修改收费
 
-Sets how many diamonds a viewer pays per @ (and per `/识歌`); `0` makes them free. It starts at `--cost`.
+Sets how many diamonds a viewer pays per @ (and per `/识歌`); `0` makes them free. It starts at `--cost`, 0 (free) by default.
 
 ```text
 @默认关闭 /修改收费 2
