@@ -1,8 +1,9 @@
 import { errorMessage } from '../core/errors';
-import { parseJsonObject } from '../core/json-answer';
+import { MALICE_SCHEMA, parseMaliceAnswer, type MaliceAnswer } from '../core/malice-answer';
 import { buildPrompt } from '../core/prompt';
 import { DOUYIN_CHAT_LIMIT } from '../core/reply';
 import type { IncomingChat } from '../core/room-events';
+import { askJson } from './ask-json';
 import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
 import type { AskModel, Judge, Log } from './ports';
@@ -33,13 +34,6 @@ export interface MaliceWatchOptions {
 /** What Jev is asked of each chat. Written for the puns and innuendo it otherwise scores low. */
 export const MALICE_QUESTION =
   '这条弹幕是不是在恶意贬低主播或观众：骂人、攻击外貌身材年龄（包括用谐音字、错别字、拼音缩写来绕开屏蔽的说法）、或者性暗示（暗指她私生活乱、陪睡、卖身、有金主、靠男人捞钱这类，配了爱心笑脸表情、装作夸人也算）？朋友间的玩笑、吐槽唱得不好、正常提问都不算。';
-
-const MALICE_SCHEMA = {
-  type: 'object',
-  properties: { malicious: { type: 'boolean' }, reason: { type: 'string' } },
-  required: ['malicious', 'reason'],
-  additionalProperties: false,
-};
 
 /** What the bot says to someone it found malicious, after their @. */
 const WARNING = '检测到恶意言论';
@@ -109,7 +103,7 @@ export class MaliceWatch {
     }
   }
 
-  private async decide(chat: IncomingChat): Promise<{ malicious: boolean; reason: string }> {
+  private async decide(chat: IncomingChat): Promise<MaliceAnswer> {
     const { ask, room, contextMs = 90_000 } = this.options;
     const input = room.promptInput();
     // What came before the chat is its background; more may have come in while Jev scored it.
@@ -133,12 +127,14 @@ export class MaliceWatch {
       singleLength: DOUYIN_CHAT_LIMIT,
       maxLength: DOUYIN_CHAT_LIMIT,
     });
-    const answer = parseJsonObject((await ask({ prompt, schema: MALICE_SCHEMA })).trim());
-    // An answer that isn't the schema's is taken as no: better to miss one than flag someone.
-    return {
-      malicious: answer?.malicious === true,
-      reason: typeof answer?.reason === 'string' ? answer.reason : '',
-    };
+    const { value } = await askJson(
+      ask,
+      { prompt },
+      { schema: MALICE_SCHEMA, parse: parseMaliceAnswer, notJson: 'malice answer is not json' },
+      this.options.log,
+    );
+    // parseMaliceAnswer takes an answer that isn't the schema's as no, so there's always a value.
+    return value ?? { malicious: false, reason: '' };
   }
 
   private warn({ userId, nickname }: IncomingChat & { userId: string }): void {

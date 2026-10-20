@@ -1,6 +1,13 @@
 import { errorMessage, OutOfCreditError } from '../core/errors';
 import { relevanceRequest, roomLines, type RoomLine } from '../core/relevance';
-import { parseReplyPick, pickLines, pickPrompt, REPLY_PICK_SCHEMA } from '../core/reply-pick';
+import {
+  parseReplyPick,
+  type Pick as ReplyPick,
+  pickLines,
+  pickPrompt,
+  REPLY_PICK_SCHEMA,
+} from '../core/reply-pick';
+import { askJson } from './ask-json';
 import { done, failed, type Command } from './command';
 import type { UnpromptedReply } from './mention-answerer';
 import type { Outbox } from './outbox';
@@ -318,18 +325,24 @@ export class AutoReply {
       botTalk: room.botTalk(),
       commands: this.options.additionalCommands,
     });
-    let answer: string;
+    let picks: ReplyPick[] | null;
     try {
-      answer = await picker({ prompt, schema: REPLY_PICK_SCHEMA });
+      ({ value: picks } = await askJson(
+        picker,
+        { prompt },
+        {
+          schema: REPLY_PICK_SCHEMA,
+          parse: parseReplyPick,
+          notJson: 'reply pick is not json',
+          field: 'answer',
+        },
+        log,
+      ));
     } catch (err) {
       log.warn('could not pick whom to answer', { error: errorMessage(err) });
       return 0;
     }
-    const picks = parseReplyPick(answer);
-    if (!picks) {
-      log.warn('reply pick is not json', { answer });
-      return 0;
-    }
+    if (!picks) return 0;
     log.debug('picks', {
       picks: picks.map(({ line, confidence }) => ({ text: numbered[line - 1]?.text, confidence })),
     });

@@ -1,4 +1,5 @@
 import { parseSongAnswer, SONG_ANSWER_SCHEMA, type SongAnswer } from '../core/song-answer';
+import { askJson } from './ask-json';
 import type { Command } from './command';
 import { currentSong } from '../core/transcript';
 import type { AskModel, Log, Question } from './ports';
@@ -35,12 +36,13 @@ export class SongId {
    * the answer isn't that shape, with the text it was.
    */
   async name(question: Question): Promise<{ answer: SongAnswer | null; text: string }> {
-    const text = await this.options.codex({ ...question, schema: SONG_ANSWER_SCHEMA });
-    const answer = parseSongAnswer(text);
-    if (!answer) {
-      this.options.log.warn('song id answer is not json', { text });
-      return { answer, text };
-    }
+    const { value: answer, text } = await askJson(
+      this.options.codex,
+      question,
+      { schema: SONG_ANSWER_SCHEMA, parse: parseSongAnswer, notJson: 'song id answer is not json' },
+      this.options.log,
+    );
+    if (!answer) return { answer, text };
     this.options.log.info('song identified', {
       title: answer.title,
       artist: answer.artist,

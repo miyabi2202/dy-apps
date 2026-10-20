@@ -4,6 +4,7 @@ import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
 import type { SongAnswer } from '../core/song-answer';
 import { parseSongIntro, SONG_INTRO_SCHEMA } from '../core/song-intro-answer';
 import { currentSong, isGuest } from '../core/transcript';
+import { askJson } from './ask-json';
 import type { Outbox } from './outbox';
 import type { AskModel, Log } from './ports';
 import type { RoomState } from './room-state';
@@ -42,17 +43,17 @@ export class SongIntro {
         singleLength: maxLength,
         maxLength,
       });
-      const text = await ask({
-        prompt,
-        tools: ['WebSearch', 'WebFetch'],
-        maxTurns: MAX_TURNS,
-        schema: SONG_INTRO_SCHEMA,
-      });
-      const answer = parseSongIntro(text);
-      if (!answer) {
-        log.warn('song intro answer is not json', { text });
-        return;
-      }
+      const { value: answer } = await askJson(
+        ask,
+        { prompt, tools: ['WebSearch', 'WebFetch'], maxTurns: MAX_TURNS },
+        {
+          schema: SONG_INTRO_SCHEMA,
+          parse: parseSongIntro,
+          notJson: 'song intro answer is not json',
+        },
+        log,
+      );
+      if (!answer) return;
       log.info('song intro', { title, messages: answer.messages });
       for (const message of answer.messages) {
         const said = plainMessage(message, maxLength);
