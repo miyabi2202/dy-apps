@@ -72,6 +72,11 @@ export class AutoSongId {
     void this.nameSong(song.lines).finally(() => (this.busy = false));
   }
 
+  /** What `{{settings}}` says of it: whether it's on. */
+  settings(): { autoSongId: boolean } {
+    return { autoSongId: this.on };
+  }
+
   /** `/自动识歌 1` turns it on, `/自动识歌 0` off. */
   commands(): Command[] {
     return [

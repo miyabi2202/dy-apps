@@ -1,6 +1,6 @@
 import { Billing } from '../src/app/billing';
 import { MentionAnswerer, type Mention } from '../src/app/mention-answerer';
-import type { RoomStateOptions } from '../src/app/room-state';
+import type { SettingsPart } from '../src/app/room-state';
 import type { UserTalk } from '../src/app/ports';
 import { Transcript } from '../src/core/transcript';
 import { fakeRoom } from './fake-room';
@@ -22,7 +22,7 @@ interface SetupOptions {
   userTalk?: UserTalk;
   onAnswered?: (userId: string) => void;
   botTalk?: string;
-  settings?: RoomStateOptions['settings'];
+  settings?: () => SettingsPart;
   commands?: () => string;
 }
 
@@ -36,11 +36,11 @@ function setup(options: SetupOptions = {}) {
     persona: () => options.persona ?? '',
     chatDir: options.chatDir,
     botTalk: options.botTalk === undefined ? undefined : { recent: () => options.botTalk ?? '' },
-    settings: options.settings,
     commands: options.commands,
     screenshotsOn: !!options.screenshot,
     now: () => NOW,
   });
+  if (options.settings) room.addSettings(options.settings);
   const answerer = new MentionAnswerer({
     ask: ({ prompt, image }) => {
       prompts.push(prompt);

@@ -134,6 +134,11 @@ export class AutoReply {
     this.saidTo.set(userId === streamer?.uid ? STREAMER : userId, this.options.room.now());
   }
 
+  /** What `{{settings}}` says of it: the threshold and how long it keeps quiet. */
+  settings(): { autoReplyThreshold: number; autoReplyIntervalMs: number } {
+    return { autoReplyThreshold: this.threshold, autoReplyIntervalMs: this.quietMs };
+  }
+
   /**
    * `/自动回复阈值 0.6` sets the threshold (1 or more: never unprompted); `/自动回复间隔 20` how many
    * seconds it keeps quiet after talking.

@@ -52,7 +52,6 @@ import { Transcriber } from './app/transcriber';
 import { parseCliOptions, USAGE } from './cli-options';
 import { ChatHistory } from './core/chat-history';
 import { RecentGifts } from './core/recent-gifts';
-import type { RoomSettings } from './core/prompt';
 import { Transcript } from './core/transcript';
 import { Wallet } from './core/wallet';
 
@@ -155,9 +154,8 @@ const mentionTemplate = livePrompt('mention', {
 const history = new ChatHistory(options.historySize);
 // The last few minutes' gifts, among the chat in every prompt (so 「谢一下这个礼物」 knows which).
 const gifts = new RecentGifts();
-// Three closures point forward: the room's settings (to autoReply, thanker and autoSongId), the
-// autoReply's reply and the answerer's onCommandRequest (to the bot). They run only after the bot
-// exists, since nothing calls room.prompt() or starts autoReply while this is wired.
+// Two closures point forward: the autoReply's reply and the answerer's onCommandRequest (to the
+// bot). They run only after the bot exists, since nothing starts autoReply while this is wired.
 // What the room looks like now, for every prompt. The bot plays the room's persona.md, read on
 // every use like context.md and written by /修改人设. The prompts also get the settings admins can
 // change, and the list of commands from commands.md, so the bot can tell viewers what it can do.
@@ -176,13 +174,6 @@ const room = new RoomState({
   screenshotsOn: options.screenshot,
   chatDir,
   botName: options.botName,
-  settings: (): Omit<RoomSettings, 'screenshots'> => ({
-    mentionCost: billing.cost,
-    autoReplyThreshold: autoReply.threshold,
-    autoReplyIntervalMs: autoReply.quietMs,
-    thanksThreshold: thanker.threshold,
-    autoSongId: autoSongId?.on ?? false,
-  }),
   // commands.md's list, and the room's own commands, which Claude asks for by name.
   commands: () =>
     additionalCommands.length
@@ -354,6 +345,11 @@ const autoSongId =
         maxLength: options.maxReplyLength,
       })
     : null;
+// What the settings text says of each feature; auto song id counts as off without one.
+room.addSettings(() => billing.settings());
+room.addSettings(() => autoReply.settings());
+room.addSettings(() => thanker.settings());
+room.addSettings(() => autoSongId?.settings() ?? { autoSongId: false });
 // And, in a room with on_sing in its room_config.json, its message as the streamer starts a song.
 const onSing = new OnSing({ config: () => roomConfig().onSing, room, outbox, log });
 transcriber?.onLine((line) => {

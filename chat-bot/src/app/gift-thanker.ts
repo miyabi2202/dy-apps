@@ -82,6 +82,11 @@ export class GiftThanker {
     this.running.add(run);
   }
 
+  /** What `{{settings}}` says of it: the threshold. */
+  settings(): { thanksThreshold: number } {
+    return { thanksThreshold: this.threshold };
+  }
+
   /** `/自动谢礼 100`: changes the threshold, until the bot stops. */
   commands(): Command[] {
     return [

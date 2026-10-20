@@ -16,6 +16,9 @@ import {
 import { done, failed, type Command } from './command';
 import type { BotTalk, Log, Screenshot } from './ports';
 
+/** What a feature adds to the room's settings (everything but screenshots, which the room keeps). */
+export type SettingsPart = Omit<RoomSettings, 'screenshots'>;
+
 export interface RoomStateOptions {
   /** The room's recent chat; whoever hears the chat adds to it. */
   history: ChatHistory;
@@ -43,8 +46,6 @@ export interface RoomStateOptions {
   chatDir?: string;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
   botName: string;
-  /** The rest of the room's settings, kept by the features they belong to, for `{{settings}}`. */
-  settings?: () => Omit<RoomSettings, 'screenshots'>;
   /** The commands viewers can run, for `{{commands}}`, read each time so edits apply at once. */
   commands?: () => string;
   log: Log;
@@ -63,6 +64,8 @@ export class RoomState {
   private screenshotsOn: boolean;
   /** The persona, without a `persona` to read it from. */
   private ownPersona = '';
+  /** The parts of the room's settings the features keep, for `{{settings}}`. */
+  private readonly settingsParts: (() => SettingsPart)[] = [];
 
   constructor(private readonly options: RoomStateOptions) {
     this.screenshotsOn = options.screenshotsOn ?? true;
@@ -101,9 +104,18 @@ export class RoomState {
     return this.options.botTalk?.recent() ?? '';
   }
 
+  /**
+   * Has `part`, read each time, in `{{settings}}`: a feature gives what it keeps there (how much an
+   * @ costs, say), which admins may change while the bot runs. Without any, there's no settings
+   * text at all.
+   */
+  addSettings(part: () => SettingsPart): void {
+    this.settingsParts.push(part);
+  }
+
   /** The room's part of a prompt (see buildPrompt), as it is now. */
   promptInput(): RoomPromptInput {
-    const { chatDir, context, intro, botTalk, settings, commands } = this.options;
+    const { chatDir, context, intro, botTalk, commands } = this.options;
     return {
       history: this.recentChat(),
       gifts: this.options.gifts?.recent(this.now()),
@@ -115,7 +127,7 @@ export class RoomState {
       context: context?.(),
       intro: intro?.(),
       botTalk: botTalk?.recent(),
-      settings: settings && { ...settings(), screenshots: this.screenshotsOn },
+      settings: this.settings(),
       commands: commands?.(),
     };
   }
@@ -126,6 +138,13 @@ export class RoomState {
    */
   prompt(template: string, details: PromptDetails & Partial<RoomPromptInput>): string {
     return buildPrompt(template, { ...this.promptInput(), ...details });
+  }
+
+  private settings(): RoomSettings | undefined {
+    if (!this.settingsParts.length) return undefined;
+    return Object.assign({}, ...this.settingsParts.map((part) => part()), {
+      screenshots: this.screenshotsOn,
+    }) as RoomSettings;
   }
 
   /** Whether prompts get the live video; admins switch it while the bot runs. */

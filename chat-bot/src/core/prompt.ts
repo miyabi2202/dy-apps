@@ -31,18 +31,21 @@ export interface RoomPromptInput {
   commands?: string;
 }
 
-/** How the bot is set up in the room right now, which admins can change while it runs. */
+/**
+ * How the bot is set up in the room right now, which admins can change while it runs. Each feature
+ * gives its own part (see RoomState.addSettings), and the prompt lists the parts there are.
+ */
 export interface RoomSettings {
   /** Diamonds one @ costs; 0 free. */
-  mentionCost: number;
+  mentionCost?: number;
   /** Whether prompts get a screenshot of the live video. */
   screenshots: boolean;
   /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
-  autoReplyThreshold: number;
+  autoReplyThreshold?: number;
   /** How long it keeps quiet after talking unprompted. */
   autoReplyIntervalMs?: number;
   /** Viewers whose gifts within 5 minutes pass this many diamonds are thanked. */
-  thanksThreshold: number;
+  thanksThreshold?: number;
   /** Whether the bot names the songs the streamer sings without being asked. */
   autoSongId?: boolean;
 }
@@ -84,10 +87,22 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
     autoReplyIntervalMs === undefined ? '' : `，两次之间至少隔 ${autoReplyIntervalMs / 1000} 秒`;
   return [
     '直播间现在的设置（机器人管理员可以用指令修改）：',
-    `- 每次 @ 你：${mentionCost > 0 ? `${mentionCost} 钻，用观众给主播送过的礼物抵（不会另外扣观众的钱）` : '免费'}`,
+    ...(mentionCost === undefined
+      ? []
+      : [
+          `- 每次 @ 你：${mentionCost > 0 ? `${mentionCost} 钻，用观众给主播送过的礼物抵（不会另外扣观众的钱）` : '免费'}`,
+        ]),
     `- 截图：${screenshots ? '开（你能看到直播画面）' : '关（你看不到直播画面）'}`,
-    `- 自动回复：${autoReplyThreshold < 1 ? `开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 ${autoReplyThreshold}${interval}）` : '关闭'}`,
-    `- 自动谢礼：${thanksThreshold >= THANKS_OFF_FROM ? '关闭' : `5 分钟内送礼超过 ${thanksThreshold} 钻的观众会收到感谢`}`,
+    ...(autoReplyThreshold === undefined
+      ? []
+      : [
+          `- 自动回复：${autoReplyThreshold < 1 ? `开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 ${autoReplyThreshold}${interval}）` : '关闭'}`,
+        ]),
+    ...(thanksThreshold === undefined
+      ? []
+      : [
+          `- 自动谢礼：${thanksThreshold >= THANKS_OFF_FROM ? '关闭' : `5 分钟内送礼超过 ${thanksThreshold} 钻的观众会收到感谢`}`,
+        ]),
     ...(autoSongId === undefined
       ? []
       : [`- 自动识歌：${autoSongId ? '开（主播唱歌时，你会自己认出是什么歌并说出来）' : '关闭'}`]),

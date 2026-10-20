@@ -66,6 +66,11 @@ export class Billing {
     if (userId && paid) this.options.wallet.refund(userId, paid);
   }
 
+  /** What `{{settings}}` says of it: what an @ costs. */
+  settings(): { mentionCost: number } {
+    return { mentionCost: this.cost };
+  }
+
   /** `/修改收费 2`: changes the price of a mention, until the bot stops. */
   commands(): Command[] {
     return [
