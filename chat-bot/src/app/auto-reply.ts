@@ -252,6 +252,7 @@ export class AutoReply {
       fresh,
       room.botName,
       room.persona,
+      room.wording,
       additionalCommands.map(({ when }) => when),
     );
     let scores: Record<string, number>;
@@ -321,7 +322,7 @@ export class AutoReply {
               .filter((label): label is string => label !== null),
     );
     if (!numbered.length) return 0;
-    const prompt = pickPrompt(pickTemplate(), {
+    const prompt = pickPrompt(pickTemplate(), room.wording, {
       lines: text,
       botName: room.botName,
       persona: room.persona,

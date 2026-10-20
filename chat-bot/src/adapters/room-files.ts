@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Log, OnSingConfig } from '../app/ports';
 import { errorMessage } from '../core/errors';
+import { wordingOf, type Wording } from '../core/wording';
 
 /** The files someone can edit for one room, to change the bot there while it runs. */
 export interface RoomFiles {
@@ -184,4 +185,14 @@ export function liveSection(path: string, heading: string): () => string {
     const end = text.indexOf('\n## ', start + 1);
     return text.slice(start, end < 0 ? undefined : end).trim();
   };
+}
+
+/**
+ * The wording in `path` (wording.md), read on every use like a prompt so edits apply at once. The
+ * file is read once now, so a missing one stops the bot at start; it's also the text used if it
+ * can't be read later.
+ */
+export function liveWording(path: string): Wording {
+  const first = readFileSync(path, 'utf8');
+  return wordingOf(liveText(path, () => first));
 }

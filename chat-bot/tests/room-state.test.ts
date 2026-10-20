@@ -2,6 +2,7 @@ import { ChatHistory } from '../src/core/chat-history';
 import { Transcript } from '../src/core/transcript';
 import { screenshotCommand } from '../src/app/room-state';
 import { fakeRoom } from './fake-room';
+import { testWording } from './wording';
 
 const NOW = Date.UTC(2026, 9, 16, 8, 0, 0);
 
@@ -28,6 +29,7 @@ test('gives every prompt the room as it is now: chat, recent speech, persona, co
   });
 
   expect(room.promptInput()).toEqual({
+    wording: testWording,
     history: [
       { ts: NOW, userId: 'u-1', nickname: '阿明', content: '二' },
       { ts: NOW, userId: 'u-1', nickname: '阿明', content: '三' },

@@ -18,7 +18,7 @@ export interface MaliceWatchOptions {
   /** The model's prompt (see buildPrompt), read each time so edits apply at once. */
   promptTemplate: () => string;
   outbox: Pick<Outbox, 'push'>;
-  room: Pick<RoomState, 'prompt' | 'recentChat' | 'recentTranscript'>;
+  room: Pick<RoomState, 'prompt' | 'recentChat' | 'recentTranscript' | 'wording'>;
   /** Viewers never judged: the streamer and the bot's admins. */
   exempt?: (userId: string) => boolean;
   log: Log;
@@ -31,10 +31,6 @@ export interface MaliceWatchOptions {
   /** At most this many chats with the model at once; more are let go. */
   maxPending?: number;
 }
-
-/** What Jev is asked of each chat. Written for the puns and innuendo it otherwise scores low. */
-export const MALICE_QUESTION =
-  '这条弹幕是不是在恶意贬低主播或观众：骂人、攻击外貌身材年龄（包括用谐音字、错别字、拼音缩写来绕开屏蔽的说法）、或者性暗示（暗指她私生活乱、陪睡、卖身、有金主、靠男人捞钱这类，配了爱心笑脸表情、装作夸人也算）？朋友间的玩笑、吐槽唱得不好、正常提问都不算。';
 
 /** A chat from someone, with a user id. */
 type Heard = IncomingChat & { userId: string };
@@ -51,7 +47,7 @@ const WARNING = '检测到恶意言论';
 /**
  * Watches the chat for malicious messages (insults, sexual innuendo, attacks on looks or age),
  * caring most about never flagging an ordinary viewer. Jev scores every chat on its own with
- * MALICE_QUESTION; one scoring `threshold` or more goes to the model with the chat and the
+ * the wording's `malice-question`; one scoring `threshold` or more goes to the model with the chat and the
  * streamer's speech around it, told to say no when unsure. Each chat the model finds malicious
  * has its sender @ed with WARNING. On 2000 chats from friendly rooms, Jev let 4% through and the
  * model flagged one, a regular teasing.
@@ -101,7 +97,9 @@ export class MaliceWatch extends ModelFeature<Suspect, MaliceAnswer> {
     const { judge, log, threshold = 0.5, maxPending = 3 } = this.options;
     let score: number;
     try {
-      const scores = await judge(`抖音直播间弹幕：${chat.content}`, { malice: MALICE_QUESTION });
+      const scores = await judge(`抖音直播间弹幕：${chat.content}`, {
+        malice: this.options.room.wording('malice-question'),
+      });
       score = scores.malice ?? 0;
     } catch (err) {
       this.couldNotCheck(chat, err);

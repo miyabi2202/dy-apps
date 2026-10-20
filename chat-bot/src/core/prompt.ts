@@ -1,10 +1,13 @@
 import { clock, localDate } from './local-time';
 import type { GiftLine } from './recent-gifts';
 import type { ChatLine } from './room-events';
+import type { Wording } from './wording';
 import { isGuest, isSung, type TranscriptLine } from './transcript';
 
 /** What every prompt knows about the room as it is now. */
 export interface RoomPromptInput {
+  /** The sentences the prompt says around what it fills in (wording.md). */
+  wording: Wording;
   /** Recent chat before the question, oldest first. */
   history: readonly ChatLine[];
   /** The gifts of the last few minutes, oldest first, which `{{history}}` shows among the chat. */
@@ -131,8 +134,8 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
 export function buildPrompt(template: string, input: PromptInput): string {
   const { history, transcript, singleLength, maxLength, now, chatDir, persona } = input;
   const { asker = '', question = '', botName, context, botTalk, userHistory, userChat } = input;
-  const { settings, commands, askerBalance, unprompted, intro } = input;
-  const said = question || '（只 @ 了你，没有说别的）';
+  const { settings, commands, askerBalance, unprompted, intro, wording } = input;
+  const said = question || wording('asked-nothing');
   const values: Record<string, string> = {
     history: historyText(history, input.gifts ?? []),
     transcript:
@@ -144,12 +147,14 @@ export function buildPrompt(template: string, input: PromptInput): string {
         .join('\n') || '（暂无）',
     asker,
     question: said,
-    asked:
+    asked: wording(
       unprompted === 'speech'
-        ? `主播 ${asker} 没有 @ 你，是在直播里说到了你（语音识别，可能有错字），你主动回 TA 一句：${said}`
+        ? 'asked-speech'
         : unprompted === 'chat'
-          ? `${asker} 没有 @ 你，是在弹幕里说到了你或在跟你说话，你主动回 TA 一句：${said}`
-          : `${asker} @ 了你：${said}`,
+          ? 'asked-chat'
+          : 'asked-mention',
+      { asker, said },
+    ),
     singleLength: String(singleLength),
     maxLength: String(maxLength),
     now: clock(now),
@@ -157,10 +162,8 @@ export function buildPrompt(template: string, input: PromptInput): string {
     chatDir: chatDir ?? '（无）',
     persona: persona ? `你的人设是${persona}` : '',
     botName: botName ?? '',
-    context: context?.trim() ? `关于这个直播间的背景资料：\n\n${context.trim()}` : '',
-    intro: intro?.trim()
-      ? `关于你自己（有人问起你是谁、谁做的、能做什么时，照这个回答，口径保持一致，不要编别的）：\n\n${intro.trim()}`
-      : '',
+    context: context?.trim() ? wording('context', { context: context.trim() }) : '',
+    intro: intro?.trim() ? wording('intro', { intro: intro.trim() }) : '',
     botTalk: botTalk?.trim() || '（暂无）',
     userHistory: userHistory?.trim() || '（暂无）',
     userChat: userChat?.trim() || '（暂无）',

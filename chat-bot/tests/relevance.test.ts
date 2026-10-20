@@ -1,3 +1,4 @@
+import { testWording } from './wording';
 import { relevanceRequest, roomLines, scoreRelevance, type RoomLine } from '../src/core/relevance';
 
 test('one list of the room, with what the streamer read out marked, and only what may be about the bot to judge', () => {
@@ -28,6 +29,7 @@ test('one list of the room, with what the streamer read out marked, and only wha
     lines.slice(3, 4),
     '小助手',
     '一只猫',
+    testWording,
   );
   expect(state).toContain('它的人设：一只猫。');
   expect(state).toMatch(/新内容：\n\(1\) \d\d:\d\d:04 \[主播\] （念了阿明的弹幕）哈哈哈$/);

@@ -30,19 +30,6 @@ export interface AutoSongIdOptions {
 /** Sung lines a song needs before it's named, for enough lyrics to go on. */
 const SONG_LINES = 5;
 
-/** What the prompt's `{{question}}` says when nobody asked. */
-const UNASKED =
-  '没人问，是你听到主播在唱歌，主动告诉直播间这首是什么歌（不用 @ 谁）。只有找到歌词核对过、确定是这首时才填 title；不确定或认不出来，title 和 artist 都留空（这次就不会发出去）。';
-
-/**
- * What's added to UNASKED when it told the room a song within `repeatMs`: the model, not the
- * title, tells whether it's still that song (a version's name is often written another way).
- */
-function lastSongNote(title: string, artist: string, minutes: number): string {
-  const who = artist ? `（${artist}）` : '';
-  return `你 ${minutes} 分钟前已经说过这首是《${title}》${who}。这次认出来的如果还是这首（哪怕版本、写法不一样），很可能主播还在唱同一首：title 和 artist 照常填，message 留空字符串，不要再说；只有上次说错了、需要更正时才写 message，并说明是更正。`;
-}
-
 /**
  * Names the song the streamer is singing without anyone asking, like `/识歌`, and says it in the
  * room: once the streamer is singing (see singingNow) and the song has SONG_LINES sung lines, and
@@ -106,13 +93,21 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
     ];
   }
 
-  /** UNASKED, and the song it last told the room when that was within `repeatMs`. */
+  /** What nobody asked, and the song it last told the room when that was within `repeatMs`. */
   private question(repeatMs: number): string {
     const last = this.options.songId.lastTold();
     const ago = last && this.options.room.now() - last.at;
-    if (!last || ago === undefined || ago >= repeatMs) return UNASKED;
+    const { wording } = this.options.room;
+    // What the prompt's `{{question}}` says when nobody asked.
+    const unasked = wording('song-unasked');
+    if (!last || ago === undefined || ago >= repeatMs) return unasked;
+    // When it told the room a song within `repeatMs`, the model, not the title, tells whether it's
+    // still that song (a version's name is often written another way).
     const minutes = Math.max(1, Math.round(ago / 60_000));
-    return UNASKED + lastSongNote(last.song.title, last.song.artist, minutes);
+    const { title, artist } = last.song;
+    return (
+      unasked + wording('song-last', { minutes, title, artist: artist ? `（${artist}）` : '' })
+    );
   }
 
   private nameSong(song: TranscriptLine[]): Promise<void> {

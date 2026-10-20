@@ -3,6 +3,7 @@ import { RoomState } from '../src/app/room-state';
 import { ChatHistory } from '../src/core/chat-history';
 import { Transcript } from '../src/core/transcript';
 import type { Question } from '../src/app/ports';
+import { testWording } from './wording';
 
 const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 const now = () => 600_000;
@@ -16,6 +17,7 @@ function setUp(answer: string) {
     transcript,
     now,
     botName: '默认关闭',
+    wording: testWording,
     log,
   });
   const asked: Question[] = [];

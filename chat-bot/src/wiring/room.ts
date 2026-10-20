@@ -8,6 +8,7 @@ import {
   livePrompt,
   liveSection,
   liveText,
+  liveWording,
   roomFiles,
   saveStreamer,
 } from '../adapters/room-files';
@@ -148,6 +149,8 @@ export function registerRoom(container: Container): void {
         screenshotsOn: options.screenshot,
         chatDir: c.resolve(CHAT_DIR),
         botName: options.botName,
+        // What prompts say around what they fill in, shared by every room.
+        wording: liveWording(join(c.resolve(PACKAGE_DIR), 'wording.md')),
         // commands.md's list, and the room's own commands, which Claude asks for by name.
         commands: () =>
           additionalCommands.length

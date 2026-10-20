@@ -3,6 +3,7 @@ import { clock } from './local-time';
 import type { Heard } from './prompt';
 import { readMark } from './reading';
 import type { RoomLine } from './relevance';
+import type { Wording } from './wording';
 
 /** One numbered line and how sure the picker is that the bot should answer it now. */
 export interface Pick {
@@ -90,6 +91,7 @@ export function pickLines(
  */
 export function pickPrompt(
   template: string,
+  wording: Wording,
   values: {
     lines: string;
     botName: string;
@@ -103,11 +105,11 @@ export function pickPrompt(
     ...rest,
     commands: commands.length
       ? [
-          '除了跟它说话的，下面这些问题它也会回答，哪怕不是在跟它说话、也没提到它（每种用一个指令回答）：',
+          wording('pick-commands-head'),
           '',
           ...commands.map(({ id, when }) => `- ${id}：${when}`),
           '',
-          '行末标了「→ 指令名」的，是这一条对上了那个指令的关键词，或者提到了那个指令资料里的词（括号里写了是哪个）：多半是这类问题，拿不准也写那个指令名，交给它去判断（它能看到你看不到的资料，不是的话它会什么都不发）。这种也打分，`command` 只写指令名本身（不带括号里的说明）：问得清楚，后面主播和别的观众都还没回答，给 0.8～1；主播自己叫机器人、问它这类问题，也算，给最高；拿不准是不是在问，给 0.3～0.5；已经有人回答了、主播已经在回应了、主播是在回答观众或自言自语，或者同一个问题机器人刚回答过，给 0～0.2。好几个人接连问同一个问题（同一首歌、同一个歌手），只给最后一条打高分，前面的给低分，一个回答就够了。凡是这类问题，哪怕是在跟机器人说话，`command` 也要写那个指令名，不要留空。别的 `command` 都写空字符串。',
+          wording('pick-commands-tail'),
         ].join('\n')
       : '',
     persona: values.persona ? `它的人设：${values.persona}。` : '',

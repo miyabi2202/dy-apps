@@ -1,6 +1,7 @@
 import type { ChatHistory } from '../core/chat-history';
 import type { RecentGifts } from '../core/recent-gifts';
 import { errorMessage } from '../core/errors';
+import type { Wording } from '../core/wording';
 import {
   buildPrompt,
   type PromptDetails,
@@ -44,6 +45,8 @@ export interface RoomStateOptions {
   screenshotsOn?: boolean;
   /** The folder of the room's chat record files, for `{{chatDir}}`. */
   chatDir?: string;
+  /** The sentences prompts say around what they fill in (wording.md), read each time. */
+  wording: Wording;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
   botName: string;
   /** The commands viewers can run, for `{{commands}}`, read each time so edits apply at once. */
@@ -60,6 +63,7 @@ export interface RoomStateOptions {
  */
 export class RoomState {
   readonly botName: string;
+  readonly wording: Wording;
   private readonly clock: () => number;
   private screenshotsOn: boolean;
   /** The persona, without a `persona` to read it from. */
@@ -70,6 +74,7 @@ export class RoomState {
   constructor(private readonly options: RoomStateOptions) {
     this.screenshotsOn = options.screenshotsOn ?? true;
     this.botName = options.botName;
+    this.wording = options.wording;
     this.clock = options.now ?? Date.now;
   }
 
@@ -117,6 +122,7 @@ export class RoomState {
   promptInput(): RoomPromptInput {
     const { chatDir, context, intro, botTalk, commands } = this.options;
     return {
+      wording: this.wording,
       history: this.recentChat(),
       gifts: this.options.gifts?.recent(this.now()),
       transcript: this.recentTranscript(),

@@ -1,6 +1,14 @@
 import { buildPrompt } from '../src/core/prompt';
+import { testWording } from './wording';
 
-const input = { history: [], transcript: [], now: 0, singleLength: 40, maxLength: 200 };
+const input = {
+  wording: testWording,
+  history: [],
+  transcript: [],
+  now: 0,
+  singleLength: 40,
+  maxLength: 200,
+};
 
 test('{{intro}} is what the bot says about itself, under a heading, and empty without it', () => {
   const filled = buildPrompt('{{intro}}', { ...input, intro: '我是「默认关闭」\n' });
@@ -26,6 +34,7 @@ test('{{history}} shows the recent gifts among the chat, by time', () => {
         diamonds: 299,
       },
     ],
+    wording: testWording,
     transcript: [],
     now: 4,
     singleLength: 40,

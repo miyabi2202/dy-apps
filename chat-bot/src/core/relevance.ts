@@ -2,6 +2,7 @@ import { clock } from './local-time';
 import { readMark, unread } from './reading';
 import type { ChatLine } from './room-events';
 import { isGuest, isSung, type TranscriptLine } from './transcript';
+import type { Wording } from './wording';
 
 /** One thing said in the room: a chat, or a sentence the streamer (or a guest) said or sang. */
 export interface RoomLine {
@@ -70,11 +71,16 @@ export function relevanceRequest(
   fresh: readonly RoomLine[],
   botName: string,
   persona: string,
+  wording: Wording,
   topics: readonly string[] = [],
 ): RelevanceRequest {
   const line = (l: RoomLine) => `${clock(l.ts)} [${l.who}] ${l.text}`;
   const state = [
-    `抖音直播间。直播间里有个聊天机器人，账号叫「${botName}」，平时只在被 @ 时回答（观众可能叫它机器人、小助手，或用它的人设名）。${persona ? `它的人设：${persona}。` : ''}[主播]/[连线] 是语音识别，可能有错字；（唱）是歌词。主播习惯把弹幕念出来，念的部分写成「${readMark('某人')}」。`,
+    wording('relevance-state', {
+      botName,
+      persona: persona ? `它的人设：${persona}。` : '',
+      readMark: readMark('某人'),
+    }),
     '',
     '之前的直播间（从旧到新）：',
     ...before.map(line),
@@ -84,13 +90,10 @@ export function relevanceRequest(
   ].join('\n');
   const questions = Object.fromEntries(
     fresh.flatMap((_, i): [string, string][] => [
-      [
-        `q${i + 1}`,
-        `新内容第 (${i + 1}) 条和这个聊天机器人有关吗：在对它说话、评论或介绍它（哪怕只用「它/他」指它）、或在接它刚才的话？说到 AI 不一定是指它：AI 歌曲、AI 翻唱、豆包之类别的 AI 都不算，要看上下文。观众之间聊天、对主播说话、主播聊别的，都不算。`,
-      ],
+      [`q${i + 1}`, wording('relevance-bot', { n: i + 1 })],
       ...topics.map((when, j): [string, string] => [
         `q${i + 1}t${j + 1}`,
-        `新内容第 (${i + 1}) 条是不是${when}？`,
+        wording('relevance-topic', { n: i + 1, when }),
       ]),
     ]),
   );
