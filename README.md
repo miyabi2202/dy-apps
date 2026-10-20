@@ -103,21 +103,7 @@ Status: both apps pick fake data or a live room in their 数据来源 panel. The
 
 ## Chat bot
 
-A bot that sits in a Douyin live room as an ordinary viewer's account and talks in the chat, answered by Claude. What it does there:
-
-- **Answers whoever @s it**: questions about the stream, the songs, the streamer, or anything else (with web search). Each @ is paid for with the gifts the asker sent the streamer, or free (`--cost 0`, `/修改收费 0`).
-- **Joins in without an @** when people talk to or about it (`/自动回复阈值 0.6`; off by default).
-- **Answers questions about the room**, such as 「主播会唱晴天吗」 or 「几点开播」, from the room's own files, like its song list and streaming times. Viewers just ask in the chat.
-- **Names the songs the streamer sings** (`/识歌`, or every song with `/自动识歌 1`) and says something short about each.
-- **Thanks big givers** with a message about their gift (`/自动谢礼 499`), and **works out puzzles on screen** (`/解题`).
-
-To use it:
-
-1. Start DyHub, logged in as the bot's account, and start the bot for a room: `pnpm start --room <房间号> --bot-name <its nickname>` (more under [Start](chat-bot/AGENTS.md#start)).
-2. In the room, an admin (the streamer, or anyone in `chat-bot/config.json`) turns features on and off by @ing the bot with a command. The commands are listed in [`chat-bot/commands.md`](chat-bot/commands.md).
-3. To fit it to one room, put that room's details in its `chat-bot/data/<房间号>/` folder, with no code changes: who the streamer is (`context.md`), a song list, commands only that room has, a message for when she sings. How is in [`chat-bot/docs/room-setup.md`](chat-bot/docs/room-setup.md).
-
-How it works:
+What the bot does in a room and how to use it: [`chat-bot/README.md`](chat-bot/README.md). How it works:
 
 `chat-bot/` reads a room's chat from DyHub and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompt.md`](chat-bot/prompt.md) with that message, the chat before it and what the streamer said lately, runs `claude -p` (with a screenshot of the live video if `--screenshot` is on; web search and fetch plus read-only access to the chat record (WebSearch, WebFetch, Read, Glob, Grep; `--tools`), no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through DyHub's `POST /api/rooms/:roomId/chat`. Everything the bot says goes out at least 10 seconds apart, while Claude goes on to the next question. Messages wait in four queues, each in order (see "What goes out first" below).
 
