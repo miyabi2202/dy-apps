@@ -96,20 +96,21 @@ export interface RoomRecord {
 /** A running transcription worker. */
 export interface Worker {
   kill(): void;
-  /** Writes a line (a request, like a music one) to it. */
+  /** Writes a line (a request: a stream URL or a music one) to it. */
   send(line: string): void;
   /** Resolves with the exit code when it stops, or rejects when it couldn't start. */
   exited: Promise<number | null>;
 }
 
 /**
- * Starts the transcription worker on a stream URL. `onLine` gets each line it prints (one JSON
- * sentence each), `onLog` its diagnostics.
+ * Starts the transcription worker, which loads its models and then waits for a stream URL
+ * (asr/transcribe.py's protocol). `onLine` gets each line it prints (one JSON sentence, music
+ * answer or status each), `onLog` its diagnostics.
  */
-export type SpawnWorker = (
-  url: string,
-  handlers: { onLine: (line: string) => void; onLog: (line: string) => void },
-) => Worker;
+export type SpawnWorker = (handlers: {
+  onLine: (line: string) => void;
+  onLog: (line: string) => void;
+}) => Worker;
 
 /**
  * A room's own command, from its `additional_commands/index.json` (see AdditionalCommandEntry):

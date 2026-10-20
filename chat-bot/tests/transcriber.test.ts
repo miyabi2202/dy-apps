@@ -5,19 +5,55 @@ import { currentSong, Transcript } from '../src/core/transcript';
 
 const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 
-/** A worker that prints `lines` and exits. */
-function fakeWorker(lines: string[], onLine: (line: string) => void): Worker {
+/**
+ * A worker as transcribe.py behaves: says it's ready, and answers each stream URL sent to it with
+ * `hear(url)`'s lines and then the stream ending. `kill()` makes it exit.
+ */
+function fakeWorker(
+  onLine: (line: string) => void,
+  hear: (url: string) => string[],
+  answerMusic: (id: number) => object | undefined = () => undefined,
+): Worker & { urls: string[] } {
+  let exit: (code: number | null) => void = () => {};
+  const urls: string[] = [];
+  void Promise.resolve().then(() => onLine(JSON.stringify({ ready: true })));
   return {
-    kill: () => {},
-    send: () => {},
-    exited: Promise.resolve().then(() => {
-      lines.forEach(onLine);
-      return 0;
-    }),
+    urls,
+    kill: () => exit(null),
+    send: (line) => {
+      const request = JSON.parse(line) as { url?: string; music_id?: number };
+      if (request.url !== undefined) {
+        urls.push(request.url);
+        const heard = hear(request.url);
+        void Promise.resolve().then(() => {
+          heard.forEach(onLine);
+          onLine(JSON.stringify({ stream_ended: true, code: 0 }));
+        });
+      } else if (request.music_id !== undefined) {
+        const answer = answerMusic(request.music_id);
+        if (answer) onLine(JSON.stringify({ music_id: request.music_id, ...answer }));
+      }
+    },
+    exited: new Promise((resolve) => (exit = resolve)),
   };
 }
 
-test('keeps what the worker hears, and restarts it on a fresh stream URL when it ends', async () => {
+const sentence = (url: string) =>
+  JSON.stringify({
+    start: 100,
+    end: 102.5,
+    text: `从 ${url} 听到`,
+    // The first stream's line is said in Mandarin by someone linked up with the streamer, the
+    // second's is a Japanese song (so there's no telling whose voice).
+    lang: url === 'url-2' ? 'ja' : 'zh',
+    speech: url === 'url-2' ? 0.05 : 0.9,
+    music: url === 'url-2' ? 0.9 : 0.05,
+    speaker: url === 'url-2' ? null : 1,
+    host: url === 'url-2' ? null : false,
+    voice: null,
+  });
+
+test('keeps what the worker hears, giving the same worker a fresh stream URL when one ends', async () => {
   const transcript = new Transcript(Infinity);
   let written = '';
   const chatLog = new ChatLog('/data/chat/1', {
@@ -25,35 +61,19 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
     append: (_path, text) => (written += text),
   });
   const urls = ['url-1', null, 'url-2'];
-  const started: string[] = [];
-  let transcriber: Transcriber | null = null;
-  transcriber = new Transcriber({
+  const workers: ReturnType<typeof fakeWorker>[] = [];
+  const transcriber: Transcriber = new Transcriber({
     streamUrl: () => Promise.resolve(urls.shift() ?? null),
     transcript,
     record: chatLog,
     log: silentLog,
-    spawnWorker: (url, { onLine }) => {
-      started.push(url);
-      if (started.length === 2) transcriber?.stop();
-      return fakeWorker(
-        [
-          'not json',
-          JSON.stringify({
-            start: 100,
-            end: 102.5,
-            text: `从 ${url} 听到`,
-            // The first stream's line is said in Mandarin by someone linked up with the
-            // streamer, the second's is a Japanese song (so there's no telling whose voice).
-            lang: url === 'url-2' ? 'ja' : 'zh',
-            speech: url === 'url-2' ? 0.05 : 0.9,
-            music: url === 'url-2' ? 0.9 : 0.05,
-            speaker: url === 'url-2' ? null : 1,
-            host: url === 'url-2' ? null : false,
-            voice: null,
-          }),
-        ],
-        onLine,
-      );
+    spawnWorker: ({ onLine }) => {
+      const worker = fakeWorker(onLine, (url) => {
+        if (url === 'url-2') transcriber.stop();
+        return ['not json', sentence(url)];
+      });
+      workers.push(worker);
+      return worker;
     },
     sleep: () => Promise.resolve(),
   });
@@ -62,7 +82,9 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
   await transcriber.run();
 
   expect(heard).toEqual(['从 url-1 听到', '从 url-2 听到']);
-  expect(started).toEqual(['url-1', 'url-2']);
+  // The models loaded once, for both streams.
+  expect(workers).toHaveLength(1);
+  expect(workers[0]?.urls).toEqual(['url-1', 'url-2']);
   expect(transcript.recent(Infinity)).toEqual([
     {
       start: 100_000,
@@ -89,31 +111,57 @@ test('keeps what the worker hears, and restarts it on a fresh stream URL when it
   );
 });
 
+test('is ready once the models load, before any stream; and starts a worker that stops again', async () => {
+  let spawned = 0;
+  let crash: () => void = () => {};
+  const transcriber = new Transcriber({
+    // No stream yet: keeps asking.
+    streamUrl: () => Promise.resolve(null),
+    transcript: new Transcript(),
+    log: silentLog,
+    spawnWorker: ({ onLine }) => {
+      spawned++;
+      const worker = fakeWorker(onLine, () => []);
+      crash = () => worker.kill();
+      return worker;
+    },
+    sleep: () => new Promise((resolve) => setTimeout(resolve, 0)),
+  });
+  const running = transcriber.run();
+  await transcriber.ready();
+  expect(spawned).toBe(1);
+
+  crash();
+  while (spawned < 2) await new Promise((resolve) => setTimeout(resolve, 0));
+  transcriber.stop();
+  await running;
+});
+
 test('asks the worker what music is playing, telling a match, no match and a failure apart', async () => {
   const answers: object[] = [
     { title: 'Aimaimoko', artist: 'Inori Minase' },
     { title: null, artist: null },
     { error: 'Shazam is down' },
   ];
-  let finish: (code: number) => void = () => {};
-  let workerStarted: () => void = () => {};
-  const started = new Promise<void>((resolve) => (workerStarted = resolve));
+  let streaming: () => void = () => {};
+  const started = new Promise<void>((resolve) => (streaming = resolve));
   const transcriber = new Transcriber({
     streamUrl: () => Promise.resolve('url'),
     transcript: new Transcript(),
     log: silentLog,
-    spawnWorker: (_url, { onLine }) => {
-      workerStarted();
-      return {
-        kill: () => finish(0),
-        // Answers at once, while there are answers left; then never.
-        send: (line) => {
-          const answer = answers.shift();
-          const { music_id } = JSON.parse(line) as { music_id: number };
-          if (answer) onLine(JSON.stringify({ music_id, ...answer }));
-        },
-        exited: new Promise((resolve) => (finish = resolve)),
+    spawnWorker: ({ onLine }) => {
+      const worker = fakeWorker(
+        onLine,
+        () => [],
+        () => answers.shift(),
+      );
+      // The stream plays until the worker is stopped.
+      const send = worker.send.bind(worker);
+      worker.send = (line) => {
+        if (line.includes('"url"')) return streaming();
+        send(line);
       };
+      return worker;
     },
     sleep: () => Promise.resolve(),
   });

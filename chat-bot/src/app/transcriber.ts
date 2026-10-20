@@ -11,30 +11,43 @@ export interface TranscriberOptions {
   record?: RoomRecord;
   log: Log;
   spawnWorker: SpawnWorker;
-  /** Wait this long before asking for the stream again after it ends or isn't there. */
+  /**
+   * Wait this long before asking for the stream again when it isn't there, ended soon after it
+   * started, or the worker stopped.
+   */
   retryMs?: number;
   /** Waits `ms`; tests pass one that doesn't. */
   sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
 }
 
 /**
- * Keeps the room's speech transcribed into a Transcript: runs the worker on the room's stream,
- * and when it exits (stream ended, URL expired, crash) asks DyHub for the stream again and
- * restarts it. Audio stays inside the worker; only text comes back.
+ * Keeps the room's speech transcribed into a Transcript: starts the worker, which loads its
+ * models once, then gives it the room's stream, and when that ends (stream ended, URL expired)
+ * asks DyHub for it again and gives it the new one. A worker that stops (crash) is started
+ * again. Audio stays inside the worker; only text comes back.
  */
 export class Transcriber {
   private stopped = false;
   private worker: Worker | null = null;
+  private listening = false;
   private nextMusicId = 1;
   /** Music requests waiting for the worker's answer, by id. */
   private readonly musicWaiting = new Map<number, (answer: MusicAnswer) => void>();
   private readonly lineHandlers: ((line: TranscriptLine) => void)[] = [];
+  /** Called when the worker says its models are loaded, or that its stream ended. */
+  private onReady = () => {};
+  private onStreamEnded = () => {};
+  private markReady = () => {};
+  private readonly firstReady = new Promise<void>((resolve) => (this.markReady = resolve));
   private readonly retryMs: number;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly now: () => number;
 
   constructor(private readonly options: TranscriberOptions) {
     this.retryMs = options.retryMs ?? 10_000;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.now = options.now ?? Date.now;
   }
 
   /** Calls `handler` with each sentence as it's heard. */
@@ -42,23 +55,36 @@ export class Transcriber {
     this.lineHandlers.push(handler);
   }
 
+  /**
+   * Resolves once the worker's models are loaded (about half a minute after `run()`), or when
+   * its first start failed: the bot enters the room then, so it hears the streamer from the start.
+   */
+  ready(): Promise<void> {
+    return this.firstReady;
+  }
+
   /** Runs until `stop()`. */
   async run(): Promise<void> {
     const { log } = this.options;
     while (!this.stopped) {
-      const url = await this.options.streamUrl().catch((err: unknown) => {
-        log.warn('could not get the stream URL', { error: String(err) });
+      const worker = this.startWorker();
+      const exited = worker.exited.catch((err: unknown) => {
+        log.error('could not start the transcriber', { error: errorMessage(err) });
         return null;
       });
+      const gone = exited.then(() => 'gone' as const);
+      const loaded = await Promise.race([
+        new Promise<'ready'>((resolve) => (this.onReady = () => resolve('ready'))),
+        gone,
+      ]);
+      if (loaded === 'ready') await this.listen(worker, gone);
+      this.markReady();
+      this.worker = null;
       if (this.stopped) break;
-      if (url) {
-        log.info('transcribing', { url: url.split('?')[0] });
-        const code = await this.runWorker(url);
-        if (this.stopped) break;
-        log.warn('transcriber stopped, restarting', { code });
-      }
+      log.warn('transcriber stopped, restarting', { code: await exited });
       await this.sleep(this.retryMs);
     }
+    this.markReady();
   }
 
   stop(): void {
@@ -73,7 +99,7 @@ export class Transcriber {
    */
   async identifyMusic(timeoutMs = 30_000): Promise<MusicMatch | null> {
     const worker = this.worker;
-    if (!worker) throw new Error('not listening to the stream');
+    if (!worker || !this.listening) throw new Error('not listening to the stream');
     const id = this.nextMusicId++;
     const answer = await new Promise<MusicAnswer>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -91,9 +117,38 @@ export class Transcriber {
     return answer.match;
   }
 
-  private async runWorker(url: string): Promise<number | null> {
+  /** Gives the loaded worker the room's stream, again each time it ends, until the worker's gone. */
+  private async listen(worker: Worker, gone: Promise<'gone'>): Promise<void> {
+    const { log } = this.options;
+    this.markReady();
+    while (!this.stopped) {
+      const url = await this.options.streamUrl().catch((err: unknown) => {
+        log.warn('could not get the stream URL', { error: String(err) });
+        return null;
+      });
+      if (this.stopped) return;
+      if (url) {
+        log.info('transcribing', { url: url.split('?')[0] });
+        const started = this.now();
+        const ended = new Promise<'ended'>(
+          (resolve) => (this.onStreamEnded = () => resolve('ended')),
+        );
+        this.listening = true;
+        worker.send(JSON.stringify({ url }));
+        const how = await Promise.race([ended, gone]);
+        this.listening = false;
+        if (how === 'gone' || this.stopped) return;
+        log.warn('stream ended, asking for it again');
+        // A stream that played a while had its URL expire, or a hiccup: ask again at once.
+        if (this.now() - started > 60_000) continue;
+      }
+      if ((await Promise.race([this.sleep(this.retryMs), gone])) === 'gone') return;
+    }
+  }
+
+  private startWorker(): Worker {
     const { transcript, log, spawnWorker } = this.options;
-    const worker = spawnWorker(url, {
+    const worker = spawnWorker({
       onLine: (text) => {
         const answer = parseMusicLine(text);
         if (answer) {
@@ -101,6 +156,9 @@ export class Transcriber {
           this.musicWaiting.delete(answer.id);
           return;
         }
+        const status = parseStatusLine(text);
+        if (status === 'ready') return this.onReady();
+        if (status === 'stream_ended') return this.onStreamEnded();
         const line = parseWorkerLine(text);
         if (!line) return;
         transcript.add(line);
@@ -112,15 +170,19 @@ export class Transcriber {
       onLog: (text) => log.debug('asr', { text }),
     });
     this.worker = worker;
-    try {
-      return await worker.exited;
-    } catch (err) {
-      log.error('could not start the transcriber', {
-        error: errorMessage(err),
-      });
-      return null;
-    } finally {
-      this.worker = null;
-    }
+    return worker;
   }
+}
+
+/** The worker's `{"ready": true}` (models loaded) or `{"stream_ended": true, …}`, or null. */
+function parseStatusLine(text: string): 'ready' | 'stream_ended' | null {
+  if (!text.startsWith('{')) return null;
+  try {
+    const json = JSON.parse(text) as Record<string, unknown>;
+    if (json.ready === true) return 'ready';
+    if (json.stream_ended === true) return 'stream_ended';
+  } catch {
+    // Not JSON: not a status.
+  }
+  return null;
 }

@@ -392,11 +392,9 @@ log.info('starting', {
   thanksThreshold: options.thanksThreshold,
   autoSongId: options.autoSongId,
 });
-bot.start();
-void transcriber?.run();
-void autoReply.run();
-
+let stopping = false;
 const shutdown = () => {
+  stopping = true;
   log.info('stopping');
   bot.stop();
   transcriber?.stop();
@@ -407,3 +405,12 @@ const shutdown = () => {
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
+// The speech models load first (about half a minute), so the bot enters the room hearing the
+// streamer from the start.
+void transcriber?.run();
+await transcriber?.ready();
+if (!stopping) {
+  bot.start();
+  void autoReply.run();
+}

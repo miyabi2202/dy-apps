@@ -19,8 +19,14 @@ far, `host` says whether it's the streamer's (see Voices), and `voice` is how cl
 voice (null for a new one); all three are null for a sentence too short or sung, whose voiceprint
 can't be trusted. FireRedASR2-AED's text has no punctuation; SenseVoiceSmall's has. Logs go to
 stderr. Audio never touches the disk: only the sentence being spoken, and the last 15 s for
-naming the music, are held in memory. The worker exits when the stream ends; the bot restarts it
-with a fresh stream URL.
+naming the music, are held in memory.
+
+The models load once, at start (about half a minute), then the worker prints `{"ready": true}` and
+waits for the bot to write `{"url": "…"}` as a line to stdin. It listens to that stream until it
+ends, prints `{"stream_ended": true, "code": <ffmpeg's exit code>}` and waits for the next URL, so a
+stream that ends or whose URL expires is back in seconds; a new URL while one is playing replaces
+it. The worker exits when stdin closes. Given a URL on the command line instead, it listens to just
+that one and exits when it ends.
 
 The bot can also ask what music is playing, by writing `{"music_id": 1}` (any id) as a line to
 stdin: the worker looks up the last 15 s with Shazam (shazamio: the fingerprint is worked out
@@ -28,7 +34,7 @@ here, and only it is sent) and prints `{"music_id": 1, "title": "…", "artist":
 null when nothing matched, or `{"music_id": 1, "error": "…"}`. A song playing under the streamer's
 talk is usually still found; the streamer singing it themselves usually isn't.
 
-    uv run transcribe.py <stream url> [--device auto|cpu|mps|cuda] [--realtime] [--model-dir DIR]
+    uv run transcribe.py [<stream url>] [--device auto|cpu|mps|cuda] [--realtime] [--model-dir DIR]
         [--lid-dir DIR] [--same-voice 0.6]
 
 FireRedASR2-AED (4.7 GB) is downloaded into --model-dir and FireRedLID (3.5 GB) into --lid-dir on
@@ -44,6 +50,7 @@ import io
 import json
 import logging
 import os
+import queue
 import re
 import subprocess
 import sys
@@ -308,62 +315,79 @@ def as_wav(chunks: list[bytes]) -> bytes:
     return out.getvalue()
 
 
-def answer_music_requests(recent: collections.deque) -> None:
-    """Reads `{"music_id": id}` lines from stdin and answers each from the latest audio in `recent`."""
-    # In Chinese: Chinese singers by their Chinese names (张靓颖, not Jane Zhang); others as they are.
-    shazam = Shazam(language="zh-CN", endpoint_country="CN")
+def answer_music(music_id, recent: collections.deque, shazam: Shazam) -> None:
+    """Answers a `{"music_id": id}` request from the latest audio in `recent`."""
+    chunks = list(recent)
+    if len(chunks) * CHUNK_MS < MIN_MUSIC_SECONDS * 1000:
+        print_line({"music_id": music_id, "error": "not enough audio yet"})
+        return
+    try:
+        track = asyncio.run(shazam.recognize(as_wav(chunks))).get("track")
+    except Exception as err:  # noqa: BLE001 - a lookup that fails is answered, not fatal
+        print_line({"music_id": music_id, "error": str(err) or type(err).__name__})
+        return
+    print_line({"music_id": music_id,
+                "title": track and track.get("title"),
+                "artist": track and track.get("subtitle")})
+    log(f"music: {track and track.get('title')} / {track and track.get('subtitle')}")
+
+
+class Stream:
+    """The ffmpeg pulling the stream being listened to, so a new URL can stop it."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.ffmpeg: subprocess.Popen | None = None
+
+    def stop(self) -> None:
+        with self.lock:
+            if self.ffmpeg and self.ffmpeg.poll() is None:
+                self.ffmpeg.terminate()
+
+
+def read_requests(urls: queue.Queue, music: queue.Queue, stream: Stream) -> None:
+    """
+    Reads the bot's lines from stdin: `{"url": …}` (stop the stream being listened to, if any,
+    and listen to this one) goes to `urls`, `{"music_id": …}` to `music`. When stdin closes (the
+    bot is gone), puts None on both and stops the stream, so the worker exits.
+    """
     for request in sys.stdin:
         try:
-            music_id = json.loads(request)["music_id"]
+            message = json.loads(request)
+            if "url" in message:
+                urls.put(str(message["url"]))
+                stream.stop()
+            else:
+                music.put(message["music_id"])
         except (ValueError, KeyError, TypeError):
-            log(f"not a music request: {request.strip()!r}")
-            continue
-        chunks = list(recent)
-        if len(chunks) * CHUNK_MS < MIN_MUSIC_SECONDS * 1000:
-            print_line({"music_id": music_id, "error": "not enough audio yet"})
-            continue
-        try:
-            track = asyncio.run(shazam.recognize(as_wav(chunks))).get("track")
-        except Exception as err:  # noqa: BLE001 - a lookup that fails is answered, not fatal
-            print_line({"music_id": music_id, "error": str(err) or type(err).__name__})
-            continue
-        print_line({"music_id": music_id,
-                    "title": track and track.get("title"),
-                    "artist": track and track.get("subtitle")})
-        log(f"music: {track and track.get('title')} / {track and track.get('subtitle')}")
+            log(f"not a request: {request.strip()!r}")
+    urls.put(None)
+    music.put(None)
+    stream.stop()
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("url")
-    parser.add_argument("--device", default="auto")
-    parser.add_argument("--realtime", action="store_true", help="read input at its own speed (for testing with a file)")
-    parser.add_argument("--same-voice", type=float, default=SAME_VOICE,
-                        help="how close (0–1) a sentence's voiceprint must be to a voice heard before to count as it")
-    parser.add_argument("--model-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedASR2-AED"))
-    parser.add_argument("--lid-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedLID"))
-    args = parser.parse_args()
+def answer_music_requests(music: queue.Queue, recent: collections.deque) -> None:
+    # In Chinese: Chinese singers by their Chinese names (张靓颖, not Jane Zhang); others as they are.
+    shazam = Shazam(language="zh-CN", endpoint_country="CN")
+    while (music_id := music.get()) is not None:
+        answer_music(music_id, recent, shazam)
 
-    device = pick_device(args.device)
-    log(f"loading models on {device}")
-    if device == "cpu":
-        log("no GPU: transcription will fall behind the stream")
-    # FunASR prints while loading; stdout is only for transcript lines.
-    with contextlib.redirect_stdout(sys.stderr):
-        vad, asr, lid, sensevoice, voice, voices = load_models(
-            device, args.model_dir, args.lid_dir, args.same_voice)
-    logging.getLogger().setLevel(logging.WARNING)
 
-    ffmpeg = subprocess.Popen(
-        # A CDN can stop sending without closing the connection; give up after 15s of silence
-        # so the bot fetches the stream again instead of hanging.
-        # stdin is the bot's music requests, not ffmpeg's keyboard.
-        ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", *(["-re"] if args.realtime else []),
-         "-rw_timeout", "15000000", "-i", args.url, "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-    )
+def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, realtime: bool) -> int:
+    """Transcribes the stream at `url` until it ends or is stopped; returns ffmpeg's exit code."""
+    vad, asr, lid, sensevoice, voice, voices = models
+    with stream.lock:
+        stream.ffmpeg = ffmpeg = subprocess.Popen(
+            # A CDN can stop sending without closing the connection; give up after 15s of
+            # silence so the bot fetches the stream again instead of hanging.
+            # stdin is the bot's requests, not ffmpeg's keyboard.
+            ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", *(["-re"] if realtime else []),
+             "-rw_timeout", "15000000", "-i", url, "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+        )
     log("listening")
+    recent.clear()
 
     cache: dict = {}
     vad_ms = 0  # audio the VAD has seen since its last reset
@@ -398,10 +422,6 @@ def main() -> None:
         }
         print_line(line)
 
-    # The latest MUSIC_SECONDS of audio, for naming the music when the bot asks.
-    recent: collections.deque = collections.deque(maxlen=MUSIC_SECONDS * 1000 // CHUNK_MS)
-    threading.Thread(target=answer_music_requests, args=(recent,), daemon=True).start()
-
     while True:
         raw = ffmpeg.stdout.read(CHUNK_BYTES)
         if not raw:
@@ -435,6 +455,48 @@ def main() -> None:
         emit(sentence_start, vad_ms)  # the stream ended mid-sentence
     code = ffmpeg.wait()
     log(f"stream ended (ffmpeg exit {code})")
+    return code
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("url", nargs="?", help="listen to this stream and exit when it ends, "
+                        "instead of waiting for URLs on stdin")
+    parser.add_argument("--device", default="auto")
+    parser.add_argument("--realtime", action="store_true", help="read input at its own speed (for testing with a file)")
+    parser.add_argument("--same-voice", type=float, default=SAME_VOICE,
+                        help="how close (0–1) a sentence's voiceprint must be to a voice heard before to count as it")
+    parser.add_argument("--model-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedASR2-AED"))
+    parser.add_argument("--lid-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedLID"))
+    args = parser.parse_args()
+
+    device = pick_device(args.device)
+    log(f"loading models on {device}")
+    if device == "cpu":
+        log("no GPU: transcription will fall behind the stream")
+    # FunASR prints while loading; stdout is only for transcript lines.
+    with contextlib.redirect_stdout(sys.stderr):
+        models = load_models(device, args.model_dir, args.lid_dir, args.same_voice)
+    logging.getLogger().setLevel(logging.WARNING)
+
+    urls: queue.Queue = queue.Queue()
+    music: queue.Queue = queue.Queue()
+    stream = Stream()
+    # The latest MUSIC_SECONDS of audio, for naming the music when the bot asks.
+    recent: collections.deque = collections.deque(maxlen=MUSIC_SECONDS * 1000 // CHUNK_MS)
+    threading.Thread(target=read_requests, args=(urls, music, stream), daemon=True).start()
+    threading.Thread(target=answer_music_requests, args=(music, recent), daemon=True).start()
+
+    if args.url:
+        listen(args.url, models, recent, stream, args.realtime)
+        return
+    print_line({"ready": True})
+    while (url := urls.get()) is not None:
+        # A newer URL waiting means this one was replaced before it started.
+        if not urls.empty():
+            continue
+        code = listen(url, models, recent, stream, args.realtime)
+        print_line({"stream_ended": True, "code": code})
 
 
 if __name__ == "__main__":
