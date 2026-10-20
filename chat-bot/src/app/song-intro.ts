@@ -1,5 +1,4 @@
 import { errorMessage } from '../core/errors';
-import { buildPrompt } from '../core/prompt';
 import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
 import type { SongAnswer } from '../core/song-answer';
 import { parseSongIntro, SONG_INTRO_SCHEMA } from '../core/song-intro-answer';
@@ -36,8 +35,7 @@ export class SongIntro {
     const { ask, outbox, room, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
     if (!title) return;
     try {
-      const prompt = buildPrompt(this.options.promptTemplate(), {
-        ...room.promptInput(),
+      const prompt = room.prompt(this.options.promptTemplate(), {
         transcript: currentSong(room.recentTranscript().filter((line) => !isGuest(line))),
         question: artist ? `《${title}》，原唱 ${artist}` : `《${title}》`,
         singleLength: maxLength,

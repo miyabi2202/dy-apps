@@ -1,5 +1,5 @@
 import { errorMessage } from '../core/errors';
-import { buildPrompt, type Heard } from '../core/prompt';
+import type { Heard } from '../core/prompt';
 import {
   answerBudget,
   DOUYIN_CHAT_LIMIT,
@@ -165,10 +165,9 @@ export class MentionAnswerer {
     // What the bot says unprompted is one message: nobody asked for a long answer.
     const limits = mention.unprompted ? { ...this.limits, maxParts: 1 } : this.limits;
     try {
-      const input = room.promptInput();
-      const prompt = buildPrompt(mention.template ?? promptTemplate(), {
-        ...input,
-        transcript: mention.pickTranscript?.(input.transcript) ?? input.transcript,
+      const transcript = room.recentTranscript();
+      const prompt = room.prompt(mention.template ?? promptTemplate(), {
+        transcript: mention.pickTranscript?.(transcript) ?? transcript,
         history: mention.history,
         asker: mention.asker,
         question: mention.question,

@@ -1,5 +1,4 @@
 import { errorMessage } from '../core/errors';
-import { buildPrompt } from '../core/prompt';
 import { DOUYIN_CHAT_LIMIT, replyMessages, singleBudget } from '../core/reply';
 import type { Gift } from '../core/room-events';
 import { done, failed, type Command } from './command';
@@ -112,15 +111,14 @@ export class GiftThanker {
     const question = `刚刚送了 ${gifts}，一共 ${total} 钻`;
     const limits = { maxLength, maxParts: 1 };
     try {
-      const input = room.promptInput();
-      const prompt = buildPrompt(this.options.promptTemplate(), {
-        ...input,
+      const prompt = room.prompt(this.options.promptTemplate(), {
         asker: nickname,
         question,
         singleLength: singleBudget(nickname, limits),
         maxLength,
         userHistory: this.options.userTalk?.recent(userId),
-        userChat: input.history
+        userChat: room
+          .recentChat()
           .filter((chat) => chat.userId === userId)
           .map((chat) => chat.content)
           .join('\n'),

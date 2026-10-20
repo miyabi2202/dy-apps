@@ -1,5 +1,4 @@
 import { errorMessage } from '../core/errors';
-import { buildPrompt } from '../core/prompt';
 import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
 import { isHandled, isSung, singingSong, type TranscriptLine } from '../core/transcript';
 import { done, failed, type Command } from './command';
@@ -113,8 +112,7 @@ export class AutoSongId {
     } = this.options;
     this.waitMs = undefined;
     try {
-      const prompt = buildPrompt(songId.prompt(), {
-        ...room.promptInput(),
+      const prompt = room.prompt(songId.prompt(), {
         transcript: song,
         asker: '直播间',
         question: this.question(repeatMs),

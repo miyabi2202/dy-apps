@@ -157,7 +157,7 @@ const history = new ChatHistory(options.historySize);
 const gifts = new RecentGifts();
 // Three closures point forward: the room's settings (to autoReply, thanker and autoSongId), the
 // autoReply's reply and the answerer's onCommandRequest (to the bot). They run only after the bot
-// exists, since nothing calls room.promptInput() or starts autoReply while this is wired.
+// exists, since nothing calls room.prompt() or starts autoReply while this is wired.
 // What the room looks like now, for every prompt. The bot plays the room's persona.md, read on
 // every use like context.md and written by /修改人设. The prompts also get the settings admins can
 // change, and the list of commands from commands.md, so the bot can tell viewers what it can do.

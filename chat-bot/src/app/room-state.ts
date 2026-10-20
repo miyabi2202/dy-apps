@@ -1,7 +1,12 @@
 import type { ChatHistory } from '../core/chat-history';
 import type { RecentGifts } from '../core/recent-gifts';
 import { errorMessage } from '../core/errors';
-import type { RoomPromptInput, RoomSettings } from '../core/prompt';
+import {
+  buildPrompt,
+  type PromptDetails,
+  type RoomPromptInput,
+  type RoomSettings,
+} from '../core/prompt';
 import type { ChatLine } from '../core/room-events';
 import {
   DEFAULT_TRANSCRIPT_WINDOW_MS,
@@ -113,6 +118,14 @@ export class RoomState {
       settings: settings && { ...settings(), screenshots: this.screenshotsOn },
       commands: commands?.(),
     };
+  }
+
+  /**
+   * Fills the prompt `template` (see buildPrompt) with the room as it is now and `details`, what's
+   * particular to this prompt; `details` may also replace a part of the room's (a shorter chat, say).
+   */
+  prompt(template: string, details: PromptDetails & Partial<RoomPromptInput>): string {
+    return buildPrompt(template, { ...this.promptInput(), ...details });
   }
 
   /** Whether prompts get the live video; admins switch it while the bot runs. */

@@ -1,6 +1,5 @@
 import { errorMessage } from '../core/errors';
 import { MALICE_SCHEMA, parseMaliceAnswer, type MaliceAnswer } from '../core/malice-answer';
-import { buildPrompt } from '../core/prompt';
 import { DOUYIN_CHAT_LIMIT } from '../core/reply';
 import type { IncomingChat } from '../core/room-events';
 import { askJson } from './ask-json';
@@ -17,7 +16,7 @@ export interface MaliceWatchOptions {
   /** The model's prompt (see buildPrompt), read each time so edits apply at once. */
   promptTemplate: () => string;
   outbox: Pick<Outbox, 'push'>;
-  room: Pick<RoomState, 'promptInput'>;
+  room: Pick<RoomState, 'prompt' | 'recentChat' | 'recentTranscript'>;
   /** Viewers never judged: the streamer and the bot's admins. */
   exempt?: (userId: string) => boolean;
   log: Log;
@@ -105,19 +104,19 @@ export class MaliceWatch {
 
   private async decide(chat: IncomingChat): Promise<MaliceAnswer> {
     const { ask, room, contextMs = 90_000 } = this.options;
-    const input = room.promptInput();
     // What came before the chat is its background; more may have come in while Jev scored it.
-    const before = input.history.filter(
-      (line) =>
-        line.ts <= chat.ts &&
-        !(line.ts === chat.ts && line.userId === chat.userId && line.content === chat.content),
-    );
-    const prompt = buildPrompt(this.options.promptTemplate(), {
-      ...input,
+    const before = room
+      .recentChat()
+      .filter(
+        (line) =>
+          line.ts <= chat.ts &&
+          !(line.ts === chat.ts && line.userId === chat.userId && line.content === chat.content),
+      );
+    const prompt = room.prompt(this.options.promptTemplate(), {
       history: before.filter((line) => chat.ts - line.ts <= contextMs),
-      transcript: input.transcript.filter(
-        (line) => line.end <= chat.ts && chat.ts - line.end <= contextMs,
-      ),
+      transcript: room
+        .recentTranscript()
+        .filter((line) => line.end <= chat.ts && chat.ts - line.end <= contextMs),
       asker: chat.nickname,
       question: chat.content,
       userChat: before

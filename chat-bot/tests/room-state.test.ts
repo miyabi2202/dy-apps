@@ -77,3 +77,21 @@ test('screenshots go to Claude only while on, and admins switch them with /截�
   expect(await room.screenshot(true)).toBe(frame);
   expect(command.adminOnly).toBe(true);
 });
+
+test('fills a prompt with the room, what is particular to it, and parts of the room it replaces', () => {
+  const history = new ChatHistory(10);
+  history.add({ ts: NOW, userId: 'u-1', nickname: '阿明', content: '一' });
+  const room = fakeRoom({ history, persona: () => '小猫', now: () => NOW });
+
+  expect(
+    room.prompt('{{persona}}|{{asker}}|{{question}}|{{history}}', {
+      asker: '小红',
+      question: '在吗',
+      singleLength: 40,
+      maxLength: 40,
+    }),
+  ).toBe('你的人设是小猫|小红|在吗|阿明: 一');
+  expect(
+    room.prompt('{{history}}|{{singleLength}}', { history: [], singleLength: 40, maxLength: 40 }),
+  ).toBe('（暂无）|40');
+});
