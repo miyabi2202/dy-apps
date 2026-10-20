@@ -1,6 +1,6 @@
 # AGENTS.md (chat-bot)
 
-How to run the chat bot for the user, e.g. when they say 「启动机器人，房间 123」 or 「停掉机器人」. What the bot does and every option are in the [README](../README.md#chat-bot).
+How to run the chat bot for the user, e.g. when they say 「启动机器人，房间 123」 or 「停掉机器人」. What the bot does and every option are in the [README](README.md).
 
 ## Start
 
