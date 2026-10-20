@@ -107,3 +107,16 @@ test('a guess it is not sure of is not said', async () => {
   expect(prompts).toHaveLength(1);
   expect(sent).toEqual([]);
 });
+
+test('finding the song it named still being sung, it looks again after a minute', async () => {
+  const sunny = { message: '这首是《晴天》', title: '晴天' };
+  const { line, sent, prompts } = setup([
+    sunny,
+    { message: '', title: '晴天（Live）' },
+    { message: '这首是《七里香》', title: '七里香' },
+  ]);
+  for (let t = 0; t <= 300; t += 10) await line(t, `歌词${t}`);
+
+  expect(prompts).toHaveLength(3);
+  expect(sent).toEqual(['这首是《晴天》', '这首是《七里香》']);
+});

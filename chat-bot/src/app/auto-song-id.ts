@@ -19,6 +19,8 @@ export interface AutoSongIdOptions {
   maxLength?: number;
   /** While the streamer goes on singing, name the song again this often, for the next song. */
   againMs?: number;
+  /** How soon it tries again when it found the song it named last, still being sung. */
+  sameAgainMs?: number;
   /** A song named this recently isn't named again. */
   repeatMs?: number;
 }
@@ -36,19 +38,22 @@ const UNASKED =
  */
 function lastSongNote(title: string, artist: string, minutes: number): string {
   const who = artist ? `（${artist}）` : '';
-  return `你 ${minutes} 分钟前已经说过这首是《${title}》${who}。这次认出来的如果还是这首（哪怕版本、写法不一样），很可能主播还在唱同一首，title 和 artist 都留空，不要再说；只有上次说错了、需要更正时才填，message 里说明是更正。`;
+  return `你 ${minutes} 分钟前已经说过这首是《${title}》${who}。这次认出来的如果还是这首（哪怕版本、写法不一样），很可能主播还在唱同一首：title 和 artist 照常填，message 留空字符串，不要再说；只有上次说错了、需要更正时才写 message，并说明是更正。`;
 }
 
 /**
  * Names the song the streamer is singing without anyone asking, like `/识歌`, and says it in the
  * room: once the streamer is singing (see singingNow) and the song has SONG_LINES sung lines, and
  * again every `againMs` while they go on singing, as one song runs into the next. Only a song the
- * model names for sure is said, and not one named (by it or by `/识歌`) within `repeatMs`.
+ * model names for sure is said, and not one named (by it or by `/识歌`) within `repeatMs`; when
+ * it finds that one still being sung, it looks again after `sameAgainMs` instead.
  */
 export class AutoSongId {
   on: boolean;
   /** When it last tried. */
   private triedAt = -Infinity;
+  /** How long after `triedAt` it tries again while the streamer sings on. */
+  private waitMs: number | undefined;
   private busy = false;
 
   constructor(private readonly options: AutoSongIdOptions) {
@@ -65,7 +70,8 @@ export class AutoSongId {
     // Again only once a new song started (after a pause), or after `againMs` of singing on. The
     // song's start can't be compared: it moves as its first lines drop out of the transcript.
     const songStart = song.find(isSung)?.start ?? line.start;
-    if (songStart <= this.triedAt && line.end - this.triedAt < againMs) return;
+    const waitMs = this.waitMs ?? againMs;
+    if (songStart <= this.triedAt && line.end - this.triedAt < waitMs) return;
     this.triedAt = line.end;
     this.busy = true;
     void this.nameSong(song).finally(() => (this.busy = false));
@@ -107,7 +113,9 @@ export class AutoSongId {
       log,
       maxLength = DOUYIN_CHAT_LIMIT,
       repeatMs = 60 * 60_000,
+      sameAgainMs = 60_000,
     } = this.options;
+    this.waitMs = undefined;
     try {
       const prompt = buildPrompt(songId.prompt(), {
         ...room.promptInput(),
@@ -124,12 +132,13 @@ export class AutoSongId {
         return;
       }
       const last = songId.namedAt(answer.title);
-      if (last !== undefined && room.now() - last < repeatMs) {
-        log.info('auto song id: told lately', { title: answer.title });
+      const text = plainMessage(answer.message, maxLength);
+      if (!text || (last !== undefined && room.now() - last < repeatMs)) {
+        // Still the song it named: she may move on soon, so it looks again sooner.
+        this.waitMs = sameAgainMs;
+        log.info('auto song id: still the song told lately', { title: answer.title });
         return;
       }
-      const text = plainMessage(answer.message, maxLength);
-      if (!text) return;
       outbox.push({ kind: 'talk', text });
       songId.told(answer);
     } catch (err) {
