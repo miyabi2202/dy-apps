@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Log, OnSingConfig } from '../app/ports';
 import { errorMessage } from '../core/errors';
-import { composePersona } from '../core/persona';
+import { composePersona, parsePersonaFile } from '../core/persona';
 import { DEFAULT_TIME_ZONE, isTimeZone } from '../core/local-time';
 import { SETTING_DEFAULTS, settingsFrom, type Settings } from '../core/settings';
 import { wordingOf, type Wording } from '../core/wording';
@@ -12,11 +12,6 @@ import { writeTextAtomic } from './atomic-file';
 export interface RoomFiles {
   /** Background on the room, for the prompts' `{{context}}`. */
   context: string;
-  /**
-   * Who the bot plays, for `{{persona}}`: the whole persona, or, when room_config.json's `persona`
-   * names a shared one, this room's changes to it (see livePersona).
-   */
-  persona: string;
   /** Everything the bot sent in the room. */
   botTalk: string;
   /** Where each viewer's folder of exchanges with the bot goes. */
@@ -43,17 +38,10 @@ export interface RoomConfig extends Settings {
    */
   timeZone: string;
   /**
-   * The shared persona this room builds on (`persona.base`, a file in chat-bot/prompts/personas/),
-   * and the values for its `{{…}}`s (`persona.vars`); none when the room's persona.md is the
-   * whole persona.
+   * The file in the room's folder (`persona`, like `personas/fairy.md`) that says who the bot
+   * plays there, see livePersona; none when the bot has no persona there.
    */
-  persona?: PersonaChoice;
-}
-
-/** A room's `persona` in room_config.json. */
-export interface PersonaChoice {
-  base: string;
-  vars: Record<string, string>;
+  persona?: string;
 }
 
 /** The room's streamer, which the bot writes into `room_config.json` once it knows. */
@@ -91,7 +79,6 @@ export function roomFiles(dir: string): RoomFiles {
   mkdirSync(dir, { recursive: true });
   const files = {
     context: join(dir, 'context.md'),
-    persona: join(dir, 'persona.md'),
     botTalk: join(dir, 'bot_logs.md'),
     users: dir,
     config: join(dir, 'room_config.json'),
@@ -154,7 +141,7 @@ export function roomConfigFile(
     );
     const persona = field(
       'persona',
-      () => (raw.persona === undefined ? undefined : personaChoice(raw.persona)),
+      () => (raw.persona === undefined ? undefined : personaPath(raw.persona)),
       config.persona,
     );
     config = {
@@ -278,22 +265,13 @@ function nameList(raw: unknown, name: string, example: string): string[] {
   return raw.map((item) => item.trim()).filter(Boolean);
 }
 
-/** `persona` as a PersonaChoice, or an error saying what's wrong with it. */
-function personaChoice(raw: unknown): PersonaChoice {
-  const { base, vars = {} } = (raw ?? {}) as Record<string, unknown>;
-  // A file name in personas/, so nothing outside that folder can be named.
-  if (typeof base !== 'string' || !/^[^/\\.][^/\\]*$/.test(base.trim())) {
-    throw new Error('persona.base must be the name of a file in personas/, like "fairy"');
+/** `persona` as a path inside the room's folder, or an error saying what's wrong with it. */
+function personaPath(raw: unknown): string {
+  const parts = typeof raw === 'string' ? raw.trim().split(/[/\\]/) : [];
+  if (!parts.length || !parts.every((part) => part && part !== '.' && part !== '..')) {
+    throw new Error('persona must be a file in the room\'s folder, like "personas/fairy.md"');
   }
-  const isVars = (value: unknown): value is Record<string, string> =>
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.values(value).every((v) => typeof v === 'string');
-  if (!isVars(vars)) {
-    throw new Error('persona.vars must map names to text, like { "主播": "茜茜" }');
-  }
-  return { base: base.trim(), vars };
+  return parts.join('/');
 }
 
 /** `on_sing` as a OnSingConfig, or an error saying what's wrong with it. */
@@ -383,24 +361,25 @@ export function liveText(path: string, fallback: () => string = () => ''): () =>
 }
 
 /**
- * Who the bot plays in the room, read on every call so edits apply at once: the room's persona.md,
- * or, when `persona()` names a shared persona, `personasDir/<base>.md` with the room's persona.md
- * as changes to it (see composePersona), its `{{…}}`s filled in from `persona().vars`. A shared
- * persona that can't be read is warned about, and the room's file is used alone; so is a `{{…}}`
- * with no value, left as it is. Each problem is warned about once.
+ * Who the bot plays in the room, read on every call so edits apply at once: the file `file()` names
+ * in `roomDir` (room_config.json's `persona`), after its header (see parsePersonaFile). With a
+ * `base` there, the file is changes to `sharedDir/<base>.md` (see composePersona); either way its
+ * `{{…}}`s are filled in from the header. A file or shared persona that can't be read, a header line
+ * that can't, and a `{{…}}` with no value are each warned about once: the bot then plays what's left
+ * (nothing, the room's changes alone, the blank as it is). A room's old `persona.md`, no longer
+ * read, is warned about too.
  */
 export function livePersona({
-  roomPersona,
-  personasDir,
-  persona,
+  roomDir,
+  sharedDir,
+  file,
   log,
 }: {
-  roomPersona: string;
-  personasDir: string;
-  persona: () => PersonaChoice | undefined;
+  roomDir: string;
+  sharedDir: string;
+  file: () => string | undefined;
   log: Log;
 }): () => string {
-  const room = liveText(roomPersona);
   const warned = new Set<string>();
   const warnOnce = (message: string, fields: Record<string, unknown>) => {
     const key = `${message} ${JSON.stringify(fields)}`;
@@ -408,24 +387,46 @@ export function livePersona({
     warned.add(key);
     log.warn(message, fields);
   };
+  const read = (path: string, problem: string): string | null => {
+    try {
+      return readFileSync(path, 'utf8');
+    } catch (err) {
+      warnOnce(problem, { path, error: errorMessage(err) });
+      return null;
+    }
+  };
   return () => {
-    const choice = persona();
-    let shared: string | null = null;
-    if (choice) {
-      const path = join(personasDir, `${choice.base}.md`);
-      try {
-        shared = readFileSync(path, 'utf8');
-      } catch (err) {
-        warnOnce("could not read the shared persona, using the room's persona.md alone", {
-          path,
-          error: errorMessage(err),
+    const name = file();
+    if (!name) {
+      const old = join(roomDir, 'persona.md');
+      if (existsSync(old)) {
+        warnOnce('persona.md is no longer read: name a persona file in room_config.json', {
+          path: old,
         });
       }
+      return '';
     }
-    const { text, missing } = composePersona({ shared, room: room(), vars: choice?.vars });
-    if (missing.length)
-      warnOnce('the persona has {{…}}s with no value in persona.vars', { missing });
-    return text;
+    const text = read(join(roomDir, name), 'could not read the persona file, playing no persona');
+    if (text === null) return '';
+    const { base, vars, body, problems } = parsePersonaFile(text);
+    if (problems.length) {
+      warnOnce('the persona file has header lines it could not read', { file: name, problems });
+    }
+    const shared =
+      base === undefined
+        ? null
+        : read(
+            join(sharedDir, `${base}.md`),
+            "could not read the shared persona, using the room's changes alone",
+          );
+    const composed = composePersona({ shared, room: body, vars });
+    if (composed.missing.length) {
+      warnOnce('the persona has {{…}}s with no value in its header', {
+        file: name,
+        missing: composed.missing,
+      });
+    }
+    return composed.text;
   };
 }
 

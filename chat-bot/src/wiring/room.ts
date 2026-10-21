@@ -164,9 +164,9 @@ export function registerRoom(container: Container): void {
       const [promptsDir, roomDir] = [c.resolve(PROMPTS_DIR), c.resolve(ROOM_DIR)];
       return (name) => livePrompt(name, { promptsDir, roomDir });
     })
-    // What the room looks like now, for every prompt. The bot plays the room's persona (its
-    // persona.md, on its own or as changes to a shared persona in chat-bot/prompts/personas/, see
-    // livePersona), read on every use like context.md. The prompts also get the settings admins
+    // What the room looks like now, for every prompt. The bot plays the persona file room_config.json
+    // names (one of the room's personas/, on its own or as changes to a shared persona in
+    // chat-bot/prompts/personas/, see livePersona), read on every use like context.md. The prompts also get the settings admins
     // can change (each feature gives its own part), and the list of commands from commands.md, so
     // the bot can tell viewers what it can do.
     .register(ROOM, (c) => {
@@ -185,9 +185,9 @@ export function registerRoom(container: Container): void {
         transcript: c.resolve(TRANSCRIPT),
         transcriptMs: options.transcriptMs,
         persona: livePersona({
-          roomPersona: files.persona,
-          personasDir: join(c.resolve(PROMPTS_DIR), 'personas'),
-          persona: () => roomConfig().persona,
+          roomDir: c.resolve(ROOM_DIR),
+          sharedDir: join(c.resolve(PROMPTS_DIR), 'personas'),
+          file: () => roomConfig().persona,
           log: c.resolve(LOG),
         }),
         context: liveText(files.context),

@@ -1,4 +1,4 @@
-import { composePersona, mergePersona } from '../src/core/persona';
+import { composePersona, mergePersona, parsePersonaFile } from '../src/core/persona';
 
 const SHARED = [
   '直播间的小助手。',
@@ -68,5 +68,27 @@ test('fills in the values the room gives, and lists the names it has none for', 
   expect(composePersona({ shared, room: '', vars: { 主播: '茜茜' } })).toEqual({
     text: '把主播茜茜当主人，平时叫茜茜就行；{{口头禅}}',
     missing: ['口头禅'],
+  });
+});
+
+test('a persona file names its shared persona and values in a header; without one it is all persona', () => {
+  expect(parsePersonaFile('---\nbase: fairy\n主播： 咿咿\n---\n## 身份\n')).toEqual({
+    base: 'fairy',
+    vars: { 主播: '咿咿' },
+    body: '## 身份\n',
+    problems: [],
+  });
+  expect(parsePersonaFile('数学课代表\n')).toEqual({
+    vars: {},
+    body: '数学课代表\n',
+    problems: [],
+  });
+});
+
+test("a header line it can't read, or a base outside prompts/personas/, is left out and reported", () => {
+  expect(parsePersonaFile('---\nbase: ../secret\n随便写写\n---\n人设')).toEqual({
+    vars: {},
+    body: '人设',
+    problems: ['base: ../secret', '随便写写'],
   });
 });

@@ -74,3 +74,43 @@ export function composePersona({
   });
   return { text, missing: [...missing] };
 }
+
+/** A room's persona file, its `---` header read out: the shared persona it builds on, and its values. */
+export interface PersonaFile {
+  /** The shared persona (a name in chat-bot/prompts/personas/); none when the file is the whole persona. */
+  base?: string;
+  /** What each `{{name}}` is filled in with. */
+  vars: Record<string, string>;
+  /** The persona, or the changes to `base`'s: everything after the header. */
+  body: string;
+}
+
+/**
+ * A room's persona file. It may start with a header between two `---` lines, one `name: value` a
+ * line: `base` names the shared persona the file changes (see mergePersona), and every other line
+ * gives a `{{name}}` its value. Without a header the whole file is the persona. `problems` lists the
+ * header lines that couldn't be read, which are left out.
+ */
+export function parsePersonaFile(text: string): PersonaFile & { problems: string[] } {
+  const header = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(text);
+  if (!header) return { vars: {}, body: text, problems: [] };
+  const file: PersonaFile & { problems: string[] } = {
+    vars: {},
+    body: text.slice(header[0].length),
+    problems: [],
+  };
+  for (const line of header[1]!.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const match = /^\s*([^:：]+?)\s*[:：]\s*(.*?)\s*$/.exec(line);
+    if (!match) {
+      file.problems.push(line);
+      continue;
+    }
+    const [, name = '', value = ''] = match;
+    if (name !== 'base') file.vars[name] = value;
+    // A file name in prompts/personas/, so nothing outside that folder can be named.
+    else if (/^[^/\\.][^/\\]*$/.test(value)) file.base = value;
+    else file.problems.push(line);
+  }
+  return file;
+}

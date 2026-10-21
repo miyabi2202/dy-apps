@@ -9,7 +9,6 @@ import {
   roomConfigFile,
   roomFiles,
   saveStreamer,
-  type PersonaChoice,
 } from '../src/adapters/room-files';
 
 test('reads one section of a Markdown file, as it is now', () => {
@@ -184,71 +183,94 @@ test("room_config.json's aliases are the other names of the bot, read again as t
 
 describe('livePersona', () => {
   const setup = () => {
-    const dir = mkdtempSync(join(tmpdir(), 'persona-'));
-    const personasDir = join(dir, 'personas');
-    mkdirSync(personasDir);
-    const roomPersona = join(dir, 'persona.md');
+    const roomDir = mkdtempSync(join(tmpdir(), 'room-'));
+    const sharedDir = mkdtempSync(join(tmpdir(), 'shared-'));
+    mkdirSync(join(roomDir, 'personas'));
     const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
-    let choice: PersonaChoice | undefined;
-    const persona = livePersona({ roomPersona, personasDir, persona: () => choice, log });
-    return {
-      personasDir,
-      roomPersona,
-      log,
-      persona,
-      choose: (next?: PersonaChoice) => (choice = next),
-    };
+    let file: string | undefined;
+    const persona = livePersona({ roomDir, sharedDir, file: () => file, log });
+    return { roomDir, sharedDir, log, persona, choose: (next?: string) => (file = next) };
   };
 
-  test("is the room's persona.md, read as it changes, until the room names a shared persona", () => {
-    const { personasDir, roomPersona, persona, choose } = setup();
+  test('plays the file room_config.json names, read as it changes; switching is naming another', () => {
+    const { roomDir, persona, choose } = setup();
     expect(persona()).toBe('');
-    writeFileSync(roomPersona, '数学课代表\n');
+    writeFileSync(join(roomDir, 'personas', '课代表.md'), '数学课代表\n');
+    writeFileSync(join(roomDir, 'personas', '小猫.md'), '小猫\n');
+    choose('personas/课代表.md');
     expect(persona()).toBe('数学课代表');
 
-    writeFileSync(
-      join(personasDir, 'fairy.md'),
-      'Fairy，{{主播}}的助手\n\n## 说话方式\n\n- 一本正经\n',
-    );
-    writeFileSync(roomPersona, '## 说话方式\n\n- 正经里带点俏皮\n');
-    choose({ base: 'fairy', vars: { 主播: '茜茜' } });
-    expect(persona()).toBe('Fairy，茜茜的助手\n\n## 说话方式\n\n- 正经里带点俏皮');
-
-    // An edit to the shared persona applies at once too.
-    writeFileSync(join(personasDir, 'fairy.md'), 'Fairy，{{主播}}的首席助手\n');
-    expect(persona()).toBe('Fairy，茜茜的首席助手\n\n## 说话方式\n\n- 正经里带点俏皮');
+    writeFileSync(join(roomDir, 'personas', '课代表.md'), '嘴毒的数学课代表\n');
+    expect(persona()).toBe('嘴毒的数学课代表');
+    choose('personas/小猫.md');
+    expect(persona()).toBe('小猫');
   });
 
-  test("a shared persona that isn't there leaves the room's file alone, warned about once", () => {
-    const { roomPersona, log, persona, choose } = setup();
-    writeFileSync(roomPersona, '小人机\n');
-    choose({ base: 'gone', vars: {} });
+  test('a file with a base header is changes to that shared persona, its blanks filled from the header', () => {
+    const { roomDir, sharedDir, persona, choose } = setup();
+    writeFileSync(
+      join(sharedDir, 'fairy.md'),
+      'Fairy，{{主播}}的助手\n\n## 说话方式\n\n- 一本正经\n',
+    );
+    writeFileSync(
+      join(roomDir, 'personas', 'fairy.md'),
+      '---\nbase: fairy\n主播: 咿咿\n---\n## 说话方式\n\n- 正经里带点俏皮\n',
+    );
+    choose('personas/fairy.md');
+    expect(persona()).toBe('Fairy，咿咿的助手\n\n## 说话方式\n\n- 正经里带点俏皮');
 
+    // An edit to the shared persona applies at once too.
+    writeFileSync(join(sharedDir, 'fairy.md'), 'Fairy，{{主播}}的首席助手\n');
+    expect(persona()).toBe('Fairy，咿咿的首席助手\n\n## 说话方式\n\n- 正经里带点俏皮');
+  });
+
+  test("what it can't read is warned about once, and the bot plays what is left", () => {
+    const { roomDir, log, persona, choose } = setup();
+    choose('personas/gone.md');
+    expect(persona()).toBe('');
+    writeFileSync(join(roomDir, 'personas', 'mine.md'), '---\nbase: nowhere\n---\n小人机\n');
+    choose('personas/mine.md');
     expect(persona()).toBe('小人机');
     expect(persona()).toBe('小人机');
-    expect(log.warn).toHaveBeenCalledTimes(1);
+
+    expect(log.warn).toHaveBeenCalledTimes(2);
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringContaining('could not read the persona file'),
+      expect.anything(),
+    );
     expect(log.warn).toHaveBeenCalledWith(
       expect.stringContaining('could not read the shared persona'),
       expect.anything(),
     );
   });
+
+  test('warns that an old persona.md is no longer read', () => {
+    const { roomDir, log, persona } = setup();
+    writeFileSync(join(roomDir, 'persona.md'), '旧人设\n');
+
+    expect(persona()).toBe('');
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringContaining('persona.md is no longer read'),
+      expect.anything(),
+    );
+  });
 });
 
-test("room_config.json's persona names a shared persona and its values; a bad one keeps the last good one", () => {
+test("room_config.json's persona is a file in the room's folder; one outside it keeps the last good one", () => {
   const { config } = roomFiles(mkdtempSync(join(tmpdir(), 'room-files-')));
   const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
   const file = roomConfigFile(config, { log });
   expect(file.get().persona).toBeUndefined();
 
-  writeFileSync(config, JSON.stringify({ persona: { base: 'fairy', vars: { 主播: '茜茜' } } }));
-  expect(file.get().persona).toEqual({ base: 'fairy', vars: { 主播: '茜茜' } });
+  writeFileSync(config, JSON.stringify({ persona: 'personas/fairy.md' }));
+  expect(file.get().persona).toBe('personas/fairy.md');
 
-  writeFileSync(config, JSON.stringify({ persona: { base: '../secret' } }));
-  expect(file.get().persona).toEqual({ base: 'fairy', vars: { 主播: '茜茜' } });
+  writeFileSync(config, JSON.stringify({ persona: '../other/personas/fairy.md' }));
+  expect(file.get().persona).toBe('personas/fairy.md');
   expect(log.warn).toHaveBeenCalledWith(
     'room_config.json has bad values, keeping their last ones',
     {
-      problems: [expect.stringContaining('persona.base')],
+      problems: [expect.stringContaining('persona')],
     },
   );
 });
