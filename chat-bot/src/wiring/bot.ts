@@ -104,6 +104,7 @@ export function registerBot(container: Container): void {
           log: c.resolve(LOG),
           billing: c.resolve(BILLING),
           admins: c.resolve(ADMINS),
+          streamer: () => c.resolve(ADMINS).current(),
           adminNames: c.resolve(BOT_CONFIG).adminNames,
           additionalCommands: c.resolve(ADDITIONAL_COMMANDS),
           commands: c.resolve(COMMANDS),

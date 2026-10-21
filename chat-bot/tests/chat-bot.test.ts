@@ -7,8 +7,9 @@ import { personaCommand } from '../src/app/room-state';
 import { SongId } from '../src/app/song-id';
 import { solveCommand } from '../src/app/solve-command';
 import { MESSAGE_SCHEMA } from '../src/core/mention-answer';
-import type { AdditionalCommand, Question } from '../src/app/ports';
+import type { AdditionalCommand, Log, Question } from '../src/app/ports';
 import { ChatHistory } from '../src/core/chat-history';
+import type { IncomingChat } from '../src/core/room-events';
 import type { Wallet } from '../src/core/wallet';
 import { fakeRoom } from './fake-room';
 import { BOT, chat, fakeBus, fakeEvents, fakeOutbox, gift, memoryWallet, silentLog } from './fakes';
@@ -31,6 +32,9 @@ interface SetupOptions {
   now?: () => number;
   screenshot?: boolean;
   additionalCommands?: AdditionalCommand[];
+  /** The room's streamer, once known. */
+  streamer?: { uid: string };
+  log?: Log;
 }
 
 /** The whole bot on fake events, Claude and outbox; mentions are answered by the real answerer. */
@@ -63,7 +67,7 @@ function setup(options: SetupOptions = {}) {
       outbox,
       room,
       bus,
-      log: silentLog,
+      log: options.log ?? silentLog,
       promptTemplate: () => options.template ?? TEMPLATE,
       billing,
       onCommandRequest: (mention, name, args) => bot.requestCommand(mention, name, args),
@@ -75,9 +79,10 @@ function setup(options: SetupOptions = {}) {
     answerer,
     room,
     outbox,
-    log: silentLog,
+    log: options.log ?? silentLog,
     billing,
     admins: new Set(options.admins),
+    streamer: () => options.streamer ?? null,
     commands: options.commands ?? [personaCommand(room), ...(billing?.commands() ?? [])],
     now: options.now,
     adminNames: '雅',
@@ -673,4 +678,224 @@ test("a mention a room command's trigger took is answered as usual, at the usual
   ]);
   expect(sent).toEqual(['@阿明 会生气的']);
   expect(wallet.balance('u-阿明')).toBe(0);
+});
+
+/** A chat from `nickname` with what DyHub says about them. */
+const viewerChat = (nickname: string, content: string, extra: Partial<IncomingChat> = {}) => ({
+  ...chat(nickname, content),
+  ...extra,
+});
+
+const FIXED: AdditionalCommand = {
+  id: 'greet',
+  name: '打招呼',
+  when: '在打招呼',
+  trigger: /你好呀/,
+  prompt: () => '',
+  fixedReply: '欢迎来到直播间！',
+};
+
+test('a room command with a fixed reply sends that text with no model asked, charged at its price, and the @ is not answered again', async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 3, spent: 0 } });
+  const info = jest.fn();
+  const { say, settle, prompts, sent } = setup({
+    wallet,
+    cost: 2,
+    log: { ...silentLog, info },
+    additionalCommands: [{ ...FIXED, price: 1 }],
+  });
+  say(chat('阿明', `@${BOT.nickname} 你好呀`));
+  await settle();
+
+  expect(prompts).toEqual([]);
+  expect(sent).toEqual(['@阿明 欢迎来到直播间！']);
+  expect(wallet.balance('u-阿明')).toBe(2);
+  expect(info).toHaveBeenCalledWith('fixed reply', { id: 'greet', asker: '阿明' });
+});
+
+test("a fixed reply is sent when auto-reply picks the command, and when Claude asks for it for an @ (the difference refunded, Claude's own words not sent)", async () => {
+  const wallet = memoryWallet({
+    'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 },
+    'u-小红': { nickname: '小红', gifted: 3, spent: 0 },
+  });
+  const { bot, say, settle, prompts, sent } = setup({
+    wallet,
+    cost: 3,
+    answer: JSON.stringify({ message: '我看看', command_request: 'greet', command_args: '' }),
+    additionalCommands: [{ ...FIXED, price: 1 }],
+  });
+  bot.replyUnprompted({
+    nickname: '阿明',
+    userId: 'u-阿明',
+    question: '你好呀',
+    heard: 'chat',
+    command: 'greet',
+  });
+  await settle();
+  expect(prompts).toEqual([]);
+  expect(sent).toEqual(['@阿明 欢迎来到直播间！']);
+  expect(wallet.balance('u-阿明')).toBe(0);
+
+  say(chat('小红', `@${BOT.nickname} 问个好`));
+  await settle();
+  expect(prompts).toHaveLength(1);
+  expect(sent.at(-1)).toBe('@小红 欢迎来到直播间！');
+  expect(sent).toHaveLength(2);
+  expect(wallet.balance('u-小红')).toBe(2);
+});
+
+test('a long fixed reply is split like any reply', async () => {
+  const { say, settle, sent } = setup({
+    additionalCommands: [{ ...FIXED, fixedReply: '字'.repeat(80) }],
+  });
+  say(chat('阿明', `@${BOT.nickname} 你好呀`));
+  await settle();
+  expect(sent.length).toBeGreaterThan(1);
+  expect(sent[0]).toMatch(/^@阿明 \(1\/\d\) /);
+});
+
+/** FIXED for badge holders only, or for anyone but them. */
+const FILTERED = (filter: Partial<AdditionalCommand>): AdditionalCommand => ({
+  ...FIXED,
+  price: 1,
+  ...filter,
+});
+
+test("a command's except filter skips a trigger-taken @ from a viewer it names: nothing is sent, asked or charged", async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 3, spent: 0 } });
+  const info = jest.fn();
+  const { say, settle, prompts, sent } = setup({
+    wallet,
+    cost: 2,
+    log: { ...silentLog, info },
+    additionalCommands: [FILTERED({ except: [{ badge: 'V' }, { badge: 'V年' }] })],
+  });
+  say(viewerChat('阿明', `@${BOT.nickname} 你好呀`, { badges: ['V年'] }));
+  await settle();
+
+  expect(prompts).toEqual([]);
+  expect(sent).toEqual([]);
+  expect(wallet.balance('u-阿明')).toBe(3);
+  expect(info).toHaveBeenCalledWith('skipped by user filter', {
+    id: 'greet',
+    asker: '阿明',
+    userId: 'u-阿明',
+  });
+
+  // Anyone else, or without badges (DyHub doesn't send them yet), gets it.
+  say(viewerChat('阿明', `@${BOT.nickname} 你好呀`, { badges: ['别的'] }));
+  say(chat('阿明', `@${BOT.nickname} 你好呀`));
+  await settle();
+  expect(sent).toEqual(['@阿明 欢迎来到直播间！', '@阿明 欢迎来到直播间！']);
+});
+
+test('a trigger-taken @ goes to the first matching command that applies to the viewer', async () => {
+  const { say, settle, sent } = setup({
+    additionalCommands: [
+      FILTERED({ id: 'for-fans', fixedReply: '粉丝好', only: [{ fansLevel: 5 }] }),
+      FILTERED({ id: 'for-all', fixedReply: '你好' }),
+    ],
+  });
+  say(chat('阿明', `@${BOT.nickname} 你好呀`));
+  say(viewerChat('小红', `@${BOT.nickname} 你好呀`, { fansClub: { level: 7 } }));
+  await settle();
+  expect(sent).toEqual(['@阿明 你好', '@小红 粉丝好']);
+});
+
+test("only fansLevel counts the streamer's fan club: one for another anchor does not, one that says nothing does", async () => {
+  const { say, settle, sent } = setup({
+    streamer: { uid: 'streamer-1' },
+    additionalCommands: [FILTERED({ only: [{ fansLevel: 10 }] })],
+  });
+  const asked = `@${BOT.nickname} 你好呀`;
+  say(viewerChat('甲', asked, { fansClub: { level: 12, anchorId: 'streamer-2' } }));
+  say(viewerChat('乙', asked, { fansClub: { level: 9, anchorId: 'streamer-1' } }));
+  say(viewerChat('丙', asked, { fansClub: { level: 12, anchorId: 'streamer-1' } }));
+  say(viewerChat('丁', asked, { fansClub: { level: 10 } }));
+  say(chat('戊', asked));
+  await settle();
+  expect(sent).toEqual(['@丙 欢迎来到直播间！', '@丁 欢迎来到直播间！']);
+});
+
+test('only payLevel and admin: a wealth level at least that, or the streamer or an admin', async () => {
+  const { say, settle, sent } = setup({
+    admins: ['u-管理'],
+    additionalCommands: [FILTERED({ only: [{ payLevel: 20 }, { admin: true }] })],
+  });
+  const asked = `@${BOT.nickname} 你好呀`;
+  say(viewerChat('甲', asked, { payLevel: 19 }));
+  say(viewerChat('乙', asked, { payLevel: 20 }));
+  say(chat('管理', asked));
+  await settle();
+  expect(sent).toEqual(['@乙 欢迎来到直播间！', '@管理 欢迎来到直播间！']);
+});
+
+test('in a 私密 room badge and level conditions never match without them, and a viewer who has a wealth level can', async () => {
+  const hidden = { ...chat('苦***', `@${BOT.nickname} 你好呀`), userId: '111111-苦***-31' };
+  const { say, settle, sent } = setup({
+    additionalCommands: [
+      FILTERED({ id: 'badge', fixedReply: '会员', only: [{ badge: 'V' }] }),
+      FILTERED({ id: 'fans', fixedReply: '粉丝', only: [{ fansLevel: 1 }] }),
+      FILTERED({ id: 'rich', fixedReply: '土豪', only: [{ payLevel: 30 }] }),
+    ],
+  });
+  say(hidden);
+  await settle();
+  expect(sent).toEqual([]);
+
+  say({ ...hidden, payLevel: 31 });
+  await settle();
+  expect(sent).toEqual(['@苦*** 土豪']);
+});
+
+test('a command filtered out for an @ that Claude asked it for is refunded in full and not answered', async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 2, spent: 0 } });
+  const { say, settle, prompts, sent } = setup({
+    wallet,
+    cost: 2,
+    answer: JSON.stringify({ message: '我看看', command_request: 'greet', command_args: '' }),
+    additionalCommands: [FILTERED({ only: [{ badge: 'V' }] })],
+  });
+  say(chat('阿明', `@${BOT.nickname} 问个好`));
+  await settle();
+  expect(prompts).toHaveLength(1);
+  expect(sent).toEqual([]);
+  expect(wallet.balance('u-阿明')).toBe(2);
+});
+
+test("what auto-reply picked is skipped for a viewer the filter excludes, and the streamer's speech matches only admin", async () => {
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
+  const { bot, say, settle, prompts, sent } = setup({
+    wallet,
+    cost: 1,
+    admins: ['u-主播'],
+    additionalCommands: [
+      FILTERED({ except: [{ payLevel: 10 }] }),
+      FILTERED({ id: 'admins', fixedReply: '主播好', only: [{ admin: true }, { badge: 'V' }] }),
+    ],
+  });
+  say(viewerChat('阿明', '你好呀', { payLevel: 10 }));
+  bot.replyUnprompted({
+    nickname: '阿明',
+    userId: 'u-阿明',
+    question: '你好呀',
+    heard: 'chat',
+    command: 'greet',
+  });
+  await settle();
+  expect(sent).toEqual([]);
+  expect(wallet.balance('u-阿明')).toBe(1);
+
+  // The streamer's speech has no badges, even if their chat lines have.
+  say(viewerChat('主播', '你好呀', { badges: ['V'], payLevel: 99 }));
+  bot.replyUnprompted({
+    nickname: '主播',
+    userId: 'u-主播',
+    question: '你好呀',
+    heard: 'speech',
+    command: 'admins',
+  });
+  await settle();
+  expect(prompts).toEqual([]);
+  expect(sent).toEqual(['@主播 主播好']);
 });

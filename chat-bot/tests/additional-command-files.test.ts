@@ -2,7 +2,13 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadAdditionalCommands } from '../src/adapters/additional-command-files';
-import { mentionIn, parseCommandIndex } from '../src/core/additional-command';
+import {
+  appliesTo,
+  mentionIn,
+  parseCommandIndex,
+  userMatches,
+  type UserCondition,
+} from '../src/core/additional-command';
 
 const fakeLog = () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() });
 
@@ -34,7 +40,7 @@ test('reads the index: the commands by id, each checked', () => {
     { id: 'plain', name: '别的', when: '在问别的', trigger: null, prompt: 'plain/prompt.md' },
   ]);
   expect(errors).toEqual([
-    'no-prompt: prompt must be a non-empty string',
+    'no-prompt: needs a prompt or a fixedReply',
     'outside: prompt must be inside the folder: ../prompt.md',
     'bad-price: price must be whole diamonds, 0 or more',
   ]);
@@ -128,4 +134,100 @@ test("a command's mentions file is read on each use, and a missing one mentions 
   expect(
     parseCommandIndex({ x: { name: 'x', when: 'y', prompt: 'p.md', mentions: '../t.txt' } }).errors,
   ).toEqual(['x: mentions must be a file inside the room folder']);
+});
+
+test('a command may have a fixedReply instead of a prompt, or both', () => {
+  const base = { name: 'x', when: 'y' };
+  const { commands, errors } = parseCommandIndex({
+    fixed: { ...base, fixedReply: '你好' },
+    both: { ...base, fixedReply: '你好', prompt: 'p.md' },
+    empty: { ...base, fixedReply: ' ' },
+    number: { ...base, fixedReply: 5 },
+    none: base,
+  });
+  expect(commands.map((c) => [c.id, c.prompt, c.fixedReply])).toEqual([
+    ['fixed', undefined, '你好'],
+    ['both', 'p.md', '你好'],
+  ]);
+  expect(errors).toEqual([
+    'empty: fixedReply must be a non-empty string',
+    'number: fixedReply must be a non-empty string',
+    'none: needs a prompt or a fixedReply',
+  ]);
+});
+
+test('reads only and except: lists of conditions, each with a known field of the right type', () => {
+  const base = { name: 'x', when: 'y', fixedReply: 'z' };
+  const only = [{ badge: 'V', fansLevel: 3 }, { payLevel: 10 }, { admin: true }];
+  const except = [{ badge: 'V' }, { badge: 'V年' }];
+  const [command] = parseCommandIndex({ x: { ...base, only, except } }).commands;
+  expect(command).toMatchObject({ only, except });
+
+  const errors = (extra: object) => parseCommandIndex({ x: { ...base, ...extra } }).errors;
+  expect(errors({ only: { badge: 'V' } })).toEqual([
+    'x: only must be a non-empty list of conditions',
+  ]);
+  expect(errors({ except: [] })).toEqual(['x: except must be a non-empty list of conditions']);
+  expect(errors({ only: ['V'] })).toEqual(['x: only condition 1 must be an object']);
+  expect(errors({ only: [{ badge: 'V' }, { level: 3 }] })).toEqual([
+    'x: only condition 2 has an unknown field "level" (use badge, fansLevel, payLevel, admin)',
+  ]);
+  expect(errors({ except: [{}] })).toEqual([
+    'x: except condition 1 needs at least one of badge, fansLevel, payLevel, admin',
+  ]);
+  expect(errors({ only: [{ badge: 3 }] })).toEqual([
+    'x: only condition 1: badge must be a non-empty string',
+  ]);
+  expect(errors({ only: [{ fansLevel: '10' }] })).toEqual([
+    'x: only condition 1: fansLevel must be a whole number, 1 or more',
+  ]);
+  expect(errors({ only: [{ payLevel: 0 }] })).toEqual([
+    'x: only condition 1: payLevel must be a whole number, 1 or more',
+  ]);
+  expect(errors({ only: [{ admin: false }] })).toEqual(['x: only condition 1: admin must be true']);
+});
+
+describe('userMatches', () => {
+  const viewer = { admin: false };
+
+  test('a viewer matches the list when they match any entry, an entry when they match all its fields', () => {
+    const conditions: UserCondition[] = [{ badge: 'V', payLevel: 10 }, { admin: true }];
+    expect(userMatches(conditions, { ...viewer, badges: ['V'], payLevel: 10 })).toBe(true);
+    expect(userMatches(conditions, { ...viewer, badges: ['V'], payLevel: 9 })).toBe(false);
+    expect(userMatches(conditions, { ...viewer, payLevel: 50 })).toBe(false);
+    expect(userMatches(conditions, { admin: true })).toBe(true);
+    expect(userMatches([], { admin: true })).toBe(false);
+  });
+
+  test('badges are matched exactly', () => {
+    expect(userMatches([{ badge: 'V' }], { ...viewer, badges: ['V年'] })).toBe(false);
+    expect(userMatches([{ badge: 'V' }], { ...viewer, badges: ['V年', 'V'] })).toBe(true);
+    expect(userMatches([{ badge: 'V' }], viewer)).toBe(false);
+  });
+
+  test("the fan club counts when it's the streamer's, or doesn't say whose it is", () => {
+    const fans = [{ fansLevel: 10 }];
+    const club = (level: number, anchorId?: string) => ({
+      ...viewer,
+      fansClub: { level, anchorId },
+    });
+    expect(userMatches(fans, club(10, 's1'), 's1')).toBe(true);
+    expect(userMatches(fans, club(9, 's1'), 's1')).toBe(false);
+    expect(userMatches(fans, club(20, 's2'), 's1')).toBe(false);
+    expect(userMatches(fans, club(10), 's1')).toBe(true);
+    expect(userMatches(fans, club(10), undefined)).toBe(true);
+    // Says whose, but the streamer isn't known yet: can't tell it's theirs.
+    expect(userMatches(fans, club(10, 's1'), undefined)).toBe(false);
+    expect(userMatches(fans, viewer, 's1')).toBe(false);
+  });
+
+  test('appliesTo needs a match of only and none of except; neither applies to everyone', () => {
+    const fan = { ...viewer, payLevel: 30 };
+    expect(appliesTo({}, viewer)).toBe(true);
+    expect(appliesTo({ only: [{ payLevel: 30 }] }, fan)).toBe(true);
+    expect(appliesTo({ only: [{ payLevel: 30 }] }, viewer)).toBe(false);
+    expect(appliesTo({ except: [{ payLevel: 30 }] }, fan)).toBe(false);
+    expect(appliesTo({ except: [{ payLevel: 30 }] }, viewer)).toBe(true);
+    expect(appliesTo({ only: [{ payLevel: 30 }], except: [{ payLevel: 30 }] }, fan)).toBe(false);
+  });
 });

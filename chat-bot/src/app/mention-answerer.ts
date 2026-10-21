@@ -38,6 +38,8 @@ export interface Mention extends PromptOptions {
   history: ChatLine[];
   /** A command's own prompt template instead of the usual one. */
   template?: string;
+  /** What a room command says as it is: sent to the asker without asking a model. */
+  fixedReply?: string;
   /** Not an @: the bot heard the asker talk to or about it, in the chat or on the stream. */
   unprompted?: Heard;
   /**
@@ -123,8 +125,15 @@ export class MentionAnswerer {
     this.maxPending = options.maxPending ?? 20;
   }
 
-  /** Queues a mention for Claude; false when the queue is full and it was dropped. */
+  /**
+   * Queues a mention for Claude; false when the queue is full and it was dropped. A `fixedReply`
+   * isn't queued: it's sent at once, with no model asked.
+   */
   ask(mention: Mention): boolean {
+    if (mention.fixedReply !== undefined) {
+      this.sendFixed(mention, mention.fixedReply);
+      return true;
+    }
     if (this.pending.length >= this.maxPending) {
       this.options.log.warn('too many waiting, dropping one', {
         asker: mention.asker,
@@ -160,6 +169,38 @@ export class MentionAnswerer {
 
   private refund(mention: Mention): void {
     refundMention(this.options.billing, this.options.log, mention);
+  }
+
+  /** Sends `text` to the asker as a reply, like an answer; refunded if it can't go out. */
+  private sendFixed(mention: Mention, text: string): void {
+    const { outbox, log, userTalk, bus } = this.options;
+    const limits = mention.unprompted ? { ...this.limits, maxParts: 1 } : this.limits;
+    const messages = replyMessages(mention.asker, text, limits);
+    if (!messages.length) {
+      log.warn('a fixed reply is empty', { asker: mention.asker });
+      this.refund(mention);
+      return;
+    }
+    let refunded = false;
+    const onFailed = () => {
+      if (refunded) return;
+      refunded = true;
+      this.refund(mention);
+    };
+    const { userId } = mention;
+    messages.forEach((message, i) => {
+      const last = i === messages.length - 1;
+      outbox.push({
+        kind: 'reply',
+        text: message,
+        onFailed,
+        onSent: last && userId !== undefined ? () => bus?.emit('answered', { userId }) : undefined,
+      });
+    });
+    if (userId) {
+      const { asker: nickname, question } = mention;
+      userTalk?.add(userId, { nickname, question, answer: messages.join(' ') });
+    }
   }
 
   private async answer(mention: Mention): Promise<void> {

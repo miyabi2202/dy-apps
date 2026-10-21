@@ -1,5 +1,7 @@
+import { appliesTo, type Viewer } from '../core/additional-command';
 import { parseCommand } from '../core/command';
-import type { Gift, IncomingChat } from '../core/room-events';
+import type { ChatLine, Gift, IncomingChat } from '../core/room-events';
+import type { Heard } from '../core/prompt';
 import type { Billing, Charge } from './billing';
 import type { Command } from './command';
 import { CommandRunner, type ChargeRequest } from './command-runner';
@@ -33,6 +35,8 @@ export interface ChatBotOptions {
   /** User ids of the admins: their mentions and commands are free, and only they can run the
    * admin-only commands. */
   admins?: Admins;
+  /** The room's streamer once known, whose fan club a command's `fansLevel` counts. */
+  streamer?: () => { uid: string } | null;
   /** What a mention starting with `/` can run. */
   commands?: readonly Command[];
   /**
@@ -109,9 +113,16 @@ export class ChatBot {
       this.runner.run(chat, question, call, admin);
       return;
     }
-    const own = this.options.additionalCommands?.find(
+    const taken = (this.options.additionalCommands ?? []).filter(
       ({ trigger, adminOnly }) => trigger?.test(question) && (!adminOnly || admin),
     );
+    const viewer = this.viewerOf(chat, admin);
+    const own = taken.find((command) => this.appliesTo(command, viewer));
+    // Taken by commands that aren't for them: nothing is done, not even the usual answer.
+    if (!own && taken[0]) {
+      this.skipped(taken[0], asker, userId);
+      return;
+    }
     if (own) log.info('additional command triggered', { asker, userId, command: own.id });
     this.askMention(chat, question, admin, own);
   }
@@ -135,16 +146,17 @@ export class ChatBot {
       paid: charge.paid,
       question,
       history: this.options.room.recentChat(),
-      ...(own && {
-        ...this.commandPrompt(own),
-        ifEmpty: () => {
-          this.options.log.info('not for the command, answering as usual', {
-            asker,
-            command: own.id,
-          });
-          this.askMention(chat, question, admin);
-        },
-      }),
+      ...(own && this.commandPrompt(own, asker)),
+      ...(own &&
+        own.fixedReply === undefined && {
+          ifEmpty: () => {
+            this.options.log.info('not for the command, answering as usual', {
+              asker,
+              command: own.id,
+            });
+            this.askMention(chat, question, admin);
+          },
+        }),
     });
   }
 
@@ -177,6 +189,12 @@ export class ChatBot {
     const { asker, userId } = mention;
     // One of the room's own: answered with its prompt instead, already paid for.
     const own = this.additionalCommand(name);
+    if (own && !this.appliesTo(own, this.viewerFrom(userId, mention.history, 'chat'))) {
+      // Claude took it for the command, but it isn't for them: nothing is said, and the @ is refunded.
+      this.skipped(own, asker, userId);
+      this.refund(mention);
+      return true;
+    }
     if (own?.adminOnly && !this.isAdmin(userId)) {
       // Not theirs to ask for: Claude's own reply goes out instead.
       this.options.log.info('additional command not for them', { asker, userId, command: own.id });
@@ -190,7 +208,7 @@ export class ChatBot {
         this.refund({ asker, userId, paid: paid - own.price });
         paid = own.price;
       }
-      this.ask({ ...mention, paid, ...this.commandPrompt(own) });
+      this.ask({ ...mention, paid, ...this.commandPrompt(own, asker) });
       return true;
     }
     return this.runner.request(mention, name, args);
@@ -210,6 +228,11 @@ export class ChatBot {
       this.options.log.info('additional command not for them', { asker: nickname, command });
       return;
     }
+    const viewer = this.viewerFrom(userId, this.options.room.recentChat(), heard);
+    if (own && !this.appliesTo(own, viewer)) {
+      this.skipped(own, nickname, userId);
+      return;
+    }
     const charge = this.charge({
       chat,
       question,
@@ -225,15 +248,60 @@ export class ChatBot {
       question,
       history: this.options.room.recentChat(),
       unprompted: heard,
-      ...(own && this.commandPrompt(own)),
+      ...(own && this.commandPrompt(own, nickname)),
     });
   }
 
-  /** How the room's own command `own` is answered: with its prompt, in JSON. */
+  /**
+   * How the room's own command `own` answers `asker`: with its fixed reply, or with its prompt,
+   * in JSON.
+   */
   private commandPrompt(
     own: AdditionalCommand,
-  ): Pick<Mention, 'template' | 'jsonMessage' | 'atOthers'> {
+    asker: string,
+  ): Pick<Mention, 'template' | 'jsonMessage' | 'atOthers' | 'fixedReply'> {
+    if (own.fixedReply !== undefined) {
+      this.options.log.info('fixed reply', { id: own.id, asker });
+      return { fixedReply: own.fixedReply };
+    }
     return { template: own.prompt(), jsonMessage: true, ...(own.atOthers && { atOthers: true }) };
+  }
+
+  /** Whether the room's own command `own` applies to `viewer` (its `only` and `except`). */
+  private appliesTo(own: AdditionalCommand, viewer: Viewer): boolean {
+    return appliesTo(own, viewer, this.options.streamer?.()?.uid);
+  }
+
+  private skipped(own: AdditionalCommand, asker: string, userId: string | undefined): void {
+    this.options.log.info('skipped by user filter', { id: own.id, asker, userId });
+  }
+
+  /** Who `chat`'s sender is, for a command's user filter. */
+  private viewerOf(chat: ChatLine, admin: boolean): Viewer {
+    const { badges, fansClub, payLevel } = chat;
+    return {
+      admin,
+      ...(badges && { badges }),
+      ...(fansClub && { fansClub }),
+      ...(payLevel !== undefined && { payLevel }),
+    };
+  }
+
+  /**
+   * Who `userId` is, from their latest line in `history` (the streamer's speech has none, so
+   * only `admin` can match it).
+   */
+  private viewerFrom(
+    userId: string | undefined,
+    history: readonly ChatLine[],
+    heard: Heard,
+  ): Viewer {
+    const admin = this.isAdmin(userId);
+    const line =
+      heard === 'speech' || !userId
+        ? undefined
+        : [...history].reverse().find((l) => l.userId === userId);
+    return line ? this.viewerOf(line, admin) : { admin };
   }
 
   /** The room's own command `name` (its id, or what it's for), if there is one. */

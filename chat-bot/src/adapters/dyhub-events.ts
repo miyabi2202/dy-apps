@@ -10,6 +10,13 @@ export function chatFrom(event: DyhubCommentEvent, hidden = false): IncomingChat
     nickname: event.user?.nickname ?? '匿名',
     content: event.data.content,
     ...(event.user?.badges?.length && { badges: event.user.badges }),
+    ...(event.user?.fansClub && {
+      fansClub: {
+        level: event.user.fansClub.level,
+        ...(event.user.fansClub.anchorId && { anchorId: event.user.fansClub.anchorId }),
+      },
+    }),
+    ...(event.user?.payLevel !== undefined && { payLevel: event.user.payLevel }),
     mentions: (event.data.parts ?? []).flatMap((part) =>
       part.type === 'mention' ? [{ text: part.text, userId: part.userId }] : [],
     ),

@@ -7,6 +7,10 @@ export interface ChatLine {
   content: string;
   /** The badges shown by their name (a 直播间会员's `V` or `V年`), when DyHub sends them. */
   badges?: readonly string[];
+  /** The fan club shown by their name: its level, and whose it is (the streamer's uid) when DyHub says. */
+  fansClub?: { level: number; anchorId?: string };
+  /** Their wealth level, when DyHub sends it. */
+  payLevel?: number;
 }
 
 /** A chat message as it arrives, with the people it @s by picking them from the list. */

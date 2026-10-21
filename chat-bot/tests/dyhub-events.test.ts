@@ -58,3 +58,33 @@ test("passes on the badges by the sender's name, when DyHub sends them", () => {
   expect(chatFrom(event).badges).toEqual(['V年']);
   expect(chatFrom({ ...event, user: { id: '7', nickname: '阿明' } })).not.toHaveProperty('badges');
 });
+
+test("carries a sender's badges, fan club and wealth level when DyHub sends them", () => {
+  const event: DyhubCommentEvent = {
+    id: 'm2',
+    roomId: '1',
+    type: 'chat',
+    ts: 6,
+    user: {
+      id: 'u1',
+      nickname: '阿明',
+      payLevel: 12,
+      fansClub: { name: '灯牌', level: 7, anchorId: 'a1' },
+      badges: ['V'],
+    },
+    data: { content: '你好' },
+  };
+  expect(chatFrom(event)).toMatchObject({
+    badges: ['V'],
+    fansClub: { level: 7, anchorId: 'a1' },
+    payLevel: 12,
+  });
+
+  const bare = chatFrom({ ...event, user: { id: 'u1', nickname: '阿明' } });
+  expect(bare).not.toHaveProperty('fansClub');
+  expect(bare).not.toHaveProperty('payLevel');
+  expect(
+    chatFrom({ ...event, user: { id: 'u1', nickname: '阿明', fansClub: { name: 'x', level: 2 } } })
+      .fansClub,
+  ).toEqual({ level: 2 });
+});
