@@ -109,8 +109,8 @@ test('keeps what the worker hears, giving the same worker a fresh stream URL whe
     },
   ]);
   expect(written).toBe(
-    '2026-10-16 08:00:00 [连线](speech) 从 url-1 听到\n' +
-      '2026-10-16 08:00:00 [主播](sing) 从 url-2 听到\n',
+    '2026-10-16 08:00:00+00:00 [连线](speech) 从 url-1 听到\n' +
+      '2026-10-16 08:00:00+00:00 [主播](sing) 从 url-2 听到\n',
   );
 });
 

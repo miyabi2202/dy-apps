@@ -19,9 +19,9 @@ test('writes one line per record, 100 to a file, named by the first record’s t
 
   expect(Object.fromEntries(files)).toEqual({
     [`/data/chat/1/${Date.UTC(2026, 9, 16, 8, 47, 21)}.txt`]:
-      '2026-10-16 08:47:21 [主播](speech) 大家好 今天讲吕布\n' +
-      '2026-10-16 08:47:22 [阿明#u1](chat) 主播好\n',
+      '2026-10-16 08:47:21+00:00 [主播](speech) 大家好 今天讲吕布\n' +
+      '2026-10-16 08:47:22+00:00 [阿明#u1](chat) 主播好\n',
     [`/data/chat/1/${Date.UTC(2026, 9, 16, 8, 47, 23)}.txt`]:
-      '2026-10-16 08:47:23 [雅#u2](gift) 送出 人气票×1（1钻）\n',
+      '2026-10-16 08:47:23+00:00 [雅#u2](gift) 送出 人气票×1（1钻）\n',
   });
 });

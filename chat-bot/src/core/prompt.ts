@@ -130,7 +130,7 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
  * `unprompted`, that it heard them talk to or about it), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
  * most the answer may use over several, `{{now}}` the time, `{{today}}` the date and weekday
  * (`2026-10-20 星期二`), both in the room's time zone, `{{timeZone}}` that zone's name (北京时间), `{{recordTimeZone}}` the machine's
- * (which the chat record files on disk are written in), `{{chatDir}}` the folder of chat
+ * (which record lines written before, without an offset, are in), `{{chatDir}}` the folder of chat
  * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{aliases}}` a line saying the room's other names for the bot mean it too (empty without any), `{{botName}}`
  * the bot's own nickname, `{{context}}` the room's background under a heading (empty
  * without one), `{{intro}}` what the bot says about itself, likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
@@ -179,7 +179,7 @@ export function buildPrompt(template: string, input: PromptInput): string {
     limitations: input.limitations?.trim()
       ? wording('limitations', { limitations: input.limitations.trim() })
       : '',
-    // Written with the machine's times; shown in the room's, like the rest of the prompt.
+    // In the room's time; lines written before (no offset) had the machine's, shown in the room's.
     botTalk: retimeLines(botTalk?.trim() ?? '', input.timeZone) || '（暂无）',
     userHistory: retimeLines(userHistory?.trim() ?? '', input.timeZone) || '（暂无）',
     userChat: userChat?.trim() || '（暂无）',

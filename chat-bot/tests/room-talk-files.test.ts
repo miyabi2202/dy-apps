@@ -23,9 +23,9 @@ test('keeps what the bot said one line each, and gives back only the latest', ()
   for (const text of ['一', '二\n换行', '三']) talk.add(text);
 
   expect(files.get('/r/bot_logs.md')).toBe(
-    '2026-10-17 15:00:00 一\n2026-10-17 15:00:00 二 换行\n2026-10-17 15:00:00 三\n',
+    '2026-10-17 15:00:00+00:00 一\n2026-10-17 15:00:00+00:00 二 换行\n2026-10-17 15:00:00+00:00 三\n',
   );
-  expect(talk.recent()).toBe('2026-10-17 15:00:00 二 换行\n2026-10-17 15:00:00 三');
+  expect(talk.recent()).toBe('2026-10-17 15:00:00+00:00 二 换行\n2026-10-17 15:00:00+00:00 三');
 });
 
 test("keeps each viewer's exchanges in their own file", () => {
@@ -35,7 +35,7 @@ test("keeps each viewer's exchanges in their own file", () => {
 
   expect([...files.keys()]).toEqual(['/r/123/talk.txt']);
   expect(talk.recent('123')).toBe(
-    '2026-10-17 15:00:00 阿明问：在吗\n2026-10-17 15:00:00 你答：@阿明 在呢',
+    '2026-10-17 15:00:00+00:00 阿明问：在吗\n2026-10-17 15:00:00+00:00 你答：@阿明 在呢',
   );
   expect(talk.recent('456')).toBe('');
 

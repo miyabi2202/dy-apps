@@ -65,19 +65,38 @@ export function clock(ms: number, timeZone?: string): string {
   return localDateTime(ms, timeZone).slice(11);
 }
 
-/** This machine's time zone, which the chat and talk records on disk are written in. */
+/** `+08:00`: how far `timeZone` (the machine's when undefined) is from UTC at `ms`. */
+function utcOffset(ms: number, timeZone?: string): string {
+  const name = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
+    .formatToParts(ms)
+    .find((part) => part.type === 'timeZoneName')?.value;
+  // `GMT+08:00`, or plain `GMT` for UTC itself.
+  return name?.replace('GMT', '') || '+00:00';
+}
+
+/**
+ * `YYYY-MM-DD HH:MM:SS+08:00`: a record's time, in `timeZone` (the room's: where the streamer is),
+ * with how far that is from UTC, so a model reading the record files needn't convert, and the
+ * moment is still exact. Lines written before (no offset) are in the machine's time zone.
+ */
+export function recordStamp(ms: number, timeZone?: string): string {
+  return `${localDateTime(ms, timeZone)}${utcOffset(ms, timeZone)}`;
+}
+
+/** This machine's time zone, which records written before had their times in (no offset). */
 export function machineTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
 /**
- * `text` with each line's leading `YYYY-MM-DD HH:MM:SS`, written in the machine's time zone (a
- * talk record's), shown in `timeZone` instead; the rest as it is. Unchanged without a zone.
+ * `text` with each line's leading `YYYY-MM-DD HH:MM:SS` that has no offset after it (a record
+ * written before, in the machine's time zone) shown in `timeZone` instead; lines with an offset
+ * (already in the room's) and the rest as they are. Unchanged without a zone.
  */
 export function retimeLines(text: string, timeZone?: string): string {
   if (!timeZone) return text;
   return text.replace(
-    /^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/gm,
+    /^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)(?![+-]\d\d:\d\d)/gm,
     (_, y: string, mo: string, d: string, h: string, mi: string, sec: string) =>
       localDateTime(new Date(+y, +mo - 1, +d, +h, +mi, +sec).getTime(), timeZone),
   );

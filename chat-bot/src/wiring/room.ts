@@ -73,7 +73,11 @@ export function registerRoom(container: Container): void {
       mkdirSync(chatDir, { recursive: true });
       return chatDir;
     })
-    .register(RECORD, (c) => new ChatLog(c.resolve(CHAT_DIR)))
+    .register(RECORD, (c) => {
+      const roomConfig = c.resolve(ROOM_CONFIG);
+      // Its times in the streamer's time zone, with the offset, so a model reading it needn't convert.
+      return new ChatLog(c.resolve(CHAT_DIR), { timeZone: () => roomConfig().timeZone });
+    })
     .register(ROOM_FILES, (c) => roomFiles(c.resolve(ROOM_DIR)))
     // The room's room_config.json, read again when it changes: whether it's a 私密 room, and what
     // the bot says when the streamer starts a song.
@@ -132,8 +136,14 @@ export function registerRoom(container: Container): void {
       return billing;
     })
     // What the bot said, overall and to each viewer, so it doesn't repeat itself.
-    .register(BOT_TALK, (c) => botTalkFile(c.resolve(ROOM_FILES).botTalk))
-    .register(USER_TALK, (c) => userTalkFiles(c.resolve(ROOM_FILES).users))
+    .register(BOT_TALK, (c) => {
+      const roomConfig = c.resolve(ROOM_CONFIG);
+      return botTalkFile(c.resolve(ROOM_FILES).botTalk, { timeZone: () => roomConfig().timeZone });
+    })
+    .register(USER_TALK, (c) => {
+      const roomConfig = c.resolve(ROOM_CONFIG);
+      return userTalkFiles(c.resolve(ROOM_FILES).users, { timeZone: () => roomConfig().timeZone });
+    })
     // The room's own commands, listed in data/<房间号>/additional_commands/index.json (主播会唱xxx吗):
     // answered when a mention asks for one, or auto-reply finds what someone said is for one.
     .register(ADDITIONAL_COMMANDS, (c) =>
