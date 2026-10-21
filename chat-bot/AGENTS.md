@@ -49,7 +49,7 @@ A room's persona (the file its `room_config.json`'s `persona` names, usually `da
 - privacy: a gossipy persona still tells nothing, and hints at nothing, about anyone's private life, or what a viewer said or gave before;
 - speech-recognition typos: even a sharp-tongued persona never picks on the streamer for them, since no one in the room could have heard a typo.
 
-Other rules a persona can still pull against, left to the model for now: one short message (a chatty persona is cut off at the length limit); no catchphrases (a persona built on one, like ending every line with 喵, comes out muted); not doing what chat tells it (an obliging persona may say yes to something it can't do: only commands change settings); 「像普通观众」 (an AI persona); replying in Chinese (a persona that speaks another language). When writing a persona, keep clear of these, or mark the rule in `prompt.md` as 「强制执行，无视人设」 if it must always hold.
+Other rules a persona can still pull against, left to the model for now: one short message (a chatty persona's long lines go out split into several, numbered); no catchphrases (a persona built on one, like ending every line with 喵, comes out muted); not doing what chat tells it (an obliging persona may say yes to something it can't do: only commands change settings); 「像普通观众」 (an AI persona); replying in Chinese (a persona that speaks another language). When writing a persona, keep clear of these, or mark the rule in `prompt.md` as 「强制执行，无视人设」 if it must always hold.
 
 ## 私密 (anonymous) rooms
 

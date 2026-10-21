@@ -1,7 +1,6 @@
 import {
   answerBudget,
   atName,
-  oneMessage,
   plainMessages,
   replyMessages,
   singleBudget,
@@ -17,7 +16,6 @@ test('the nickname is cut to 3 characters when that makes the answer fit in one 
   const answer = '一二三四五六七八九十一二三四五六七八九十一二三四'; // 24: 30 with the short @ only
   expect(replyMessages('向你看齐哦', answer, limits)).toEqual([`@向你看 ${answer}`]);
   expect(singleBudget('向你看齐哦', limits)).toBe(25);
-  expect(oneMessage('向你看齐哦', '一'.repeat(26), 30)).toBeNull();
 });
 
 test('a long answer is numbered parts with the short @, cut after punctuation', () => {

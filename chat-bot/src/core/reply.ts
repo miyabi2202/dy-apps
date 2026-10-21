@@ -37,7 +37,7 @@ function shortTag(nickname: string, trim: readonly string[] = []): string {
  * otherwise with its first 3 characters (the @ is typed text, not a picked mention, so a short
  * one works as well); null when even that is too long.
  */
-export function oneMessage(
+function oneMessage(
   nickname: string,
   text: string,
   maxLength: number,

@@ -94,7 +94,7 @@ test('answers with the chat before the question, and replies to the asker', asyn
   expect(sent).toEqual(['@阿明 你好呀']);
 });
 
-test('puts the reply on one line and cuts it to the length limit', async () => {
+test('puts the reply on one line, cut to the limit when not even numbered parts fit', async () => {
   const { ask, sent } = setup({ answer: '  第一行\n第二行很长很长  ', maxReplyLength: 10 });
   await ask();
 
@@ -322,7 +322,7 @@ test("the reply @s the whole nickname when it fits, and only a shortened @ goes 
   const answerer = new MentionAnswerer({
     ask: () => Promise.resolve(answers.shift()!),
     outbox,
-    room: fakeRoom({ atTrimStart: () => ['⊹꙳𝝑'], now: () => NOW, maxReplyParts: 1 }),
+    room: fakeRoom({ atTrimStart: () => ['⊹꙳𝝑'], now: () => NOW }),
     log: silentLog,
     promptTemplate: () => TEMPLATE,
   });

@@ -77,7 +77,7 @@ export interface MentionAnswererOptions {
   /** Each viewer's past exchanges with the bot: answers are added, and `{{userHistory}}` is
    * the asker's. */
   userTalk?: UserTalk;
-  /** Douyin's chat length limit: the prompt asks for less, and longer replies are cut to it. */
+  /** Douyin's chat length limit: the prompt asks for less, and longer replies are split to fit. */
   maxReplyLength?: number;
   /**
    * Told when, answering with the usual prompt, Claude found the asker asking for a command in
