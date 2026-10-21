@@ -87,10 +87,16 @@ export class Transcriber {
       log.warn('speech recognition is not ready yet, entering the room without it');
       this.markReady();
     }, this.options.readyTimeoutMs ?? 180_000);
+    // The same failure again and again (no speech service running yet) is logged once.
+    let lastFailure: string | null = null;
     while (!this.stopped) {
       const worker = this.startWorker();
+      let failed = false;
       const exited = worker.exited.catch((err: unknown) => {
-        log.error('could not start the transcriber', { error: errorMessage(err) });
+        failed = true;
+        const error = errorMessage(err);
+        if (error !== lastFailure) log.error('could not start the transcriber', { error });
+        lastFailure = error;
         return null;
       });
       const gone = exited.then(() => 'gone' as const);
@@ -98,11 +104,15 @@ export class Transcriber {
         new Promise<'ready'>((resolve) => (this.onReady = () => resolve('ready'))),
         gone,
       ]);
-      if (loaded === 'ready') await this.listen(worker, gone);
+      if (loaded === 'ready') {
+        lastFailure = null;
+        await this.listen(worker, gone);
+      }
       this.markReady();
       this.worker = null;
       if (this.stopped) break;
-      log.warn('transcriber stopped, restarting', { code: await exited });
+      const code = await exited;
+      if (!failed) log.warn('transcriber stopped, restarting', { code });
       await this.sleep(this.retryMs);
     }
     cancelTimeout();

@@ -110,7 +110,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'auto-song-id': { type: 'boolean' },
       // @ viewers who keep posting malicious chat; /识别恶意言论 switches it while it runs.
       'malice-watch': { type: 'boolean' },
-      // The speech service (asr/transcribe.py --serve) listens here; the bot starts it if it isn't there.
+      // The speech service (asr/transcribe.py --serve), started by hand before the bot, listens here.
       'asr-port': { type: 'string', default: '8758' },
     },
   });

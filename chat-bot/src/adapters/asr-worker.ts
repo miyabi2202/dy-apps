@@ -1,7 +1,4 @@
-import { spawn as spawnProcess } from 'node:child_process';
-import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { createConnection } from 'node:net';
-import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { SpawnWorker } from '../app/ports';
 
@@ -36,102 +33,32 @@ export const openTcp: OpenSocket = (port) =>
     });
   });
 
-export interface SpeechServiceOptions {
-  /** The `asr/` project. */
-  asrDir: string;
-  port: number;
-  /** Where its output goes. */
-  logFile: string;
-  spawn?: typeof spawnProcess;
-}
-
-/**
- * Starts the speech service, `uv run asr/transcribe.py --serve <port>`, detached from the bot so it
- * outlives it (and keeps its models loaded across restarts), logging to `logFile`. Resolves when
- * it exits (or couldn't start), so a service that dies while loading isn't waited for.
- */
-export function startSpeechService({
-  asrDir,
-  port,
-  logFile,
-  spawn = spawnProcess,
-}: SpeechServiceOptions): Promise<void> {
-  mkdirSync(dirname(logFile), { recursive: true });
-  const fd = openSync(logFile, 'a');
-  try {
-    const child = spawn(
-      'uv',
-      ['run', '-q', '--directory', asrDir, join(asrDir, 'transcribe.py'), '--serve', String(port)],
-      {
-        detached: true,
-        stdio: ['ignore', fd, fd],
-        // Let PyTorch run what Apple's GPU can't on the CPU instead of failing.
-        env: { ...process.env, PYTORCH_ENABLE_MPS_FALLBACK: '1' },
-      },
-    );
-    child.unref();
-    return new Promise((resolve) => {
-      child.on('error', () => resolve());
-      child.on('exit', () => resolve());
-    });
-  } finally {
-    closeSync(fd);
-  }
-}
-
 export interface ConnectWorkerOptions {
   port: number;
-  /**
-   * Starts the service, when nothing is listening yet; resolves when that service exits, so the
-   * bot stops waiting for one that died while starting (logs/asr.log says why).
-   */
-  start: () => Promise<void>;
   connect?: OpenSocket;
-  /** How long between tries to connect while the service starts. */
-  retryMs?: number;
-  /** Give up after this many tries (the first run downloads gigabytes of models). */
-  maxTries?: number;
-  sleep?: (ms: number) => Promise<void>;
 }
 
 /**
- * The speech service as a worker: connects to it on localhost; when nothing is listening, starts
- * it (once) and tries again until it does (the models take about half a minute to load, and it
- * listens as soon as it starts, so this finds it at once the next time). Its lines are the worker's
- * (asr/transcribe.py's protocol). `kill()` only disconnects, so the service, and the models it has
- * loaded, outlive the bot; `exited` resolves when the connection ends, for a bot that wants the
- * worker again to connect again.
+ * The speech service as a worker: connects to it on localhost (it's started by hand, before the
+ * bot: `uv run --directory asr asr/transcribe.py --serve <port>`). Its lines are the worker's
+ * (asr/transcribe.py's protocol). When nothing is listening, `exited` rejects at once, saying how
+ * to start it, and the bot enters the room without speech, trying again now and then. `kill()` only
+ * disconnects, so the service, and the models it has loaded, outlive the bot; `exited` resolves
+ * when the connection ends, for a bot that wants the worker again to connect again.
  */
-export function connectWorker({
-  port,
-  start,
-  connect = openTcp,
-  retryMs = 500,
-  maxTries = 1200,
-  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-}: ConnectWorkerOptions): SpawnWorker {
-  return ({ onLine, onLog }) => {
+export function connectWorker({ port, connect = openTcp }: ConnectWorkerOptions): SpawnWorker {
+  return ({ onLine }) => {
     let socket: WorkerSocket | null = null;
     let killed = false;
     const exited = (async (): Promise<number | null> => {
-      let started = false;
-      let died = false;
-      for (let tries = 1; !killed; tries++) {
-        try {
-          socket = await connect(port);
-          break;
-        } catch (err) {
-          // Tried once more after it died, in case another bot's service took the port meanwhile.
-          if (died) throw new Error('the speech service exited while starting', { cause: err });
-          if (!started) {
-            onLog(`no speech service on port ${port}, starting one`);
-            void start().then(() => (died = true));
-            started = true;
-          }
-          if (tries >= maxTries)
-            throw new Error('the speech service did not come up', { cause: err });
-          await sleep(retryMs);
-        }
+      try {
+        socket = await connect(port);
+      } catch (err) {
+        throw new Error(
+          `no speech service on port ${port}: start it first, with ` +
+            `uv run --directory chat-bot/asr chat-bot/asr/transcribe.py --serve ${port}`,
+          { cause: err },
+        );
       }
       const connected = socket;
       if (!connected) return null;

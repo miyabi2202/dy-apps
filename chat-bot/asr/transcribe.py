@@ -34,8 +34,8 @@ time (another bot that connects meanwhile is told `{"busy": true}` and disconnec
 listening before the models load, and a bot that connects meanwhile gets `ready` once
 they have. When the bot disconnects its stream is stopped (ffmpeg killed), but the models and the
 voiceprints it learned stay loaded, and the next connection is told `{"ready": true}` at once. That
-way restarting the bot doesn't reload the models. The bot starts it detached if nothing is listening
-(src/adapters/asr-worker.ts); stop it with `pkill -f "transcribe.py --serve"`.
+way restarting the bot doesn't reload the models. It's started by hand, before the bot, which only
+connects to it (src/adapters/asr-worker.ts); stop it with Ctrl+C or `pkill -f "transcribe.py --serve"`.
 
 The bot can also ask what music is playing, by writing `{"music_id": 1}` (any id) as a line to
 stdin: the worker looks up the last 15 s with Shazam (shazamio: the fingerprint is worked out

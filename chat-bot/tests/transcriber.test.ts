@@ -168,6 +168,36 @@ test('a busy speech service is let go, so the bot enters the room and tries agai
   expect(warnings).toContain('the speech service is serving another bot; trying again later');
 });
 
+test('with no speech service, the bot enters the room at once, and the failure is logged once', async () => {
+  let tries = 0;
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const transcriber: Transcriber = new Transcriber({
+    streamUrl: () => Promise.resolve(null),
+    bus: fakeBus(),
+    transcript: new Transcript(),
+    log: {
+      ...silentLog,
+      error: (message) => void errors.push(message),
+      warn: (message) => void warnings.push(message),
+    },
+    spawnWorker: () => {
+      tries++;
+      return { kill: () => {}, send: () => {}, exited: Promise.reject(new Error('no service')) };
+    },
+    sleep: () => {
+      if (tries >= 3) transcriber.stop();
+      return Promise.resolve();
+    },
+  });
+  const running = transcriber.run();
+  await transcriber.ready();
+  await running;
+  expect(tries).toBe(3);
+  expect(errors).toEqual(['could not start the transcriber']);
+  expect(warnings).toEqual([]);
+});
+
 test('lets the bot enter the room when the models take too long', async () => {
   const timers: (() => void)[] = [];
   const warnings: string[] = [];
