@@ -192,6 +192,8 @@ data/<房间号>/
 | `{{botTalk}}`                        | 机器人最近在直播间说过的话                                                                                                                             |
 | `{{userHistory}}`                    | 提问的人和机器人以前的对话                                                                                                                             |
 
+`prompt.md` 和 `song-intro.md` 还用了两个只在共用提示词里有的：`{{limitations}}`（`limitations.md`，机器人的限制，观众问起时解释用）和 `{{hook}}`（这首歌的介绍要不要加一句钩子，四首里一首，由程序掷骰子）。房间自己的指令用不到。
+
 提示词要让 Claude 按 JSON 回答，只有 `message` 会发出去：在提示词末尾写「按要求的 JSON 格式回答，`message` 是要发送的弹幕」就行，程序会给它 JSON 格式。
 
 ### @ 别人
