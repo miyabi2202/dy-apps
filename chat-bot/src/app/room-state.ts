@@ -34,6 +34,8 @@ export interface RoomStateOptions {
   persona?: () => string;
   /** Background on the room for `{{context}}`, read each time so edits apply at once. */
   context?: () => string;
+  /** Douyin's common knowledge for `{{commonKnowledge}}`, shared by every room, read each time. */
+  commonKnowledge?: () => string;
   /** What the bot says about itself for `{{intro}}`, read each time so edits apply at once. */
   intro?: () => string;
   /** What the bot can't do and why, for `{{limitations}}`, read each time. */
@@ -155,6 +157,7 @@ export class RoomState {
       persona: this.persona,
       botName: this.botName,
       context: context?.(),
+      commonKnowledge: this.options.commonKnowledge?.(),
       intro: intro?.(),
       limitations: limitations?.(),
       botTalk: botTalk?.recent(),

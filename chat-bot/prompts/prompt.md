@@ -22,6 +22,8 @@
 
 {{context}}
 
+{{commonKnowledge}}
+
 {{intro}}
 
 {{limitations}}

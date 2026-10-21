@@ -56,6 +56,12 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 {{context}}
 
+## common-knowledge
+
+抖音直播的常识（观众问到时照这个回答，没写到的不要编）：
+
+{{knowledge}}
+
 ## intro
 
 关于你自己（有人问起你是谁、谁做的、能做什么时，照这个回答，口径保持一致，不要编别的）：

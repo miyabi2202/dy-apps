@@ -28,6 +28,8 @@ export interface RoomPromptInput {
   aliases?: readonly string[];
   /** Background on the room: who the streamer is, what's talked about, what to mind. */
   context?: string;
+  /** What every room's viewers ask about Douyin itself (灯牌, …), from common-knowledge.md. */
+  commonKnowledge?: string;
   /** What the bot says about itself when asked: who made it, what it can and can't do. */
   intro?: string;
   /** What the bot can't do and why, to explain when viewers notice. */
@@ -137,7 +139,8 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
  * (which record lines written before, without an offset, are in), `{{chatDir}}` the folder of chat
  * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{aliases}}` a line saying the room's other names for the bot mean it too (empty without any), `{{botName}}`
  * the bot's own nickname, `{{context}}` the room's background under a heading (empty
- * without one), `{{intro}}` what the bot says about itself, likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
+ * without one), `{{commonKnowledge}}` Douyin's own common knowledge (灯牌…), likewise, `{{intro}}`
+ * what the bot says about itself, likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
  * none), `{{askerBadges}}` the badges by their name (`V年`; `（无）` when none or not known), `{{settings}}` the room's settings (and the asker's balance) as a list, and
  * `{{commands}}` the commands viewers can run (both empty when not given), and `{{forbiddenWords}}` a
@@ -180,6 +183,9 @@ export function buildPrompt(template: string, input: PromptInput): string {
       : '',
     botName: botName ?? '',
     context: context?.trim() ? wording('context', { context: context.trim() }) : '',
+    commonKnowledge: input.commonKnowledge?.trim()
+      ? wording('common-knowledge', { knowledge: input.commonKnowledge.trim() })
+      : '',
     intro: intro?.trim() ? wording('intro', { intro: intro.trim() }) : '',
     limitations: input.limitations?.trim()
       ? wording('limitations', { limitations: input.limitations.trim() })

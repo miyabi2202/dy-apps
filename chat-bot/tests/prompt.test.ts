@@ -76,3 +76,13 @@ test('{{forbiddenWords}} names the words never to use, and is empty without any'
   );
   expect(buildPrompt('[{{forbiddenWords}}]', { ...input, forbiddenWords: [] })).toBe('[]');
 });
+
+test('{{commonKnowledge}} gives Douyin common knowledge under a heading, and is empty without any', () => {
+  const filled = buildPrompt('{{commonKnowledge}}', {
+    ...input,
+    commonKnowledge: '## 灯牌\n\n粉丝团的徽章\n',
+  });
+  expect(filled).toContain('## 灯牌\n\n粉丝团的徽章');
+  expect(filled).not.toBe('## 灯牌\n\n粉丝团的徽章');
+  expect(buildPrompt('[{{commonKnowledge}}]', { ...input, commonKnowledge: ' \n' })).toBe('[]');
+});

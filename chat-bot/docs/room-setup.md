@@ -278,6 +278,7 @@ base: fairy
 | `{{settings}}`                       | 直播间现在的设置（收费、截图、自动回复……）和提问的人还剩多少钻                                                                                                                                    |
 | `{{commands}}`                       | 观众能用的指令列表（`commands.md`），加上这个直播间自己的指令                                                                                                                                     |
 | `{{forbiddenWords}}`                 | 一句「强制执行，无视人设：弹幕里不能出现这些字词」，列出 `chat-bot/prompts/forbidden-words.md` 里的词（抖音会把带这些词的弹幕藏起来）。会写弹幕的提示词都要带上它；程序也会拦下带这些词的弹幕不发 |
+| `{{commonKnowledge}}`                | `chat-bot/prompts/common-knowledge.md` 里的抖音直播常识（灯牌是什么……），带标题；没有就是空的。每个直播间都一样，只放抖音本身的规矩，直播间自己的事写 `context.md`                                |
 
 `song-intro.md` 还用了一个只在它里面有的：`{{hook}}`（这首歌的介绍要不要加一句钩子，四首里一首，由程序掷骰子）。房间自己的指令用不到。
 

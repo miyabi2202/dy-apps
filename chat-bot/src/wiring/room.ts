@@ -200,6 +200,8 @@ export function registerRoom(container: Container): void {
           log: c.resolve(LOG),
         }),
         context: liveText(files.context),
+        // What viewers ask about Douyin itself (灯牌…), shared by every room.
+        commonKnowledge: liveText(join(c.resolve(PROMPTS_DIR), 'common-knowledge.md')),
         // What the bot says about itself when asked, shared by every room.
         intro: liveText(join(c.resolve(PROMPTS_DIR), 'intro.md')),
         // What it can't do and why, for when viewers notice (limitations.md, shared by every room).
