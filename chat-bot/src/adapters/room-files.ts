@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Log, OnSingConfig } from '../app/ports';
 import { errorMessage } from '../core/errors';
 import { composePersona, parsePersonaFile } from '../core/persona';
+import type { Alias } from '../core/alias';
 import { DEFAULT_TIME_ZONE, isTimeZone } from '../core/local-time';
 import { SETTING_DEFAULTS, settingsFrom, type Settings } from '../core/settings';
 import { wordingOf, type Wording } from '../core/wording';
@@ -26,8 +27,11 @@ export interface RoomConfig extends Settings {
   private: boolean;
   /** What the bot says, now and then, as the streamer starts a song (`on_sing`); none when absent. */
   onSing?: OnSingConfig;
-  /** Other names viewers and the streamer call the bot (`aliases`), as speech recognition may write them. */
-  aliases: string[];
+  /**
+   * Other names viewers and the streamer call the bot (`aliases`), each with how speech
+   * recognition may write it besides.
+   */
+  aliases: Alias[];
   /** What viewers call the streamer (`streamerNames`), for the room's commands' `{{streamerNames}}`. */
   streamerNames: string[];
   /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`): 单推符号. */
@@ -251,9 +255,25 @@ function prefixList(raw: unknown): string[] {
   return raw.filter((prefix) => prefix.trim());
 }
 
-/** `aliases` as a list of names (none when absent), or an error saying what's wrong with it. */
-function aliasList(raw: unknown): string[] {
-  return nameList(raw, 'aliases', '["Fairy", "菲瑞"]');
+/**
+ * `aliases` as a list of Alias (none when absent), or an error saying what's wrong with it: each a
+ * name (`"菲瑞"`), or `{ "name": "Fairy", "heardAs": ["ferry"] }`.
+ */
+function aliasList(raw: unknown): Alias[] {
+  if (raw === undefined) return [];
+  const wrong = () =>
+    new Error(
+      'aliases must be a list of names, like ["菲瑞", { "name": "Fairy", "heardAs": ["ferry"] }]',
+    );
+  if (!Array.isArray(raw)) throw wrong();
+  return raw.flatMap((item: unknown): Alias[] => {
+    if (typeof item === 'string') return item.trim() ? [{ name: item.trim(), heardAs: [] }] : [];
+    const { name, heardAs = [] } = (item ?? {}) as Record<string, unknown>;
+    if (typeof name !== 'string' || !Array.isArray(heardAs)) throw wrong();
+    if (!heardAs.every((form) => typeof form === 'string')) throw wrong();
+    const forms = heardAs.map((form: string) => form.trim()).filter(Boolean);
+    return name.trim() ? [{ name: name.trim(), heardAs: forms }] : [];
+  });
 }
 
 /** A list of names (none when absent), or an error saying the field `name` should be like `example`. */

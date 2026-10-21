@@ -1,4 +1,4 @@
-import { matchName } from '../core/alias';
+import { matchChat, matchSpeech } from '../core/alias';
 import { errorMessage, OutOfCreditError } from '../core/errors';
 import {
   lineKey,
@@ -16,6 +16,8 @@ import {
   REPLY_PICK_SCHEMA,
   type UnpromptedReply,
 } from '../core/reply-pick';
+import type { IncomingChat } from '../core/room-events';
+import type { TranscriptLine } from '../core/transcript';
 import { askJson } from './ask-json';
 import { done, failed, type Command } from './command';
 import type { Outbox } from './outbox';
@@ -77,7 +79,8 @@ const MAX_PICKS = 3;
 const OFF_FOR_NO_CREDIT = 10;
 
 /**
- * Joins in when people talk to or about the bot. Every `checkMs` it asks the judge (Jev) whether
+ * Joins in when people talk to or about the bot. Someone calling it by its nickname or an alias is
+ * answered at once (see hear, hearSpeech). Every `checkMs` it asks the judge (Jev) whether
  * anything new, chat or what the streamer said (without the chat they read out), is about the
  * bot, or what one of the room's own commands is for (主播会唱xxx吗); when something is at least
  * `threshold` likely, or a chat matches a command's trigger, it has the picker choose whom to
@@ -101,6 +104,11 @@ export class AutoReply {
   private talkedAt = -Infinity;
   /** When the bot last said something to each person, by user id (STREAMER for the streamer). */
   private readonly saidTo = new Map<string, number>();
+  /**
+   * The lines that called the bot by name, answered as they came, by lineKey, with when each was
+   * said: the check that gets to them leaves them out, and forgets them.
+   */
+  private readonly called = new Map<string, number>();
 
   constructor(private readonly options: AutoReplyOptions) {
     this.thresholdSetting = setting(options.settings, 'autoReplyThreshold', options.threshold);
@@ -153,39 +161,70 @@ export class AutoReply {
   }
 
   /**
-   * A chat just came in: one matching a room command's trigger (主播会唱xxx吗) is surely for the bot,
-   * so it looks now instead of at the next check. The rest wait for it, so the room has time to answer.
+   * A chat just came in. One calling the bot by its nickname or an alias, as written, is answered
+   * at once, without the judge or the picker (Claude may still say nothing). One matching a room
+   * command's trigger (主播会唱xxx吗) is surely for the bot, so it looks now instead of at the next
+   * check. The rest wait for it, so the room has time to answer.
    */
-  hear({ userId, content }: { userId?: string; content: string }): void {
+  hear({
+    ts,
+    userId,
+    nickname,
+    content,
+  }: Pick<IncomingChat, 'ts' | 'userId' | 'nickname' | 'content'>): void {
     if (this.threshold >= 1 || userId === undefined) return;
-    const additionalCommands = this.additionalCommands();
-    const named = matchName(content, this.names()) !== undefined;
-    if (!named && !additionalCommands.some((command) => matchFor(command, content))) return;
+    const [line] = roomLines([{ ts, userId, nickname, content }], [], this.options.room.botName);
+    const name = line?.candidate ? matchChat(content, this.options.room.callNames()) : undefined;
+    if (line && name !== undefined) {
+      this.callsBot(line, name, { nickname, userId, question: content, heard: 'chat' });
+      return;
+    }
+    if (!this.additionalCommands().some((command) => matchFor(command, content))) return;
     this.lookAtOnce(content);
   }
 
   /**
-   * The streamer said something: one with an alias of the bot's in it (「Fairy 你来唱一首」,
-   * as speech recognition wrote it) is surely about the bot, so it looks now, like for a chat.
+   * The streamer said something: calling the bot by its nickname or an alias, as speech
+   * recognition may write it (「FAIRY 你来唱一首」, 「默认关壁」, an alias's `heardAs`), it's
+   * answered at once, as theirs, like a chat.
    */
-  hearSpeech({ text }: { text: string }): void {
-    if (this.threshold >= 1 || matchName(text, this.names()) === undefined) return;
-    this.lookAtOnce(text);
+  hearSpeech(heard: TranscriptLine): void {
+    const { room, log } = this.options;
+    if (this.threshold >= 1) return;
+    // As the check sees it: not sung, not a guest, not the chat read out.
+    const line = roomLines(room.recentChat(), [heard], room.botName).find(
+      (l) => l.candidate && l.who === STREAMER,
+    );
+    const name = line && matchSpeech(line.text, room.callNames());
+    if (!line || name === undefined) return;
+    const streamer = this.options.streamer();
+    if (!streamer) {
+      log.info('name called, streamer unknown', { name, text: line.text });
+      return;
+    }
+    const { nickname, uid: userId } = streamer;
+    this.callsBot(line, name, { nickname, userId, question: line.text, heard: 'speech' });
+  }
+
+  /**
+   * `line` called the bot by `name`: answered now, like an @, and left out of the next check. It
+   * doesn't start the quiet time, so what else was said is looked at as usual.
+   */
+  private callsBot(line: RoomLine, name: string, target: UnpromptedReply): void {
+    this.called.set(lineKey(line), line.ts);
+    this.options.log.info('name called', {
+      name,
+      who: line.who,
+      text: line.text,
+      heard: target.heard,
+    });
+    this.options.reply(target);
   }
 
   private lookAtOnce(content: string): void {
     this.options.log.debug('looking now', { content });
     if (this.waiting) this.wake();
     else this.lookNow = true;
-  }
-
-  /** The names that mean the bot: its nickname, and the room's aliases for it. */
-  /**
-   * The room's aliases for the bot (room_config.json). Not its account name: that can be an everyday
-   * phrase (「默认关闭」), so lines with it go through the judge as before, not straight to Codex.
-   */
-  private names(): readonly string[] {
-    return this.options.room.aliases();
   }
 
   /**
@@ -250,6 +289,7 @@ export class AutoReply {
     const now = room.now();
     if (!judge || this.threshold >= 1) {
       this.seen = now;
+      this.called.clear();
       return;
     }
     // While it keeps quiet, what's said waits to be looked at after.
@@ -257,29 +297,28 @@ export class AutoReply {
     const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName);
     // Since the last check began, so what was said while it picked and answered is looked at now.
     const since = this.seen;
-    const fresh = lines.filter((line) => line.candidate && line.ts > since && line.ts <= now);
+    const called = new Set<string>();
+    for (const [key, ts] of this.called) {
+      if (ts > now) continue;
+      called.add(key);
+      this.called.delete(key);
+    }
+    const fresh = lines.filter(
+      (line) => line.candidate && line.ts > since && line.ts <= now && !called.has(lineKey(line)),
+    );
     this.seen = now;
     if (!fresh.length) return;
     // What someone the bot just answered says goes to the picker as it is; the rest, to the judge.
     const following = fresh.filter((line) => this.followsUp(line));
-    // Someone calling the bot by its name or an alias is about it without asking the judge too;
-    // the picker still decides whether to answer.
-    const names = this.names();
-    const aliased = new Map<string, string>();
-    for (const line of fresh) {
-      const alias = matchName(line.text, names);
-      if (alias !== undefined) aliased.set(lineKey(line), alias);
-    }
-    const direct = fresh.filter((line) => following.includes(line) || aliased.has(lineKey(line)));
     const judged = await this.judge(
       lines,
-      fresh.filter((line) => !direct.includes(line)),
+      fresh.filter((line) => !following.includes(line)),
     );
     // Jev failing doesn't lose the follow-ups, which never needed it (unless it ran out of money,
     // which turned auto-reply off).
-    if (judged === null && (!direct.length || this.threshold >= 1)) return;
+    if (judged === null && (!following.length || this.threshold >= 1)) return;
     const { about, toBot, best } = judged ?? { about: [], toBot: [], best: null };
-    if (!about.length && !direct.length) return;
+    if (!about.length && !following.length) return;
     if (best) {
       log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });
     }
@@ -287,17 +326,18 @@ export class AutoReply {
       log.info('following up', { lines: following.map(({ who, text }) => ({ who, text })) });
     }
     // The quiet time starts only if it answered someone: picking nobody leaves it free to listen.
-    const why = aliased.size
-      ? 'alias'
-      : following.length
-        ? 'follow-up'
-        : about.some((line) => !toBot.includes(line))
-          ? 'trigger'
-          : 'judge';
-    const picked = await this.pickAndReply(since, [...about, ...direct], [...toBot, ...direct], {
+    const why = following.length
+      ? 'follow-up'
+      : about.some((line) => !toBot.includes(line))
+        ? 'trigger'
+        : 'judge';
+    const picked = await this.pickAndReply(
+      since,
+      called,
+      [...about, ...following],
+      [...toBot, ...following],
       why,
-      aliased,
-    });
+    );
     if (picked > 0) this.talkedAt = room.now();
   }
 
@@ -362,7 +402,7 @@ export class AutoReply {
   }
 
   /**
-   * Has the picker choose, of what was said since `since`, what the bot should answer now (the
+   * Has the picker choose, of what was said since `since` (but `called`, answered already), what the bot should answer now (the
    * room had time to react, so some may need no answer any more), and answers each through
    * `reply`, as the chatter's or (said on the stream) the streamer's. A line is answered as usual
    * (no command) only if it's in `chatty`, the judge found it about the bot or it follows up: one
@@ -371,9 +411,10 @@ export class AutoReply {
    */
   private async pickAndReply(
     since: number,
+    called: ReadonlySet<string>,
     about: readonly RoomLine[],
     chatty: readonly RoomLine[],
-    { why, aliased }: { why: string; aliased: ReadonlyMap<string, string> },
+    why: string,
   ): Promise<number> {
     const { room, log, picker, pickTemplate, reply } = this.options;
     const streamer = this.options.streamer();
@@ -387,6 +428,7 @@ export class AutoReply {
       (line) =>
         line.candidate &&
         line.ts > since &&
+        !called.has(lineKey(line)) &&
         (line.userId !== undefined || (line.who === '主播' && streamer !== null)),
       new Set(lines.filter((line) => aboutKeys.has(lineKey(line)))),
       (line) =>
@@ -406,32 +448,7 @@ export class AutoReply {
       commands: this.additionalCommands(),
       aliases: room.aliases(),
     });
-    // The lines that came for the bot's name or an alias, for the log: how often that's right.
-    const named = numbered.filter((line) => aliased.has(lineKey(line)));
-    for (const line of named) {
-      log.info('alias matched', {
-        alias: aliased.get(lineKey(line)),
-        who: line.who,
-        text: line.text,
-      });
-    }
-    const aliasPick = (picked: readonly { userId: string; question: string }[], fail?: string) => {
-      for (const line of named) {
-        const n = numbered.indexOf(line) + 1;
-        const confidence = picks?.find((p) => p.line === n)?.confidence;
-        const answered = picked.some(
-          (t) => t.question === line.text && t.userId === (line.userId ?? streamer?.uid),
-        );
-        log.info('alias pick', {
-          alias: aliased.get(lineKey(line)),
-          text: line.text,
-          answered,
-          confidence,
-          ...(fail && { error: fail }),
-        });
-      }
-    };
-    let picks: ReplyPick[] | null = null;
+    let picks: ReplyPick[] | null;
     try {
       ({ value: picks } = await askJson(
         picker,
@@ -446,13 +463,9 @@ export class AutoReply {
       ));
     } catch (err) {
       log.warn('could not pick whom to answer', { error: errorMessage(err) });
-      aliasPick([], errorMessage(err));
       return 0;
     }
-    if (!picks) {
-      aliasPick([], 'the answer is not json');
-      return 0;
-    }
+    if (!picks) return 0;
     log.debug('picks', {
       picks: picks.map(({ line, confidence }) => ({ text: numbered[line - 1]?.text, confidence })),
     });
@@ -469,7 +482,6 @@ export class AutoReply {
           ?.id,
       note: (message, meta) => log.debug(message, meta),
     });
-    aliasPick(picked);
     log.info('picked whom to answer', {
       picked: picked.map(({ nickname, question, confidence, command }) => ({
         nickname,

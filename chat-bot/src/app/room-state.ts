@@ -1,3 +1,4 @@
+import type { Alias } from '../core/alias';
 import type { ChatHistory } from '../core/chat-history';
 import type { RecentGifts } from '../core/recent-gifts';
 import { errorMessage } from '../core/errors';
@@ -56,7 +57,7 @@ export interface RoomStateOptions {
   /** The sentences prompts say around what they fill in (wording.md), read each time. */
   wording: Wording;
   /** Other names the bot is called in this room (room_config.json's `aliases`), read each time. */
-  aliases?: () => readonly string[];
+  aliases?: () => readonly Alias[];
   /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`), read each time. */
   atTrimStart?: () => readonly string[];
   /** The time zone the room's times are shown in (room_config.json's `timeZone`), read each time. */
@@ -133,7 +134,14 @@ export class RoomState {
 
   /** Other names the bot is called in this room, which mean it too. */
   aliases(): readonly string[] {
-    return this.options.aliases?.() ?? [];
+    return this.callNames()
+      .slice(1)
+      .map(({ name }) => name);
+  }
+
+  /** Every name the bot is called by here: its nickname first, then the room's aliases. */
+  callNames(): readonly Alias[] {
+    return [{ name: this.botName, heardAs: [] }, ...(this.options.aliases?.() ?? [])];
   }
 
   /** The room's recent chat, oldest first. */

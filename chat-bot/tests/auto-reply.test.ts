@@ -2,6 +2,7 @@ import type { Judge, Log } from '../src/app/ports';
 import { fakeRoom } from './fake-room';
 import { AutoReply, type AutoReplyOptions } from '../src/app/auto-reply';
 import type { UnpromptedReply } from '../src/app/mention-answerer';
+import type { Alias } from '../src/core/alias';
 import { OutOfCreditError } from '../src/core/errors';
 import { ChatHistory } from '../src/core/chat-history';
 import { Transcript } from '../src/core/transcript';
@@ -28,7 +29,7 @@ const judgeByWord =
 function setup(
   rounds: (() => void)[],
   options: Partial<AutoReplyOptions> = {},
-  aliases: string[] = [],
+  aliases: Alias[] = [],
 ) {
   let now = 0;
   const transcript = new Transcript(Infinity, () => now);
@@ -54,9 +55,16 @@ function setup(
     },
     ...options,
   });
-  const chat = (nickname: string, content: string, userId?: string) =>
-    history.add({ ts: now, nickname, content, ...(userId && { userId }) });
-  const say = (text: string) => transcript.add({ start: now - 2000, end: now, text, speech: 0.8 });
+  const chat = (nickname: string, content: string, userId?: string) => {
+    const line = { ts: now, nickname, content, ...(userId && { userId }) };
+    history.add(line);
+    return line;
+  };
+  const say = (text: string) => {
+    const line = { start: now - 2000, end: now, text, speech: 0.8 };
+    transcript.add(line);
+    return line;
+  };
   /** Moves the clock on by `ms` and runs `then`, as if it happened while something was awaited. */
   const later = (ms: number, then: () => void) => {
     now += ms;
@@ -445,13 +453,13 @@ test("a chat matching a room command's trigger is looked at at once, not at the 
 
   now = 2000;
   history.add({ ts: 2000, userId: 'u-阿明', nickname: '阿明', content: '今晚吃火锅' });
-  autoReply.hear({ userId: 'u-阿明', content: '今晚吃火锅' });
+  autoReply.hear({ ts: 2000, userId: 'u-阿明', nickname: '阿明', content: '今晚吃火锅' });
   await settle();
   expect(replies).toEqual([]);
 
   now = 3000;
   history.add({ ts: 3000, userId: 'u-小红', nickname: '小红', content: '主播会唱晴天吗' });
-  autoReply.hear({ userId: 'u-小红', content: '主播会唱晴天吗' });
+  autoReply.hear({ ts: 3000, userId: 'u-小红', nickname: '小红', content: '主播会唱晴天吗' });
   await settle();
   expect(replies.map((r) => [r.question, r.command])).toEqual([['主播会唱晴天吗', 'can-sing']]);
 
@@ -494,7 +502,7 @@ test("a chat mentioning one of a room command's phrases is looked at at once, an
   const running = autoReply.run();
   now = 2000;
   history.add({ ts: 2000, userId: 'u-雅', nickname: '雅', content: '虾虾会喂猪吗' });
-  autoReply.hear({ userId: 'u-雅', content: '虾虾会喂猪吗' });
+  autoReply.hear({ ts: 2000, userId: 'u-雅', nickname: '雅', content: '虾虾会喂猪吗' });
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   expect(prompts[0]).toContain('虾虾会喂猪吗  → can-sing（提到了它资料里的「喂猪」）');
@@ -520,7 +528,11 @@ test('what is said while it picks whom to answer is looked at in the next check'
   expect(replies.map((r) => r.question)).toEqual(['机器人在吗', '机器人翻旧账']);
 });
 
-/** An auto-reply in a room where the bot is also called `Fairy` and `菲瑞`, whose picker says `picks`. */
+/**
+ * An auto-reply in a room where the bot (小助手) is also called `Fairy` (heard as `ferry`) and `菲瑞`,
+ * whose picker says `picks`. `call` and `speak` say something as the room does: into the history,
+ * and heard by the auto-reply.
+ */
 function aliasSetup(
   rounds: (() => void)[],
   picks: unknown,
@@ -556,125 +568,133 @@ function aliasSetup(
       pickTemplate: () => '{{lines}}|{{aliases}}',
       ...options,
     },
-    ['Fairy', '菲瑞'],
+    [
+      { name: 'Fairy', heardAs: ['ferry'] },
+      { name: '菲瑞', heardAs: [] },
+    ],
   );
+  const call = (nickname: string, content: string, userId: string) => {
+    ran.autoReply.hear(ran.chat(nickname, content, userId));
+  };
+  const speak = (text: string) => ran.autoReply.hearSpeech(ran.say(text));
   const names = (message: string) =>
     logged.filter(([, m]) => m === message).map(([, , meta]) => meta);
-  return { ...ran, asked, replies, judged, names };
+  return { ...ran, call, speak, asked, replies, judged, names };
 }
 
-test('a chat with an alias in it, in any case, goes to the picker without asking Jev, which still decides', async () => {
+test('a chat calling the bot by an alias, in any case, is answered at once, without Jev or the picker', async () => {
   const ran = aliasSetup(
     [
       () => {
-        ran.chat('小红', 'FAIRY 你好呀', 'u-小红');
-        ran.chat('阿明', '今晚吃火锅', 'u-阿明');
+        ran.call('小红', 'FAIRY 你好呀', 'u-小红');
+        // Answered before the check comes.
+        expect(ran.replies.map((r) => [r.nickname, r.question, r.heard])).toEqual([
+          ['小红', 'FAIRY 你好呀', 'chat'],
+        ]);
+        ran.call('阿明', '今晚吃火锅', 'u-阿明');
       },
+      () => {},
     ],
-    { picks: [{ line: 1, confidence: 0.9, command: '' }] },
+    { picks: [] },
   );
   await ran.autoReply.run();
 
-  // Only what isn't about the bot by name is Jev's to score.
+  // The check leaves the answered line out, then and after, and judges the rest.
   expect(ran.judged).toEqual(['(1) 00:00:20 [阿明] 今晚吃火锅']);
-  expect(ran.asked).toHaveLength(1);
-  expect(ran.asked[0]!.why).toBe('alias');
-  expect(ran.asked[0]!.prompt).toContain('(1)★ 00:00:20 [小红] FAIRY 你好呀');
-  expect(ran.asked[0]!.prompt).toContain('Fairy、菲瑞');
-  expect(ran.replies.map((r) => [r.nickname, r.question])).toEqual([['小红', 'FAIRY 你好呀']]);
-  expect(ran.names('alias matched')).toEqual([
-    { alias: 'Fairy', who: '小红', text: 'FAIRY 你好呀' },
-  ]);
-  expect(ran.names('alias pick')).toEqual([
-    { alias: 'Fairy', text: 'FAIRY 你好呀', answered: true, confidence: 0.9 },
+  expect(ran.asked).toEqual([]);
+  expect(ran.replies).toHaveLength(1);
+  expect(ran.names('name called')).toEqual([
+    { name: 'Fairy', who: '小红', text: 'FAIRY 你好呀', heard: 'chat' },
   ]);
 });
 
-test('an alias the picker finds not to be for the bot is a false positive, logged with its confidence', async () => {
-  const ran = aliasSetup([() => ran.chat('小红', '我喜欢菲瑞这个名字', 'u-小红')], {
-    picks: [{ line: 1, confidence: 0.2, command: '' }],
-  });
+test("the bot's own nickname calls it too", async () => {
+  const ran = aliasSetup([() => ran.call('小红', '小助手在吗', 'u-小红')], { picks: [] });
+  await ran.autoReply.run();
+
+  expect(ran.replies.map((r) => r.question)).toEqual(['小助手在吗']);
+  expect(ran.judged).toEqual([]);
+});
+
+test('in chat only the name as written counts: not how speech recognition hears it, nor what sounds like it', async () => {
+  const ran = aliasSetup(
+    [
+      () => {
+        ran.call('小红', 'ferry 你好', 'u-小红');
+        ran.call('阿明', '小主手在吗', 'u-阿明');
+      },
+    ],
+    { picks: [] },
+  );
   await ran.autoReply.run();
 
   expect(ran.replies).toEqual([]);
-  expect(ran.names('alias pick')).toEqual([
-    { alias: '菲瑞', text: '我喜欢菲瑞这个名字', answered: false, confidence: 0.2 },
-  ]);
+  expect(ran.judged).toEqual(['(1) 00:00:20 [小红] ferry 你好\n(2) 00:00:20 [阿明] 小主手在吗']);
 });
 
-test('a failing picker is logged for the aliases too, with the error', async () => {
-  const ran = aliasSetup(
-    [() => ran.chat('小红', 'Fairy 在吗', 'u-小红')],
-    new Error('codex failed'),
-  );
-  await ran.autoReply.run();
-
-  expect(ran.names('alias pick')).toEqual([
-    { alias: 'Fairy', text: 'Fairy 在吗', answered: false, error: 'codex failed' },
-  ]);
-});
-
-test('what the streamer says with an alias in it, as speech recognition wrote it, is answered as theirs', async () => {
-  const ran = aliasSetup([() => ran.say('FAIRY 你来唱一首')], {
-    picks: [{ line: 1, confidence: 0.8, command: '' }],
+test("the streamer is answered as theirs for a name as speech recognition wrote it: a heardAs, or the name's pinyin", async () => {
+  const ran = aliasSetup([() => ran.speak('FERRY 你来唱一首'), () => ran.speak('小主手你说呢')], {
+    picks: [],
   });
   await ran.autoReply.run();
 
   expect(ran.replies).toEqual([
-    { nickname: '雅', userId: 'host', question: 'FAIRY 你来唱一首', heard: 'speech' },
+    { nickname: '雅', userId: 'host', question: 'FERRY 你来唱一首', heard: 'speech' },
+    { nickname: '雅', userId: 'host', question: '小主手你说呢', heard: 'speech' },
   ]);
-  expect(ran.names('alias pick')).toEqual([
-    { alias: 'Fairy', text: 'FAIRY 你来唱一首', answered: true, confidence: 0.8 },
+  expect(ran.names('name called').map((m) => (m as { name: string }).name)).toEqual([
+    'Fairy',
+    '小助手',
+  ]);
+});
+
+test('the streamer calling the bot while who they are is not known yet is only logged', async () => {
+  const ran = aliasSetup([() => ran.speak('Fairy 你好')], { picks: [] }, { streamer: () => null });
+  await ran.autoReply.run();
+
+  expect(ran.replies).toEqual([]);
+  expect(ran.names('name called, streamer unknown')).toEqual([
+    { name: 'Fairy', text: 'Fairy 你好' },
   ]);
 });
 
 test('works in a 私密 room, where every viewer is a made-up id', async () => {
-  const ran = aliasSetup([() => ran.chat('苦***', 'Fairy 你好', '111111-苦***-31')], {
-    picks: [{ line: 1, confidence: 0.9, command: '' }],
+  const ran = aliasSetup([() => ran.call('苦***', 'Fairy 你好', '111111-苦***-31')], {
+    picks: [],
   });
   await ran.autoReply.run();
 
   expect(ran.replies.map((r) => r.userId)).toEqual(['111111-苦***-31']);
 });
 
-test('does not turn auto-reply on: at a threshold of 1 an alias is not looked at', async () => {
+test('does not turn auto-reply on: at a threshold of 1 a name is not answered', async () => {
   const ran = aliasSetup(
-    [() => ran.chat('小红', 'Fairy 你好', 'u-小红')],
+    [() => ran.call('小红', 'Fairy 你好', 'u-小红'), () => ran.speak('Fairy 你好')],
     { picks: [] },
     { threshold: 1 },
   );
-  ran.autoReply.hear({ userId: 'u-小红', content: 'Fairy 你好' });
   await ran.autoReply.run();
 
-  expect(ran.asked).toEqual([]);
-  expect(ran.names('alias matched')).toEqual([]);
+  expect(ran.replies).toEqual([]);
+  expect(ran.names('name called')).toEqual([]);
 });
 
-test('keeps quiet after talking like for anything else, and looks at the alias after', async () => {
+test('a name call does not start the quiet time: what else was said is picked from at the next check', async () => {
   const ran = aliasSetup(
     [
-      () => ran.chat('小红', 'Fairy 你好', 'u-小红'),
-      () => ran.chat('阿明', 'fairy 在吗', 'u-阿明'),
-      () => {},
+      () => {
+        ran.call('小红', 'Fairy 你好', 'u-小红');
+        ran.call('阿明', '机器人在吗', 'u-阿明');
+      },
     ],
     { picks: [{ line: 1, confidence: 0.9, command: '' }] },
-    { quietMs: 25_000 },
+    { quietMs: 60_000, judge: judgeByWord([]) },
   );
   await ran.autoReply.run();
 
-  // The second came 20 s after the first answer, inside the quiet time; the next check (40 s on) took it.
-  expect(ran.replies.map((r) => r.nickname)).toEqual(['小红', '阿明']);
-  expect(ran.asked).toHaveLength(2);
-});
-
-test("the bot's account nickname is not an alias: a line with it is still Jev's to score", async () => {
-  // The fake room's bot is 小助手; a nickname like 默认关闭 is also an everyday phrase.
-  const ran = aliasSetup([() => ran.chat('小红', '小助手这个功能默认关闭了吗', 'u-小红')], {
-    picks: [],
-  });
-  await ran.autoReply.run();
-
-  expect(ran.judged).toEqual(['(1) 00:00:20 [小红] 小助手这个功能默认关闭了吗']);
-  expect(ran.asked).toEqual([]);
-  expect(ran.names('alias matched')).toEqual([]);
+  expect(ran.replies.map((r) => r.question)).toEqual(['Fairy 你好', '机器人在吗']);
+  // The picker sees the line answered already only as what was said, not one to answer.
+  expect(ran.asked[0]!.prompt).toContain(
+    '     00:00:20 [小红] Fairy 你好\n(1)★ 00:00:20 [阿明] 机器人在吗',
+  );
 });

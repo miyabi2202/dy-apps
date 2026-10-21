@@ -275,7 +275,9 @@ export class MentionAnswerer {
         })),
       );
       if (!messages.length && !toOthers.length) {
-        log.warn('claude gave an empty answer', { asker: mention.asker });
+        // The usual prompt may say nothing when nothing needs saying (a 「谢谢」 that ends it).
+        if (usual) log.info('claude skipped', { asker: mention.asker, question: mention.question });
+        else log.warn('claude gave an empty answer', { asker: mention.asker });
         this.refund(mention);
         mention.ifEmpty?.();
         return;

@@ -170,11 +170,25 @@ test("room_config.json's aliases are the other names of the bot, read again as t
   const file = roomConfigFile(config, { log });
   const roomConfig = () => file.get();
 
-  writeFileSync(config, '{ "aliases": ["Fairy", " 菲瑞 ", ""] }');
-  expect(roomConfig().aliases).toEqual(['Fairy', '菲瑞']);
+  // A name, or a name with how speech recognition writes it besides.
+  writeFileSync(
+    config,
+    '{ "aliases": [{ "name": "Fairy", "heardAs": [" ferry ", ""] }, " 菲瑞 ", "", { "name": "小F" }] }',
+  );
+  const fairy = [
+    { name: 'Fairy', heardAs: ['ferry'] },
+    { name: '菲瑞', heardAs: [] },
+    { name: '小F', heardAs: [] },
+  ];
+  expect(roomConfig().aliases).toEqual(fairy);
   writeFileSync(config, '{ "aliases": "Fairy" }');
-  expect(roomConfig().aliases).toEqual(['Fairy', '菲瑞']);
-  expect(warned).toEqual(['room_config.json has bad values, keeping their last ones']);
+  expect(roomConfig().aliases).toEqual(fairy);
+  writeFileSync(config, '{ "aliases": [{ "name": "Fairy", "heardAs": "ferry" }] }');
+  expect(roomConfig().aliases).toEqual(fairy);
+  expect(warned).toEqual([
+    'room_config.json has bad values, keeping their last ones',
+    'room_config.json has bad values, keeping their last ones',
+  ]);
   writeFileSync(config, '{}');
   expect(roomConfig().aliases).toEqual([]);
   writeFileSync(config, '{ "streamerNames": ["茜茜", " 茜颜 "] }');

@@ -223,7 +223,7 @@ test('answers what someone said to it unprompted like a mention, charged, saying
   await settle();
 
   expect(prompts).toEqual([
-    '阿明 没有 @ 你，是在弹幕里说到了你或在跟你说话，你主动回 TA 一句：机器人几岁',
+    '阿明 没有 @ 你，是在弹幕里说到了你或在跟你说话，要回的话就主动回 TA 一句：机器人几岁',
   ]);
   expect(sent).toEqual(['@阿明 你好呀']);
   expect(wallet.balance('u-阿明')).toBe(0);
@@ -255,7 +255,7 @@ test('the streamer is answered for free, as said on the stream', async () => {
   await settle();
 
   expect(prompts[0]).toBe(
-    '主播 虾虾 没有 @ 你，是在直播里说到了你（语音识别，可能有错字），你主动回 TA 一句：机器人说两句',
+    '主播 虾虾 没有 @ 你，是在直播里说到了你（语音识别，可能有错字），要回的话就主动回 TA 一句：机器人说两句',
   );
 });
 
@@ -276,7 +276,7 @@ test('someone who cannot pay for an unprompted answer is told in other words, an
   give(gift('阿明', 1, 1));
   await settle();
   expect(prompts).toEqual([
-    '阿明 没有 @ 你，是在弹幕里说到了你或在跟你说话，你主动回 TA 一句：机器人几岁',
+    '阿明 没有 @ 你，是在弹幕里说到了你或在跟你说话，要回的话就主动回 TA 一句：机器人几岁',
   ]);
   expect(sent.at(-1)).toBe('@阿明 你好呀');
 });
