@@ -19,6 +19,10 @@ export interface SongIntroOptions {
   log: Log;
   /** Douyin's chat length limit. */
   maxLength?: number;
+  /** How often a message also gets a hook, something anyone in the room can answer. */
+  hookChance?: number;
+  /** 0–1, uniformly; tests pass their own. */
+  random?: () => number;
 }
 
 /** The song named. */
@@ -41,9 +45,23 @@ export class SongIntro extends ModelFeature<Song, SongIntroAnswer> {
     return song.title ? this.run(song) : Promise.resolve();
   }
 
+  /** Whether the intro being made now was asked for a hook (for the log). */
+  private hook = false;
+
   protected buildPrompt({ title, artist }: Song): string {
-    const { room, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
-    return room.prompt(this.options.promptTemplate(), {
+    const {
+      room,
+      maxLength = DOUYIN_CHAT_LIMIT,
+      hookChance = 0.25,
+      random = Math.random,
+    } = this.options;
+    // A model can't keep to a rate by itself, so the dice are rolled here: `{{hook}}` says whether
+    // this song's message ends with something anyone can answer, or asks nothing.
+    this.hook = random() < hookChance;
+    const template = this.options
+      .promptTemplate()
+      .replace('{{hook}}', room.wording(this.hook ? 'song-hook' : 'song-no-hook'));
+    return room.prompt(template, {
       transcript: currentSong(room.recentTranscript().filter((line) => !isGuest(line))),
       question: artist ? `《${title}》，原唱 ${artist}` : `《${title}》`,
       singleLength: maxLength,
@@ -67,7 +85,7 @@ export class SongIntro extends ModelFeature<Song, SongIntroAnswer> {
 
   protected deliver({ title }: Song, answer: SongIntroAnswer): void {
     const { outbox, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
-    log.info('song intro', { title, messages: answer.messages });
+    log.info('song intro', { title, hook: this.hook, messages: answer.messages });
     for (const message of answer.messages) {
       const said = plainMessage(message, maxLength);
       if (said) outbox.push({ kind: 'talk', text: said });

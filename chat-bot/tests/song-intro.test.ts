@@ -62,3 +62,33 @@ test('may say nothing, says no more than two, and nothing for an answer that is 
   await broken.intro.introduce({ title: '安静', artist: '' });
   expect(broken.pushed).toEqual([]);
 });
+
+test('one song in four, by the dice, is asked to end with a hook; the rest ask nothing', async () => {
+  const rolls = [0.1, 0.9];
+  const asked: Question[] = [];
+  const room = new RoomState({
+    history: new ChatHistory(10),
+    transcript: new Transcript(30 * 60_000, now),
+    now,
+    botName: '默认关闭',
+    wording: testWording,
+    log,
+  });
+  const intro = new SongIntro({
+    ask: (question) => {
+      asked.push(question);
+      return Promise.resolve(JSON.stringify({ messages: [] }));
+    },
+    outbox: { push: () => {} },
+    promptTemplate: () => '{{hook}}',
+    room,
+    log,
+    random: () => rolls.shift()!,
+  });
+  await intro.introduce({ title: '安静', artist: '' });
+  await intro.introduce({ title: '安静', artist: '' });
+
+  expect(asked[0]!.prompt).toContain('这首要加一句钩子');
+  expect(asked[1]!.prompt).toContain('这首不要向直播间提问');
+  expect(log.info).toHaveBeenCalledWith('song intro', { title: '安静', hook: true, messages: [] });
+});
