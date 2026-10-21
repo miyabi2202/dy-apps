@@ -1,3 +1,4 @@
+import { DEFAULT_PORT } from '@dy-apps/room-feed-protocol';
 import { parseArgs } from 'node:util';
 
 export const USAGE =
@@ -5,7 +6,7 @@ export const USAGE =
   '  pnpm room-feed login                        在弹出的 Chrome 里登录抖音，保存登录信息\n' +
   '  pnpm room-feed --room <房间号或直播间链接>  接收这个直播间的弹幕和礼物\n' +
   '选项：\n' +
-  '  --port <端口>     默认 8757\n' +
+  `  --port <端口>     默认 ${DEFAULT_PORT}\n` +
   '  --chrome <路径>   chrome.exe 的位置，找不到 Chrome 时用\n' +
   '  --headed          显示直播间的 Chrome 窗口（排查问题时用）';
 
@@ -34,7 +35,7 @@ export function parseCliOptions(argv: string[]): CliOptions | { error: string } 
       allowPositionals: true,
       options: {
         room: { type: 'string' },
-        port: { type: 'string', default: '8757' },
+        port: { type: 'string', default: String(DEFAULT_PORT) },
         chrome: { type: 'string' },
         headed: { type: 'boolean', default: false },
       },

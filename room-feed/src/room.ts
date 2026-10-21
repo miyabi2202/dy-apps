@@ -1,11 +1,7 @@
 import { normalize } from './douyin/normalize';
 import type { RawProtoMessage } from './douyin/proto';
-import type { RoomMeta } from './douyin/room-meta';
-import type { RoomEvent } from './events';
+import type { RoomEvent, RoomInfoAnswer, RoomMeta, RoomStatus } from '@dy-apps/room-feed-protocol';
 import type { OpenRoomPage, RoomPage } from './room-page';
-
-/** `connecting` until Douyin's push frames arrive, `live` while they do. */
-export type RoomStatus = 'connecting' | 'live';
 
 /** A request the room can't do now, with the HTTP status to answer it with. */
 export class RoomError extends Error {
@@ -112,7 +108,7 @@ export class Room {
     await page?.close();
   }
 
-  info(): { roomId: string; status: RoomStatus; meta: RoomMeta | null } {
+  info(): Omit<RoomInfoAnswer['room'], 'login'> {
     return { roomId: this.roomId, status: this.status, meta: this.meta };
   }
 

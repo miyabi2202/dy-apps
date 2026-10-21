@@ -9,7 +9,8 @@ Each page should download only the code it needs.
 - The index page loads no app code.
 - Each app is its own chunk.
 - Apps never import from each other. Put shared code in a shared library. `pnpm lint` enforces this (see the README).
-- All our shared libraries go into one `lib` chunk. When you add a library, list it in `SHARED_LIBS` in `frontend/config/vite.config.ts`, and give it an import name in `frontend/config/aliases.js` and `frontend/tsconfig.json`.
+- All our shared libraries go into one `lib` chunk. When you add a library, list its folder in `SHARED_LIBS` in `frontend/config/vite.config.ts`. One inside `frontend/src/` also needs an import name in `frontend/config/aliases.js` and `frontend/tsconfig.json`; one that's its own workspace package (like `room-feed-protocol/`) needs none: list it as a `workspace:*` dependency of each package that imports it, with `"exports"` pointing at its `src/index.ts`.
+- What room-feed sends and answers is defined once, in `@dy-apps/room-feed-protocol`. room-feed, `@dy-apps/services` and the chat bot import its types; never copy them.
 
 To check, run `pnpm build` in `frontend/` and read the chunk list: each app is an `app-<name>` chunk, and `/` should request only `index`, `react`, `stylex`, `lib` and the CSS (the Network tab in `pnpm preview`).
 

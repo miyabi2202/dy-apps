@@ -1,18 +1,24 @@
 /**
  * Client for room-feed's WebSocket event stream (ws://localhost:<port>/ws?roomId=…&types=…).
- * room-feed (room-feed/ in this repo) runs on the streamer's machine and turns one Douyin live room's
- * messages into events (room-feed/src/events.ts). This only parses the protocol.
+ * room-feed (room-feed/ in this repo) runs on the streamer's machine and turns one Douyin live
+ * room's messages into events, as `@dy-apps/room-feed-protocol` describes them.
  */
 
+import {
+  DEFAULT_PORT,
+  eventsUrl,
+  type EventType,
+  type Frame,
+  type LikeEvent,
+  type RoomEvent,
+} from '@dy-apps/room-feed-protocol';
+
 /** room-feed's own default port, shown as a hint only. */
-export const ROOM_FEED_PORT_HINT = '8757';
+export const ROOM_FEED_PORT_HINT = String(DEFAULT_PORT);
 /** The site route of the room-feed install guide, for apps to link to. */
 export const ROOM_FEED_GUIDE_PATH = '/room-feed-windows';
 /** The events subscribed to unless a caller asks for others. */
-export const ROOM_FEED_EVENT_TYPES = ['chat', 'gift'] as const;
-
-/** Event types room-feed can stream (its DanmakuEvent `type`). */
-export type RoomFeedEventType = 'chat' | 'gift' | 'like';
+export const ROOM_FEED_EVENT_TYPES: readonly EventType[] = ['chat', 'gift'];
 
 /** A TCP port, 1–65535, or null. */
 export function parsePort(value: string): number | null {
@@ -24,54 +30,6 @@ export function parsePort(value: string): number | null {
 /** A Douyin room number: digits only (the tail of a live.douyin.com link). */
 export function isRoomId(value: string): boolean {
   return /^\d+$/.test(value);
-}
-
-export function roomFeedUrl(
-  port: number,
-  roomId: string,
-  types: readonly RoomFeedEventType[] = ROOM_FEED_EVENT_TYPES,
-): string {
-  return `ws://localhost:${port}/ws?roomId=${roomId}&types=${types.join(',')}`;
-}
-
-/** The viewer an event is from. */
-export interface RoomFeedUser {
-  id: string;
-  nickname: string;
-  avatar?: string;
-  /** Douyin wealth level (User.payGrade.level); missing when the message doesn't carry it. */
-  payLevel?: number;
-  /** The fan club shown for the user, usually this room's streamer's; missing when not a member. */
-  fansClub?: { name: string; level: number; status?: number; anchorId?: string };
-  /** The badges shown by the user's name, by their text (a 直播间会员's `V` or `V年`, say); missing when none. */
-  badges?: string[];
-}
-
-/** One piece of a chat's rich text, from room-feed's `data.parts`. */
-export type RoomFeedChatPart =
-  | { type: 'text'; text: string }
-  | { type: 'emote'; url: string; name?: string }
-  | { type: 'mention'; text: string; userId?: string };
-
-/**
- * A chat's data. `parts` comes when Douyin sends rich text (fan-club emotes, @mentions);
- * `sticker` marks a message that's one big emote image, with `content` its text fallback.
- */
-// A type, not an interface, so it fits RoomFeedEvent's `data: Record<string, unknown>`.
-export type RoomFeedChatData = {
-  content: string;
-  parts?: RoomFeedChatPart[];
-  sticker?: boolean;
-};
-
-/** Subset of room-feed's DanmakuEvent that consumers rely on. */
-export interface RoomFeedEvent {
-  id: string;
-  roomId: string;
-  type: string;
-  ts: number;
-  user?: RoomFeedUser;
-  data?: Record<string, unknown>;
 }
 
 export type RoomFeedStatus = 'opening' | 'roomConnecting' | 'ready' | 'error' | 'closed';
@@ -88,7 +46,7 @@ export const ROOM_FEED_STATUS_TEXT: Record<RoomFeedStatus | 'idle', string> = {
 
 export interface RoomFeedHandlers {
   onStatus(status: RoomFeedStatus, detail?: string): void;
-  onEvent(event: RoomFeedEvent): void;
+  onEvent(event: RoomEvent): void;
 }
 
 /** The part of WebSocket the client uses, so tests can pass a fake. */
@@ -110,12 +68,12 @@ export function connectRoomFeed(
   port: number,
   roomId: string,
   handlers: RoomFeedHandlers,
-  types: readonly RoomFeedEventType[] = ROOM_FEED_EVENT_TYPES,
+  types: readonly EventType[] = ROOM_FEED_EVENT_TYPES,
   openSocket: (url: string) => RoomFeedSocket = openWebSocket,
 ): () => void {
   let ws: RoomFeedSocket;
   try {
-    ws = openSocket(roomFeedUrl(port, roomId, types));
+    ws = openSocket(eventsUrl(port, roomId, types));
   } catch (e) {
     handlers.onStatus('error', e instanceof Error ? e.message : String(e));
     return () => {};
@@ -124,9 +82,9 @@ export function connectRoomFeed(
   let failed = false;
   handlers.onStatus('opening');
   ws.onmessage = (m: MessageEvent<string>) => {
-    let frame: { type?: string; error?: string };
+    let frame: Frame;
     try {
-      frame = JSON.parse(m.data) as typeof frame;
+      frame = JSON.parse(m.data) as Frame;
     } catch {
       return;
     }
@@ -144,7 +102,7 @@ export function connectRoomFeed(
         handlers.onStatus('error', frame.error);
         return;
       default:
-        handlers.onEvent(frame as RoomFeedEvent);
+        handlers.onEvent(frame);
     }
   };
   ws.onerror = () => {
@@ -162,18 +120,6 @@ export function connectRoomFeed(
   };
 }
 
-/** Gift fields room-feed sends (see its GiftEvent). */
-export type RoomFeedGiftData = {
-  giftId: string;
-  giftName?: string;
-  /** Picture of the gift on Douyin's CDN. */
-  giftIcon?: string;
-  diamondCount?: number;
-  repeatCount?: number;
-  repeatEnd?: boolean;
-  groupId?: string;
-};
-
 /**
  * Turns room-feed gift events into "how many new gifts", like DouyinBarrageGrab does.
  * Douyin pushes several messages per send: combo progress with a growing repeatCount,
@@ -190,9 +136,9 @@ export class GiftCounter {
   ) {}
 
   /** New gifts this event adds: 0 for non-gifts, duplicates and out-of-order messages. */
-  add(event: RoomFeedEvent): number {
+  add(event: RoomEvent): number {
     if (event.type !== 'gift') return 0;
-    const gift = event.data as unknown as RoomFeedGiftData;
+    const gift = event.data;
     const now = this.now();
     for (const [key, group] of this.groups) {
       if (now - group.seenAt > this.ttlMs) this.groups.delete(key);
@@ -214,7 +160,8 @@ export class GiftCounter {
 }
 
 /** How many likes one room-feed like event carries (Douyin batches a few taps). */
-export function likeCount(ev: RoomFeedEvent): number {
+export function likeCount(ev: LikeEvent): number {
+  // An older room-feed may send a like without data.
   const count = ev.data?.count;
   return typeof count === 'number' && count > 0 ? count : 1;
 }

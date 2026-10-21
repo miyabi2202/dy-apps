@@ -1,0 +1,71 @@
+/**
+ * room-feed's addresses and its HTTP API's answers. Every endpoint is for one room, the one
+ * room-feed serves; asking about another answers 404 with an ErrorAnswer naming it.
+ */
+
+import type { EventType } from './events';
+
+/** The port room-feed listens on unless started with --port. */
+export const DEFAULT_PORT = 8757;
+
+/** `connecting` until Douyin's push frames arrive, `live` while they do. */
+export type RoomStatus = 'connecting' | 'live';
+
+/** Who the streamer is, read from the room page. */
+export interface RoomMeta {
+  nickname: string;
+  /** The streamer's uid (anchor.id_str); empty when not found. */
+  uid: string;
+  /** The streamer's sec_uid; empty when not found. */
+  secUid: string;
+  avatar: string;
+  /** The stream's title. */
+  title: string;
+}
+
+/** `GET /api/rooms/<id>`. */
+export interface RoomInfoAnswer {
+  room: {
+    roomId: string;
+    status: RoomStatus;
+    /** Null until the room page has been read. */
+    meta: RoomMeta | null;
+    /** The saved Douyin login; null when not logged in (no gifts, no sending chat). */
+    login: { expiresAt: number | null } | null;
+  };
+}
+
+/** `POST /api/rooms/<id>/chat`'s body. */
+export interface ChatRequest {
+  text: string;
+}
+
+/** `POST /api/rooms/<id>/chat`: `echoed` once the chat came back in the push stream. */
+export interface ChatAnswer {
+  ok: true;
+  echoed: boolean;
+}
+
+/** `GET /api/rooms/<id>/stream`: the FLV or HLS URL the room page's player pulls. */
+export interface StreamAnswer {
+  url: string;
+}
+
+/** Any endpoint, when it fails (4xx or 5xx). `GET …/screenshot` answers a JPEG otherwise. */
+export interface ErrorAnswer {
+  error: string;
+}
+
+/** The WebSocket for a room's events of these types (all of them when none are given). */
+export function eventsUrl(port: number, roomId: string, types: readonly EventType[] = []): string {
+  return `ws://localhost:${port}/ws?roomId=${roomId}&types=${types.join(',')}`;
+}
+
+/** A room endpoint: the room itself, or its chat, stream or screenshot. */
+export function roomUrl(
+  port: number,
+  roomId: string,
+  action?: 'chat' | 'stream' | 'screenshot',
+): string {
+  return `http://localhost:${port}/api/rooms/${roomId}${action ? `/${action}` : ''}`;
+}

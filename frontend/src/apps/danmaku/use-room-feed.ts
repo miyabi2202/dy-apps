@@ -2,7 +2,6 @@ import {
   RoomFeedClient,
   type RoomFeedSocket,
   LikeBatcher,
-  type RoomFeedLikeEvent,
   type RoomFeedState,
   likeMessage,
   messageFromEvent,
@@ -10,6 +9,7 @@ import {
   type Logger,
   type LiveRoom,
 } from '@dy-apps/services';
+import type { LikeEvent } from '@dy-apps/room-feed-protocol';
 import { useEffect, useState } from 'react';
 import { log as moduleLog } from './log';
 
@@ -44,7 +44,7 @@ export function useRoomFeed(
     if (port === undefined || roomId === undefined) return;
     log.debug(`room-feed: connecting to ws://localhost:${port}/ws?roomId=${roomId}`);
     const client = create({ port, roomId });
-    const likes = new LikeBatcher<RoomFeedLikeEvent>({
+    const likes = new LikeBatcher<LikeEvent>({
       quietMs: likeQuietMs,
       onFlush: (last, total) => {
         const message = likeMessage(last, total);

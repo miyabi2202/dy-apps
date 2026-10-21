@@ -1,6 +1,6 @@
 # room-feed
 
-One Douyin live room's chat, gifts and likes, read from the room page in Chrome and sent to local clients (the site's overlays, the chat bot) over WebSocket. The streamer's guide is the site's `/room-feed-windows`; the endpoints are in the [repo README](../README.md#room-feed-live-room-events).
+One Douyin live room's chat, gifts and likes, read from the room page in Chrome and sent to local clients (the site's overlays, the chat bot) over WebSocket. The streamer's guide is the site's `/room-feed-windows`; the endpoints are in the [repo README](../README.md#room-feed-live-room-events), and what they send and answer is typed in [`room-feed-protocol/`](../room-feed-protocol).
 
 ```sh
 pnpm room-feed login             # from the repo root: log in to Douyin in a Chrome window

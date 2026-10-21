@@ -1,5 +1,5 @@
 /** Chat, gift and like messages from a live room, as the message cards show them. */
-import type { RoomFeedChatData, RoomFeedEvent, RoomFeedGiftData, RoomFeedUser } from './room-feed';
+import type { EventUser, LikeEvent, RoomEvent } from '@dy-apps/room-feed-protocol';
 import type { ChatPart } from './emoji';
 
 export interface DanmakuUser {
@@ -85,7 +85,7 @@ export function hueFor(userId: string): number {
 }
 
 /** One card for a user's run of likes, from their last like event and the run's total. */
-export function likeMessage(last: RoomFeedEvent, total: number): DanmakuMessage | null {
+export function likeMessage(last: LikeEvent, total: number): DanmakuMessage | null {
   if (!last.user) return null;
   return { id: `like-${last.id}`, user: userFrom(last.user), text: '', likes: total, ts: last.ts };
 }
@@ -94,12 +94,12 @@ export function likeMessage(last: RoomFeedEvent, total: number): DanmakuMessage 
  * A room-feed chat or gift event as a wall message; null for other events and empty chats.
  * `newGifts` is how many gifts the event adds (from GiftCounter); 0 drops it as a repeat.
  */
-export function messageFromEvent(ev: RoomFeedEvent, newGifts: number): DanmakuMessage | null {
+export function messageFromEvent(ev: RoomEvent, newGifts: number): DanmakuMessage | null {
   if (!ev.user) return null;
   const user = userFrom(ev.user);
   if (ev.type === 'gift') {
     if (newGifts <= 0) return null;
-    const gift = ev.data as unknown as RoomFeedGiftData;
+    const gift = ev.data;
     return {
       // One id per combo, so later messages of the combo add to the same card.
       id: gift.groupId ? `gift-${user.id}-${gift.giftId}-${gift.groupId}` : ev.id,
@@ -115,7 +115,8 @@ export function messageFromEvent(ev: RoomFeedEvent, newGifts: number): DanmakuMe
     };
   }
   if (ev.type !== 'chat') return null;
-  const data = ev.data as Partial<RoomFeedChatData> | undefined;
+  // An older room-feed may leave out what the types promise.
+  const data = ev.data as Partial<typeof ev.data> | undefined;
   const text = typeof data?.content === 'string' ? data.content : '';
   const parts = partsFrom(data?.parts);
   if (!text.trim() && !parts) return null;
@@ -146,7 +147,7 @@ function partsFrom(raw: unknown): ChatPart[] | undefined {
   return parts.length ? parts : undefined;
 }
 
-function userFrom({ id, nickname, avatar, fansClub }: RoomFeedUser): DanmakuUser {
+function userFrom({ id, nickname, avatar, fansClub }: EventUser): DanmakuUser {
   return {
     id,
     nickname,

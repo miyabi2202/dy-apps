@@ -1,3 +1,11 @@
+import {
+  roomUrl,
+  type ChatAnswer,
+  type ChatRequest,
+  type ErrorAnswer,
+  type RoomInfoAnswer,
+  type StreamAnswer,
+} from '@dy-apps/room-feed-protocol';
 import type { FindStreamer, Screenshot, SendChat, StreamUrl } from '../app/ports';
 
 /**
@@ -5,50 +13,47 @@ import type { FindStreamer, Screenshot, SendChat, StreamUrl } from '../app/ports
  * player (once the room is live), and who the streamer is.
  */
 export class RoomFeedApi {
-  private readonly base: string;
-
   constructor(
-    port: number,
-    roomId: string,
+    private readonly port: number,
+    private readonly roomId: string,
     private readonly fetchFn: typeof fetch = fetch,
-  ) {
-    this.base = `http://localhost:${port}/api/rooms/${roomId}`;
-  }
+  ) {}
 
   /** `POST …/chat`. */
   readonly sendChat: SendChat = async (text) => {
-    const res = await this.fetchFn(`${this.base}/chat`, {
+    const request: ChatRequest = { text };
+    const res = await this.fetchFn(roomUrl(this.port, this.roomId, 'chat'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify(request),
     });
-    const body = (await res.json().catch(() => ({}))) as { echoed?: boolean; error?: string };
+    const body = (await res.json().catch(() => ({}))) as Partial<ChatAnswer & ErrorAnswer>;
     if (!res.ok) throw new Error(body.error ?? `room-feed answered ${res.status}`);
     return { echoed: body.echoed === true };
   };
 
   /** `GET …/stream`: the FLV or HLS URL the room's player pulls, or null before it starts. */
   readonly streamUrl: StreamUrl = async () => {
-    const res = await this.fetchFn(`${this.base}/stream`);
+    const res = await this.fetchFn(roomUrl(this.port, this.roomId, 'stream'));
     if (!res.ok) return null;
-    const body = (await res.json()) as { url?: string };
+    const body = (await res.json()) as Partial<StreamAnswer>;
     return body.url ?? null;
   };
 
   /** `GET …` (the room): the streamer, from the room page, once room-feed has read it. */
   readonly streamer: FindStreamer = async () => {
-    const res = await this.fetchFn(this.base);
+    const res = await this.fetchFn(roomUrl(this.port, this.roomId));
     if (!res.ok) return null;
-    const body = (await res.json()) as { room?: { meta?: { uid?: string; nickname?: string } } };
+    const body = (await res.json()) as Partial<RoomInfoAnswer>;
     const { uid, nickname = '' } = body.room?.meta ?? {};
     return uid ? { uid, nickname } : null;
   };
 
   /** `GET …/screenshot`: the player as a JPEG. */
   readonly screenshot: Screenshot = async () => {
-    const res = await this.fetchFn(`${this.base}/screenshot`);
+    const res = await this.fetchFn(roomUrl(this.port, this.roomId, 'screenshot'));
     if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      const body = (await res.json().catch(() => ({}))) as Partial<ErrorAnswer>;
       throw new Error(body.error ?? `room-feed answered ${res.status}`);
     }
     return new Uint8Array(await res.arrayBuffer());

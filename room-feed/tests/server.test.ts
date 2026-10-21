@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { WebSocket } from 'ws';
-import type { RoomEvent } from '../src/events';
-import { RoomError, type RoomStatus } from '../src/room';
+import type { RoomEvent, RoomStatus } from '@dy-apps/room-feed-protocol';
+import { RoomError } from '../src/room';
 import { createRoomFeedServer, type RoomFeedServer, type ServedRoom } from '../src/server';
 
 class FakeRoom implements ServedRoom {

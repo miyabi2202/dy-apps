@@ -3,7 +3,7 @@
  * file and proto.ts change; clients see the same events.
  */
 
-import type { ChatPart, EventUser, RoomEvent } from '../events';
+import type { ChatPart, EventUser, RoomEvent } from '@dy-apps/room-feed-protocol';
 import { decodeMessageBody, longToStr, type RawProtoMessage } from './proto';
 
 /** The imageType of the 直播间会员 badge; its text is just 勋章, the image name tells month from year. */

@@ -1,12 +1,5 @@
-import {
-  roomFeedUrl,
-  GiftCounter,
-  isRoomId,
-  likeCount,
-  parsePort,
-  type RoomFeedEvent,
-  type RoomFeedGiftData,
-} from '..';
+import { eventsUrl, type GiftEvent, type LikeEvent } from '@dy-apps/room-feed-protocol';
+import { GiftCounter, isRoomId, likeCount, parsePort } from '..';
 
 describe('room-feed settings', () => {
   it('accepts ports 1–65535 written as plain digits', () => {
@@ -25,21 +18,15 @@ describe('room-feed settings', () => {
     }
   });
 
-  it('always targets localhost with the chat and gift streams', () => {
-    expect(roomFeedUrl(8757, '167920210669')).toBe(
-      'ws://localhost:8757/ws?roomId=167920210669&types=chat,gift',
-    );
-  });
-
-  it('subscribes to the event types asked for', () => {
-    expect(roomFeedUrl(8757, '1', ['chat', 'gift', 'like'])).toBe(
+  it('subscribes on localhost to the event types asked for', () => {
+    expect(eventsUrl(8757, '1', ['chat', 'gift', 'like'])).toBe(
       'ws://localhost:8757/ws?roomId=1&types=chat,gift,like',
     );
   });
 });
 
 describe('GiftCounter', () => {
-  const gift = (data: Partial<RoomFeedGiftData>, roomId = '1'): RoomFeedEvent => ({
+  const gift = (data: Partial<GiftEvent['data']>, roomId = '1'): GiftEvent => ({
     id: Math.random().toString(),
     roomId,
     type: 'gift',
@@ -93,13 +80,10 @@ describe('GiftCounter', () => {
 });
 
 describe('likeCount', () => {
-  const like = (data: Record<string, unknown>): RoomFeedEvent => ({
-    id: 'l1',
-    roomId: 'r1',
-    type: 'like',
-    ts: 300,
-    data,
-  });
+  // data isn't checked: some tests send what a bad sender might.
+  // data isn't checked, so a test can send what an older room-feed might.
+  const like = (data: Record<string, unknown>) =>
+    ({ id: 'l1', roomId: 'r1', type: 'like', ts: 300, data }) as LikeEvent;
 
   it("reads a like event's taps, counting a missing or bad count as one", () => {
     expect(likeCount(like({ count: 5, total: 100 }))).toBe(5);

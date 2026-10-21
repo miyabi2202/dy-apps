@@ -1,8 +1,17 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { EVENT_TYPES, type EventType, type StatusFrame } from './events';
+import {
+  EVENT_TYPES,
+  type ChatAnswer,
+  type ErrorAnswer,
+  type EventType,
+  type RoomInfoAnswer,
+  type RoomStatus,
+  type StatusFrame,
+  type StreamAnswer,
+} from '@dy-apps/room-feed-protocol';
 import type { SavedLogin } from './login-file';
-import { RoomError, type Room, type RoomStatus } from './room';
+import { RoomError, type Room } from './room';
 
 export type ServedRoom = Pick<
   Room,
@@ -34,7 +43,9 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   }
 }
 
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
+type Answer = RoomInfoAnswer | ChatAnswer | StreamAnswer | ErrorAnswer;
+
+function sendJson(res: ServerResponse, status: number, body: Answer): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body));
 }
@@ -76,16 +87,18 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
       switch (route) {
         case 'GET ': {
           const login = options.login();
-          return sendJson(res, 200, {
+          const answer: RoomInfoAnswer = {
             room: { ...room.info(), login: login && { expiresAt: login.expiresAt } },
-          });
+          };
+          return sendJson(res, 200, answer);
         }
         case 'POST /chat': {
           const { text } = await readJson(req);
           const trimmed = typeof text === 'string' ? text.trim() : '';
           if (!trimmed) return sendJson(res, 400, { error: 'text 不能为空' });
           const { echoed } = await room.sendChat(trimmed);
-          return sendJson(res, 200, { ok: true, echoed });
+          const answer: ChatAnswer = { ok: true, echoed };
+          return sendJson(res, 200, answer);
         }
         case 'GET /stream': {
           const streamUrl = room.streamUrl();
@@ -110,7 +123,7 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
 
   const wss = new WebSocketServer({ server, path: '/ws' });
   const clients = new Map<WebSocket, ReadonlySet<EventType>>();
-  const send = (ws: WebSocket, frame: unknown) => {
+  const send = (ws: WebSocket, frame: StatusFrame) => {
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(frame));
   };
   const statusFrame = (status: RoomStatus): StatusFrame =>

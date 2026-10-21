@@ -1,30 +1,17 @@
+import type {
+  ChatEvent,
+  EventType,
+  GiftEvent,
+  LikeEvent,
+  RoomEvent,
+} from '@dy-apps/room-feed-protocol';
 import {
   connectRoomFeed,
   GiftCounter,
   likeCount,
-  type RoomFeedChatData,
-  type RoomFeedEvent,
-  type RoomFeedEventType,
-  type RoomFeedGiftData,
   type RoomFeedSocket,
   type RoomFeedStatus,
 } from './room-feed';
-
-/** A chat message. */
-export type RoomFeedCommentEvent = Omit<RoomFeedEvent, 'type' | 'data'> & {
-  type: 'chat';
-  data: RoomFeedChatData;
-};
-
-export type RoomFeedGiftEvent = Omit<RoomFeedEvent, 'type' | 'data'> & {
-  type: 'gift';
-  data: RoomFeedGiftData;
-};
-
-export type RoomFeedLikeEvent = Omit<RoomFeedEvent, 'type' | 'data'> & {
-  type: 'like';
-  data: { count?: number; total?: number };
-};
 
 /** A connection's last status, for showing it; `idle` before connecting. */
 export interface RoomFeedState {
@@ -68,9 +55,9 @@ type Handlers<T extends unknown[]> = Set<(...args: T) => void>;
  */
 export class RoomFeedClient {
   private readonly status: Handlers<[RoomFeedStatus, string | undefined]> = new Set();
-  private readonly comments: Handlers<[RoomFeedCommentEvent]> = new Set();
-  private readonly giftHandlers: Handlers<[RoomFeedGiftEvent, number]> = new Set();
-  private readonly likes: Handlers<[RoomFeedLikeEvent, number]> = new Set();
+  private readonly comments: Handlers<[ChatEvent]> = new Set();
+  private readonly giftHandlers: Handlers<[GiftEvent, number]> = new Set();
+  private readonly likes: Handlers<[LikeEvent, number]> = new Set();
   private readonly options: RoomFeedClientOptions;
   private readonly schedule: (run: () => void, ms: number) => Cancel;
   private readonly gifts: GiftCounter;
@@ -88,7 +75,7 @@ export class RoomFeedClient {
   }
 
   /** Chat messages that carry text. */
-  onComment(handler: (event: RoomFeedCommentEvent) => void): () => void {
+  onComment(handler: (event: ChatEvent) => void): () => void {
     return add(this.comments, handler);
   }
 
@@ -96,19 +83,19 @@ export class RoomFeedClient {
    * Every gift message, with how many new gifts it adds. Douyin repeats a combo's messages,
    * so that's 0 for repeats; count by it, not by messages.
    */
-  onGift(handler: (event: RoomFeedGiftEvent, newGifts: number) => void): () => void {
+  onGift(handler: (event: GiftEvent, newGifts: number) => void): () => void {
     return add(this.giftHandlers, handler);
   }
 
   /** Every like message, with how many taps it carries (Douyin batches a few). */
-  onLike(handler: (event: RoomFeedLikeEvent, count: number) => void): () => void {
+  onLike(handler: (event: LikeEvent, count: number) => void): () => void {
     return add(this.likes, handler);
   }
 
   /** Opens the stream, closing any open one first. */
   connect(): void {
     this.stop();
-    const types: RoomFeedEventType[] = [];
+    const types: EventType[] = [];
     if (this.comments.size) types.push('chat');
     if (this.giftHandlers.size) types.push('gift');
     if (this.likes.size) types.push('like');
@@ -147,18 +134,18 @@ export class RoomFeedClient {
     this.cancelRetry = this.schedule(() => this.connect(), retryMs);
   }
 
-  private dispatch(event: RoomFeedEvent): void {
+  private dispatch(event: RoomEvent): void {
+    // An older room-feed may send these without the fields the types promise, so check.
     if (event.type === 'chat') {
       if (typeof event.data?.content !== 'string') return;
-      for (const h of this.comments) h(event as RoomFeedCommentEvent);
+      for (const h of this.comments) h(event);
     } else if (event.type === 'gift') {
       if (typeof event.data?.giftId !== 'string') return;
       const newGifts = this.gifts.add(event);
-      for (const h of this.giftHandlers) h(event as RoomFeedGiftEvent, newGifts);
+      for (const h of this.giftHandlers) h(event, newGifts);
     } else if (event.type === 'like') {
       const count = likeCount(event);
-      for (const h of this.likes)
-        h({ ...event, data: event.data ?? {} } as RoomFeedLikeEvent, count);
+      for (const h of this.likes) h({ ...event, data: event.data ?? {} }, count);
     }
   }
 }

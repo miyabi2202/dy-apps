@@ -1,9 +1,10 @@
-import type { RoomFeedClient, RoomFeedCommentEvent, RoomFeedGiftEvent } from '@dy-apps/services';
+import type { ChatEvent, GiftEvent } from '@dy-apps/room-feed-protocol';
+import type { RoomFeedClient } from '@dy-apps/services';
 import type { RoomEvents } from '../app/ports';
 import type { Gift, IncomingChat } from '../core/room-events';
 import { viewerIdOf } from '../core/viewer-id';
 
-export function chatFrom(event: RoomFeedCommentEvent, hidden = false): IncomingChat {
+export function chatFrom(event: ChatEvent, hidden = false): IncomingChat {
   return {
     ts: event.ts,
     userId: event.user && viewerIdOf(event.user, hidden),
@@ -24,7 +25,7 @@ export function chatFrom(event: RoomFeedCommentEvent, hidden = false): IncomingC
 }
 
 /** `newGifts` of the event's gift, or null when there's nobody to credit or nothing new. */
-export function giftFrom(event: RoomFeedGiftEvent, newGifts: number, hidden = false): Gift | null {
+export function giftFrom(event: GiftEvent, newGifts: number, hidden = false): Gift | null {
   if (!event.user || newGifts <= 0) return null;
   return {
     userId: viewerIdOf(event.user, hidden),

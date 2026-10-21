@@ -1,4 +1,5 @@
-import { GiftCounter, type RoomFeedEvent } from '../room-feed';
+import type { GiftEvent, LikeEvent, RoomEvent } from '@dy-apps/room-feed-protocol';
+import { GiftCounter } from '../room-feed';
 import { likeMessage, messageFromEvent } from '../live-message';
 
 const roomFeedUser = {
@@ -8,23 +9,26 @@ const roomFeedUser = {
   fansClub: { name: '弹幕墙', level: 12, status: 1, anchorId: 'x' },
 };
 
-const chatEvent = (content: unknown): RoomFeedEvent => ({
-  id: 'e1',
-  roomId: 'r1',
-  type: 'chat',
-  ts: 100,
-  user: roomFeedUser,
-  data: { content },
-});
+// The content's type isn't checked: some tests send what an older room-feed might.
+const chatEvent = (content: unknown) =>
+  ({
+    id: 'e1',
+    roomId: 'r1',
+    type: 'chat',
+    ts: 100,
+    user: roomFeedUser,
+    data: { content },
+  }) as RoomEvent;
 
-const giftEvent = (data: Record<string, unknown>, id = 'e2'): RoomFeedEvent => ({
-  id,
-  roomId: 'r1',
-  type: 'gift',
-  ts: 200,
-  user: roomFeedUser,
-  data: { giftId: 'g1', giftName: '玫瑰', ...data },
-});
+const giftEvent = (data: Record<string, unknown>, id = 'e2') =>
+  ({
+    id,
+    roomId: 'r1',
+    type: 'gift',
+    ts: 200,
+    user: roomFeedUser,
+    data: { giftId: 'g1', giftName: '玫瑰', ...data },
+  }) as GiftEvent;
 
 describe('messageFromEvent', () => {
   it('turns a chat into a message, with the avatar and fan club', () => {
@@ -49,7 +53,7 @@ describe('messageFromEvent', () => {
 
   it('drops events without a user, and other event types', () => {
     expect(messageFromEvent({ ...chatEvent('hi'), user: undefined }, 0)).toBeNull();
-    expect(messageFromEvent({ ...chatEvent('hi'), type: 'like' }, 0)).toBeNull();
+    expect(messageFromEvent({ ...chatEvent('hi'), type: 'like' } as RoomEvent, 0)).toBeNull();
   });
 
   it('turns a gift into a card with its name, icon, price and new count', () => {
@@ -98,14 +102,10 @@ describe('messageFromEvent', () => {
 });
 
 describe('likes', () => {
-  const like = (data: Record<string, unknown>): RoomFeedEvent => ({
-    id: 'l1',
-    roomId: 'r1',
-    type: 'like',
-    ts: 300,
-    user: roomFeedUser,
-    data,
-  });
+  // data isn't checked: some tests send what an older room-feed might.
+  // data isn't checked, so a test can send what an older room-feed might.
+  const like = (data: Record<string, unknown>) =>
+    ({ id: 'l1', roomId: 'r1', type: 'like', ts: 300, user: roomFeedUser, data }) as LikeEvent;
 
   it("makes one card from a run's last event and total", () => {
     expect(likeMessage(like({ count: 2 }), 37)).toEqual({

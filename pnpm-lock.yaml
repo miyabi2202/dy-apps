@@ -44,6 +44,9 @@ importers:
 
   chat-bot:
     dependencies:
+      '@dy-apps/room-feed-protocol':
+        specifier: workspace:*
+        version: link:../room-feed-protocol
       pinyin-pro:
         specifier: 3.29.4
         version: 3.29.4
@@ -78,6 +81,9 @@ importers:
       '@dimforge/rapier2d-compat':
         specifier: 0.21.0
         version: 0.21.0
+      '@dy-apps/room-feed-protocol':
+        specifier: workspace:*
+        version: link:../room-feed-protocol
       '@stylexjs/stylex':
         specifier: ^0.19.1
         version: 0.19.1
@@ -154,6 +160,9 @@ importers:
 
   room-feed:
     dependencies:
+      '@dy-apps/room-feed-protocol':
+        specifier: workspace:*
+        version: link:../room-feed-protocol
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -194,6 +203,12 @@ importers:
       jest:
         specifier: ^30.5.2
         version: 30.5.2(@types/node@26.6.3)
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
+  room-feed-protocol:
+    devDependencies:
       typescript:
         specifier: ~6.0.3
         version: 6.0.3

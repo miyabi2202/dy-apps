@@ -1,3 +1,4 @@
+import { DEFAULT_PORT } from '@dy-apps/room-feed-protocol';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { isRoomId, parsePort } from '@dy-apps/services';
@@ -6,7 +7,7 @@ import { SETTING_DEFAULTS, type Settings } from './core/settings';
 import { DEFAULT_TRANSCRIPT_WINDOW_MS } from './core/transcript';
 
 export const USAGE =
-  'Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port 8757]\n' +
+  `Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port ${DEFAULT_PORT}]\n` +
   '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 0 | --test] [--queue 20]\n' +
@@ -66,7 +67,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     allowNegative: true,
     options: {
       room: { type: 'string' },
-      port: { type: 'string', default: '8757' },
+      port: { type: 'string', default: String(DEFAULT_PORT) },
       'bot-name': { type: 'string' },
       'bot-id': { type: 'string' },
       prompt: { type: 'string', default: join(packageDir, 'prompt.md') },

@@ -1,8 +1,8 @@
-import type { RoomFeedCommentEvent, RoomFeedGiftEvent } from '@dy-apps/services';
+import type { ChatEvent, GiftEvent } from '@dy-apps/room-feed-protocol';
 import { chatFrom, giftFrom } from '../src/adapters/room-feed-events';
 
 test('keeps only the picked @mentions of a chat, and names an anonymous sender', () => {
-  const event: RoomFeedCommentEvent = {
+  const event: ChatEvent = {
     id: 'm1',
     roomId: '1',
     type: 'chat',
@@ -26,7 +26,7 @@ test('keeps only the picked @mentions of a chat, and names an anonymous sender',
 });
 
 test('a gift is worth its count times its diamonds, and needs someone to credit', () => {
-  const event: RoomFeedGiftEvent = {
+  const event: GiftEvent = {
     id: 'g1',
     roomId: '1',
     type: 'gift',
@@ -47,7 +47,7 @@ test('a gift is worth its count times its diamonds, and needs someone to credit'
 });
 
 test("passes on the badges by the sender's name, when room-feed sends them", () => {
-  const event: RoomFeedCommentEvent = {
+  const event: ChatEvent = {
     id: 'm2',
     roomId: '1',
     type: 'chat',
@@ -60,7 +60,7 @@ test("passes on the badges by the sender's name, when room-feed sends them", () 
 });
 
 test("carries a sender's badges, fan club and wealth level when room-feed sends them", () => {
-  const event: RoomFeedCommentEvent = {
+  const event: ChatEvent = {
     id: 'm2',
     roomId: '1',
     type: 'chat',

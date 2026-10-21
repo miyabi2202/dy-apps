@@ -1,7 +1,8 @@
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { BROWSER_ARGS, hideAutomation, USER_AGENT } from './chrome';
 import { decodeFrame, type RawProtoMessage } from './douyin/proto';
-import { parseRoomMeta, type RoomMeta } from './douyin/room-meta';
+import type { RoomMeta } from '@dy-apps/room-feed-protocol';
+import { parseRoomMeta } from './douyin/room-meta';
 import { browserCookies } from './login-file';
 
 /** What a room page tells the Room. */

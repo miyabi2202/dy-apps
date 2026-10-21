@@ -1,7 +1,7 @@
 /**
- * What room-feed sends its clients: one JSON object per WebSocket message. Room events (chat, gift,
- * like) come as they happen; status frames (`__hello`, `__connecting`, `__connected`, `__error`)
- * say where the room's connection is. `@dy-apps/services` reads this on the other side.
+ * What room-feed sends its clients: one JSON object (a Frame) per WebSocket message. Room events
+ * (chat, gift, like) come as they happen; status frames (`__hello`, `__connecting`, `__connected`,
+ * `__error`) say where the room's connection is.
  */
 
 export type EventType = 'chat' | 'gift' | 'like';
@@ -78,3 +78,6 @@ export type StatusFrame =
   | { type: '__connecting'; roomId: string; ts: number }
   | { type: '__connected'; roomId: string; ts: number }
   | { type: '__error'; roomId: string; error: string; ts: number };
+
+/** One WebSocket message from room-feed. */
+export type Frame = RoomEvent | StatusFrame;

@@ -1,14 +1,4 @@
-/** Who the streamer is, read from the room page's HTML. */
-export interface RoomMeta {
-  nickname: string;
-  /** The streamer's uid (anchor.id_str); empty when not found. */
-  uid: string;
-  /** The streamer's sec_uid; empty when not found. */
-  secUid: string;
-  avatar: string;
-  /** The stream's title. */
-  title: string;
-}
+import type { RoomMeta } from '@dy-apps/room-feed-protocol';
 
 /**
  * The page embeds its data HTML-escaped (&quot;, &amp;), and the anchor block JSON-escaped once

@@ -1,0 +1,14 @@
+{
+  "name": "@dy-apps/room-feed-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "What room-feed sends and answers: its events, status frames and HTTP API, shared by room-feed, the site and the chat bot.",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

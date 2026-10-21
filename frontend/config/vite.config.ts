@@ -61,9 +61,13 @@ function commitHash() {
  * then has to download that whole app to get it.
  */
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const SHARED_LIBS = ['ui', 'services'];
-const isSharedLib = (id: string) =>
-  SHARED_LIBS.some((lib) => id.startsWith(join(ROOT, 'src', lib) + sep));
+const SHARED_LIBS = [
+  join(ROOT, 'src', 'ui'),
+  join(ROOT, 'src', 'services'),
+  // Workspace packages, found where their symlinks point.
+  join(ROOT, '..', 'room-feed-protocol'),
+];
+const isSharedLib = (id: string) => SHARED_LIBS.some((lib) => id.startsWith(lib + sep));
 const LIB_CHUNKS = {
   name: 'lib',
   test: isSharedLib,

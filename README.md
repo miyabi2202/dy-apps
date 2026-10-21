@@ -12,6 +12,7 @@ Small live-stream apps, served as one site: an index page at `/` and each app on
 | `frontend/src/services/`             | Shared non-UI code: the room-feed client, messages, fake data and saved settings |
 | `frontend/src/ui/`                   | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
 | `chat-bot/`                          | A bot that chats in a live room: answers @s, joins in, names songs, thanks gifts |
+| `room-feed-protocol/`                | What room-feed sends and answers: events, status frames, HTTP API types, URLs    |
 | `room-feed/`                         | The server that reads a live room in Chrome and sends its chat and gifts on      |
 
 ## Layout
@@ -61,12 +62,14 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   src/adapters/           #   room-feed, the Claude CLI, the ASR process, files and logging
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + CAM++
   logs/  data/            #   winston logs; data/<房间号>/ per room: chat/, <user id>/, bot_logs.md, context.md, wallet.json (not in git)
+room-feed-protocol/       # @dy-apps/room-feed-protocol: room-feed's events and API, as types (+ DEFAULT_PORT, eventsUrl, roomUrl)
+  src/events.ts           #   chat, gift, like events and the status frames, one JSON object per WebSocket message
+  src/api.ts              #   the HTTP API's answers, the default port and the URLs
 room-feed/                # @dy-apps/room-feed: one live room's events, run with tsx (see "room-feed" below)
   src/main.ts             #   entry: `login` or `--room` (cli-options.ts), the real objects wired
   src/room.ts             #   Room: keeps the room page open, reopens it when chat drops, chat queue
   src/room-page.ts        #   the page in Chrome (Playwright): push frames over CDP, chat box, stream URL, screenshot
   src/server.ts           #   HTTP + WebSocket for clients
-  src/events.ts           #   what clients get: chat, gift, like and status frames
   src/douyin/             #   Douyin's protobuf, its messages turned into events, the streamer from the page
   src/login.ts            #   `login`: a Chrome window to log in, the cookie saved to data/cookie.json
 eslint.config.js          # lint for the whole repo, including which folders may import which
@@ -98,13 +101,15 @@ pnpm room-feed --room <房间号>        # serve that room on port 8757 (--port 
 
 It needs Chrome installed (`--chrome <path>` when it isn't found). Gifts only arrive, and chat can only be sent, when logged in. It serves one room: a client asking for another gets an error naming the room it serves, so two rooms need two room-feeds on different ports. When the chat socket drops, or no push frame comes within a minute (the room isn't live), it reopens the room page by itself.
 
-| Endpoint                         | What                                                                                                                 |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `ws://…/ws?roomId=<id>&types=…`  | events (`chat`, `gift`, `like`; types in `room-feed/src/events.ts`) and `__connecting` / `__connected` status frames |
-| `GET /api/rooms/<id>`            | status, the streamer (`meta.uid`, from the room page) and the login's `expiresAt`                                    |
-| `POST /api/rooms/<id>/chat`      | `{ text }`: send a chat as the logged-in account; `echoed` once it came back                                         |
-| `GET /api/rooms/<id>/stream`     | the FLV URL the page's player pulls (the bot's speech recognition)                                                   |
-| `GET /api/rooms/<id>/screenshot` | the player as a JPEG                                                                                                 |
+| Endpoint                         | What                                                                              |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| `ws://…/ws?roomId=<id>&types=…`  | events (`chat`, `gift`, `like`) and `__connecting` / `__connected` status frames  |
+| `GET /api/rooms/<id>`            | status, the streamer (`meta.uid`, from the room page) and the login's `expiresAt` |
+| `POST /api/rooms/<id>/chat`      | `{ text }`: send a chat as the logged-in account; `echoed` once it came back      |
+| `GET /api/rooms/<id>/stream`     | the FLV URL the page's player pulls (the bot's speech recognition)                |
+| `GET /api/rooms/<id>/screenshot` | the player as a JPEG                                                              |
+
+Every shape here is a type in [`room-feed-protocol/`](room-feed-protocol) (`@dy-apps/room-feed-protocol`): room-feed sends them, and `@dy-apps/services` and the chat bot read them.
 
 Apps connect through [`@dy-apps/services`](frontend/src/services) to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (`8757` by default) and the room ID (the number in `live.douyin.com/<id>`). The address is always `localhost`, so room-feed must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
 
