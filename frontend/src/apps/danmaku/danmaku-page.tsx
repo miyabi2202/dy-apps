@@ -25,6 +25,7 @@ import {
   SourcePanel,
   text,
   useDemo,
+  type CreateRoomFeedClient,
 } from '@dy-apps/ui';
 import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -34,7 +35,7 @@ import { log as moduleLog } from './log';
 import { createMessageLogger } from './message-log';
 import { loadSettings, saveSettings } from './settings';
 import { Controls } from './ui/controls';
-import { useRoomFeed, type CreateRoomFeedClient } from './use-room-feed';
+import { useWallFeed } from './use-wall-feed';
 
 /** Older messages are dropped past this, so a long stream doesn't grow memory forever. */
 const MAX_MESSAGES = 1000;
@@ -121,7 +122,7 @@ export function DanmakuPage({ createClient, logger = moduleLog, log = console.lo
     pushFake,
     demoRandom ? Math.random : null,
   );
-  const feed = useRoomFeed(
+  const feed = useWallFeed(
     demoRunning && demoSource === 'live' ? liveRoom : null,
     push,
     createClient,

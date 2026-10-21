@@ -1,4 +1,5 @@
 import { liveRoomFrom } from '@dy-apps/services';
+import type { CreateRoomFeedClient } from '@dy-apps/ui';
 import { colors, fonts, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect } from 'react';
@@ -7,7 +8,6 @@ import { newGame, type GiftFeed } from '../gift-feed';
 import type { KeyboardController } from '../input/keyboard';
 import type { TetrisConfig } from '../config';
 import { useGiftSource } from '../use-gift-source';
-import type { CreateRoomFeedClient } from '../use-live-gifts';
 import { CenterPanel } from './center-panel';
 import { GameLayout } from './game-layout';
 import { TeamPanel } from './team-panel';

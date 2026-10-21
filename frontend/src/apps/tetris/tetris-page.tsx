@@ -1,3 +1,4 @@
+import type { CreateRoomFeedClient } from '@dy-apps/ui';
 import { useEffect, useState } from 'react';
 import { readConfig, type TetrisConfig } from './config';
 import { GameEngine } from './core/game';
@@ -6,7 +7,6 @@ import { KeyboardController } from './input/keyboard';
 import { log } from './log';
 import { App } from './ui/app';
 import { ObsView } from './ui/obs-view';
-import type { CreateRoomFeedClient } from './use-live-gifts';
 
 /** `?seed=123` makes piece, garbage and gift randomness reproducible. */
 function seedFromUrl(): number | undefined {

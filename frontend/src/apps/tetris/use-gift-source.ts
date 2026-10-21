@@ -6,11 +6,11 @@ import {
   type DemoConfig,
   type LiveRoom,
 } from '@dy-apps/services';
-import { useDemo } from '@dy-apps/ui';
+import { useDemo, type CreateRoomFeedClient } from '@dy-apps/ui';
 import { useCallback, useEffect } from 'react';
 import type { GiftFeed } from './gift-feed';
 import { log } from './log';
-import { useLiveGifts, type CreateRoomFeedClient } from './use-live-gifts';
+import { useLiveGifts } from './use-live-gifts';
 
 export interface GiftSourceOptions {
   /** Fake gifts at an interval, or the live room's. */

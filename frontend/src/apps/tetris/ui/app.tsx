@@ -4,7 +4,16 @@ import {
   type DanmakuMessage,
   type DemoSource,
 } from '@dy-apps/services';
-import { Column, Grid, ObsLink, Page, Panel, Slider, SourcePanel } from '@dy-apps/ui';
+import {
+  Column,
+  Grid,
+  ObsLink,
+  Page,
+  Panel,
+  Slider,
+  SourcePanel,
+  type CreateRoomFeedClient,
+} from '@dy-apps/ui';
 import { space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useEffect, useState } from 'react';
@@ -15,7 +24,6 @@ import { newGame, type GiftFeed } from '../gift-feed';
 import type { KeyboardController } from '../input/keyboard';
 import { labels } from '../messages';
 import { useGiftSource } from '../use-gift-source';
-import type { CreateRoomFeedClient } from '../use-live-gifts';
 import { CenterPanel } from './center-panel';
 import { GameLayout } from './game-layout';
 import { LogPanel } from './log-panel';

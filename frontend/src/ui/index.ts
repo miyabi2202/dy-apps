@@ -29,3 +29,9 @@ export { Slider } from './slider';
 export { SourcePanel } from './source-panel';
 export { text } from './text';
 export { useDemo } from './use-demo';
+export {
+  createRoomFeedClient,
+  ROOM_FEED_RETRY_MS,
+  useRoomFeed,
+  type CreateRoomFeedClient,
+} from './use-room-feed';

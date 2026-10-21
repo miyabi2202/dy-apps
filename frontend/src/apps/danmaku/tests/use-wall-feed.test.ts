@@ -1,7 +1,8 @@
 import type { RoomFeedSocket } from '@dy-apps/room-feed-protocol';
 import type { DanmakuMessage, LiveRoom } from '@dy-apps/services';
 import { act, renderHook } from '@testing-library/react';
-import { createRoomFeedClient, useRoomFeed } from '../use-room-feed';
+import { createRoomFeedClient } from '@dy-apps/ui';
+import { useWallFeed } from '../use-wall-feed';
 
 /** The page's real RoomFeedClients on fake sockets, so the test can send room-feed frames. */
 function fakeClients() {
@@ -50,7 +51,7 @@ function setup(initialRoom: LiveRoom | null = room) {
   const fake = fakeClients();
   const pushed: DanmakuMessage[] = [];
   const push = (m: DanmakuMessage) => pushed.push(m);
-  const hook = renderHook(({ r }) => useRoomFeed(r, push, fake.create), {
+  const hook = renderHook(({ r }) => useWallFeed(r, push, fake.create), {
     initialProps: { r: initialRoom },
   });
   return { ...fake, pushed, hook };
@@ -59,18 +60,10 @@ function setup(initialRoom: LiveRoom | null = room) {
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
-describe('useRoomFeed', () => {
-  it('stays idle without a room', () => {
-    const { create, hook } = setup(null);
-    expect(create).not.toHaveBeenCalled();
-    expect(hook.result.current.status).toBe('idle');
-  });
-
-  it('connects to the room for chats, gifts and likes, and reports its status', () => {
-    const { sockets, send, hook } = setup();
+describe('useWallFeed', () => {
+  it('connects to the room for chats, gifts and likes', () => {
+    const { sockets } = setup();
     expect(sockets[0]!.url).toBe('ws://localhost:8757/ws?roomId=123&types=chat,gift,like');
-    send({ type: '__connected' });
-    expect(hook.result.current.status).toBe('ready');
   });
 
   it('pushes chats, and each gift combo only by what it adds', () => {
@@ -107,31 +100,5 @@ describe('useRoomFeed', () => {
     hook.rerender({ r: null });
     act(() => jest.advanceTimersByTime(60_000));
     expect(pushed).toEqual([]);
-  });
-
-  it('retries a few seconds after an error', () => {
-    const { sockets, hook } = setup();
-    act(() => sockets[0]!.onerror?.(new Event('error')));
-    expect(hook.result.current.status).toBe('error');
-    act(() => jest.advanceTimersByTime(5000));
-    expect(sockets).toHaveLength(2);
-  });
-
-  it('disconnects, stops retrying and goes idle when the room is cleared', () => {
-    const { sockets, hook } = setup();
-    act(() => sockets[0]!.onerror?.(new Event('error')));
-    hook.rerender({ r: null });
-    expect(sockets[0]!.closed).toBe(true);
-    expect(hook.result.current.status).toBe('idle');
-
-    act(() => jest.advanceTimersByTime(60_000));
-    expect(sockets).toHaveLength(1);
-  });
-
-  it('reconnects when the room changes', () => {
-    const { sockets, hook } = setup();
-    hook.rerender({ r: { port: 8757, roomId: '456' } });
-    expect(sockets[0]!.closed).toBe(true);
-    expect(sockets[1]!.url).toContain('roomId=456');
   });
 });
