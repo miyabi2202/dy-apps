@@ -10,7 +10,7 @@ A bot that sits in a Douyin live room as an ordinary viewer's account and talks 
 
 To use it:
 
-1. Start, in this order: the speech service (`uv run --directory asr asr/transcribe.py --serve 8758`, from `chat-bot/`), DyHub, logged in as the bot's account, and the bot for a room: `pnpm start --room <房间号> --bot-name <its nickname>` (more under [Start](AGENTS.md#start)). The bot never starts the speech service itself.
+1. Start, in this order: the speech service (`uv run --directory asr transcribe.py --serve 8758`, from `chat-bot/`), DyHub, logged in as the bot's account, and the bot for a room: `pnpm start --room <房间号> --bot-name <its nickname>` (more under [Start](AGENTS.md#start)). The bot never starts the speech service itself.
 2. In the room, an admin (the streamer, or anyone in `config.json`) turns features on and off by @ing the bot with a command. The commands are listed in [`commands.md`](commands.md).
 3. To fit it to one room, put that room's details in its `data/<房间号>/` folder, with no code changes: who the streamer is (`context.md`), a song list, commands only that room has, a message for when she sings. How is in [`docs/room-setup.md`](docs/room-setup.md).
 
@@ -39,7 +39,7 @@ To use it:
 It needs DyHub running with the browser collector and logged in (网页登录) as the bot's account, Claude Code's `claude`, `ffmpeg` and [uv](https://docs.astral.sh/uv/) on `PATH`. The first run downloads the speech models: FireRedASR2-AED (4.7 GB) and FireRedLID (3.5 GB) into `~/.cache/fireredasr2`, fsmn-vad and SenseVoice Small (0.9 GB) into `~/.cache/modelscope` and AST into `~/.cache/huggingface`. From `chat-bot/`, start the speech service first, and leave it running (it keeps the models loaded, so restarting the bot after a code change doesn't reload them):
 
 ```sh
-uv run --directory asr asr/transcribe.py --serve 8758
+uv run --directory asr transcribe.py --serve 8758
 ```
 
 then DyHub, then the bot:

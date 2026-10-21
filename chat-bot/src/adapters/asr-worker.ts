@@ -40,7 +40,7 @@ export interface ConnectWorkerOptions {
 
 /**
  * The speech service as a worker: connects to it on localhost (it's started by hand, before the
- * bot: `uv run --directory asr asr/transcribe.py --serve <port>`). Its lines are the worker's
+ * bot: `uv run --directory asr transcribe.py --serve <port>`). Its lines are the worker's
  * (asr/transcribe.py's protocol). When nothing is listening, `exited` rejects at once, saying how
  * to start it, and the bot enters the room without speech, trying again now and then. `kill()` only
  * disconnects, so the service, and the models it has loaded, outlive the bot; `exited` resolves
@@ -56,7 +56,7 @@ export function connectWorker({ port, connect = openTcp }: ConnectWorkerOptions)
       } catch (err) {
         throw new Error(
           `no speech service on port ${port}: start it first, with ` +
-            `uv run --directory chat-bot/asr chat-bot/asr/transcribe.py --serve ${port}`,
+            `uv run --directory chat-bot/asr transcribe.py --serve ${port}`,
           { cause: err },
         );
       }

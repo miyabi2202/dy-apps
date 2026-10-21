@@ -47,7 +47,7 @@ test('with no service running, says at once how to start it, and starts none', a
     connect: () => Promise.reject(new Error('ECONNREFUSED')),
   })({ onLine: () => {}, onLog: () => {} });
   await expect(worker.exited).rejects.toThrow(
-    'no speech service on port 8758: start it first, with uv run --directory chat-bot/asr chat-bot/asr/transcribe.py --serve 8758',
+    'no speech service on port 8758: start it first, with uv run --directory chat-bot/asr transcribe.py --serve 8758',
   );
 });
 
