@@ -27,7 +27,6 @@ import {
   PROMPTS_DIR,
   PROMPT,
   ROOM,
-  SETTINGS,
   SONG_ID,
   THANKER,
   TRANSCRIBER,
@@ -54,9 +53,6 @@ export function registerBot(container: Container): void {
         userTalk: c.resolve(USER_TALK),
         maxPending: options.maxPending,
         maxReplyLength: options.maxReplyLength,
-        maxReplyParts: options.maxReplyParts,
-        // /最大回复条数 changes it, kept in room_config.json.
-        settings: c.resolve(SETTINGS),
         bus: c.resolve(BUS),
         // 「以后 100 钻以下的礼物不用谢了」 and the like: run the command if they may. The bot is made after
         // this, and asked only when an answer has come.

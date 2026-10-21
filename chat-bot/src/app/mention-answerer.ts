@@ -1,12 +1,6 @@
 import { errorMessage } from '../core/errors';
 import type { Heard } from '../core/prompt';
-import {
-  answerBudget,
-  DOUYIN_CHAT_LIMIT,
-  replyMessages,
-  singleBudget,
-  type ReplyLimits,
-} from '../core/reply';
+import { answerBudget, DOUYIN_CHAT_LIMIT, replyMessages, singleBudget } from '../core/reply';
 import {
   MENTION_ANSWER_SCHEMA,
   MESSAGE_SCHEMA,
@@ -21,9 +15,8 @@ import { done, failed, type Command, type PromptOptions } from './command';
 import type { EventBus } from './event-bus';
 import type { Outbox } from './outbox';
 import { Pending } from './pending';
-import type { AskModel, Log, SettingsStore, UserTalk } from './ports';
+import type { AskModel, Log, UserTalk } from './ports';
 import type { RoomState } from './room-state';
-import { setting } from './setting';
 
 /**
  * A question for Claude, paid for by `userId` unless they're an admin or it's free; a command's
@@ -86,10 +79,6 @@ export interface MentionAnswererOptions {
   userTalk?: UserTalk;
   /** Douyin's chat length limit: the prompt asks for less, and longer replies are cut to it. */
   maxReplyLength?: number;
-  /** A long answer goes out as up to this many messages, `@asker (1/3) …`. */
-  maxReplyParts?: number;
-  /** Where `maxReplyParts` is kept (room_config.json), so `/最大回复条数` changes it for good. */
-  settings?: SettingsStore;
   /**
    * Told when, answering with the usual prompt, Claude found the asker asking for a command in
    * so many words (自动谢礼 for 「以后 100 钻以下的礼物不用谢了」): true when it took it from there (ran it, or
@@ -118,21 +107,14 @@ export class MentionAnswerer {
   private busy = false;
   private readonly work = new Pending();
   private readonly maxLength: number;
-  private readonly partsSetting: { get(): number; set(value: number): void };
   private readonly maxPending: number;
 
   constructor(private readonly options: MentionAnswererOptions) {
     this.maxLength = options.maxReplyLength ?? DOUYIN_CHAT_LIMIT;
-    this.partsSetting = setting(options.settings, 'maxReplyParts', options.maxReplyParts ?? 5);
     this.maxPending = options.maxPending ?? 20;
   }
 
-  /** The most messages one @'s answer is split into, as set now. */
-  get maxParts(): number {
-    return this.partsSetting.get();
-  }
-
-  /** `/最大回复条数 3`: an @'s answer is split into at most that many messages (1 to 10). */
+  /** `/最大回复条数 3`: what the bot says is split into at most that many messages (1 to 10). */
   commands(): Command[] {
     return [
       {
@@ -142,21 +124,13 @@ export class MentionAnswerer {
         run: (args) => {
           if (!/^\d+$/.test(args) || Number(args) < 1 || Number(args) > 10)
             return failed('条数要写成 1 到 10 的整数，用法：/最大回复条数 3');
-          this.partsSetting.set(Number(args));
-          this.options.log.info('reply parts', { maxParts: this.maxParts });
+          const { room, log } = this.options;
+          room.maxReplyParts = Number(args);
+          log.info('reply parts', { maxParts: room.maxReplyParts });
           return done('已处理最大回复条数请求');
         },
       },
     ];
-  }
-
-  /** How long an answer may be, unprompted or not, with the room's 单推符号. */
-  private limits(): ReplyLimits {
-    return {
-      maxLength: this.maxLength,
-      maxParts: this.maxParts,
-      atTrimStart: this.options.room.atTrimStart(),
-    };
   }
 
   /**
@@ -208,7 +182,7 @@ export class MentionAnswerer {
   /** Sends `text` to the asker as a reply, like an answer; refunded if it can't go out. */
   private sendFixed(mention: Mention, text: string): void {
     const { outbox, log, userTalk, bus } = this.options;
-    const limits = this.limits();
+    const limits = this.options.room.replyLimits(this.maxLength);
     const messages = replyMessages(mention.asker, text, limits);
     if (!messages.length) {
       log.warn('a fixed reply is empty', { asker: mention.asker });
@@ -239,7 +213,7 @@ export class MentionAnswerer {
 
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, room, log, promptTemplate, userTalk } = this.options;
-    const limits = this.limits();
+    const limits = this.options.room.replyLimits(this.maxLength);
     try {
       const transcript = room.recentTranscript();
       const prompt = room.prompt(mention.template ?? promptTemplate(), {
@@ -288,15 +262,14 @@ export class MentionAnswerer {
           return;
         }
       }
-      // Each of the others gets one message of their own, after the asker's. The usual prompt's
+      // Each of the others gets a message of their own, after the asker's. The usual prompt's
       // answer may have them too (「跟杨叔打个招呼」), and then says nothing to the asker.
       const others = usual || mention.atOthers ? parseOthers(raw) : [];
       const messages = usual && others.length ? [] : replyMessages(mention.asker, answer, limits);
-      const single = { ...limits, maxParts: 1 };
       // The others are known by nickname only: whoever said something under it most lately.
       const chat = [...mention.history, ...room.recentChat()].reverse();
       const toOthers = others.flatMap(({ to, message }) =>
-        replyMessages(to, message, single).map((text) => ({
+        replyMessages(to, message, limits).map((text) => ({
           text,
           userId: chat.find((line) => line.nickname === to && line.userId)?.userId,
         })),

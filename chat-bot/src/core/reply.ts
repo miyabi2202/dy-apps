@@ -152,13 +152,21 @@ function oneLine(answer: string): string {
 }
 
 /**
- * Something Claude wrote to say to the room unprompted, as one message: on one line, cut after
- * punctuation to fit `maxLength`. Null when Claude said nothing.
+ * Something Claude wrote to say to the room, to nobody in particular: on one line, as one message
+ * when it fits, otherwise `(1/2) …`, `(2/2) …`, cut after punctuation like replyMessages. Empty
+ * when Claude said nothing.
  */
-export function plainMessage(answer: string, maxLength: number): string | null {
+export function plainMessages(
+  answer: string,
+  { maxLength, maxParts }: Pick<ReplyLimits, 'maxLength' | 'maxParts'>,
+): string[] {
   const text = oneLine(answer);
-  if (!text) return null;
-  return splitText(text, maxLength, 1)[0] ?? null;
+  if (!text) return [];
+  if ([...text].length <= maxLength) return [text];
+  const size = maxLength - [...`(${maxParts}/${maxParts}) `].length;
+  if (maxParts <= 1 || size < 1) return splitText(text, maxLength, 1);
+  const parts = splitText(text, size, maxParts);
+  return parts.map((part, i) => `(${i + 1}/${parts.length}) ${part}`);
 }
 
 /** Up to `maxParts` pieces of at most `size` characters, cut after punctuation when it can. */

@@ -1,7 +1,7 @@
 import type { CommandCall } from '../core/command';
 import { errorMessage } from '../core/errors';
 import type { Heard } from '../core/prompt';
-import { DOUYIN_CHAT_LIMIT, oneMessage } from '../core/reply';
+import { DOUYIN_CHAT_LIMIT, replyMessages } from '../core/reply';
 import type { IncomingChat } from '../core/room-events';
 import type { Charge } from './billing';
 import type { Command, CommandResult } from './command';
@@ -30,7 +30,7 @@ export interface CommandRunnerOptions {
   /** Where command replies go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
   /** The chat before a command's own prompt goes with it to the answerer. */
-  room: Pick<RoomState, 'recentChat' | 'atTrimStart'>;
+  room: Pick<RoomState, 'recentChat' | 'replyLimits'>;
   log: Log;
   /** Takes a command's price from the asker (ChatBot.charge): not ok when they can't pay. */
   charge: (request: ChargeRequest) => Charge;
@@ -103,14 +103,12 @@ export class CommandRunner {
     return true;
   }
 
-  /** Queues `@asker text` to be sent. */
+  /** Queues `@asker text` to be sent, split like an answer when it's long. */
   say(asker: string, kind: 'system' | 'notice', text: string): void {
-    this.options.outbox.push({
-      kind,
-      text:
-        oneMessage(asker, text, this.maxLength, this.options.room.atTrimStart()) ??
-        `@${asker} ${text}`,
-    });
+    const { outbox, room } = this.options;
+    for (const message of replyMessages(asker, text, room.replyLimits(this.maxLength))) {
+      outbox.push({ kind, text: message });
+    }
   }
 
   /**

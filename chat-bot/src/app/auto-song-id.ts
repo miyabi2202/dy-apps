@@ -1,5 +1,5 @@
 import { errorMessage } from '../core/errors';
-import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
+import { DOUYIN_CHAT_LIMIT, plainMessages } from '../core/reply';
 import type { SongAnswer } from '../core/song-answer';
 import { isHandled, isSung, singingSong, type TranscriptLine } from '../core/transcript';
 import { done, failed, type Command } from './command';
@@ -159,14 +159,14 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
       return;
     }
     const last = songId.namedAt(answer.title);
-    const text = plainMessage(answer.message, maxLength);
-    if (!text || (last !== undefined && room.now() - last < repeatMs)) {
+    const messages = plainMessages(answer.message, room.replyLimits(maxLength));
+    if (!messages.length || (last !== undefined && room.now() - last < repeatMs)) {
       // Still the song it named: she may move on soon, so it looks again sooner.
       this.waitMs = sameAgainMs;
       log.info('auto song id: still the song told lately', { title: answer.title });
       return;
     }
-    outbox.push({ kind: 'talk', text });
+    for (const text of messages) outbox.push({ kind: 'talk', text });
     songId.told(answer);
   }
 

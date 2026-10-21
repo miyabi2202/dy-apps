@@ -322,10 +322,9 @@ test("the reply @s the whole nickname when it fits, and only a shortened @ goes 
   const answerer = new MentionAnswerer({
     ask: () => Promise.resolve(answers.shift()!),
     outbox,
-    room: fakeRoom({ atTrimStart: () => ['⊹꙳𝝑'], now: () => NOW }),
+    room: fakeRoom({ atTrimStart: () => ['⊹꙳𝝑'], now: () => NOW, maxReplyParts: 1 }),
     log: silentLog,
     promptTemplate: () => TEMPLATE,
-    maxReplyParts: 1,
   });
   answerer.ask({ asker, paid: 0, question: '怎么办', history: [] });
   await answerer.idle();
@@ -348,10 +347,9 @@ test('/最大回复条数 sets how many messages an answer may take, kept in the
   const answerer = new MentionAnswerer({
     ask: () => Promise.resolve('一二三四五六七八九十。'.repeat(20)),
     outbox,
-    room: fakeRoom({ now: () => NOW }),
+    room: fakeRoom({ now: () => NOW, settings }),
     log: silentLog,
     promptTemplate: () => TEMPLATE,
-    settings,
   });
   const [command] = answerer.commands();
   const run = (args: string) =>

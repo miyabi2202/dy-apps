@@ -1,5 +1,5 @@
 import { errorMessage } from '../core/errors';
-import { DOUYIN_CHAT_LIMIT, plainMessage } from '../core/reply';
+import { DOUYIN_CHAT_LIMIT, plainMessages } from '../core/reply';
 import type { SongAnswer } from '../core/song-answer';
 import { parseSongIntro, SONG_INTRO_SCHEMA, type SongIntroAnswer } from '../core/song-intro-answer';
 import { currentSong, isGuest } from '../core/transcript';
@@ -84,11 +84,12 @@ export class SongIntro extends ModelFeature<Song, SongIntroAnswer> {
   }
 
   protected deliver({ title }: Song, answer: SongIntroAnswer): void {
-    const { outbox, log, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
+    const { outbox, log, room, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
     log.info('song intro', { title, hook: this.hook, messages: answer.messages });
     for (const message of answer.messages) {
-      const said = plainMessage(message, maxLength);
-      if (said) outbox.push({ kind: 'talk', text: said });
+      for (const text of plainMessages(message, room.replyLimits(maxLength))) {
+        outbox.push({ kind: 'talk', text });
+      }
     }
   }
 

@@ -8,6 +8,7 @@ import {
   type RoomPromptInput,
   type RoomSettings,
 } from '../core/prompt';
+import type { ReplyLimits } from '../core/reply';
 import type { ChatLine } from '../core/room-events';
 import {
   DEFAULT_TRANSCRIPT_WINDOW_MS,
@@ -46,7 +47,9 @@ export interface RoomStateOptions {
   screenshot?: Screenshot;
   /** Whether to start with screenshots on (when there's a `screenshot`); /截图 switches it. Without `settings`, what it starts as. */
   screenshotsOn?: boolean;
-  /** The room's settings, where that is kept (`screenshots`). */
+  /** The most messages anything the bot says is split into, `@asker (1/3) …`. Without `settings`, what it starts as. */
+  maxReplyParts?: number;
+  /** The room's settings, where those are kept (`screenshots`, `maxReplyParts`). */
   settings?: SettingsStore;
   /** The folder of the room's chat record files, for `{{chatDir}}`. */
   chatDir?: string;
@@ -79,6 +82,7 @@ export class RoomState {
   readonly wording: Wording;
   private readonly clock: () => number;
   private readonly screenshotsSetting: ReturnType<typeof setting<'screenshots'>>;
+  private readonly partsSetting: ReturnType<typeof setting<'maxReplyParts'>>;
   /** The parts of the room's settings the features keep, for `{{settings}}`. */
   private readonly settingsParts: (() => SettingsPart)[] = [];
 
@@ -88,6 +92,7 @@ export class RoomState {
       'screenshots',
       options.screenshotsOn ?? true,
     );
+    this.partsSetting = setting(options.settings, 'maxReplyParts', options.maxReplyParts ?? 5);
     this.botName = options.botName;
     this.wording = options.wording;
     this.clock = options.now ?? Date.now;
@@ -110,6 +115,20 @@ export class RoomState {
   /** The room's 单推符号, taken off a nickname when the bot has to shorten its @ (see atName). */
   atTrimStart(): readonly string[] {
     return this.options.atTrimStart?.() ?? [];
+  }
+
+  /** The most messages anything the bot says is split into; `/最大回复条数` sets it. */
+  get maxReplyParts(): number {
+    return this.partsSetting.get();
+  }
+
+  set maxReplyParts(parts: number) {
+    this.partsSetting.set(parts);
+  }
+
+  /** How what the bot says is fit into messages of at most `maxLength` characters, as set now. */
+  replyLimits(maxLength: number): ReplyLimits {
+    return { maxLength, maxParts: this.maxReplyParts, atTrimStart: this.atTrimStart() };
   }
 
   /** Other names the bot is called in this room, which mean it too. */

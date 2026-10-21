@@ -77,7 +77,7 @@ How many seconds auto-reply keeps quiet after it answered someone unprompted: wh
 
 ### /最大回复条数
 
-The most messages one @'s answer is split into, `@昵称 (1/3) …`, sent one every `--send-interval` seconds; Claude is also told that much less room, so it writes less rather than being cut off. It starts at `--max-parts` (5). What the bot says unprompted is split the same way.
+The most messages anything the bot says is split into, `@昵称 (1/3) …` (`(1/3) …` when it's to nobody in particular), sent one every `--send-interval` seconds: @ answers and unprompted ones, gift thanks, command results, song names and intros. The prompts still ask for one message; this is for when Claude writes more. For an @'s answer, Claude is also told that much less room, so it writes less rather than being cut off. It starts at `--max-parts` (5).
 
 ```text
 @默认关闭 /最大回复条数 2

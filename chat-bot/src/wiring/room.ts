@@ -210,6 +210,8 @@ export function registerRoom(container: Container): void {
         // Off unless --screenshot; /截图 switches it while the bot runs.
         screenshot: c.resolve(ROOM_API).screenshot,
         screenshotsOn: options.screenshot,
+        // How many messages what the bot says may take; /最大回复条数 changes it.
+        maxReplyParts: options.maxReplyParts,
         settings: c.resolve(SETTINGS),
         chatDir: c.resolve(CHAT_DIR),
         botName: options.botName,

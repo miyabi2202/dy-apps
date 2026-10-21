@@ -52,7 +52,7 @@ interface Thanks {
  * after counts afresh, and is thanked again once it passes the threshold too. The threshold can
  * be changed while it runs.
  */
-export class GiftThanker extends ModelFeature<Thanks, string> {
+export class GiftThanker extends ModelFeature<Thanks, string[]> {
   private readonly thresholdSetting: ReturnType<typeof setting<'thanksThreshold'>>;
   private readonly windowMs: number;
   /** Each viewer's gifts not thanked yet, by user id. */
@@ -148,19 +148,25 @@ export class GiftThanker extends ModelFeature<Thanks, string> {
   protected async ask(
     { gift: { userId, nickname }, given, total }: Thanks,
     prompt: string,
-  ): Promise<string | undefined> {
+  ): Promise<string[] | undefined> {
     const { log } = this.options;
     log.info('thanking', { nickname, userId, gifts: this.gifts(given), total });
     log.debug('thanks prompt', { prompt });
-    const [text] = replyMessages(nickname, await this.options.ask({ prompt }), this.limits());
-    if (!text) log.warn('claude had no thanks to give', { nickname });
-    return text;
+    const messages = replyMessages(nickname, await this.options.ask({ prompt }), this.limits());
+    if (!messages.length) {
+      log.warn('claude had no thanks to give', { nickname });
+      return undefined;
+    }
+    return messages;
   }
 
-  protected deliver({ gift: { userId, nickname }, given, total }: Thanks, text: string): void {
-    this.options.outbox.push({ kind: 'reply', text });
+  protected deliver(
+    { gift: { userId, nickname }, given, total }: Thanks,
+    messages: string[],
+  ): void {
+    for (const text of messages) this.options.outbox.push({ kind: 'reply', text });
     const question = `（${this.question(given, total)}）`;
-    this.options.userTalk?.add(userId, { nickname, question, answer: text });
+    this.options.userTalk?.add(userId, { nickname, question, answer: messages.join(' ') });
   }
 
   protected failed({ gift: { nickname } }: Thanks, err: unknown): void {
@@ -168,11 +174,7 @@ export class GiftThanker extends ModelFeature<Thanks, string> {
   }
 
   private limits() {
-    return {
-      maxLength: this.options.maxLength ?? DOUYIN_CHAT_LIMIT,
-      maxParts: 1,
-      atTrimStart: this.options.room.atTrimStart(),
-    };
+    return this.options.room.replyLimits(this.options.maxLength ?? DOUYIN_CHAT_LIMIT);
   }
 
   /** What was given, as `玫瑰×3、小心心×1`. */

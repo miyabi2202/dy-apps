@@ -2,7 +2,7 @@ import {
   answerBudget,
   atName,
   oneMessage,
-  plainMessage,
+  plainMessages,
   replyMessages,
   singleBudget,
 } from '../src/core/reply';
@@ -58,7 +58,7 @@ test('sends only what follows the last 弹幕： mark, so Claude’s thinking be
   ]);
   // Without the mark, the whole answer, as before; a 弹幕 mid-sentence isn't a mark.
   expect(replyMessages('雅', '这条弹幕：很有意思', wide)).toEqual(['@雅 这条弹幕：很有意思']);
-  expect(plainMessage('想想说什么好\n弹幕：主播这首好好听', 49)).toBe('主播这首好好听');
+  expect(plainMessages('想想说什么好\n弹幕：主播这首好好听', wide)).toEqual(['主播这首好好听']);
 });
 
 test('finds the 弹幕： mark after a sentence on the same line, or at the end, as other models write it', () => {
@@ -88,4 +88,13 @@ test('the @ goes without the room 单推符号 at the start of the nickname, as 
   expect(atName('阿拂⊹꙳𝝑', ['⊹꙳𝝑'])).toBe('阿拂⊹꙳𝝑');
   expect(atName('⊹꙳𝝑', ['⊹꙳𝝑'])).toBe('⊹꙳𝝑');
   expect(atName('阿拂')).toBe('阿拂');
+});
+
+test('what the bot says to nobody in particular is split like a reply, without the @', () => {
+  const limits = { maxLength: 24, maxParts: 3 };
+  expect(plainMessages('这首好听', limits)).toEqual(['这首好听']);
+  expect(plainMessages('这首是续作里的重编版，同一首歌，刚才那下是我画蛇添足', limits)).toEqual([
+    '(1/2) 这首是续作里的重编版，同一首歌，',
+    '(2/2) 刚才那下是我画蛇添足',
+  ]);
 });
