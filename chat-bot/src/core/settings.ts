@@ -17,7 +17,7 @@ export interface Settings {
   maliceWatch: boolean;
   /** Whether prompts get a screenshot of the live video (`/截图`). */
   screenshots: boolean;
-  /** The most messages one @'s answer is split into (`/回复条数`, `--max-parts`). */
+  /** The most messages one @'s answer is split into (`/最大回复条数`, `--max-parts`). */
   maxReplyParts: number;
 }
 

@@ -345,7 +345,7 @@ test("the reply @s the whole nickname when it fits, and only a shortened @ goes 
   );
 });
 
-test('/回复条数 sets how many messages an answer may take, kept in the room settings', async () => {
+test('/最大回复条数 sets how many messages an answer may take, kept in the room settings', async () => {
   const stored: Record<string, unknown> = {};
   const settings = {
     get: () => ({ ...SETTING_DEFAULTS, ...stored }),
@@ -366,10 +366,10 @@ test('/回复条数 sets how many messages an answer may take, kept in the room 
 
   expect(await run('0')).toEqual({
     ok: false,
-    reply: '条数要写成 1 到 10 的整数，用法：/回复条数 3',
+    reply: '条数要写成 1 到 10 的整数，用法：/最大回复条数 3',
   });
   expect(await run('两')).toMatchObject({ ok: false });
-  expect(await run('2')).toEqual({ ok: true, reply: '已处理回复条数请求' });
+  expect(await run('2')).toEqual({ ok: true, reply: '已处理最大回复条数请求' });
   expect(stored).toEqual({ maxReplyParts: 2 });
 
   answerer.ask({ asker: '阿明', paid: 0, question: '讲讲', history: [] });

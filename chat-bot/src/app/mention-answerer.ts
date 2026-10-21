@@ -88,7 +88,7 @@ export interface MentionAnswererOptions {
   maxReplyLength?: number;
   /** A long answer goes out as up to this many messages, `@asker (1/3) …`. */
   maxReplyParts?: number;
-  /** Where `maxReplyParts` is kept (room_config.json), so `/回复条数` changes it for good. */
+  /** Where `maxReplyParts` is kept (room_config.json), so `/最大回复条数` changes it for good. */
   settings?: SettingsStore;
   /**
    * Told when, answering with the usual prompt, Claude found the asker asking for a command in
@@ -132,19 +132,19 @@ export class MentionAnswerer {
     return this.partsSetting.get();
   }
 
-  /** `/回复条数 3`: an @'s answer is split into at most that many messages (1 to 10). */
+  /** `/最大回复条数 3`: an @'s answer is split into at most that many messages (1 to 10). */
   commands(): Command[] {
     return [
       {
-        name: '回复条数',
+        name: '最大回复条数',
         adminOnly: true,
         price: 0,
         run: (args) => {
           if (!/^\d+$/.test(args) || Number(args) < 1 || Number(args) > 10)
-            return failed('条数要写成 1 到 10 的整数，用法：/回复条数 3');
+            return failed('条数要写成 1 到 10 的整数，用法：/最大回复条数 3');
           this.partsSetting.set(Number(args));
           this.options.log.info('reply parts', { maxParts: this.maxParts });
-          return done('已处理回复条数请求');
+          return done('已处理最大回复条数请求');
         },
       },
     ];

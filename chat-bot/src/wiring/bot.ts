@@ -55,7 +55,7 @@ export function registerBot(container: Container): void {
         maxPending: options.maxPending,
         maxReplyLength: options.maxReplyLength,
         maxReplyParts: options.maxReplyParts,
-        // /回复条数 changes it, kept in room_config.json.
+        // /最大回复条数 changes it, kept in room_config.json.
         settings: c.resolve(SETTINGS),
         bus: c.resolve(BUS),
         // 「把你的人设改成小猫」 and the like: run the command if they may. The bot is made after
