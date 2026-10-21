@@ -401,8 +401,11 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
             # A CDN can stop sending without closing the connection; give up after 15s of
             # silence so the bot fetches the stream again instead of hanging.
             # stdin is the bot's requests, not ffmpeg's keyboard.
+            # By default ffmpeg studied a live FLV for about 33 s before giving any audio, so the bot
+            # missed the streamer welcoming it; a second's look is enough to find the audio, and the
+            # first audio then comes after about 1 s.
             ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", *(["-re"] if realtime else []),
-             "-rw_timeout", "15000000", "-i", url, "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
+             "-rw_timeout", "15000000", "-analyzeduration", "1000000", "-i", url, "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
         )

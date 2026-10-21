@@ -198,6 +198,27 @@ test('with no speech service, the bot enters the room at once, and the failure i
   expect(warnings).toEqual([]);
 });
 
+test('asks for the stream every second until the first one, then every retryMs', async () => {
+  const urls = [null, null, 'url-1', null];
+  const waits: number[] = [];
+  const transcriber: Transcriber = new Transcriber({
+    streamUrl: () => Promise.resolve(urls.shift() ?? null),
+    bus: fakeBus(),
+    transcript: new Transcript(),
+    log: silentLog,
+    spawnWorker: ({ onLine }) => fakeWorker(onLine, () => []),
+    retryMs: 10_000,
+    sleep: (ms) => {
+      waits.push(ms);
+      if (waits.length >= 4) transcriber.stop();
+      return Promise.resolve();
+    },
+  });
+  await transcriber.run();
+  // Two misses a second apart; after the stream (which ended at once), the usual 10 s.
+  expect(waits.slice(0, 3)).toEqual([1000, 1000, 10_000]);
+});
+
 test('lets the bot enter the room when the models take too long', async () => {
   const timers: (() => void)[] = [];
   const warnings: string[] = [];

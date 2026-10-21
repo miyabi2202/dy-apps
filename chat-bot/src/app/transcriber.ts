@@ -44,6 +44,8 @@ export class Transcriber {
   private stopped = false;
   private worker: Worker | null = null;
   private listening = false;
+  /** Whether it has had a stream yet: until then it asks for one every second. */
+  private everListened = false;
   private nextMusicId = 1;
   /** Music requests waiting for the worker's answer, by id. */
   private readonly musicWaiting = new Map<number, (answer: MusicAnswer) => void>();
@@ -166,6 +168,7 @@ export class Transcriber {
           (resolve) => (this.onStreamEnded = () => resolve('ended')),
         );
         this.listening = true;
+        this.everListened = true;
         worker.send(JSON.stringify({ url }));
         const how = await Promise.race([ended, gone]);
         this.listening = false;
@@ -174,7 +177,10 @@ export class Transcriber {
         // A stream that played a while had its URL expire, or a hiccup: ask again at once.
         if (this.now() - started > 60_000) continue;
       }
-      if ((await Promise.race([this.sleep(this.retryMs), gone])) === 'gone') return;
+      // Until the first stream, ask every second: DyHub has it moments after the bot enters the
+      // room, and the streamer often welcomes the bot by name right then.
+      const wait = this.everListened ? this.retryMs : Math.min(this.retryMs, 1000);
+      if ((await Promise.race([this.sleep(wait), gone])) === 'gone') return;
     }
   }
 
