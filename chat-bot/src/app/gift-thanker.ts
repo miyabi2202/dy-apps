@@ -134,7 +134,7 @@ export class GiftThanker extends ModelFeature<Thanks, string> {
     return room.prompt(this.options.promptTemplate(), {
       asker: nickname,
       question: this.question(given, total),
-      singleLength: singleBudget(this.options.room.atName(nickname), this.limits()),
+      singleLength: singleBudget(nickname, this.limits()),
       maxLength,
       userHistory: this.options.userTalk?.recent(userId),
       userChat: room
@@ -152,11 +152,7 @@ export class GiftThanker extends ModelFeature<Thanks, string> {
     const { log } = this.options;
     log.info('thanking', { nickname, userId, gifts: this.gifts(given), total });
     log.debug('thanks prompt', { prompt });
-    const [text] = replyMessages(
-      this.options.room.atName(nickname),
-      await this.options.ask({ prompt }),
-      this.limits(),
-    );
+    const [text] = replyMessages(nickname, await this.options.ask({ prompt }), this.limits());
     if (!text) log.warn('claude had no thanks to give', { nickname });
     return text;
   }
@@ -172,7 +168,11 @@ export class GiftThanker extends ModelFeature<Thanks, string> {
   }
 
   private limits() {
-    return { maxLength: this.options.maxLength ?? DOUYIN_CHAT_LIMIT, maxParts: 1 };
+    return {
+      maxLength: this.options.maxLength ?? DOUYIN_CHAT_LIMIT,
+      maxParts: 1,
+      atTrimStart: this.options.room.atTrimStart(),
+    };
   }
 
   /** What was given, as `玫瑰×3、小心心×1`. */

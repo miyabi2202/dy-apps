@@ -5,9 +5,9 @@ export const DOUYIN_CHAT_LIMIT = 49;
 const BREAK_AFTER = new Set([...'。！？；，、：.!?;,: ）)】」']);
 
 /**
- * `nickname` as the bot @s it: without the room's `prefixes` at its start (the symbols fans put
- * before their name for the streamer they back, 单推符号 like `⊹꙳𝝑`), each taken off as often as it's
- * there, longest first. The whole nickname when nothing would be left.
+ * `nickname` without the room's `prefixes` at its start (the symbols fans put before their name
+ * for the streamer they back, 单推符号 like `⊹꙳𝝑`), each taken off as often as it's there, longest
+ * first; for when the @ has to be shortened. The whole nickname when nothing would be left.
  */
 export function atName(nickname: string, prefixes: readonly string[] = []): string {
   const longestFirst = [...prefixes].filter(Boolean).sort((a, b) => b.length - a.length);
@@ -24,9 +24,12 @@ export function atName(nickname: string, prefixes: readonly string[] = []): stri
   return name || nickname;
 }
 
-/** The first 3 characters of a nickname, to @ someone when the whole name doesn't fit. */
-function shortTag(nickname: string): string {
-  return `@${[...nickname].slice(0, 3).join('')}`;
+/**
+ * The first 3 characters of a nickname, to @ someone when the whole name doesn't fit: of the name
+ * without the room's 单推符号 (`trim`, see atName), so `@⊹꙳𝝑` isn't all that's left of it.
+ */
+function shortTag(nickname: string, trim: readonly string[] = []): string {
+  return `@${[...atName(nickname, trim)].slice(0, 3).join('')}`;
 }
 
 /**
@@ -34,8 +37,13 @@ function shortTag(nickname: string): string {
  * otherwise with its first 3 characters (the @ is typed text, not a picked mention, so a short
  * one works as well); null when even that is too long.
  */
-export function oneMessage(nickname: string, text: string, maxLength: number): string | null {
-  for (const tag of [`@${nickname}`, shortTag(nickname)]) {
+export function oneMessage(
+  nickname: string,
+  text: string,
+  maxLength: number,
+  trim: readonly string[] = [],
+): string | null {
+  for (const tag of [`@${nickname}`, shortTag(nickname, trim)]) {
     const message = `${tag} ${text}`;
     if ([...message].length <= maxLength) return message;
   }
@@ -47,16 +55,18 @@ export interface ReplyLimits {
   maxLength: number;
   /** A long answer is sent as up to this many messages. */
   maxParts: number;
+  /** The room's 单推符号, taken off a nickname when the @ has to be shortened (see shortTag). */
+  atTrimStart?: readonly string[];
 }
 
 /** The longest the text of one part may be: what the `@asker (9/9) ` prefix leaves. */
-function partSize(asker: string, { maxLength, maxParts }: ReplyLimits): number {
-  return maxLength - [...`${shortTag(asker)} (${maxParts}/${maxParts}) `].length;
+function partSize(asker: string, { maxLength, maxParts, atTrimStart }: ReplyLimits): number {
+  return maxLength - [...`${shortTag(asker, atTrimStart)} (${maxParts}/${maxParts}) `].length;
 }
 
 /** How long an answer can be and still go out as one message (with the short @ if need be). */
-export function singleBudget(asker: string, { maxLength }: ReplyLimits): number {
-  return maxLength - [...`${shortTag(asker)} `].length;
+export function singleBudget(asker: string, { maxLength, atTrimStart }: ReplyLimits): number {
+  return maxLength - [...`${shortTag(asker, atTrimStart)} `].length;
 }
 
 /**
@@ -76,7 +86,8 @@ export function answerBudget(asker: string, limits: ReplyLimits): number {
  * nothing; whatever doesn't fit in `maxParts` messages is cut off.
  */
 export function replyMessages(asker: string, answer: string, limits: ReplyLimits): string[] {
-  const tags = [`@${asker}`, shortTag(asker)];
+  const short = shortTag(asker, limits.atTrimStart);
+  const tags = [`@${asker}`, short];
   let text = oneLine(answer);
   // Claude sees the bot's earlier `@…` replies in the chat and often starts with the @ itself,
   // with the whole name or the short one.
@@ -89,15 +100,15 @@ export function replyMessages(asker: string, answer: string, limits: ReplyLimits
   }
   if (!text) return [];
 
-  const single = oneMessage(asker, text, limits.maxLength);
+  const single = oneMessage(asker, text, limits.maxLength, limits.atTrimStart);
   if (single) return [single];
   const size = partSize(asker, limits);
   // When the numbering would leave no room for text, one message cut to the limit.
   if (limits.maxParts <= 1 || size < 1) {
-    return [[...`${shortTag(asker)} ${text}`].slice(0, limits.maxLength).join('')];
+    return [[...`${short} ${text}`].slice(0, limits.maxLength).join('')];
   }
   const parts = splitText(text, size, limits.maxParts);
-  return parts.map((part, i) => `${shortTag(asker)} (${i + 1}/${parts.length}) ${part}`);
+  return parts.map((part, i) => `${short} (${i + 1}/${parts.length}) ${part}`);
 }
 
 /**

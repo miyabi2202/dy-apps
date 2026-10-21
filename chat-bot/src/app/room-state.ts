@@ -1,4 +1,3 @@
-import { atName } from '../core/reply';
 import type { ChatHistory } from '../core/chat-history';
 import type { RecentGifts } from '../core/recent-gifts';
 import { errorMessage } from '../core/errors';
@@ -114,9 +113,9 @@ export class RoomState {
     return this.options.timeZone?.();
   }
 
-  /** `nickname` as the bot @s it here: without the room's 单推符号 at its start (see atName). */
-  atName(nickname: string): string {
-    return atName(nickname, this.options.atTrimStart?.() ?? []);
+  /** The room's 单推符号, taken off a nickname when the bot has to shorten its @ (see atName). */
+  atTrimStart(): readonly string[] {
+    return this.options.atTrimStart?.() ?? [];
   }
 
   /** Other names the bot is called in this room, which mean it too. */

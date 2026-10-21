@@ -26,7 +26,7 @@ export interface ChatBotOptions {
   /** Answers the questions the bot has been paid for. */
   answerer: Pick<MentionAnswerer, 'ask' | 'idle'>;
   /** The chat before a question goes with it to the answerer. */
-  room: Pick<RoomState, 'recentChat' | 'atName'>;
+  room: Pick<RoomState, 'recentChat' | 'atTrimStart'>;
   /** Where notices and command replies go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
   log: Log;

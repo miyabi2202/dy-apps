@@ -125,6 +125,12 @@ export class MentionAnswerer {
     this.maxPending = options.maxPending ?? 20;
   }
 
+  /** How long `mention`'s answer may be (one message when unprompted), with the room's 单推符号. */
+  private limitsFor(mention: Pick<Mention, 'unprompted'>): ReplyLimits {
+    const limits = mention.unprompted ? { ...this.limits, maxParts: 1 } : this.limits;
+    return { ...limits, atTrimStart: this.options.room.atTrimStart() };
+  }
+
   /**
    * Queues a mention for Claude; false when the queue is full and it was dropped. A `fixedReply`
    * isn't queued: it's sent at once, with no model asked.
@@ -174,8 +180,8 @@ export class MentionAnswerer {
   /** Sends `text` to the asker as a reply, like an answer; refunded if it can't go out. */
   private sendFixed(mention: Mention, text: string): void {
     const { outbox, log, userTalk, bus } = this.options;
-    const limits = mention.unprompted ? { ...this.limits, maxParts: 1 } : this.limits;
-    const messages = replyMessages(this.options.room.atName(mention.asker), text, limits);
+    const limits = this.limitsFor(mention);
+    const messages = replyMessages(mention.asker, text, limits);
     if (!messages.length) {
       log.warn('a fixed reply is empty', { asker: mention.asker });
       this.refund(mention);
@@ -206,7 +212,7 @@ export class MentionAnswerer {
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, room, log, promptTemplate, userTalk } = this.options;
     // What the bot says unprompted is one message: nobody asked for a long answer.
-    const limits = mention.unprompted ? { ...this.limits, maxParts: 1 } : this.limits;
+    const limits = this.limitsFor(mention);
     try {
       const transcript = room.recentTranscript();
       const prompt = room.prompt(mention.template ?? promptTemplate(), {
@@ -214,8 +220,8 @@ export class MentionAnswerer {
         history: mention.history,
         asker: mention.asker,
         question: mention.question,
-        singleLength: singleBudget(room.atName(mention.asker), limits),
-        maxLength: answerBudget(room.atName(mention.asker), limits),
+        singleLength: singleBudget(mention.asker, limits),
+        maxLength: answerBudget(mention.asker, limits),
         userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
         askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
         askerBadges: badgesOf(mention),
@@ -258,13 +264,12 @@ export class MentionAnswerer {
       // Each of the others gets one message of their own, after the asker's. The usual prompt's
       // answer may have them too (「跟杨叔打个招呼」), and then says nothing to the asker.
       const others = usual || mention.atOthers ? parseOthers(raw) : [];
-      const messages =
-        usual && others.length ? [] : replyMessages(room.atName(mention.asker), answer, limits);
+      const messages = usual && others.length ? [] : replyMessages(mention.asker, answer, limits);
       const single = { ...limits, maxParts: 1 };
       // The others are known by nickname only: whoever said something under it most lately.
       const chat = [...mention.history, ...room.recentChat()].reverse();
       const toOthers = others.flatMap(({ to, message }) =>
-        replyMessages(room.atName(to), message, single).map((text) => ({
+        replyMessages(to, message, single).map((text) => ({
           text,
           userId: chat.find((line) => line.nickname === to && line.userId)?.userId,
         })),

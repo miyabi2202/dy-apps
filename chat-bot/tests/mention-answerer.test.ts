@@ -318,17 +318,28 @@ test("a command's prompt sees the badges by the asker's name, from their latest 
   expect(prompts).toEqual(['V年', '（无）', '（无）']);
 });
 
-test("the reply @s the asker without the room's 单推符号 at the start of their nickname", async () => {
+test("the reply @s the whole nickname when it fits, and only a shortened @ goes without the room's 单推符号", async () => {
+  const asker = '⊹꙳𝝑阿拂（吃荷灵咪馊饭版）𝝔⋆₊';
+  const answers = [
+    '先换首顺手的唱',
+    '先换首顺手的唱回回血，这首的调交给二号去研究，不开心的锅归伴奏不归茜茜',
+  ];
   const { outbox, sent } = fakeOutbox();
   const answerer = new MentionAnswerer({
-    ask: () => Promise.resolve('先换首顺手的唱'),
+    ask: () => Promise.resolve(answers.shift()!),
     outbox,
     room: fakeRoom({ atTrimStart: () => ['⊹꙳𝝑'], now: () => NOW }),
     log: silentLog,
     promptTemplate: () => TEMPLATE,
+    maxReplyParts: 1,
   });
-  answerer.ask({ asker: '⊹꙳𝝑阿拂（吃荷灵咪馊饭版）𝝔⋆₊', paid: 0, question: '怎么办', history: [] });
+  answerer.ask({ asker, paid: 0, question: '怎么办', history: [] });
+  await answerer.idle();
+  answerer.ask({ asker, paid: 0, question: '怎么办', history: [] });
   await answerer.idle();
   await outbox.idle();
-  expect(sent).toEqual(['@阿拂（吃荷灵咪馊饭版）𝝔⋆₊ 先换首顺手的唱']);
+  expect(sent[0]).toBe(`@${asker} 先换首顺手的唱`);
+  expect(sent[1]).toBe(
+    '@阿拂（ 先换首顺手的唱回回血，这首的调交给二号去研究，不开心的锅归伴奏不归茜茜',
+  );
 });
