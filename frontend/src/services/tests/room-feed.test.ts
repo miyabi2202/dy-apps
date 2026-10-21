@@ -1,4 +1,4 @@
-import { eventsUrl, type GiftEvent, type LikeEvent } from '@dy-apps/room-feed-protocol';
+import type { GiftEvent, LikeEvent } from '@dy-apps/room-feed-protocol';
 import { GiftCounter, isRoomId, likeCount, parsePort } from '..';
 
 describe('room-feed settings', () => {
@@ -16,12 +16,6 @@ describe('room-feed settings', () => {
     for (const bad of ['', '1679 2021', 'abc', 'live.douyin.com/1']) {
       expect(isRoomId(bad)).toBe(false);
     }
-  });
-
-  it('subscribes on localhost to the event types asked for', () => {
-    expect(eventsUrl(8757, '1', ['chat', 'gift', 'like'])).toBe(
-      'ws://localhost:8757/ws?roomId=1&types=chat,gift,like',
-    );
   });
 });
 

@@ -46,19 +46,6 @@ test('a gift is worth its count times its diamonds, and needs someone to credit'
   expect(giftFrom({ ...event, user: undefined }, 2)).toBeNull();
 });
 
-test("passes on the badges by the sender's name, when room-feed sends them", () => {
-  const event: ChatEvent = {
-    id: 'm2',
-    roomId: '1',
-    type: 'chat',
-    ts: 6,
-    user: { id: '7', nickname: '阿明', badges: ['V年'] },
-    data: { content: '讲讲曲面积分' },
-  };
-  expect(chatFrom(event).badges).toEqual(['V年']);
-  expect(chatFrom({ ...event, user: { id: '7', nickname: '阿明' } })).not.toHaveProperty('badges');
-});
-
 test("carries a sender's badges, fan club and wealth level when room-feed sends them", () => {
   const event: ChatEvent = {
     id: 'm2',
@@ -81,6 +68,7 @@ test("carries a sender's badges, fan club and wealth level when room-feed sends 
   });
 
   const bare = chatFrom({ ...event, user: { id: 'u1', nickname: '阿明' } });
+  expect(bare).not.toHaveProperty('badges');
   expect(bare).not.toHaveProperty('fansClub');
   expect(bare).not.toHaveProperty('payLevel');
   expect(
