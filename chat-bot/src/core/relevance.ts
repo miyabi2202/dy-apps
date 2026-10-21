@@ -74,8 +74,9 @@ export function relevanceRequest(
   wording: Wording,
   topics: readonly string[] = [],
   aliases: readonly string[] = [],
+  timeZone?: string,
 ): RelevanceRequest {
-  const line = (l: RoomLine) => `${clock(l.ts)} [${l.who}] ${l.text}`;
+  const line = (l: RoomLine) => `${clock(l.ts, timeZone)} [${l.who}] ${l.text}`;
   const state = [
     wording('relevance-state', {
       botName,

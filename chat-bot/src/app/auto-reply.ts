@@ -317,6 +317,7 @@ export class AutoReply {
       room.wording,
       additionalCommands.map(({ when }) => when),
       room.aliases(),
+      room.timeZone(),
     );
     let scores: Record<string, number>;
     try {
@@ -384,6 +385,7 @@ export class AutoReply {
           : (this.options.additionalCommands ?? [])
               .map((command) => matchFor(command, line.text))
               .filter((label): label is string => label !== null),
+      room.timeZone(),
     );
     if (!numbered.length) return 0;
     const prompt = pickPrompt(pickTemplate(), room.wording, {

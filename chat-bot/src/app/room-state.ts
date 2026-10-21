@@ -52,6 +52,8 @@ export interface RoomStateOptions {
   wording: Wording;
   /** Other names the bot is called in this room (room_config.json's `aliases`), read each time. */
   aliases?: () => readonly string[];
+  /** The time zone the room's times are shown in (room_config.json's `timeZone`), read each time. */
+  timeZone?: () => string;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
   botName: string;
   /** The commands viewers can run, for `{{commands}}`, read each time so edits apply at once. */
@@ -102,6 +104,11 @@ export class RoomState {
     return this.clock();
   }
 
+  /** The time zone the room's times are shown in: the streamer's (the machine's when not given). */
+  timeZone(): string | undefined {
+    return this.options.timeZone?.();
+  }
+
   /** Other names the bot is called in this room, which mean it too. */
   aliases(): readonly string[] {
     return this.options.aliases?.() ?? [];
@@ -142,6 +149,7 @@ export class RoomState {
       gifts: this.options.gifts?.recent(this.now()),
       transcript: this.recentTranscript(),
       now: this.now(),
+      timeZone: this.timeZone(),
       chatDir,
       persona: this.persona,
       botName: this.botName,

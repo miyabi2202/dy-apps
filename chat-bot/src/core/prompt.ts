@@ -1,4 +1,4 @@
-import { clock, localDate } from './local-time';
+import { clock, localDate, timeZoneName } from './local-time';
 import type { GiftLine } from './recent-gifts';
 import type { ChatLine } from './room-events';
 import type { Wording } from './wording';
@@ -16,6 +16,8 @@ export interface RoomPromptInput {
   transcript: readonly TranscriptLine[];
   /** The current time, ms since the epoch. */
   now: number;
+  /** The time zone every time in the prompt is in (the streamer's; the machine's when unset). */
+  timeZone?: string;
   /** The folder of the room's chat record files. */
   chatDir?: string;
   /** Who the bot plays, as admins set it. */
@@ -125,7 +127,7 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
  * mention's sender and text, `{{asked}}` the two as a line saying they @ed the bot (or, when
  * `unprompted`, that it heard them talk to or about it), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
  * most the answer may use over several, `{{now}}` the time, `{{today}}` the date and weekday
- * (`2026-10-20 星期二`), `{{chatDir}}` the folder of chat
+ * (`2026-10-20 星期二`), both in the room's time zone, `{{timeZone}}` that zone's name (北京时间), `{{chatDir}}` the folder of chat
  * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{aliases}}` a line saying the room's other names for the bot mean it too (empty without any), `{{botName}}`
  * the bot's own nickname, `{{context}}` the room's background under a heading (empty
  * without one), `{{intro}}` what the bot says about itself, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
@@ -144,7 +146,7 @@ export function buildPrompt(template: string, input: PromptInput): string {
       transcript
         .map((line) => {
           const marks = `${isGuest(line) ? '（连线）' : ''}${isSung(line) ? '（唱）' : ''}`;
-          return `${clock(line.start)} ${marks}${line.text}`;
+          return `${clock(line.start, input.timeZone)} ${marks}${line.text}`;
         })
         .join('\n') || '（暂无）',
     asker,
@@ -159,8 +161,9 @@ export function buildPrompt(template: string, input: PromptInput): string {
     ),
     singleLength: String(singleLength),
     maxLength: String(maxLength),
-    now: clock(now),
-    today: localDate(now),
+    now: clock(now, input.timeZone),
+    today: localDate(now, input.timeZone),
+    timeZone: timeZoneName(input.timeZone),
     chatDir: chatDir ?? '（无）',
     persona: persona ? `你的人设是${persona}` : '',
     aliases: input.aliases?.length

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Log, OnSingConfig } from '../app/ports';
 import { errorMessage } from '../core/errors';
+import { DEFAULT_TIME_ZONE, isTimeZone } from '../core/local-time';
 import { SETTING_DEFAULTS, settingsFrom, type Settings } from '../core/settings';
 import { wordingOf, type Wording } from '../core/wording';
 import { writeTextAtomic } from './atomic-file';
@@ -28,6 +29,11 @@ export interface RoomConfig extends Settings {
   onSing?: OnSingConfig;
   /** Other names viewers and the streamer call the bot (`aliases`), as speech recognition may write them. */
   aliases: string[];
+  /**
+   * Where the streamer is (`timeZone`, an IANA name like `Asia/Shanghai`): every time the models
+   * and the records show is in it. Beijing time when not known.
+   */
+  timeZone: string;
 }
 
 /** The room's streamer, which the bot writes into `room_config.json` once it knows. */
@@ -36,10 +42,20 @@ export interface Streamer {
   nickname: string;
 }
 
-const DEFAULT_ROOM_CONFIG: RoomConfig = { private: false, aliases: [], ...SETTING_DEFAULTS };
+const DEFAULT_ROOM_CONFIG: RoomConfig = {
+  private: false,
+  aliases: [],
+  timeZone: DEFAULT_TIME_ZONE,
+  ...SETTING_DEFAULTS,
+};
 
 /** Every field a room's room_config.json is filled in with (see fillRoomConfig), and its default. */
-const ROOM_FIELDS = { private: false, aliases: [], ...SETTING_DEFAULTS };
+const ROOM_FIELDS = {
+  private: false,
+  aliases: [],
+  timeZone: DEFAULT_TIME_ZONE,
+  ...SETTING_DEFAULTS,
+};
 
 /**
  * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and `wallet.json`): an
@@ -116,6 +132,7 @@ export function roomConfigFile(
       private: isPrivate,
       ...(onSing && { onSing }),
       aliases: field('aliases', () => aliasList(raw.aliases), config.aliases),
+      timeZone: field('timeZone', () => timeZoneOf(raw.timeZone), config.timeZone),
       ...settingsFrom(raw, config, problems),
     };
     if (problems.length)
@@ -203,6 +220,15 @@ export function fillRoomConfig(
   }
   if (Object.keys(filled).length === Object.keys(raw).length) return;
   write(path, `${JSON.stringify(filled, null, 2)}\n`);
+}
+
+/** `timeZone` as a time zone this machine knows (Beijing time when absent), or an error. */
+function timeZoneOf(raw: unknown): string {
+  if (raw === undefined) return DEFAULT_TIME_ZONE;
+  if (typeof raw !== 'string' || !isTimeZone(raw)) {
+    throw new Error('timeZone must be a time zone like "Asia/Shanghai" or "America/New_York"');
+  }
+  return raw;
 }
 
 /** `aliases` as a list of names (none when absent), or an error saying what's wrong with it. */

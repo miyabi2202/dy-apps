@@ -30,13 +30,28 @@ test('room_config.json starts not private, and is read again as it changes', () 
   expect(JSON.parse(readFileSync(config, 'utf8'))).toEqual({ private: false });
   const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
   const roomConfig = liveRoomConfig(config, { log });
-  expect(roomConfig()).toEqual({ private: false, aliases: [], ...SETTING_DEFAULTS });
+  expect(roomConfig()).toEqual({
+    private: false,
+    aliases: [],
+    timeZone: 'Asia/Shanghai',
+    ...SETTING_DEFAULTS,
+  });
 
   writeFileSync(config, '{ "private": true }');
-  expect(roomConfig()).toEqual({ private: true, aliases: [], ...SETTING_DEFAULTS });
+  expect(roomConfig()).toEqual({
+    private: true,
+    aliases: [],
+    timeZone: 'Asia/Shanghai',
+    ...SETTING_DEFAULTS,
+  });
 
   writeFileSync(config, '{ "private": "yes" }');
-  expect(roomConfig()).toEqual({ private: true, aliases: [], ...SETTING_DEFAULTS });
+  expect(roomConfig()).toEqual({
+    private: true,
+    aliases: [],
+    timeZone: 'Asia/Shanghai',
+    ...SETTING_DEFAULTS,
+  });
   expect(log.warn).toHaveBeenCalled();
 
   writeFileSync(config, '{ "on_sing": { "message": "缇娅 缇娅", "probability": 0.67 } }');
@@ -44,6 +59,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
     aliases: [],
+    timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
   });
 
@@ -52,6 +68,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
     aliases: [],
+    timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
   });
 });
@@ -68,6 +85,7 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
   expect(liveRoomConfig(config, { log })()).toEqual({
     private: true,
     aliases: [],
+    timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
   });
 

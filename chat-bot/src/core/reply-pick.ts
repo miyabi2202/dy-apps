@@ -70,11 +70,12 @@ export function pickLines(
   pickable: (line: RoomLine) => boolean,
   about: ReadonlySet<RoomLine>,
   matches: (line: RoomLine) => readonly string[] = () => [],
+  timeZone?: string,
 ): { text: string; numbered: RoomLine[] } {
   const numbered: RoomLine[] = [];
   const text = lines
     .map((line) => {
-      const said = `${clock(line.ts)} [${line.who}] ${line.text}`;
+      const said = `${clock(line.ts, timeZone)} [${line.who}] ${line.text}`;
       if (!pickable(line)) return `     ${said}`;
       numbered.push(line);
       const ids = matches(line);

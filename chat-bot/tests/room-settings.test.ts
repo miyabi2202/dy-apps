@@ -48,6 +48,7 @@ test('fills in the fields a room_config.json lacks with their defaults, and keep
     streamer: { nickname: '雅', uid: '7' },
     mentionCost: 3,
     aliases: [],
+    timeZone: 'Asia/Shanghai',
     autoReplyThreshold: 1,
     autoReplyIntervalSeconds: 60,
     thanksThreshold: 99999,
@@ -314,4 +315,16 @@ test('a setting given on the command line that is not a number, 0 or more, is re
   expect(parseCliOptions([...args, '--cost', 'abc'], '/pkg')).toBeNull();
   expect(parseCliOptions([...args, '--auto-reply-threshold=-1'], '/pkg')).toBeNull();
   expect(parseCliOptions([...args, '--cost', '2'], '/pkg')?.given).toEqual({ mentionCost: 2 });
+});
+
+test('room_config.json says where the streamer is: Beijing time when it does not, a bad zone kept as it was', () => {
+  const file = memoryFile('{ "timeZone": "Asia/Tokyo" }\n');
+  const { log, messages } = recordingLog();
+  const config = roomConfigFile('room_config.json', { log, ...file });
+  expect(config.get().timeZone).toBe('Asia/Tokyo');
+  file.state.text = '{ "timeZone": "Mars/Olympus" }\n';
+  expect(config.get().timeZone).toBe('Asia/Tokyo');
+  expect(messages('room_config.json has bad values, keeping their last ones')).toHaveLength(1);
+  file.state.text = '{}\n';
+  expect(config.get().timeZone).toBe('Asia/Shanghai');
 });
