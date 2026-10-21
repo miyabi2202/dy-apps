@@ -29,7 +29,7 @@ frontend/                 # @dy-apps/frontend: the one package
       integration-tests/  #     Playwright specs, against the site's production build
     services/             #   imported as `@dy-apps/services`: shared non-UI code
       demo-source.ts      #     fake or live source, the fake interval and `?demo=` in OBS links
-      room-feed.ts            #     the site's room-feed bits: the port hint, the guide's route, status text
+      room-feed.ts        #     the site's room-feed bits: the port hint, the guide's route, status text
       fake-messages.ts    #     made-up viewers, chat and gifts for previews
       like-batcher.ts     #     LikeBatcher: one total per viewer once they stop liking
       live-message.ts     #     DanmakuMessage, and room-feed events turned into messages
@@ -85,7 +85,7 @@ pnpm-lock.yaml
 The site's Vite build (`frontend/config/vite.config.ts`) splits output so each page downloads only what it needs:
 
 - **One chunk per app** (`app-<name>-*.js`), loaded by React Router's route `lazy` only when its path is visited. The index imports just each app's `meta`, not its code.
-- **One `lib` chunk** for the first-party shared libraries (`ui` and `services`), so an app never has to download another app's chunk to get shared code.
+- **One `lib` chunk** for the first-party shared libraries (`ui`, `services` and `room-feed-protocol`), so an app never has to download another app's chunk to get shared code.
 - **Long-lived vendor chunks**: `react` (React, ReactDOM, React Router) and `stylex` (StyleX runtime). They change only on dependency upgrades, so browsers keep them cached across deploys.
 - **CSS is one file.** StyleX compiles every component's styles into shared atomic classes in a single stylesheet, so it isn't split per app; it's small and hashed for long-term caching.
 
@@ -107,7 +107,7 @@ It needs Chrome installed (`--chrome <path>` when it isn't found). Gifts only ar
 | `ws://…/ws?roomId=<id>&types=…`  | events (`chat`, `gift`, `like`) and `__connecting` / `__connected` status frames  |
 | `GET /api/rooms/<id>`            | status, the streamer (`meta.uid`, from the room page) and the login's `expiresAt` |
 | `POST /api/rooms/<id>/chat`      | `{ text }`: send a chat as the logged-in account; `echoed` once it came back      |
-| `GET /api/rooms/<id>/stream`     | the FLV URL the page's player pulls (the bot's speech recognition)                |
+| `GET /api/rooms/<id>/stream`     | the FLV or HLS URL the page's player pulls (the bot's speech recognition)         |
 | `GET /api/rooms/<id>/screenshot` | the player as a JPEG                                                              |
 
 Every shape here is a type in [`room-feed-protocol/`](room-feed-protocol) (`@dy-apps/room-feed-protocol`), along with the client that reads them (`RoomFeedClient`, `GiftCounter`, `parsePort`, `roomIdFrom`): room-feed sends them, and the site and the chat bot read them through it.
@@ -156,7 +156,7 @@ The site, apps and shared libraries share one `package.json`, `tsconfig.json` an
 - an app imports another app, or the site
 - `ui` or `services` imports an app or the site
 - `services` imports `ui`
-- in `chat-bot/src`, `core` imports `app` or `adapters`; `app` imports `adapters`; `adapters` imports from `app` anything but `ports.ts`; `app/ports.ts` imports another `app` module; any of them imports `main.ts`, `cli-options.ts` or `wiring/`; or two modules there import each other (`import-x/no-cycle`, which doesn't count type-only imports). `core` and `app` may not import `node:*`, `@dy-apps/services` or `winston` either (`@typescript-eslint/no-restricted-imports`): only adapters and the entry touch the outside world
+- in `chat-bot/src`, `core` imports `app` or `adapters`; `app` imports `adapters`; `adapters` imports from `app` anything but `ports.ts`; `app/ports.ts` imports another `app` module; any of them imports `main.ts`, `cli-options.ts` or `wiring/`; or two modules there import each other (`import-x/no-cycle`, which doesn't count type-only imports). `core` and `app` may not import `node:*`, `@dy-apps/room-feed-protocol` or `winston` either (`@typescript-eslint/no-restricted-imports`): only adapters and the entry touch the outside world
 
 Apps import the shared libraries by name, `@dy-apps/ui` and `@dy-apps/services`. Those names come from `frontend/config/aliases.js`, which Vite, StyleX, Jest and Storybook read; `paths` in `frontend/tsconfig.json` repeats them for TypeScript.
 

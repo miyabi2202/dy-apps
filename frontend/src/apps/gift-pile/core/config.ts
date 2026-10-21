@@ -36,7 +36,7 @@ export interface PileSettings {
   friction: number;
   /**
    * Pixels per metre handed to the physics engine. Its tolerances and its speed cap are in
-   * metres, so an icon's collision circle is made about half a metre across: pixels straight
+   * metres, so an icon's collision circle is made 0.75 m across: pixels straight
    * in made every fall crawl.
    */
   pxPerMetre: number;

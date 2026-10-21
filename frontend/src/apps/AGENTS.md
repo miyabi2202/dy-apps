@@ -10,7 +10,7 @@ When you build or change an app, keep it heading there:
 
 - **An OBS view.** One URL shows just what goes on stream: no editor controls, and a transparent background where the app is an overlay. `apps/danmaku` does this with `?obs=1`.
 - **Settings in the URL.** The streamer sets the app up in a normal tab, then copies a link into OBS. That link carries the settings, so the OBS source looks the same without anyone configuring it inside OBS.
-- **Live events from room-feed.** Chat and gifts come through `@dy-apps/services` from room-feed on `localhost` (see the [README](../../../README.md#room-feed-live-room-events)).
+- **Live events from room-feed.** Chat and gifts come through `@dy-apps/room-feed-protocol` from room-feed on `localhost` (see the [README](../../../README.md#room-feed-live-room-events)).
 - **A demo mode.** It can be previewed without a live room, like danmaku's `?demo=<ms>`.
 
 `apps/room-feed-guide` isn't an OBS app; it's the tutorial that helps streamers install room-feed.

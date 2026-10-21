@@ -7,9 +7,9 @@ import { spin } from './spin';
 import type { CurseDef } from './types';
 
 /**
- * Every curse, in settlement order; each key matches its curse's `type`. A gift draws one of
- * the engine's curses uniformly; adding a curse here adds it to the default list, the rules
- * text and the panels.
+ * Every curse, in settlement order; each key matches its curse's `type`. A gift draws among
+ * the engine's curses by rarity (gifts.ts); adding a curse here adds it to the default list,
+ * the rules text and the panels.
  */
 const registry = {
   garbage,

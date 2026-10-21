@@ -24,11 +24,12 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   name: string;
   /** Rules text; gets CONFIG so numbers are never typed twice. */
   description(config: typeof CONFIG): string;
-  /** How often it should come up. Gift drawing does not read this yet. */
+  /** How often it comes up: gifts draw by its weight (gifts.ts). */
   rarity: Rarity;
   /**
    * The settlement queue it belongs to. Each settlement fires at most one pending curse per
-   * queue, the first in pool order; the rest of that queue waits. A curse in a queue of its own
+   * queue, taking turns (the next in pool order after the one that fired last); the rest of that
+   * queue waits. A curse in a queue of its own
    * never has to wait for others.
    */
   queue: string;

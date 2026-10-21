@@ -17,7 +17,7 @@ A frame is taken in on its message, not at the next display frame, because the r
 
 `PileState` keeps the resting icons in typed arrays in order of settling, each with its slot, and the latest two frames. It answers where an icon is (`peek`), takes one out (`take`), finds the top of the pile (`topAt`, `profile`, `highestTop`) and the icon under a point (`iconAt`). It also keeps a journal of what left the resting set (the slot, the last slot then, the icon moved in to fill it, and where it was), which is how the renderer's buffer follows the set without ever comparing with it.
 
-Two engine settings matter (`core/config.ts`). The world is handed to Rapier in metres with an icon 1 m across (`pxPerMetre`), because Rapier's tolerances and speed cap are in metres and pixel units made every fall crawl. And `contactHz` raises contact stiffness from Rapier's default of 30 to 120, without which a fast stream sank icons into each other by most of a radius.
+Two engine settings matter (`core/config.ts`). The world is handed to Rapier in metres with an icon 1.5 m across (`pxPerMetre`), because Rapier's tolerances and speed cap are in metres and pixel units made every fall crawl. And `contactHz` raises contact stiffness from Rapier's default of 30 to 120, without which a fast stream sank icons into each other by most of a radius.
 
 ## Drawing
 

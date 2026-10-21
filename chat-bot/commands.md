@@ -1,6 +1,6 @@
 # Chat bot commands
 
-A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改收费 2` or `@默认关闭 /修改收费 2`. The space before the argument can be an ASCII or a full-width one (`　`). Admins are the user ids in `chat-bot/config.json`, read again whenever it changes.
+A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改收费 2` or `@默认关闭 /修改收费 2`. The space before the argument can be an ASCII or a full-width one (`　`). Admins are the user ids in `chat-bot/config.json`, read again whenever it changes, and the room's streamer once room-feed tells who that is.
 
 ## The commands
 
@@ -190,7 +190,7 @@ Watches the chat for malicious messages (insults, attacks on looks or age, and s
 
 ## How a command is handled
 
-`ChatBot` (`src/app/chat-bot.ts`) parses the mention (`src/core/command.ts`), then:
+`ChatBot` (`src/app/chat-bot.ts`) parses the mention (`src/core/command.ts`) and hands it to `CommandRunner` (`src/app/command-runner.ts`), which:
 
 1. **Who may run it.** A command that doesn't exist, or is admin-only and the asker isn't an admin, is ignored, unless the asker has commands they may run, in which case the bot lists them: `没有指令「x」，可用的有：…`.
 2. **Charge.** Admins never pay. Anyone else pays the command's `price`, or a mention's price when it has none. Someone who can't pay gets the low-balance notice (at most once a minute), and their call waits: a gift from them within 5 minutes pays for it and runs it at once.
@@ -211,6 +211,7 @@ Each feature offers its own commands, and `src/wiring/bot.ts` hands them all to 
 | 修改人设, 截图             | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
 | 修改收费                   | `Billing.commands()` in `src/app/billing.ts`                                           |
 | 自动回复阈值, 自动回复间隔 | `AutoReply.commands()` in `src/app/auto-reply.ts`                                      |
+| 最大回复条数               | `MentionAnswerer.commands()` in `src/app/mention-answerer.ts`                          |
 | 自动谢礼                   | `GiftThanker.commands()` in `src/app/gift-thanker.ts`                                  |
 | 识歌                       | `SongId.commands()` in `src/app/song-id.ts`                                            |
 | 识别背景音乐               | `musicCommand` in `src/app/music-command.ts`, which asks `Transcriber.identifyMusic()` |

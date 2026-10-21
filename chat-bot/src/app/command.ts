@@ -13,8 +13,8 @@ export interface CommandResult {
 /**
  * Something viewers can tell the bot to do, as `@机器人/<name> <args>`: either `run` it, or ask
  * Claude with its own `prompt` (the args as the question), answered like a mention. Each feature
- * offers its own (`AutoReply.commands()`, `Billing.commands()`, …) and main.ts hands them all to
- * the ChatBot.
+ * offers its own (`AutoReply.commands()`, `Billing.commands()`, …), and the container's
+ * `COMMANDS` (wiring/bot.ts) hands them all to the ChatBot.
  */
 export type Command = {
   name: string;
