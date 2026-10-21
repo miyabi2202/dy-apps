@@ -112,6 +112,10 @@ message LikeMessage {
   uint64 total = 3;
   User user = 5;
 }
+// Every body starts with Common: decoding just it gives any message's room.
+message Envelope {
+  Common common = 1;
+}
 message Common {
   string method = 1;
   uint64 msgId = 2;
@@ -246,6 +250,17 @@ export function decodeMessageBody(msg: RawProtoMessage): DecodedMessage | null {
     return { method: msg.method, msgId: msg.msgId, body: lookup(typeName).decode(msg.payload) };
   } catch {
     return null;
+  }
+}
+
+/** The internal room id (not the web one in the URL) the message is for; '' when it has none. */
+export function messageRoomId(msg: RawProtoMessage): string {
+  try {
+    const body = lookup('Envelope').decode(msg.payload) as any;
+    const id = longToStr(body.common?.roomId);
+    return id === '0' ? '' : id;
+  } catch {
+    return '';
   }
 }
 

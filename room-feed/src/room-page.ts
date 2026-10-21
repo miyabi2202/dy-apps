@@ -2,10 +2,11 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { BROWSER_ARGS, hideAutomation, USER_AGENT } from './chrome';
-import { decodeFrame, type RawProtoMessage } from './douyin/proto';
+import { decodeFrame, messageRoomId, type RawProtoMessage } from './douyin/proto';
 import type { RoomMeta } from '@dy-apps/room-feed-protocol';
 import { parseRoomMeta } from './douyin/room-meta';
 import { browserCookies } from './login-file';
+import { RoomEndedError } from './room';
 
 /** What a room page tells the Room. */
 export interface RoomPageHandlers {
@@ -13,6 +14,11 @@ export interface RoomPageHandlers {
   onPush(messages: RawProtoMessage[]): void;
   /** The chat connection or the page itself went away; called once, never after `close()`. */
   onClosed(why: string): void;
+  /**
+   * The page shows another room now (Douyin moved it to one it recommends): what comes in isn't
+   * this room's, so room-feed should stop rather than reopen. Called once, instead of `onClosed`.
+   */
+  onWrongRoom(why: string): void;
 }
 
 /** The live room open in Chrome: Douyin's page does the signing, we only watch and type. */
@@ -36,19 +42,46 @@ const CHAT_INPUT = '[data-e2e="live-chatting"] [data-slate-editor="true"][conten
 /** The player's stream request: FLV or HLS. */
 const STREAM_URL = /^https?:\/\/[^/]+\/.+\.(flv|m3u8)(\?|$)/;
 
-/** The part of webcast/room/web/enter/'s answer with the stream URLs. */
+/** The part of webcast/room/web/enter/'s answer we read. */
 interface EnterAnswer {
-  data?: { data?: { stream_url?: { flv_pull_url?: Record<string, string> } }[] };
+  data?: {
+    data?: {
+      id_str?: string;
+      status?: number;
+      stream_url?: { flv_pull_url?: Record<string, string> };
+    }[];
+  };
 }
 
-/** An FLV URL from webcast/room/web/enter/'s answer: the lowest quality, since all sound alike. */
-function flvUrlFromEnter(body: EnterAnswer): string | null {
-  const urls = body.data?.data?.[0]?.stream_url?.flv_pull_url;
+/** The room as webcast/room/web/enter/ tells it. */
+interface Entered {
+  /** The internal room id push messages carry (not the web one in the URL); '' if missing. */
+  innerRoomId: string;
+  /** The stream has ended, or not started: status 4 (2 is live). */
+  ended: boolean;
+  /** An FLV URL: the lowest quality, since all sound alike; null if none. */
+  flvUrl: string | null;
+}
+
+function readEnterAnswer(body: EnterAnswer): Entered | null {
+  const room = body.data?.data?.[0];
+  if (!room) return null;
+  return { innerRoomId: room.id_str ?? '', ended: room.status === 4, flvUrl: flvUrl(room) };
+}
+
+function flvUrl(room: NonNullable<NonNullable<EnterAnswer['data']>['data']>[number]) {
+  const urls = room.stream_url?.flv_pull_url;
   if (!urls) return null;
   for (const quality of ['SD2', 'SD1', 'HD1', 'FULL_HD1']) {
     if (urls[quality]) return urls[quality];
   }
   return Object.values(urls)[0] ?? null;
+}
+
+/** Whether an enter request is for room `roomId`: the page asks again for a room it moves to. */
+function isEnterOf(url: string, roomId: string): boolean {
+  if (!url.includes('/webcast/room/web/enter/')) return false;
+  return new URL(url).searchParams.get('web_rid') === roomId;
 }
 
 export interface ChromeOptions {
@@ -117,11 +150,14 @@ class LivePage implements RoomPage {
   private readonly pushSockets = new Set<string>();
   private closed = false;
   private requestedStream: string | null = null;
-  private enteredStream: string | null = null;
+  private entered: Entered | null = null;
+  private markEntered = () => {};
+  private readonly enteredOnce = new Promise<void>((resolve) => (this.markEntered = resolve));
   meta: RoomMeta | null = null;
 
   private constructor(
     private readonly page: Page,
+    private readonly roomId: string,
     private readonly handlers: RoomPageHandlers,
     private readonly shotsDir: string | undefined,
   ) {}
@@ -132,7 +168,7 @@ class LivePage implements RoomPage {
     handlers: RoomPageHandlers,
     shotsDir?: string,
   ): Promise<LivePage> {
-    const live = new LivePage(page, handlers, shotsDir);
+    const live = new LivePage(page, roomId, handlers, shotsDir);
     await live.watch();
     const response = await page.goto(`https://live.douyin.com/${roomId}`, {
       waitUntil: 'domcontentloaded',
@@ -147,7 +183,22 @@ class LivePage implements RoomPage {
     await page.waitForTimeout(2500);
     // A headless player starts, and the chat socket opens, only after a click.
     await page.mouse.click(720, 450).catch(() => {});
+    await live.checkLive();
     return live;
+  }
+
+  /**
+   * Throws RoomEndedError when the room isn't streaming, from the enter answer or, when that
+   * doesn't come, the page's 直播已结束.
+   */
+  private async checkLive(): Promise<void> {
+    await Promise.race([this.enteredOnce, this.page.waitForTimeout(15_000)]);
+    const ended =
+      this.entered?.ended ??
+      (await this.page
+        .evaluate(() => document.body.innerText.includes('直播已结束'))
+        .catch(() => false));
+    if (ended) throw new RoomEndedError('直播已结束');
   }
 
   /** Starts watching sockets and the stream URL, before the page loads. */
@@ -167,6 +218,14 @@ class LivePage implements RoomPage {
       }
       if (!frame.push) return;
       this.pushSockets.add(params.requestId);
+      // Until the enter answer is in, there's nothing to check against.
+      const expected = this.entered?.innerRoomId;
+      const other =
+        expected && frame.messages.map(messageRoomId).find((id) => id && id !== expected);
+      if (other) {
+        void this.wrongRoom(`收到了别的直播间（${other}）的弹幕，不是本直播间的（${expected}）`);
+        return;
+      }
       this.handlers.onPush(frame.messages);
     });
     cdp.on('Network.webSocketClosed', (params) => {
@@ -185,11 +244,14 @@ class LivePage implements RoomPage {
       if (STREAM_URL.test(req.url())) this.requestedStream = req.url();
     });
     this.page.on('response', (res) => {
-      if (!res.url().includes('/webcast/room/web/enter/')) return;
+      if (!isEnterOf(res.url(), this.roomId)) return;
       res
         .json()
         .then((body: EnterAnswer) => {
-          this.enteredStream = flvUrlFromEnter(body ?? {}) ?? this.enteredStream;
+          const entered = readEnterAnswer(body ?? {});
+          if (!entered) return;
+          this.entered = { ...entered, flvUrl: entered.flvUrl ?? this.entered?.flvUrl ?? null };
+          this.markEntered();
         })
         .catch(() => {});
     });
@@ -201,8 +263,16 @@ class LivePage implements RoomPage {
     this.handlers.onClosed(why);
   }
 
+  /** Keeps the page's address and a picture of it in the reason, to see where Douyin took it. */
+  private async wrongRoom(why: string): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    const shot = await this.saveShot('wrong-room').catch(() => null);
+    this.handlers.onWrongRoom(`${why}，页面在 ${this.page.url()}${shot ? `，截图：${shot}` : ''}`);
+  }
+
   streamUrl(): string | null {
-    return this.requestedStream ?? this.enteredStream;
+    return this.requestedStream ?? this.entered?.flvUrl ?? null;
   }
 
   /** Sent once the box is empty after Enter; whether Douyin took it, the caller sees from the echo. */

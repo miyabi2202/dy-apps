@@ -1,7 +1,7 @@
 import protobuf from 'protobufjs';
 import type { RawProtoMessage } from '../src/douyin/proto';
 import type { RoomEvent, RoomStatus } from '@dy-apps/room-feed-protocol';
-import { Room, RoomError } from '../src/room';
+import { Room, RoomEndedError, RoomError } from '../src/room';
 import type { RoomPage, RoomPageHandlers } from '../src/room-page';
 
 /** A clock that runs scheduled callbacks only when told to. */
@@ -81,17 +81,22 @@ function chat(msgId: string, content: string): RawProtoMessage {
   return { method: 'WebcastChatMessage', msgId, payload };
 }
 
-function setup() {
+function setup({ ended = false } = {}) {
   const clock = new FakeClock();
   const pages: FakePage[] = [];
   const log: string[] = [];
+  const gone: string[] = [];
+  let opens = 0;
   const room = new Room({
     roomId: '123',
     open: (_roomId, handlers) => {
+      opens++;
+      if (ended) return Promise.reject(new RoomEndedError('直播已结束'));
       const page = new FakePage(handlers);
       pages.push(page);
       return Promise.resolve(page);
     },
+    onGone: (_why, kind) => gone.push(kind),
     schedule: clock.schedule,
     now: clock.now,
     log: (line) => log.push(line),
@@ -104,7 +109,7 @@ function setup() {
   const statuses: RoomStatus[] = [];
   room.onEvent((event) => events.push(event));
   room.onStatus((status) => statuses.push(status));
-  return { clock, pages, room, events, statuses, log };
+  return { clock, pages, room, events, statuses, log, gone, opens: () => opens };
 }
 
 describe('Room', () => {
@@ -150,6 +155,31 @@ describe('Room', () => {
     pages[2]!.handlers.onClosed('弹幕连接断开');
     await clock.advance(5_000);
     expect(pages).toHaveLength(4);
+  });
+
+  it('stops for good when the stream has ended', async () => {
+    const { clock, room, gone, opens } = setup({ ended: true });
+    room.start();
+    await clock.advance(0);
+    expect(gone).toEqual(['ended']);
+
+    await clock.advance(10 * 60_000);
+    expect(opens()).toBe(1);
+  });
+
+  it('stops for good when the page shows another room', async () => {
+    const { clock, pages, room, gone, statuses } = setup();
+    room.start();
+    await clock.advance(0);
+    pages[0]!.handlers.onPush([]);
+    pages[0]!.handlers.onWrongRoom('收到了别的直播间的弹幕');
+    await clock.advance(0);
+
+    expect(gone).toEqual(['wrongRoom']);
+    expect(pages[0]!.closed).toBe(true);
+    expect(statuses).toEqual(['live']);
+    await clock.advance(10 * 60_000);
+    expect(pages).toHaveLength(1);
   });
 
   it('ignores an old page once it has been replaced', async () => {

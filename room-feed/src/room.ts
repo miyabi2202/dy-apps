@@ -13,6 +13,9 @@ export class RoomError extends Error {
   }
 }
 
+/** What a room page's open throws when the stream has ended (or not started): nothing to wait for. */
+export class RoomEndedError extends Error {}
+
 /** Cancels what `schedule` set up. */
 type Cancel = () => void;
 
@@ -23,6 +26,11 @@ export interface RoomOptions {
   schedule?: (run: () => void, ms: number) => Cancel;
   now?: () => number;
   log?: (line: string) => void;
+  /**
+   * Called once when the room stops for good: its stream has ended (`ended`), or the page showed
+   * another room (`wrongRoom`). room-feed exits then, instead of reopening.
+   */
+  onGone?: (why: string, kind: 'ended' | 'wrongRoom') => void;
   /** Reload the page when no push frame came this long after opening it (the room isn't live). */
   liveTimeoutMs?: number;
   /** Waits before reopening, one per failure in a row; the last repeats. */
@@ -65,6 +73,7 @@ export class Room {
   private readonly schedule: NonNullable<RoomOptions['schedule']>;
   private readonly now: () => number;
   private readonly log: (line: string) => void;
+  private readonly onGone: NonNullable<RoomOptions['onGone']>;
   private readonly liveTimeoutMs: number;
   private readonly retryMs: readonly number[];
   private readonly chatIntervalMs: number;
@@ -90,6 +99,7 @@ export class Room {
     this.schedule = options.schedule ?? defaultSchedule;
     this.now = options.now ?? Date.now;
     this.log = options.log ?? console.log;
+    this.onGone = options.onGone ?? (() => {});
     this.liveTimeoutMs = options.liveTimeoutMs ?? 60_000;
     this.retryMs = options.retryMs ?? [5_000, 15_000, 30_000, 60_000];
     this.chatIntervalMs = options.chatIntervalMs ?? 3_000;
@@ -186,9 +196,14 @@ export class Room {
           // Before the open returns, the failed open itself reports it.
           if (current() && this.page) this.reopen(why);
         },
+        onWrongRoom: (why) => {
+          if (current()) void this.end(why, 'wrongRoom');
+        },
       });
     } catch (e) {
-      if (current()) this.reopen(`打不开直播间页面：${e instanceof Error ? e.message : String(e)}`);
+      if (!current()) return;
+      if (e instanceof RoomEndedError) void this.end(e.message, 'ended');
+      else this.reopen(`打不开直播间页面：${e instanceof Error ? e.message : String(e)}`);
       return;
     }
     if (!current()) {
@@ -216,6 +231,12 @@ export class Room {
     this.failures++;
     this.log(`[room-feed] ${why}，${Math.round(delay / 1000)} 秒后重新打开直播间`);
     this.cancelTimer = this.schedule(() => void this.connect(), delay);
+  }
+
+  private async end(why: string, kind: 'ended' | 'wrongRoom'): Promise<void> {
+    this.log(`[room-feed] ${why}，不再重新打开直播间`);
+    await this.stop();
+    this.onGone(why, kind);
   }
 
   private receive(messages: RawProtoMessage[]): void {

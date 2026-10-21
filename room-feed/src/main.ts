@@ -54,7 +54,14 @@ async function main(): Promise<number> {
     cookie: () => loginFile.read()?.cookie ?? null,
     shotsDir: join(DATA_DIR, 'screenshots'),
   });
-  const room = new Room({ roomId: options.roomId, open: chromeRooms.open });
+  // Exit code 0 on a signal or when the stream has ended, 1 when the page showed another room.
+  let gone: (code: number) => void = () => {};
+  const stopped = new Promise<number>((resolve) => (gone = resolve));
+  const room = new Room({
+    roomId: options.roomId,
+    open: chromeRooms.open,
+    onGone: (_why, kind) => gone(kind === 'ended' ? 0 : 1),
+  });
   const feed = createRoomFeedServer(room, { login: () => loginFile.read() });
 
   try {
@@ -75,15 +82,14 @@ async function main(): Promise<number> {
   console.log(`[room-feed] 事件流：ws://localhost:${options.port}/ws?roomId=${options.roomId}`);
   room.start();
 
-  await new Promise<void>((resolve) => {
-    process.once('SIGINT', resolve);
-    process.once('SIGTERM', resolve);
-  });
+  process.once('SIGINT', () => gone(0));
+  process.once('SIGTERM', () => gone(0));
+  const code = await stopped;
   console.log('\n[room-feed] 正在关闭…');
   await feed.close();
   await room.stop();
   await chromeRooms.close();
-  return 0;
+  return code;
 }
 
 main().then(
