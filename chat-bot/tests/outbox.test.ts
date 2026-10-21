@@ -108,3 +108,40 @@ test('a fourth notice within a minute drops the waiting ones, tells the room onc
   // 乙 and 丙 were waiting and 丁 was one too many; 戊 came while muted, 己 just after.
   expect(sent).toEqual(['@甲 送礼', '回答', '想让我回你的，要先送礼', '@己 送礼']);
 });
+
+test("never sends a message with a forbidden word: it fails at once, and the next one doesn't wait for it", async () => {
+  let now = 0;
+  const sentAt: [string, number][] = [];
+  const failed: string[] = [];
+  let words = ['编制'];
+  const outbox = new Outbox({
+    send: (text) => {
+      sentAt.push([text, now]);
+      return Promise.resolve({ echoed: true });
+    },
+    log: silentLog,
+    intervalMs: 10_000,
+    forbiddenWords: () => words,
+    now: () => now,
+    sleep: (ms) => {
+      now += ms;
+      return Promise.resolve();
+    },
+  });
+  outbox.push({ kind: 'reply', text: '一' });
+  outbox.push({ kind: 'reply', text: '我的编制在这', onFailed: () => failed.push('编制') });
+  outbox.push({ kind: 'reply', text: '二' });
+  await outbox.idle();
+
+  expect(sentAt).toEqual([
+    ['一', 0],
+    ['二', 10_000],
+  ]);
+  expect(failed).toEqual(['编制']);
+
+  // The list is read each time.
+  words = [];
+  outbox.push({ kind: 'reply', text: '编制' });
+  await outbox.idle();
+  expect(sentAt.at(-1)?.[0]).toBe('编制');
+});

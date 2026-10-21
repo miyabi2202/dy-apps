@@ -1,4 +1,5 @@
 import { mkdirSync } from 'node:fs';
+import { forbiddenWordsOf } from '../core/forbidden';
 import { join, resolve } from 'node:path';
 import { ChatLog } from '../adapters/chat-log-files';
 import { liveAdmins, readConfig } from '../adapters/config-file';
@@ -42,6 +43,7 @@ import {
   OUTBOX,
   PACKAGE_DIR,
   PROMPTS_DIR,
+  FORBIDDEN_WORDS,
   PROMPT,
   RECORD,
   ROOM,
@@ -158,6 +160,12 @@ export function registerRoom(container: Container): void {
         streamerNames: () => roomConfig().streamerNames,
       });
     })
+    // Words Douyin holds back a message for: every prompt that writes chat is told them, and the
+    // outbox won't send one with them. Read on every use, so an edit applies at once.
+    .register(FORBIDDEN_WORDS, (c) => {
+      const read = liveText(join(c.resolve(PROMPTS_DIR), 'forbidden-words.md'));
+      return () => forbiddenWordsOf(read());
+    })
     // The prompts are shared by every room, a room's own file overrides one (see PROMPT_FILES);
     // all read on every use so edits apply while it runs.
     .register(PROMPT, (c) => {
@@ -181,6 +189,7 @@ export function registerRoom(container: Container): void {
       const roomConfig = c.resolve(ROOM_CONFIG);
       const room = new RoomState({
         history: c.resolve(HISTORY),
+        forbiddenWords: c.resolve(FORBIDDEN_WORDS),
         gifts,
         transcript: c.resolve(TRANSCRIPT),
         transcriptMs: options.transcriptMs,
@@ -235,6 +244,7 @@ export function registerRoom(container: Container): void {
         send: c.resolve(ROOM_API).sendChat,
         log: c.resolve(LOG),
         intervalMs: c.resolve(OPTIONS).sendIntervalMs,
+        forbiddenWords: c.resolve(FORBIDDEN_WORDS),
         onSent: ({ text }) => botTalk.add(text),
         // More than 3 「要先给主播送礼」 in a minute looks like spam: the room is told once,
         // without an @, and no more for 5 minutes (those who gift are still answered).

@@ -23,6 +23,8 @@
 
 按要求的 JSON 格式回答，`message` 是要发送的弹幕：一条说完，{{singleLength}} 个字以内；歌名用《》，不要附原唱以外的解释，不要用 Markdown，不要在开头写对方的名字（会自动加上 @）。
 
+{{forbiddenWords}}
+
 {{context}}
 
 {{file:artifacts/songs.txt}}

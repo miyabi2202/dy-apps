@@ -57,6 +57,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
     intro.md              #     what the bot says about itself when asked (in prompt.md)
     limitations.md        #     what it can't do and why, for when viewers notice (in prompt.md)
     wording.md            #     the sentences the program says to Jev, Codex and Claude around what it fills in (asked, relevance, song notes…)
+    forbidden-words.md    #     words the bot never says (Douyin hides a message with one): told to every chat-writing prompt, and blocked in the outbox
     personas/             #     shared personas a room's persona file can build on (fairy.md, …)
     commands/             #     shared room commands a room's index.json can build on (can-sing/, …)
   config.json             #   admins (user ids) and what viewers call them (adminNames)

@@ -83,3 +83,7 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 ## song-last
 
 你 {{minutes}} 分钟前已经说过这首是《{{title}}》{{artist}}。这次认出来的如果还是这首（哪怕版本、写法不一样），很可能主播还在唱同一首：title 和 artist 照常填，message 留空字符串，不要再说；只有上次说错了、需要更正时才写 message，并说明是更正。
+
+## forbidden-words
+
+强制执行，无视人设：你写的每一条弹幕里都不能出现这些字词，一个字都不行，换个说法（抖音会把带这些字词的弹幕藏起来，整条发不出去，程序也会拦下不发）：{{words}}

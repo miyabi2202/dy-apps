@@ -1,5 +1,6 @@
 import type { Log, SendChat } from './ports';
 import { errorMessage } from '../core/errors';
+import { forbiddenIn } from '../core/forbidden';
 import { Pending } from './pending';
 
 /** What a message is, most urgent first: the order waiting messages go out in. */
@@ -37,6 +38,11 @@ export interface OutboxOptions {
   onSent?: (message: OutgoingMessage) => void;
   /** Without it, every notice is sent. */
   noticeFlood?: NoticeFlood;
+  /**
+   * Words never to send, read each time: a message with one is not sent, and fails (its
+   * `onFailed` is called) as if sending had, since Douyin would hold it back anyway.
+   */
+  forbiddenWords?: () => readonly string[];
   /** At least this long between two messages, so the account doesn't look like a spammer. */
   intervalMs?: number;
   now?: () => number;
@@ -117,8 +123,7 @@ export class Outbox {
       for (let message = this.next(); message; message = this.next()) {
         const wait = this.lastSentAt + this.intervalMs - this.now();
         if (wait > 0) await this.sleep(wait);
-        await this.sendOne(message);
-        this.lastSentAt = this.now();
+        if (await this.sendOne(message)) this.lastSentAt = this.now();
       }
     } finally {
       this.sending = false;
@@ -137,9 +142,16 @@ export class Outbox {
     return KINDS.reduce((sum, kind) => sum + this.queues[kind].length, 0);
   }
 
-  private async sendOne(message: OutgoingMessage): Promise<void> {
+  /** Sends `message`; false when it wasn't even tried (it has a forbidden word). */
+  private async sendOne(message: OutgoingMessage): Promise<boolean> {
     const { text, kind, onFailed } = message;
     const { send, log } = this.options;
+    const forbidden = forbiddenIn(text, this.options.forbiddenWords?.() ?? []);
+    if (forbidden.length) {
+      log.warn(`could not send ${kind}: it has forbidden words`, { text, forbidden });
+      onFailed?.();
+      return false;
+    }
     try {
       const { echoed } = await send(text);
       log.info(`${kind} sent`, { text, echoed, waiting: this.waiting() });
@@ -153,5 +165,6 @@ export class Outbox {
       });
       onFailed?.();
     }
+    return true;
   }
 }

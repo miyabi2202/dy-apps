@@ -60,6 +60,8 @@ export interface RoomStateOptions {
   botName: string;
   /** The commands viewers can run, for `{{commands}}`, read each time so edits apply at once. */
   commands?: () => string;
+  /** Words the bot must never say, for `{{forbiddenWords}}`, read each time. */
+  forbiddenWords?: () => readonly string[];
   log: Log;
   now?: () => number;
 }
@@ -158,6 +160,7 @@ export class RoomState {
       botTalk: botTalk?.recent(),
       settings: this.settings(),
       commands: commands?.(),
+      forbiddenWords: this.options.forbiddenWords?.(),
     };
   }
 
