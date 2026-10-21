@@ -1,6 +1,6 @@
-import type { RoomFeedClient, RoomFeedState } from '@dy-apps/room-feed-protocol';
+import type { RoomFeedClient } from '@dy-apps/room-feed-protocol';
 import { messageFromEvent, type LiveRoom } from '@dy-apps/services';
-import { useRoomFeed, type CreateRoomFeedClient } from '@dy-apps/ui';
+import { useRoomFeed, type CreateRoomFeedClient, type RoomFeedState } from '@dy-apps/ui';
 import { useCallback } from 'react';
 import type { GiftFeed } from './gift-feed';
 import { log } from './log';

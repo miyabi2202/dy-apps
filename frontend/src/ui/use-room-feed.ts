@@ -1,10 +1,16 @@
 import {
   RoomFeedClient,
   type RoomFeedSocket,
-  type RoomFeedState,
+  type RoomFeedStatus,
 } from '@dy-apps/room-feed-protocol';
 import { Logger, type LiveRoom } from '@dy-apps/services';
 import { useEffect, useState } from 'react';
+
+/** A connection's last status, for showing it; `idle` before connecting. */
+export interface RoomFeedState {
+  status: RoomFeedStatus | 'idle';
+  detail?: string;
+}
 
 /** room-feed may start after the page (OBS often opens first), so keep trying. */
 export const ROOM_FEED_RETRY_MS = 5000;

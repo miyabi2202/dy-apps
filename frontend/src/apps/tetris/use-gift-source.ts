@@ -1,4 +1,3 @@
-import { type RoomFeedState } from '@dy-apps/room-feed-protocol';
 import {
   createFakeGift,
   fakeGiftAt,
@@ -6,7 +5,7 @@ import {
   type DemoConfig,
   type LiveRoom,
 } from '@dy-apps/services';
-import { useDemo, type CreateRoomFeedClient } from '@dy-apps/ui';
+import { useDemo, type CreateRoomFeedClient, type RoomFeedState } from '@dy-apps/ui';
 import { useCallback, useEffect } from 'react';
 import type { GiftFeed } from './gift-feed';
 import { log } from './log';

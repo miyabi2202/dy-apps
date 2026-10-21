@@ -7,9 +7,6 @@
 import { eventsUrl } from './api';
 import type { EventType, Frame, LikeEvent, RoomEvent } from './events';
 
-/** The events subscribed to unless a caller asks for others. */
-export const ROOM_FEED_EVENT_TYPES: readonly EventType[] = ['chat', 'gift'];
-
 export type RoomFeedStatus = 'opening' | 'roomConnecting' | 'ready' | 'error' | 'closed';
 
 export interface RoomFeedHandlers {
@@ -36,7 +33,7 @@ export function connectRoomFeed(
   port: number,
   roomId: string,
   handlers: RoomFeedHandlers,
-  types: readonly EventType[] = ROOM_FEED_EVENT_TYPES,
+  types: readonly EventType[],
   openSocket: (url: string) => RoomFeedSocket = openWebSocket,
 ): () => void {
   let ws: RoomFeedSocket;

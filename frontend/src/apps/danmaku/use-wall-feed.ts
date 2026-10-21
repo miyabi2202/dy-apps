@@ -1,4 +1,4 @@
-import type { LikeEvent, RoomFeedClient, RoomFeedState } from '@dy-apps/room-feed-protocol';
+import type { LikeEvent, RoomFeedClient } from '@dy-apps/room-feed-protocol';
 import {
   LikeBatcher,
   likeMessage,
@@ -7,7 +7,7 @@ import {
   type Logger,
   type LiveRoom,
 } from '@dy-apps/services';
-import { useRoomFeed, type CreateRoomFeedClient } from '@dy-apps/ui';
+import { useRoomFeed, type CreateRoomFeedClient, type RoomFeedState } from '@dy-apps/ui';
 import { useCallback } from 'react';
 import { log as moduleLog } from './log';
 

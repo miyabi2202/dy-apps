@@ -65,7 +65,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
 room-feed-protocol/       # @dy-apps/room-feed-protocol: room-feed's events and API, and the client that reads them
   src/events.ts           #   chat, gift, like events and the status frames, one JSON object per WebSocket message
   src/api.ts              #   the HTTP API's answers, the default port, the URLs, port and room-number checks
-  src/stream.ts           #   connectRoomFeed (the raw stream), GiftCounter, likeCount
+  src/stream.ts           #   GiftCounter, likeCount; the raw stream (connectRoomFeed) the client uses
   src/client.ts           #   RoomFeedClient: onComment / onGift / onLike / onStatus, with retry
 room-feed/                # @dy-apps/room-feed: one live room's events, run with tsx (see "room-feed" below)
   src/main.ts             #   entry: `login` or `--room` (cli-options.ts), the real objects wired

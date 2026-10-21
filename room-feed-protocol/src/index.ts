@@ -1,4 +1,4 @@
 export * from './api';
-export * from './client';
 export * from './events';
-export * from './stream';
+export { RoomFeedClient, type RoomFeedClientOptions } from './client';
+export { GiftCounter, likeCount, type RoomFeedSocket, type RoomFeedStatus } from './stream';

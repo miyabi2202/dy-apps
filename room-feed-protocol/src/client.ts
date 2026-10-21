@@ -7,12 +7,6 @@ import {
   type RoomFeedStatus,
 } from './stream';
 
-/** A connection's last status, for showing it; `idle` before connecting. */
-export interface RoomFeedState {
-  status: RoomFeedStatus | 'idle';
-  detail?: string;
-}
-
 /** Cancels what `schedule` set up. */
 type Cancel = () => void;
 

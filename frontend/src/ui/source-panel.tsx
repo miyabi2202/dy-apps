@@ -1,4 +1,4 @@
-import { type RoomFeedState, type RoomFeedStatus } from '@dy-apps/room-feed-protocol';
+import { type RoomFeedStatus } from '@dy-apps/room-feed-protocol';
 import {
   DEMO_INTERVAL_RANGE,
   DEMO_SOURCES,
@@ -20,6 +20,7 @@ import { Panel } from './panel';
 import { Slider } from './slider';
 import { text } from './text';
 import { colors } from './tokens.stylex';
+import type { RoomFeedState } from './use-room-feed';
 
 /** The live source retries after an error or a drop, so say so. */
 const STATUS_TEXT: Record<RoomFeedStatus | 'idle', string> = {

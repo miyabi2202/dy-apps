@@ -34,4 +34,5 @@ export {
   ROOM_FEED_RETRY_MS,
   useRoomFeed,
   type CreateRoomFeedClient,
+  type RoomFeedState,
 } from './use-room-feed';
