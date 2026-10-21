@@ -38,6 +38,8 @@ export interface RoomStateOptions {
   context?: () => string;
   /** What the bot says about itself for `{{intro}}`, read each time so edits apply at once. */
   intro?: () => string;
+  /** What the bot can't do and why, for `{{limitations}}`, read each time. */
+  limitations?: () => string;
   /** What the bot has said in the room, for `{{botTalk}}`. */
   botTalk?: Pick<BotTalk, 'recent'>;
   /** A JPEG of the live video, sent to Claude with a prompt while screenshots are on. */
@@ -141,7 +143,7 @@ export class RoomState {
 
   /** The room's part of a prompt (see buildPrompt), as it is now. */
   promptInput(): RoomPromptInput {
-    const { chatDir, context, intro, botTalk, commands } = this.options;
+    const { chatDir, context, intro, limitations, botTalk, commands } = this.options;
     return {
       wording: this.wording,
       aliases: this.aliases(),
@@ -155,6 +157,7 @@ export class RoomState {
       botName: this.botName,
       context: context?.(),
       intro: intro?.(),
+      limitations: limitations?.(),
       botTalk: botTalk?.recent(),
       settings: this.settings(),
       commands: commands?.(),

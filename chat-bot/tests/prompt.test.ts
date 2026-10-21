@@ -18,6 +18,13 @@ test('{{intro}} is what the bot says about itself, under a heading, and empty wi
   expect(buildPrompt('{{intro}}', input)).toBe('');
 });
 
+test('{{limitations}} is what the bot cannot do, to explain only when asked, and empty without it', () => {
+  const filled = buildPrompt('{{limitations}}', { ...input, limitations: '- 听：可能听错\n' });
+  expect(filled).toContain('没人问就不要主动提');
+  expect(filled.endsWith('- 听：可能听错')).toBe(true);
+  expect(buildPrompt('{{limitations}}', input)).toBe('');
+});
+
 test('{{history}} shows the recent gifts among the chat, by time', () => {
   const prompt = buildPrompt('{{history}}', {
     history: [

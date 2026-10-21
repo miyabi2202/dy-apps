@@ -169,6 +169,8 @@ export function registerRoom(container: Container): void {
         context: liveText(files.context),
         // What the bot says about itself when asked, shared by every room.
         intro: liveText(join(c.resolve(PACKAGE_DIR), 'intro.md')),
+        // What it can't do and why, for when viewers notice (limitations.md, shared by every room).
+        limitations: liveText(join(c.resolve(PACKAGE_DIR), 'limitations.md')),
         botTalk: c.resolve(BOT_TALK),
         // Off unless --screenshot; /截图 switches it while the bot runs.
         screenshot: c.resolve(ROOM_API).screenshot,
