@@ -50,10 +50,14 @@ export interface AutoReplyOptions {
   /** Who the streamer is, so what they said can be answered as theirs; null while unknown. */
   streamer: () => Awaited<ReturnType<FindStreamer>>;
   /**
-   * The room's own commands: what's said that one is for (asked of the judge, or matching its
-   * trigger) goes to the picker too, which may have it answered with that command.
+   * The room's own commands, as they are now (their files are read again as they change): what's
+   * said that one is for (asked of the judge, or matching its trigger) goes to the picker too,
+   * which may have it answered with that command.
    */
-  additionalCommands?: readonly Pick<AdditionalCommand, 'id' | 'when' | 'trigger' | 'mentioned'>[];
+  additionalCommands?: () => readonly Pick<
+    AdditionalCommand,
+    'id' | 'when' | 'trigger' | 'mentioned'
+  >[];
 }
 
 /**
@@ -143,13 +147,18 @@ export class AutoReply {
     this.wake();
   }
 
+  /** The room's own commands as they are now; none when it has none. */
+  private additionalCommands() {
+    return this.options.additionalCommands?.() ?? [];
+  }
+
   /**
    * A chat just came in: one matching a room command's trigger (主播会唱xxx吗) is surely for the bot,
    * so it looks now instead of at the next check. The rest wait for it, so the room has time to answer.
    */
   hear({ userId, content }: { userId?: string; content: string }): void {
     if (this.threshold >= 1 || userId === undefined) return;
-    const { additionalCommands = [] } = this.options;
+    const additionalCommands = this.additionalCommands();
     const named = matchName(content, this.names()) !== undefined;
     if (!named && !additionalCommands.some((command) => matchFor(command, content))) return;
     this.lookAtOnce(content);
@@ -306,7 +315,8 @@ export class AutoReply {
     toBot: RoomLine[];
     best: { line: RoomLine; score: number } | null;
   } | null> {
-    const { judge, room, log, additionalCommands = [] } = this.options;
+    const { judge, room, log } = this.options;
+    const additionalCommands = this.additionalCommands();
     if (!judge || !fresh.length) return { about: [], toBot: [], best: null };
     const first = lines.indexOf(fresh[0]!);
     const { state, questions } = relevanceRequest(
@@ -382,7 +392,7 @@ export class AutoReply {
       (line) =>
         line.userId === undefined
           ? []
-          : (this.options.additionalCommands ?? [])
+          : this.additionalCommands()
               .map((command) => matchFor(command, line.text))
               .filter((label): label is string => label !== null),
       room.timeZone(),
@@ -393,7 +403,7 @@ export class AutoReply {
       botName: room.botName,
       persona: room.persona,
       botTalk: room.botTalk(),
-      commands: this.options.additionalCommands,
+      commands: this.additionalCommands(),
       aliases: room.aliases(),
     });
     // The lines that came for the bot's name or an alias, for the log: how often that's right.
@@ -447,7 +457,7 @@ export class AutoReply {
       picks: picks.map(({ line, confidence }) => ({ text: numbered[line - 1]?.text, confidence })),
     });
     // Only what it's sure enough of (the same threshold as the judge's), surest first, one each.
-    const { additionalCommands = [] } = this.options;
+    const additionalCommands = this.additionalCommands();
     const picked = chooseTargets(picks, numbered, {
       threshold: this.threshold,
       max: MAX_PICKS,

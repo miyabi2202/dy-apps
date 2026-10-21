@@ -1,11 +1,16 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadAdditionalCommands } from '../src/adapters/additional-command-files';
+import {
+  liveAdditionalCommands,
+  loadAdditionalCommands,
+} from '../src/adapters/additional-command-files';
 import {
   appliesTo,
   mentionIn,
+  mentionPhrases,
   parseCommandIndex,
+  streamerNamesIn,
   userMatches,
   type UserCondition,
 } from '../src/core/additional-command';
@@ -230,4 +235,125 @@ describe('userMatches', () => {
     expect(appliesTo({ except: [{ payLevel: 30 }] }, viewer)).toBe(true);
     expect(appliesTo({ only: [{ payLevel: 30 }], except: [{ payLevel: 30 }] }, fan)).toBe(false);
   });
+});
+
+test('a mentions file may be a song list: the first column of its rows, brackets split, short ones left out', () => {
+  const list = [
+    '会唱的歌（3 首），每行：歌名、原唱、语言：',
+    '',
+    '晴天｜周杰伦｜中文',
+    'ヤキモチ（吃醋）｜高橋優｜日语',
+    '光｜陈粒｜中文',
+    'if｜西野加奈｜日语',
+    'Self｜｜英语',
+  ].join('\n');
+  expect(mentionPhrases(list)).toEqual(['晴天', 'ヤキモチ', '吃醋', 'Self']);
+  expect(mentionPhrases('喂猪\n光\nLemon\n')).toEqual(['喂猪', 'Lemon']);
+  expect(mentionIn('主播会唱吃醋吗', list)).toBe('吃醋');
+  expect(mentionIn('光好亮', list)).toBeNull();
+});
+
+test('{{streamerNames}} is the names joined for text, and escaped alternatives after 主播 for a trigger', () => {
+  expect(streamerNamesIn('叫她{{streamerNames}}', ['茜茜', '茜颜'])).toBe('叫她茜茜、茜颜');
+  expect(streamerNamesIn('叫她{{streamerNames}}', [])).toBe('叫她主播');
+  expect(streamerNamesIn('({{streamerNames}})会', ['a.b'], { pattern: true })).toBe(
+    '(主播|a\\.b)会',
+  );
+  const { commands } = parseCommandIndex(
+    {
+      x: {
+        name: 'x',
+        when: '叫{{streamerNames}}',
+        prompt: 'p.md',
+        trigger: '({{streamerNames}})会',
+      },
+    },
+    { streamerNames: ['虾虾'] },
+  );
+  expect(commands[0]).toMatchObject({ when: '叫虾虾', trigger: /(主播|虾虾)会/ });
+});
+
+/** A room folder and a shared commands folder with a can-sing in it. */
+function withShared(index: object) {
+  const room = mkdtempSync(join(tmpdir(), 'additional-command-'));
+  const commandsDir = mkdtempSync(join(tmpdir(), 'shared-commands-'));
+  mkdirSync(join(commandsDir, 'can-sing'));
+  writeFileSync(
+    join(commandsDir, 'can-sing', 'command.json'),
+    JSON.stringify({
+      name: '会唱吗',
+      when: '在问会不会唱，叫她{{streamerNames}}',
+      trigger: '({{streamerNames}})会唱',
+      prompt: 'prompt.md',
+      price: 0,
+      mentions: 'artifacts/songs.txt',
+    }),
+  );
+  writeFileSync(
+    join(commandsDir, 'can-sing', 'prompt.md'),
+    '共用，{{streamerNames}}，{{file:artifacts/songs.txt}}{{file?:additional_commands/can-sing/notes.md}}',
+  );
+  mkdirSync(join(room, 'additional_commands', 'can-sing'), { recursive: true });
+  mkdirSync(join(room, 'artifacts'));
+  writeFileSync(join(room, 'artifacts', 'songs.txt'), '晴天｜周杰伦');
+  writeFileSync(join(room, 'additional_commands', 'index.json'), JSON.stringify(index));
+  return { room, commandsDir };
+}
+
+test("a command with a base is the shared one's fields under the room's, with the shared prompt unless the room has its own", () => {
+  const { room, commandsDir } = withShared({
+    'can-sing': { base: 'can-sing' },
+    pricey: { base: 'can-sing', price: 2, prompt: 'pricey.md' },
+    missing: { base: 'nope' },
+    sneaky: { base: '../x' },
+  });
+  writeFileSync(join(room, 'additional_commands', 'pricey.md'), '自己的');
+  const log = fakeLog();
+  const commands = loadAdditionalCommands(room, {
+    log,
+    commandsDir,
+    streamerNames: () => ['茜茜'],
+  });
+  expect(commands.map(({ id, price }) => [id, price])).toEqual([
+    ['can-sing', 0],
+    ['pricey', 2],
+  ]);
+  expect(commands[0]).toMatchObject({ when: '在问会不会唱，叫她茜茜', trigger: /(主播|茜茜)会唱/ });
+  // No notes: the optional file is just left out.
+  expect(commands[0]!.prompt()).toBe('共用，茜茜，晴天｜周杰伦');
+  writeFileSync(join(room, 'additional_commands', 'can-sing', 'notes.md'), '，备注');
+  expect(commands[0]!.prompt()).toBe('共用，茜茜，晴天｜周杰伦，备注');
+  expect(commands[1]!.prompt()).toBe('自己的');
+  expect(commands[0]!.mentioned!('茜茜会晴天吗')).toBe('晴天');
+  expect(log.warn.mock.calls.map(([, meta]) => (meta as { error: string }).error)).toEqual([
+    'missing: there is no shared command "nope"',
+    'sneaky: base must be the name of a shared command, like "can-sing"',
+  ]);
+});
+
+test('the live commands are built again when index.json, a shared command or the names change, and kept through a broken index.json', () => {
+  const { room, commandsDir } = withShared({ 'can-sing': { base: 'can-sing' } });
+  let names = ['茜茜'];
+  const log = fakeLog();
+  const commands = liveAdditionalCommands(room, { log, commandsDir, streamerNames: () => names });
+  const first = commands();
+  expect(first.map(({ id }) => id)).toEqual(['can-sing']);
+  expect(commands()).toBe(first);
+
+  names = ['虾虾'];
+  expect(commands()[0]!.trigger).toEqual(/(主播|虾虾)会唱/);
+
+  const index = join(room, 'additional_commands', 'index.json');
+  writeFileSync(index, JSON.stringify({ 'can-sing': { base: 'can-sing', price: 3 } }));
+  expect(commands()[0]!.price).toBe(3);
+
+  const shared = join(commandsDir, 'can-sing', 'command.json');
+  writeFileSync(shared, JSON.stringify({ name: '新的', when: 'w', prompt: 'prompt.md' }));
+  expect(commands()[0]!.name).toBe('新的');
+
+  const good = commands();
+  writeFileSync(index, '{ "can-sing": ');
+  expect(commands()).toBe(good);
+  expect(commands()).toBe(good);
+  expect(log.warn).toHaveBeenCalledTimes(1);
 });

@@ -82,7 +82,7 @@ function setup(options: SetupOptions = {}) {
     commands: options.commands ?? [screenshotCommand(room), ...(billing?.commands() ?? [])],
     now: options.now,
     adminNames: '雅',
-    additionalCommands: options.additionalCommands,
+    additionalCommands: () => options.additionalCommands ?? [],
   });
   bot.start();
   return {

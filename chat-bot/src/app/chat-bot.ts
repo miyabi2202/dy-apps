@@ -40,10 +40,11 @@ export interface ChatBotOptions {
   /** What a mention starting with `/` can run. */
   commands?: readonly Command[];
   /**
-   * The room's own commands: answered with their own prompt when Claude finds a mention asking
-   * for one, or auto-reply picks one for what someone said.
+   * The room's own commands, as they are now (their files are read again as they change):
+   * answered with their own prompt when Claude finds a mention asking for one, or auto-reply
+   * picks one for what someone said.
    */
-  additionalCommands?: readonly AdditionalCommand[];
+  additionalCommands?: () => readonly AdditionalCommand[];
   /** Douyin's chat length limit, for the bot's own messages. */
   maxReplyLength?: number;
   /** Who may run admin-only commands, as viewers know them: 「只有主播和…才可以」. */
@@ -113,7 +114,7 @@ export class ChatBot {
       this.runner.run(chat, question, call, admin);
       return;
     }
-    const taken = (this.options.additionalCommands ?? []).filter(
+    const taken = (this.options.additionalCommands?.() ?? []).filter(
       ({ trigger, adminOnly }) => trigger?.test(question) && (!adminOnly || admin),
     );
     const viewer = this.viewerOf(chat, admin);
@@ -306,9 +307,9 @@ export class ChatBot {
 
   /** The room's own command `name` (its id, or what it's for), if there is one. */
   private additionalCommand(name: string): AdditionalCommand | undefined {
-    return this.options.additionalCommands?.find(({ id, name: title }) =>
-      [id, title].includes(name),
-    );
+    return this.options
+      .additionalCommands?.()
+      .find(({ id, name: title }) => [id, title].includes(name));
   }
 
   private isAdmin(userId: string | undefined): boolean {

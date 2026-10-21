@@ -47,6 +47,7 @@ test('fills in the fields a room_config.json lacks with their defaults, and keep
     streamer: { nickname: '雅', uid: '7' },
     mentionCost: 3,
     aliases: [],
+    streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     autoReplyThreshold: 1,

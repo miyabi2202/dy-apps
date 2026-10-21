@@ -36,6 +36,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
   expect(roomConfig()).toEqual({
     private: false,
     aliases: [],
+    streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
@@ -45,6 +46,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
   expect(roomConfig()).toEqual({
     private: true,
     aliases: [],
+    streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
@@ -54,6 +56,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
   expect(roomConfig()).toEqual({
     private: true,
     aliases: [],
+    streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
@@ -65,6 +68,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
     aliases: [],
+    streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
@@ -75,6 +79,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
     aliases: [],
+    streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
@@ -93,6 +98,7 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
   expect(roomConfigFile(config, { log }).get()).toEqual({
     private: true,
     aliases: [],
+    streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
@@ -172,6 +178,8 @@ test("room_config.json's aliases are the other names of the bot, read again as t
   expect(warned).toEqual(['room_config.json has bad values, keeping their last ones']);
   writeFileSync(config, '{}');
   expect(roomConfig().aliases).toEqual([]);
+  writeFileSync(config, '{ "streamerNames": ["茜茜", " 茜颜 "] }');
+  expect(roomConfig().streamerNames).toEqual(['茜茜', '茜颜']);
 });
 
 describe('livePersona', () => {

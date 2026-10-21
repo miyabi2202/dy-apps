@@ -373,7 +373,7 @@ test("what one of the room's own commands is for goes to the picker, which may a
       pickTemplate: () => '{{lines}}\n{{commands}}',
       reply: (target) => void replies.push(target),
       streamer: () => null,
-      additionalCommands: [
+      additionalCommands: () => [
         { id: 'can-sing', when: '在问主播会不会唱某首歌', trigger: /会唱|虾虾会.+吗/ },
       ],
     },
@@ -438,7 +438,7 @@ test("a chat matching a room command's trigger is looked at at once, not at the 
     log: silentLog,
     // The next check never comes by itself.
     sleep: () => new Promise(() => {}),
-    additionalCommands: [{ id: 'can-sing', when: '在问主播会不会唱某首歌', trigger: /会唱/ }],
+    additionalCommands: () => [{ id: 'can-sing', when: '在问主播会不会唱某首歌', trigger: /会唱/ }],
   });
   const running = autoReply.run();
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -482,12 +482,12 @@ test("a chat mentioning one of a room command's phrases is looked at at once, an
     room: fakeRoom({ history, transcript, now: () => now }),
     log: silentLog,
     sleep: () => new Promise(() => {}),
-    additionalCommands: [
+    additionalCommands: () => [
       {
         id: 'can-sing',
         when: '在问主播会不会唱某首歌',
         trigger: null,
-        mentioned: (t) => (t.includes('喂猪') ? '喂猪' : null),
+        mentioned: (t: string) => (t.includes('喂猪') ? '喂猪' : null),
       },
     ],
   });

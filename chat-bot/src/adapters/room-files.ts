@@ -33,6 +33,8 @@ export interface RoomConfig extends Settings {
   onSing?: OnSingConfig;
   /** Other names viewers and the streamer call the bot (`aliases`), as speech recognition may write them. */
   aliases: string[];
+  /** What viewers call the streamer (`streamerNames`), for the room's commands' `{{streamerNames}}`. */
+  streamerNames: string[];
   /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`): 单推符号. */
   atTrimStart: string[];
   /**
@@ -63,6 +65,7 @@ export interface Streamer {
 const DEFAULT_ROOM_CONFIG: RoomConfig = {
   private: false,
   aliases: [],
+  streamerNames: [],
   atTrimStart: [],
   timeZone: DEFAULT_TIME_ZONE,
   ...SETTING_DEFAULTS,
@@ -72,6 +75,7 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = {
 const ROOM_FIELDS = {
   private: false,
   aliases: [],
+  streamerNames: [],
   atTrimStart: [],
   timeZone: DEFAULT_TIME_ZONE,
   ...SETTING_DEFAULTS,
@@ -158,6 +162,11 @@ export function roomConfigFile(
       ...(onSing && { onSing }),
       ...(persona && { persona }),
       aliases: field('aliases', () => aliasList(raw.aliases), config.aliases),
+      streamerNames: field(
+        'streamerNames',
+        () => nameList(raw.streamerNames, 'streamerNames', '["茜茜", "茜颜"]'),
+        config.streamerNames,
+      ),
       atTrimStart: field('atTrimStart', () => prefixList(raw.atTrimStart), config.atTrimStart),
       timeZone: field('timeZone', () => timeZoneOf(raw.timeZone), config.timeZone),
       ...settingsFrom(raw, config, problems),
@@ -257,11 +266,16 @@ function prefixList(raw: unknown): string[] {
 
 /** `aliases` as a list of names (none when absent), or an error saying what's wrong with it. */
 function aliasList(raw: unknown): string[] {
+  return nameList(raw, 'aliases', '["Fairy", "菲瑞"]');
+}
+
+/** A list of names (none when absent), or an error saying the field `name` should be like `example`. */
+function nameList(raw: unknown, name: string, example: string): string[] {
   if (raw === undefined) return [];
-  if (!Array.isArray(raw) || !raw.every((name) => typeof name === 'string')) {
-    throw new Error('aliases must be a list of names, like ["Fairy", "菲瑞"]');
+  if (!Array.isArray(raw) || !raw.every((item) => typeof item === 'string')) {
+    throw new Error(`${name} must be a list of names, like ${example}`);
   }
-  return raw.map((name) => name.trim()).filter(Boolean);
+  return raw.map((item) => item.trim()).filter(Boolean);
 }
 
 /** `persona` as a PersonaChoice, or an error saying what's wrong with it. */

@@ -33,17 +33,34 @@ export interface AdditionalCommandEntry {
   adminOnly?: boolean;
   /** Its answer may @ others too, each in a message of their own (MESSAGES_SCHEMA). */
   atOthers?: boolean;
+  /** The shared command it builds on (`base`, a folder in chat-bot/prompts/commands/). */
+  base?: string;
+  /** Its `prompt` is the shared command's, in that folder, not one in the room's. */
+  sharedPrompt?: true;
+}
+
+/** How index.json's commands are read beyond the file itself. */
+export interface IndexOptions {
+  /** A shared command's fields (its command.json, parsed), by its name; undefined when there's none. */
+  shared?: (base: string) => unknown;
+  /** What viewers call the streamer (room_config.json's `streamerNames`), for `{{streamerNames}}`. */
+  streamerNames?: readonly string[];
 }
 
 /**
- * The commands in `index.json` (already parsed): an object of `"<id>": { "name", "when",
+ * The commands in `index.json` (already parsed): an object of `"<id>": { "base"?, "name", "when",
  * "prompt"?, "fixedReply"?, "trigger"?, "price"?, "mentions"?, "adminOnly"?, "atOthers"?, "only"?,
  * "except"? }`, at least one of `prompt` and `fixedReply`, `trigger` a regular expression, `price`
  * whole diamonds, `mentions` a file in the room's folder, `adminOnly` and `atOthers` true or
- * false, `only` and `except` lists of UserCondition.
+ * false, `only` and `except` lists of UserCondition. A command with a `base` starts from that
+ * shared command's fields, and any the room writes replace them. `{{streamerNames}}` in `when`
+ * and `trigger` is what viewers call the streamer (see streamerNamesIn).
  * Those that aren't right are left out, each with why.
  */
-export function parseCommandIndex(json: unknown): {
+export function parseCommandIndex(
+  json: unknown,
+  { shared = () => undefined, streamerNames = [] }: IndexOptions = {},
+): {
   commands: AdditionalCommandEntry[];
   errors: string[];
 } {
@@ -53,18 +70,66 @@ export function parseCommandIndex(json: unknown): {
   const commands: AdditionalCommandEntry[] = [];
   const errors: string[] = [];
   for (const [id, fields] of Object.entries(json)) {
-    const entry = toEntry(id, fields);
+    const entry = withBase(id, fields, shared, streamerNames);
     if (typeof entry === 'string') errors.push(`${id}: ${entry}`);
     else commands.push(entry);
   }
   return { commands, errors };
 }
 
-function toEntry(id: string, fields: unknown): AdditionalCommandEntry | string {
-  if (!/^[\w-]+$/.test(id)) return 'the id may have only letters, digits, _ and -';
+/** The command `id`, its fields on top of its `base`'s when it names one (see parseCommandIndex). */
+function withBase(
+  id: string,
+  fields: unknown,
+  shared: (base: string) => unknown,
+  streamerNames: readonly string[],
+): AdditionalCommandEntry | string {
   if (typeof fields !== 'object' || fields === null) return 'must be an object';
-  const { name, when, prompt, fixedReply, trigger, price, mentions, adminOnly, atOthers } =
-    fields as Record<string, unknown>;
+  const { base, ...own } = fields as Record<string, unknown>;
+  if (base === undefined) return toEntry(id, own, streamerNames);
+  // A folder name in commands/, so nothing outside that folder can be named.
+  if (typeof base !== 'string' || !/^[\w-]+$/.test(base)) {
+    return 'base must be the name of a shared command, like "can-sing"';
+  }
+  const from = shared(base);
+  if (typeof from !== 'object' || from === null || Array.isArray(from)) {
+    return `there is no shared command "${base}"`;
+  }
+  const entry = toEntry(id, { ...from, ...own }, streamerNames);
+  if (typeof entry === 'string') return entry;
+  const sharedPrompt = own.prompt === undefined && entry.prompt !== undefined;
+  return { ...entry, base, ...(sharedPrompt && { sharedPrompt: true as const }) };
+}
+
+/**
+ * `text` with each `{{streamerNames}}` in it replaced by what viewers call the streamer: for a
+ * regular expression (`pattern`), 主播 and each name as alternatives (`主播|茜茜|茜颜`); for text, the
+ * names joined with 、, or 主播 when there are none.
+ */
+export function streamerNamesIn(
+  text: string,
+  names: readonly string[],
+  { pattern = false }: { pattern?: boolean } = {},
+): string {
+  const value = pattern
+    ? ['主播', ...names].map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+    : names.join('、') || '主播';
+  return text.replace(/\{\{streamerNames\}\}/g, () => value);
+}
+
+function toEntry(
+  id: string,
+  fields: Record<string, unknown>,
+  streamerNames: readonly string[],
+): AdditionalCommandEntry | string {
+  if (!/^[\w-]+$/.test(id)) return 'the id may have only letters, digits, _ and -';
+  const { name, prompt, fixedReply, price, mentions, adminOnly, atOthers } = fields;
+  const when =
+    typeof fields.when === 'string' ? streamerNamesIn(fields.when, streamerNames) : fields.when;
+  const trigger =
+    typeof fields.trigger === 'string'
+      ? streamerNamesIn(fields.trigger, streamerNames, { pattern: true })
+      : fields.trigger;
   const lists = fields as { only?: unknown; except?: unknown };
   for (const [key, value] of Object.entries({ name, when })) {
     if (typeof value !== 'string' || !value.trim()) return `${key} must be a non-empty string`;
@@ -228,15 +293,36 @@ export function isInside(path: string): boolean {
 }
 
 /**
- * The longest of `phrases` (one a line; blank lines and spaces around them ignored) that `text`
- * contains, ignoring case; null for none.
+ * The phrases a mentions file lists: one a line (blank lines and spaces around them ignored), or,
+ * in a table (a song list, with lines like `歌名｜原唱｜语言`), what's before each row's first `｜`,
+ * its other lines (headings like `会唱的歌（693 首）：`) skipped. A phrase with another name in
+ * brackets (ヤキモチ（吃醋）) counts as both. Ones too short to tell anything (光, if: one
+ * character, or English under three letters) are left out, as most chats would contain them.
  */
-export function mentionIn(text: string, phrases: string): string | null {
+export function mentionPhrases(list: string): string[] {
+  const lines = list
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const table = lines.some((line) => line.includes('｜'));
+  const phrases = new Set<string>();
+  for (const line of lines) {
+    if (table && !line.includes('｜')) continue;
+    for (const part of line.split('｜')[0]!.split(/[（()）]/)) {
+      const phrase = part.trim();
+      const long = /^[ -~]+$/.test(phrase) ? phrase.length >= 3 : [...phrase].length >= 2;
+      if (long) phrases.add(phrase);
+    }
+  }
+  return [...phrases];
+}
+
+/** The longest of the phrases `list` has (see mentionPhrases) that `text` contains, ignoring case; null for none. */
+export function mentionIn(text: string, list: string): string | null {
   const said = text.toLowerCase();
   let found: string | null = null;
-  for (const line of phrases.split('\n')) {
-    const phrase = line.trim();
-    if (phrase && said.includes(phrase.toLowerCase()) && phrase.length > (found?.length ?? 0)) {
+  for (const phrase of mentionPhrases(list)) {
+    if (said.includes(phrase.toLowerCase()) && phrase.length > (found?.length ?? 0)) {
       found = phrase;
     }
   }
