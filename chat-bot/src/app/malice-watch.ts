@@ -19,7 +19,7 @@ export interface MaliceWatchOptions {
   /** The model's prompt (see buildPrompt), read each time so edits apply at once. */
   promptTemplate: () => string;
   outbox: Pick<Outbox, 'push'>;
-  room: Pick<RoomState, 'prompt' | 'recentChat' | 'recentTranscript' | 'wording'>;
+  room: Pick<RoomState, 'prompt' | 'recentChat' | 'recentTranscript' | 'wording' | 'atName'>;
   /** Viewers never judged: the streamer and the bot's admins. */
   exempt?: (userId: string) => boolean;
   log: Log;
@@ -191,6 +191,6 @@ export class MaliceWatch extends ModelFeature<Suspect, MaliceAnswer> {
   private warn({ userId, nickname }: Heard): void {
     const { outbox, log } = this.options;
     log.info('malice warned', { nickname, userId });
-    outbox.push({ kind: 'reply', text: `@${nickname} ${WARNING}` });
+    outbox.push({ kind: 'reply', text: `@${this.options.room.atName(nickname)} ${WARNING}` });
   }
 }

@@ -4,6 +4,26 @@ export const DOUYIN_CHAT_LIMIT = 49;
 /** Where a long reply would rather be cut: after the end of a sentence or clause. */
 const BREAK_AFTER = new Set([...'。！？；，、：.!?;,: ）)】」']);
 
+/**
+ * `nickname` as the bot @s it: without the room's `prefixes` at its start (the symbols fans put
+ * before their name for the streamer they back, 单推符号 like `⊹꙳𝝑`), each taken off as often as it's
+ * there, longest first. The whole nickname when nothing would be left.
+ */
+export function atName(nickname: string, prefixes: readonly string[] = []): string {
+  const longestFirst = [...prefixes].filter(Boolean).sort((a, b) => b.length - a.length);
+  let name = nickname;
+  for (let cut = true; cut;) {
+    cut = false;
+    for (const prefix of longestFirst) {
+      if (name.startsWith(prefix)) {
+        name = name.slice(prefix.length).trimStart();
+        cut = true;
+      }
+    }
+  }
+  return name || nickname;
+}
+
 /** The first 3 characters of a nickname, to @ someone when the whole name doesn't fit. */
 function shortTag(nickname: string): string {
   return `@${[...nickname].slice(0, 3).join('')}`;

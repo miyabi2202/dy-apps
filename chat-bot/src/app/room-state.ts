@@ -1,3 +1,4 @@
+import { atName } from '../core/reply';
 import type { ChatHistory } from '../core/chat-history';
 import type { RecentGifts } from '../core/recent-gifts';
 import { errorMessage } from '../core/errors';
@@ -54,6 +55,8 @@ export interface RoomStateOptions {
   wording: Wording;
   /** Other names the bot is called in this room (room_config.json's `aliases`), read each time. */
   aliases?: () => readonly string[];
+  /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`), read each time. */
+  atTrimStart?: () => readonly string[];
   /** The time zone the room's times are shown in (room_config.json's `timeZone`), read each time. */
   timeZone?: () => string;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
@@ -109,6 +112,11 @@ export class RoomState {
   /** The time zone the room's times are shown in: the streamer's (the machine's when not given). */
   timeZone(): string | undefined {
     return this.options.timeZone?.();
+  }
+
+  /** `nickname` as the bot @s it here: without the room's 单推符号 at its start (see atName). */
+  atName(nickname: string): string {
+    return atName(nickname, this.options.atTrimStart?.() ?? []);
   }
 
   /** Other names the bot is called in this room, which mean it too. */

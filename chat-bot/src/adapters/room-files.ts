@@ -29,6 +29,8 @@ export interface RoomConfig extends Settings {
   onSing?: OnSingConfig;
   /** Other names viewers and the streamer call the bot (`aliases`), as speech recognition may write them. */
   aliases: string[];
+  /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`): 单推符号. */
+  atTrimStart: string[];
   /**
    * Where the streamer is (`timeZone`, an IANA name like `Asia/Shanghai`): every time the models
    * and the records show is in it. Beijing time when not known.
@@ -45,6 +47,7 @@ export interface Streamer {
 const DEFAULT_ROOM_CONFIG: RoomConfig = {
   private: false,
   aliases: [],
+  atTrimStart: [],
   timeZone: DEFAULT_TIME_ZONE,
   ...SETTING_DEFAULTS,
 };
@@ -53,6 +56,7 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = {
 const ROOM_FIELDS = {
   private: false,
   aliases: [],
+  atTrimStart: [],
   timeZone: DEFAULT_TIME_ZONE,
   ...SETTING_DEFAULTS,
 };
@@ -132,6 +136,7 @@ export function roomConfigFile(
       private: isPrivate,
       ...(onSing && { onSing }),
       aliases: field('aliases', () => aliasList(raw.aliases), config.aliases),
+      atTrimStart: field('atTrimStart', () => prefixList(raw.atTrimStart), config.atTrimStart),
       timeZone: field('timeZone', () => timeZoneOf(raw.timeZone), config.timeZone),
       ...settingsFrom(raw, config, problems),
     };
@@ -229,6 +234,15 @@ function timeZoneOf(raw: unknown): string {
     throw new Error('timeZone must be a time zone like "Asia/Shanghai" or "America/New_York"');
   }
   return raw;
+}
+
+/** `atTrimStart` as a list of prefixes (none when absent), or an error saying what's wrong with it. */
+function prefixList(raw: unknown): string[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || !raw.every((prefix) => typeof prefix === 'string')) {
+    throw new Error('atTrimStart must be a list of what to take off nicknames, like ["⊹꙳𝝑"]');
+  }
+  return raw.filter((prefix) => prefix.trim());
 }
 
 /** `aliases` as a list of names (none when absent), or an error saying what's wrong with it. */

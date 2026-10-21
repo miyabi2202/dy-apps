@@ -189,6 +189,8 @@ export function registerRoom(container: Container): void {
         chatDir: c.resolve(CHAT_DIR),
         botName: options.botName,
         aliases: () => roomConfig().aliases,
+        // 单推符号 taken off a nickname before the bot @s them.
+        atTrimStart: () => roomConfig().atTrimStart,
         // Where the streamer is: every time in the prompts is in it (Beijing time when not known).
         timeZone: () => roomConfig().timeZone,
         // What prompts say around what they fill in, shared by every room.

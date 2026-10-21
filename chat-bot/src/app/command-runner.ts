@@ -30,7 +30,7 @@ export interface CommandRunnerOptions {
   /** Where command replies go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
   /** The chat before a command's own prompt goes with it to the answerer. */
-  room: Pick<RoomState, 'recentChat'>;
+  room: Pick<RoomState, 'recentChat' | 'atName'>;
   log: Log;
   /** Takes a command's price from the asker (ChatBot.charge): not ok when they can't pay. */
   charge: (request: ChargeRequest) => Charge;
@@ -107,7 +107,9 @@ export class CommandRunner {
   say(asker: string, kind: 'system' | 'notice', text: string): void {
     this.options.outbox.push({
       kind,
-      text: oneMessage(asker, text, this.maxLength) ?? `@${asker} ${text}`,
+      text:
+        oneMessage(this.options.room.atName(asker), text, this.maxLength) ??
+        `@${this.options.room.atName(asker)} ${text}`,
     });
   }
 

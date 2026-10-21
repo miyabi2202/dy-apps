@@ -175,7 +175,7 @@ export class MentionAnswerer {
   private sendFixed(mention: Mention, text: string): void {
     const { outbox, log, userTalk, bus } = this.options;
     const limits = mention.unprompted ? { ...this.limits, maxParts: 1 } : this.limits;
-    const messages = replyMessages(mention.asker, text, limits);
+    const messages = replyMessages(this.options.room.atName(mention.asker), text, limits);
     if (!messages.length) {
       log.warn('a fixed reply is empty', { asker: mention.asker });
       this.refund(mention);
@@ -214,8 +214,8 @@ export class MentionAnswerer {
         history: mention.history,
         asker: mention.asker,
         question: mention.question,
-        singleLength: singleBudget(mention.asker, limits),
-        maxLength: answerBudget(mention.asker, limits),
+        singleLength: singleBudget(room.atName(mention.asker), limits),
+        maxLength: answerBudget(room.atName(mention.asker), limits),
         userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
         askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
         askerBadges: badgesOf(mention),
@@ -258,12 +258,13 @@ export class MentionAnswerer {
       // Each of the others gets one message of their own, after the asker's. The usual prompt's
       // answer may have them too (「跟杨叔打个招呼」), and then says nothing to the asker.
       const others = usual || mention.atOthers ? parseOthers(raw) : [];
-      const messages = usual && others.length ? [] : replyMessages(mention.asker, answer, limits);
+      const messages =
+        usual && others.length ? [] : replyMessages(room.atName(mention.asker), answer, limits);
       const single = { ...limits, maxParts: 1 };
       // The others are known by nickname only: whoever said something under it most lately.
       const chat = [...mention.history, ...room.recentChat()].reverse();
       const toOthers = others.flatMap(({ to, message }) =>
-        replyMessages(to, message, single).map((text) => ({
+        replyMessages(room.atName(to), message, single).map((text) => ({
           text,
           userId: chat.find((line) => line.nickname === to && line.userId)?.userId,
         })),

@@ -1,5 +1,6 @@
 import {
   answerBudget,
+  atName,
   oneMessage,
   plainMessage,
   replyMessages,
@@ -76,4 +77,15 @@ test('finds the 弹幕： mark after a sentence on the same line, or at the end,
   expect(replyMessages('雅', '弹幕：是中岛美嘉的《ALWAYS》！弹幕：唱得好好听～', wide)).toEqual([
     '@雅 是中岛美嘉的《ALWAYS》！唱得好好听～',
   ]);
+});
+
+test('the @ goes without the room 单推符号 at the start of the nickname, as often as they are there', () => {
+  expect(atName('⊹꙳𝝑阿拂（吃荷灵咪馊饭版）𝝔⋆₊', ['⊹꙳𝝑'])).toBe('阿拂（吃荷灵咪馊饭版）𝝔⋆₊');
+  // Longest first, repeatedly, and the space after them too.
+  expect(atName('🍭🍭 星落', ['🍭', '🍭🍭'])).toBe('星落');
+  expect(atName('SL.⊹꙳𝝑茜颜', ['⊹꙳𝝑', 'SL.'])).toBe('茜颜');
+  // Not in the middle, and never down to nothing.
+  expect(atName('阿拂⊹꙳𝝑', ['⊹꙳𝝑'])).toBe('阿拂⊹꙳𝝑');
+  expect(atName('⊹꙳𝝑', ['⊹꙳𝝑'])).toBe('⊹꙳𝝑');
+  expect(atName('阿拂')).toBe('阿拂');
 });

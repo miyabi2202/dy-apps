@@ -33,6 +33,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
   expect(roomConfig()).toEqual({
     private: false,
     aliases: [],
+    atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
   });
@@ -41,6 +42,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
   expect(roomConfig()).toEqual({
     private: true,
     aliases: [],
+    atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
   });
@@ -49,6 +51,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
   expect(roomConfig()).toEqual({
     private: true,
     aliases: [],
+    atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
   });
@@ -59,6 +62,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
     aliases: [],
+    atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
   });
@@ -68,6 +72,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
     aliases: [],
+    atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
   });
@@ -85,6 +90,7 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
   expect(liveRoomConfig(config, { log })()).toEqual({
     private: true,
     aliases: [],
+    atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     ...SETTING_DEFAULTS,
   });
