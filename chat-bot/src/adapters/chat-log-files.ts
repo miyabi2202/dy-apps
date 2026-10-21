@@ -7,8 +7,6 @@ export interface ChatLogOptions {
   /** Lines per file; after a full file the next record starts a new one. */
   perFile?: number;
   now?: () => number;
-  /** The time zone the records' times are in (the room's, read each time); the machine's without. */
-  timeZone?: () => string | undefined;
   append?: (path: string, text: string) => void;
 }
 
@@ -21,20 +19,13 @@ export class ChatLog implements RoomRecord {
   private lines = 0;
   private readonly perFile: number;
   private readonly now: () => number;
-  private readonly timeZone: () => string | undefined;
   private readonly append: (path: string, text: string) => void;
 
   constructor(
     readonly dir: string,
-    {
-      perFile = 100,
-      now = Date.now,
-      timeZone = () => undefined,
-      append = appendFileSync,
-    }: ChatLogOptions = {},
+    { perFile = 100, now = Date.now, append = appendFileSync }: ChatLogOptions = {},
   ) {
     this.perFile = perFile;
-    this.timeZone = timeZone;
     this.now = now;
     this.append = append;
   }
@@ -42,7 +33,7 @@ export class ChatLog implements RoomRecord {
   add(record: ChatRecord): void {
     const ms = this.now();
     if (this.lines === 0) this.file = join(this.dir, `${ms}.txt`);
-    this.append(this.file, formatRecord(record, ms, this.timeZone()) + '\n');
+    this.append(this.file, formatRecord(record, ms) + '\n');
     this.lines = (this.lines + 1) % this.perFile;
   }
 }

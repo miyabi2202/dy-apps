@@ -39,14 +39,11 @@ export function speechRecord(line: TranscriptLine): ChatRecord {
  *     2026-10-17 21:02:10 [连线](speech) 你那边信号不太好
  *     2026-10-16 16:47:22 [雅#7664182420958889017](gift) 送出 人气票×1（1钻）
  */
-export function formatRecord(record: ChatRecord, ms: number, timeZone?: string): string {
+export function formatRecord(record: ChatRecord, ms: number): string {
   const who = record.userId ? `${record.sender}#${record.userId}` : record.sender;
   const message =
     record.type === 'gift'
       ? `送出 ${record.gift.name}×${record.gift.count}（${record.gift.diamonds}钻）`
       : record.text;
-  return `${localDateTime(ms, timeZone)} [${who}](${record.type}) ${message}`.replace(
-    /[\r\n]+/g,
-    ' ',
-  );
+  return `${localDateTime(ms)} [${who}](${record.type}) ${message}`.replace(/[\r\n]+/g, ' ');
 }

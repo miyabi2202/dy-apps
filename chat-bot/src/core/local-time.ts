@@ -64,3 +64,21 @@ export function localDate(ms: number, timeZone?: string): string {
 export function clock(ms: number, timeZone?: string): string {
   return localDateTime(ms, timeZone).slice(11);
 }
+
+/** This machine's time zone, which the chat and talk records on disk are written in. */
+export function machineTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+/**
+ * `text` with each line's leading `YYYY-MM-DD HH:MM:SS`, written in the machine's time zone (a
+ * talk record's), shown in `timeZone` instead; the rest as it is. Unchanged without a zone.
+ */
+export function retimeLines(text: string, timeZone?: string): string {
+  if (!timeZone) return text;
+  return text.replace(
+    /^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)/gm,
+    (_, y: string, mo: string, d: string, h: string, mi: string, sec: string) =>
+      localDateTime(new Date(+y, +mo - 1, +d, +h, +mi, +sec).getTime(), timeZone),
+  );
+}

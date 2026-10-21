@@ -7,20 +7,14 @@ export interface Exchange {
   answer: string;
 }
 
-/** One line, `日期 时间 text` (in `timeZone`, the machine's when unset), with line breaks flattened. */
-export function talkLine(ms: number, text: string, timeZone?: string): string {
-  return `${localDateTime(ms, timeZone)} ${text.replace(/[\r\n]+/g, ' ')}\n`;
+/** One line, `日期 时间 text`, with line breaks flattened. */
+export function talkLine(ms: number, text: string): string {
+  return `${localDateTime(ms)} ${text.replace(/[\r\n]+/g, ' ')}\n`;
 }
 
 /** An exchange as two lines: `日期 时间 昵称问：…` and `日期 时间 你答：…`. */
-export function exchangeLines(
-  ms: number,
-  { nickname, question, answer }: Exchange,
-  timeZone?: string,
-): string {
-  return (
-    talkLine(ms, `${nickname}问：${question}`, timeZone) + talkLine(ms, `你答：${answer}`, timeZone)
-  );
+export function exchangeLines(ms: number, { nickname, question, answer }: Exchange): string {
+  return talkLine(ms, `${nickname}问：${question}`) + talkLine(ms, `你答：${answer}`);
 }
 
 /** The last `keep` lines of `text`, to keep prompts from growing without end. */

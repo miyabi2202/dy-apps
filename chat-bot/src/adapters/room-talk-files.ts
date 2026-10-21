@@ -9,15 +9,12 @@ export interface TalkFileOptions {
   /** How many of the latest lines `recent` gives, to keep prompts from growing without end. */
   keep?: number;
   now?: () => number;
-  /** The time zone the lines' times are in (the room's, read each time); the machine's without. */
-  timeZone?: () => string | undefined;
   append?: (path: string, text: string) => void;
   read?: (path: string) => string;
 }
 
 const defaults = {
   now: Date.now,
-  timeZone: (): string | undefined => undefined,
   append: (path: string, text: string) => {
     mkdirSync(dirname(path), { recursive: true });
     appendFileSync(path, text);
@@ -36,9 +33,9 @@ function tail(read: (path: string) => string, path: string, keep: number): strin
 
 /** Everything the bot sent in the room, one message a line, in `bot_logs.md`. */
 export function botTalkFile(path: string, options: TalkFileOptions = {}): BotTalk {
-  const { keep = 40, now, timeZone, append, read } = { ...defaults, ...options };
+  const { keep = 40, now, append, read } = { ...defaults, ...options };
   return {
-    add: (text) => append(path, talkLine(now(), text, timeZone())),
+    add: (text) => append(path, talkLine(now(), text)),
     recent: () => tail(read, path, keep),
   };
 }
@@ -54,10 +51,10 @@ function folderOf(userId: string): string {
 
 /** Each viewer's exchanges with the bot in `<dir>/<user id>/talk.txt` (see exchangeLines). */
 export function userTalkFiles(dir: string, options: TalkFileOptions = {}): UserTalk {
-  const { keep = 20, now, timeZone, append, read } = { ...defaults, ...options };
+  const { keep = 20, now, append, read } = { ...defaults, ...options };
   const file = (userId: string) => join(dir, folderOf(userId), 'talk.txt');
   return {
-    add: (userId, exchange) => append(file(userId), exchangeLines(now(), exchange, timeZone())),
+    add: (userId, exchange) => append(file(userId), exchangeLines(now(), exchange)),
     recent: (userId) => tail(read, file(userId), keep),
   };
 }
