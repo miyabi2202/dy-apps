@@ -87,15 +87,39 @@ export function roomConfigFile(
   const load = (text: string) => {
     seen = text;
     const raw = JSON.parse(text) as Record<string, unknown>;
-    const isPrivate = raw.private ?? false;
-    if (typeof isPrivate !== 'boolean') throw new Error('private must be true or false');
-    const onSing = raw.on_sing === undefined ? undefined : onSingConfig(raw.on_sing);
+    // Each field is checked on its own: a bad one keeps its last good value, so a typo in one
+    // setting can't, say, turn a 私密 room's `private` off with it.
+    const problems: string[] = [];
+    const field = <T>(name: string, parse: () => T, last: T): T => {
+      try {
+        return parse();
+      } catch (err) {
+        problems.push(`${name}: ${errorMessage(err)}`);
+        return last;
+      }
+    };
+    const isPrivate = field(
+      'private',
+      () => {
+        const value = raw.private ?? false;
+        if (typeof value !== 'boolean') throw new Error('must be true or false');
+        return value;
+      },
+      config.private,
+    );
+    const onSing = field(
+      'on_sing',
+      () => (raw.on_sing === undefined ? undefined : onSingConfig(raw.on_sing)),
+      config.onSing,
+    );
     config = {
       private: isPrivate,
       ...(onSing && { onSing }),
-      aliases: aliasList(raw.aliases),
-      ...settingsFrom(raw),
+      aliases: field('aliases', () => aliasList(raw.aliases), config.aliases),
+      ...settingsFrom(raw, config, problems),
     };
+    if (problems.length)
+      log.warn('room_config.json has bad values, keeping their last ones', { problems });
     log.info('room config', { ...config });
   };
   return {
@@ -111,7 +135,14 @@ export function roomConfigFile(
       return config;
     },
     update(patch) {
-      const current = JSON.parse(read(path)) as Record<string, unknown>;
+      let current: Record<string, unknown>;
+      try {
+        current = JSON.parse(read(path)) as Record<string, unknown>;
+      } catch (err) {
+        // Mid hand-edit, say: leave the file to whoever is editing it.
+        log.warn('could not change room_config.json', { patch, error: errorMessage(err) });
+        return;
+      }
       const text = `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`;
       // Checked before it's written, so a change can't make the file unreadable.
       load(text);

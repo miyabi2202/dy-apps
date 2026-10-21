@@ -141,6 +141,60 @@ test('is ready once the models load, before any stream; and starts a worker that
   await running;
 });
 
+test('a busy speech service is let go, so the bot enters the room and tries again later', async () => {
+  let spawned = 0;
+  const warnings: string[] = [];
+  const transcriber: Transcriber = new Transcriber({
+    streamUrl: () => Promise.resolve(null),
+    bus: fakeBus(),
+    transcript: new Transcript(),
+    log: { ...silentLog, warn: (message) => void warnings.push(message) },
+    spawnWorker: ({ onLine }) => {
+      spawned++;
+      let exit: (code: number | null) => void = () => {};
+      // Serving another bot: says so instead of ready.
+      void Promise.resolve().then(() => onLine(JSON.stringify({ busy: true })));
+      return { kill: () => exit(null), send: () => {}, exited: new Promise((r) => (exit = r)) };
+    },
+    sleep: () => {
+      if (spawned >= 2) transcriber.stop();
+      return Promise.resolve();
+    },
+  });
+  const running = transcriber.run();
+  await transcriber.ready();
+  await running;
+  expect(spawned).toBe(2);
+  expect(warnings).toContain('the speech service is serving another bot; trying again later');
+});
+
+test('lets the bot enter the room when the models take too long', async () => {
+  const timers: (() => void)[] = [];
+  const warnings: string[] = [];
+  const transcriber = new Transcriber({
+    streamUrl: () => Promise.resolve(null),
+    bus: fakeBus(),
+    transcript: new Transcript(),
+    log: { ...silentLog, warn: (message) => void warnings.push(message) },
+    // Never ready, never exits.
+    spawnWorker: () => ({ kill: () => {}, send: () => {}, exited: new Promise(() => {}) }),
+    timer: (run) => {
+      timers.push(run);
+      return () => {};
+    },
+  });
+  void transcriber.run();
+  let entered = false;
+  void transcriber.ready().then(() => (entered = true));
+  await Promise.resolve();
+  expect(entered).toBe(false);
+  timers.forEach((fire) => fire());
+  await Promise.resolve();
+  expect(entered).toBe(true);
+  expect(warnings).toEqual(['speech recognition is not ready yet, entering the room without it']);
+  transcriber.stop();
+});
+
 test('asks the worker what music is playing, telling a match, no match and a failure apart', async () => {
   const answers: object[] = [
     { title: 'Aimaimoko', artist: 'Inori Minase' },

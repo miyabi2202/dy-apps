@@ -34,19 +34,26 @@ export const SETTING_DEFAULTS: Readonly<Settings> = {
 export const SETTING_NAMES = Object.keys(SETTING_DEFAULTS) as (keyof Settings)[];
 
 /**
- * The settings in `raw` (a parsed room_config.json), a missing one as its default; throws saying
- * what's wrong with a value of the wrong kind.
+ * The settings in `raw` (a parsed room_config.json), each checked on its own: a missing one is its
+ * default, and one of the wrong kind is `fallback`'s value for it (the last good settings), with
+ * what's wrong with it in `problems`, so one bad value doesn't cost the others.
  */
-export function settingsFrom(raw: Readonly<Record<string, unknown>>): Settings {
+export function settingsFrom(
+  raw: Readonly<Record<string, unknown>>,
+  fallback: Readonly<Settings> = SETTING_DEFAULTS,
+  problems: string[] = [],
+): Settings {
   const settings: Record<string, unknown> = { ...SETTING_DEFAULTS };
   for (const name of SETTING_NAMES) {
     const value = raw[name];
     if (value === undefined) continue;
     const kind = typeof SETTING_DEFAULTS[name];
     if (kind === 'boolean' ? typeof value !== 'boolean' : !isCount(value)) {
-      throw new Error(
+      problems.push(
         `${name} must be ${kind === 'boolean' ? 'true or false' : 'a number, 0 or more'}`,
       );
+      settings[name] = fallback[name];
+      continue;
     }
     settings[name] = value;
   }

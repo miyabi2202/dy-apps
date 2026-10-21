@@ -169,7 +169,7 @@ test('a value of the wrong kind keeps the last good settings and is not written'
   const { file, store, messages } = setup();
   file.state.text = file.state.text.replace('"autoSongId": false', '"autoSongId": "yes"');
   expect(store.get().autoSongId).toBe(false);
-  expect(messages('could not read room_config.json, keeping the last settings')).toHaveLength(1);
+  expect(messages('room_config.json has bad values, keeping their last ones')).toHaveLength(1);
 });
 
 test('auto-reply, the thanker, auto song id, malice watch and the screenshots keep their settings in the file', () => {
@@ -281,4 +281,37 @@ test('the command line says which settings it gave, and the rest stay the room�
     screenshots: false,
     autoReplyIntervalSeconds: 0,
   });
+});
+
+test('a bad value in room_config.json keeps that one field as it was, not the whole file', () => {
+  const file = memoryFile('{ "private": true, "aliases": ["Fairy"], "mentionCost": 5 }\n');
+  const { log, messages } = recordingLog();
+  const config = roomConfigFile('room_config.json', { log, ...file });
+  expect(config.get()).toMatchObject({ private: true, aliases: ['Fairy'], mentionCost: 5 });
+
+  // A hand edit with a string where a number goes: 私密 stays on, the rest stays read.
+  file.state.text =
+    '{ "private": true, "aliases": ["Fairy", "菲瑞"], "mentionCost": "6", "autoSongId": true }\n';
+  expect(config.get()).toMatchObject({
+    private: true,
+    aliases: ['Fairy', '菲瑞'],
+    mentionCost: 5,
+    autoSongId: true,
+  });
+  expect(messages('room_config.json has bad values, keeping their last ones')).toHaveLength(1);
+});
+
+test('a command changing a setting while room_config.json is not JSON leaves the file alone', () => {
+  const file = memoryFile('{ "private": false,\n');
+  const { log, messages } = recordingLog();
+  roomConfigFile('room_config.json', { log, ...file }).update({ mentionCost: 3 });
+  expect(file.state.writes).toBe(0);
+  expect(messages('could not change room_config.json')).toHaveLength(1);
+});
+
+test('a setting given on the command line that is not a number, 0 or more, is refused', () => {
+  const args = ['--room', '416362684969', '--bot-name', '默认关闭'];
+  expect(parseCliOptions([...args, '--cost', 'abc'], '/pkg')).toBeNull();
+  expect(parseCliOptions([...args, '--auto-reply-threshold=-1'], '/pkg')).toBeNull();
+  expect(parseCliOptions([...args, '--cost', '2'], '/pkg')?.given).toEqual({ mentionCost: 2 });
 });

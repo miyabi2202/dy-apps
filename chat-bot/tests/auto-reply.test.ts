@@ -684,3 +684,15 @@ test('keeps quiet after talking like for anything else, and looks at the alias a
   expect(ran.replies.map((r) => r.nickname)).toEqual(['小红', '阿明']);
   expect(ran.asked).toHaveLength(2);
 });
+
+test("the bot's account nickname is not an alias: a line with it is still Jev's to score", async () => {
+  // The fake room's bot is 小助手; a nickname like 默认关闭 is also an everyday phrase.
+  const ran = aliasSetup([() => ran.chat('小红', '小助手这个功能默认关闭了吗', 'u-小红')], {
+    picks: [],
+  });
+  await ran.autoReply.run();
+
+  expect(ran.judged).toEqual(['(1) 00:00:20 [小红] 小助手这个功能默认关闭了吗']);
+  expect(ran.asked).toEqual([]);
+  expect(ran.names('alias matched')).toEqual([]);
+});

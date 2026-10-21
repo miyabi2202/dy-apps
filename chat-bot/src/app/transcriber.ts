@@ -26,6 +26,11 @@ export interface TranscriberOptions {
    * tests pass one they fire by hand.
    */
   timer?: (run: () => void, ms: number) => () => void;
+  /**
+   * Stop holding the bot out of the room after this long without the models loaded (a first run
+   * downloading them, a service that won't start): it enters without speech, which joins later.
+   */
+  readyTimeoutMs?: number;
   now?: () => number;
 }
 
@@ -75,6 +80,13 @@ export class Transcriber {
   /** Runs until `stop()`. */
   async run(): Promise<void> {
     const { log } = this.options;
+    let ready = false;
+    void this.firstReady.then(() => (ready = true));
+    const cancelTimeout = this.timer(() => {
+      if (ready || this.stopped) return;
+      log.warn('speech recognition is not ready yet, entering the room without it');
+      this.markReady();
+    }, this.options.readyTimeoutMs ?? 180_000);
     while (!this.stopped) {
       const worker = this.startWorker();
       const exited = worker.exited.catch((err: unknown) => {
@@ -93,6 +105,7 @@ export class Transcriber {
       log.warn('transcriber stopped, restarting', { code: await exited });
       await this.sleep(this.retryMs);
     }
+    cancelTimeout();
     this.markReady();
   }
 
@@ -168,6 +181,10 @@ export class Transcriber {
         const status = parseStatusLine(text);
         if (status === 'ready') return this.onReady();
         if (status === 'stream_ended') return this.onStreamEnded();
+        if (status === 'busy') {
+          log.warn('the speech service is serving another bot; trying again later');
+          return this.worker?.kill();
+        }
         const line = parseWorkerLine(text);
         if (!line) return;
         transcript.add(line);

@@ -47,14 +47,15 @@ export interface SpeechServiceOptions {
 
 /**
  * Starts the speech service, `uv run asr/transcribe.py --serve <port>`, detached from the bot so it
- * outlives it (and keeps its models loaded across restarts), logging to `logFile`.
+ * outlives it (and keeps its models loaded across restarts), logging to `logFile`. Resolves when
+ * it exits (or couldn't start), so a service that dies while loading isn't waited for.
  */
 export function startSpeechService({
   asrDir,
   port,
   logFile,
   spawn = spawnProcess,
-}: SpeechServiceOptions): void {
+}: SpeechServiceOptions): Promise<void> {
   mkdirSync(dirname(logFile), { recursive: true });
   const fd = openSync(logFile, 'a');
   try {
@@ -68,8 +69,11 @@ export function startSpeechService({
         env: { ...process.env, PYTORCH_ENABLE_MPS_FALLBACK: '1' },
       },
     );
-    child.on('error', () => {});
     child.unref();
+    return new Promise((resolve) => {
+      child.on('error', () => resolve());
+      child.on('exit', () => resolve());
+    });
   } finally {
     closeSync(fd);
   }
@@ -77,8 +81,11 @@ export function startSpeechService({
 
 export interface ConnectWorkerOptions {
   port: number;
-  /** Starts the service, when nothing is listening yet. */
-  start: () => void;
+  /**
+   * Starts the service, when nothing is listening yet; resolves when that service exits, so the
+   * bot stops waiting for one that died while starting (logs/asr.log says why).
+   */
+  start: () => Promise<void>;
   connect?: OpenSocket;
   /** How long between tries to connect while the service starts. */
   retryMs?: number;
@@ -108,14 +115,17 @@ export function connectWorker({
     let killed = false;
     const exited = (async (): Promise<number | null> => {
       let started = false;
+      let died = false;
       for (let tries = 1; !killed; tries++) {
         try {
           socket = await connect(port);
           break;
         } catch (err) {
+          // Tried once more after it died, in case another bot's service took the port meanwhile.
+          if (died) throw new Error('the speech service exited while starting', { cause: err });
           if (!started) {
             onLog(`no speech service on port ${port}, starting one`);
-            start();
+            void start().then(() => (died = true));
             started = true;
           }
           if (tries >= maxTries)

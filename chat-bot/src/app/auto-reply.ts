@@ -156,7 +156,7 @@ export class AutoReply {
   }
 
   /**
-   * The streamer said something: one with the bot's name or an alias in it (「Fairy 你来唱一首」,
+   * The streamer said something: one with an alias of the bot's in it (「Fairy 你来唱一首」,
    * as speech recognition wrote it) is surely about the bot, so it looks now, like for a chat.
    */
   hearSpeech({ text }: { text: string }): void {
@@ -171,8 +171,12 @@ export class AutoReply {
   }
 
   /** The names that mean the bot: its nickname, and the room's aliases for it. */
-  private names(): string[] {
-    return [this.options.room.botName, ...this.options.room.aliases()];
+  /**
+   * The room's aliases for the bot (room_config.json). Not its account name: that can be an everyday
+   * phrase (「默认关闭」), so lines with it go through the judge as before, not straight to Codex.
+   */
+  private names(): readonly string[] {
+    return this.options.room.aliases();
   }
 
   /**

@@ -135,6 +135,12 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     ...(values['malice-watch'] !== undefined && { maliceWatch: values['malice-watch'] }),
     ...(values.screenshot !== undefined && { screenshots: values.screenshot }),
   };
+  // A setting given as something that isn't a number, 0 or more (`--cost abc`), is a mistake: say
+  // so, rather than write it into the room's room_config.json for good.
+  const badNumber = Object.values(given).some(
+    (value) => typeof value === 'number' && !(Number.isFinite(value) && value >= 0),
+  );
+  if (badNumber) return null;
   const settings = { ...SETTING_DEFAULTS, ...given };
   return {
     roomId,

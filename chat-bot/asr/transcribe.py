@@ -30,7 +30,8 @@ that one and exits when it ends.
 
 With `--serve PORT` it doesn't exit: it listens on 127.0.0.1:PORT and speaks the same lines (the
 `{"ready": true}` and the rest, one JSON object a line, UTF-8) to whoever connects, one bot at a
-time; it starts listening before the models load, and a bot that connects meanwhile gets `ready` once
+time (another bot that connects meanwhile is told `{"busy": true}` and disconnected); it starts
+listening before the models load, and a bot that connects meanwhile gets `ready` once
 they have. When the bot disconnects its stream is stopped (ffmpeg killed), but the models and the
 voiceprints it learned stay loaded, and the next connection is told `{"ready": true}` at once. That
 way restarting the bot doesn't reload the models. The bot starts it detached if nothing is listening
@@ -365,19 +366,24 @@ def read_requests(lines, urls: queue.Queue, music: queue.Queue, stream: Stream) 
     listened to, if any, and listen to this one) goes to `urls`, `{"music_id": …}` to `music`. When
     they end (the bot is gone), puts None on both and stops the stream, so the session ends.
     """
-    for request in lines:
-        try:
-            message = json.loads(request)
-            if "url" in message:
-                urls.put(str(message["url"]))
-                stream.stop()
-            else:
-                music.put(message["music_id"])
-        except (ValueError, KeyError, TypeError):
-            log(f"not a request: {request.strip()!r}")
-    urls.put(None)
-    music.put(None)
-    stream.stop()
+    try:
+        for request in lines:
+            try:
+                message = json.loads(request)
+                if "url" in message:
+                    urls.put(str(message["url"]))
+                    stream.stop()
+                else:
+                    music.put(message["music_id"])
+            except (ValueError, KeyError, TypeError):
+                log(f"not a request: {request.strip()!r}")
+    except (OSError, ValueError) as err:  # the connection broke, or its bytes weren't text
+        log(f"stopped reading requests: {err}")
+    finally:
+        # Whatever ended the reading, the session must end, or the service stays stuck in it.
+        urls.put(None)
+        music.put(None)
+        stream.stop()
 
 
 def answer_music_requests(music: queue.Queue, recent: collections.deque) -> None:
@@ -536,20 +542,35 @@ def serve(server: socket.socket, models: tuple, recent: collections.deque, realt
     Serves the same JSON lines over `server`, a local TCP socket, to one bot at a time, for good:
     the models and voiceprints stay loaded between bots, so a restarted bot is back in a moment.
     When a bot disconnects its stream is stopped and the next connection gets a fresh
-    `{"ready": true}`.
+    `{"ready": true}`. A bot that connects while another is connected is told `{"busy": true}` and
+    disconnected, rather than left waiting.
     """
-    global sink
+    busy = threading.Lock()
+
+    def run_session(conn: socket.socket) -> None:
+        global sink
+        try:
+            with conn, conn.makefile("r", encoding="utf-8", errors="replace") as lines:
+                sink = lambda text: conn.sendall(f"{text}\n".encode())  # noqa: E731
+                try:
+                    session(lines, models, recent, realtime)
+                except OSError:
+                    pass
+        finally:
+            sink = lambda text: None  # noqa: E731
+            log("bot disconnected, waiting for the next one")
+            busy.release()
+
     while True:
         conn, _ = server.accept()
+        if not busy.acquire(blocking=False):
+            log("another bot is connected; turning this one away")
+            with conn:
+                with contextlib.suppress(OSError):
+                    conn.sendall(b'{"busy": true}\n')
+            continue
         log("bot connected")
-        with conn, conn.makefile("r", encoding="utf-8") as lines:
-            sink = lambda text: conn.sendall(f"{text}\n".encode())  # noqa: E731
-            try:
-                session(lines, models, recent, realtime)
-            except OSError:
-                pass
-        sink = lambda text: None  # noqa: E731
-        log("bot disconnected, waiting for the next one")
+        threading.Thread(target=run_session, args=(conn,), daemon=True).start()
 
 
 if __name__ == "__main__":

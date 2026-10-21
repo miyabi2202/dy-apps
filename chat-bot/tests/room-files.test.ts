@@ -141,7 +141,7 @@ test("room_config.json's aliases are the other names of the bot, read again as t
   expect(roomConfig().aliases).toEqual(['Fairy', '菲瑞']);
   writeFileSync(config, '{ "aliases": "Fairy" }');
   expect(roomConfig().aliases).toEqual(['Fairy', '菲瑞']);
-  expect(warned).toEqual(['could not read room_config.json, keeping the last settings']);
+  expect(warned).toEqual(['room_config.json has bad values, keeping their last ones']);
   writeFileSync(config, '{}');
   expect(roomConfig().aliases).toEqual([]);
 });

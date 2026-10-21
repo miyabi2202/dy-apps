@@ -141,13 +141,17 @@ export function parseWorkerLine(text: string): TranscriptLine | null {
   };
 }
 
-/** The worker's `{"ready": true}` (models loaded) or `{"stream_ended": true, …}`, or null. */
-export function parseStatusLine(text: string): 'ready' | 'stream_ended' | null {
+/**
+ * The worker's `{"ready": true}` (models loaded), `{"stream_ended": true, …}` or `{"busy": true}`
+ * (the speech service is serving another bot), or null.
+ */
+export function parseStatusLine(text: string): 'ready' | 'stream_ended' | 'busy' | null {
   if (!text.startsWith('{')) return null;
   try {
     const json = JSON.parse(text) as Record<string, unknown>;
     if (json.ready === true) return 'ready';
     if (json.stream_ended === true) return 'stream_ended';
+    if (json.busy === true) return 'busy';
   } catch {
     // Not JSON: not a status.
   }
