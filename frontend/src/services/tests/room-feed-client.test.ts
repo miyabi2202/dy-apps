@@ -1,8 +1,8 @@
-import { DyhubClient, type DyhubSocket, type DyhubStatus } from '..';
+import { RoomFeedClient, type RoomFeedSocket, type RoomFeedStatus } from '..';
 
 /** A fake openSocket: records each socket so the test can send it frames. */
 function fakeSockets() {
-  const opened: (DyhubSocket & { url: string; closed: boolean })[] = [];
+  const opened: (RoomFeedSocket & { url: string; closed: boolean })[] = [];
   const openSocket = (url: string) => {
     const socket = {
       url,
@@ -13,7 +13,7 @@ function fakeSockets() {
       close() {
         socket.closed = true;
       },
-    } as DyhubSocket & { url: string; closed: boolean };
+    } as RoomFeedSocket & { url: string; closed: boolean };
     opened.push(socket);
     return socket;
   };
@@ -48,19 +48,19 @@ const user = { id: 'u1', nickname: '奶茶不加糖' };
 function setup(retryMs?: number) {
   const sockets = fakeSockets();
   const clock = fakeClock();
-  const client = new DyhubClient({
+  const client = new RoomFeedClient({
     port: 8757,
     roomId: '123',
     retryMs,
     openSocket: sockets.openSocket,
     schedule: clock.schedule,
   });
-  const statuses: [DyhubStatus, string | undefined][] = [];
+  const statuses: [RoomFeedStatus, string | undefined][] = [];
   client.onStatus((s, d) => statuses.push([s, d]));
   return { ...sockets, clock, client, statuses };
 }
 
-describe('DyhubClient', () => {
+describe('RoomFeedClient', () => {
   it('subscribes only to the event types it has handlers for', () => {
     const { client, last } = setup();
     client.onGift(() => {});
@@ -69,7 +69,7 @@ describe('DyhubClient', () => {
     expect(last().url).toBe('ws://localhost:8757/ws?roomId=123&types=gift,like');
   });
 
-  it("reports DyHub's progress frames as statuses", () => {
+  it("reports room-feed's progress frames as statuses", () => {
     const { client, send, statuses } = setup();
     client.connect();
     send({ type: '__hello' });
@@ -112,7 +112,7 @@ describe('DyhubClient', () => {
     send(gift(5));
     send(gift(5)); // a repeat of the same progress
     send(gift(5, { repeatEnd: true }));
-    send({ ...gift(1), data: {} }); // no giftId: not a gift DyHub could have sent
+    send({ ...gift(1), data: {} }); // no giftId: not a gift room-feed could have sent
     expect(gifts).toEqual([1, 4, 0, 0]);
   });
 
@@ -136,12 +136,14 @@ describe('DyhubClient', () => {
     expect(comments).toEqual([]);
   });
 
-  it('reports a socket error with a hint to start DyHub', () => {
+  it('reports a socket error with a hint to start room-feed', () => {
     const { client, last, statuses } = setup();
     client.connect();
     last().onerror?.(new Event('error'));
     last().onclose?.({} as CloseEvent);
-    expect(statuses.slice(1)).toEqual([['error', '无法连接 localhost:8757，请确认 DyHub 已启动']]);
+    expect(statuses.slice(1)).toEqual([
+      ['error', '无法连接 localhost:8757，请确认 room-feed 已启动'],
+    ]);
   });
 
   it('reconnects after an error or a drop when it has retryMs, closing the old socket', () => {

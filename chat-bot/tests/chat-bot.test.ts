@@ -680,7 +680,7 @@ test("a mention a room command's trigger took is answered as usual, at the usual
   expect(wallet.balance('u-阿明')).toBe(0);
 });
 
-/** A chat from `nickname` with what DyHub says about them. */
+/** A chat from `nickname` with what room-feed says about them. */
 const viewerChat = (nickname: string, content: string, extra: Partial<IncomingChat> = {}) => ({
   ...chat(nickname, content),
   ...extra,
@@ -782,7 +782,7 @@ test("a command's except filter skips a trigger-taken @ from a viewer it names: 
     userId: 'u-阿明',
   });
 
-  // Anyone else, or without badges (DyHub doesn't send them yet), gets it.
+  // Anyone else, or without badges (room-feed doesn't send them yet), gets it.
   say(viewerChat('阿明', `@${BOT.nickname} 你好呀`, { badges: ['别的'] }));
   say(chat('阿明', `@${BOT.nickname} 你好呀`));
   await settle();

@@ -1,17 +1,18 @@
 # dy-apps
 
-Small live-stream apps, served as one site: an index page at `/` and each app on its own route. The site lives in one package, [`frontend/`](frontend) (`@dy-apps/frontend`), inside a pnpm workspace. Beside it, [`chat-bot/`](chat-bot) (`@dy-apps/chat-bot`) is a command-line bot, not a web page.
+Small live-stream apps, served as one site: an index page at `/` and each app on its own route. The site lives in one package, [`frontend/`](frontend) (`@dy-apps/frontend`), inside a pnpm workspace. Beside it, [`chat-bot/`](chat-bot) (`@dy-apps/chat-bot`) is a command-line bot, not a web page, and [`room-feed/`](room-feed) (`@dy-apps/room-feed`) the local server both get a live room's chat and gifts from.
 
-| Path                             | What it is                                                                       |
-| -------------------------------- | -------------------------------------------------------------------------------- |
-| `frontend/src/`                  | The site itself: index page, React Router, entry (`main.tsx`)                    |
-| `frontend/src/apps/tetris/`      | 方块干预实验室 at `/tetris`: block game with audience curses                     |
-| `frontend/src/apps/danmaku/`     | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                           |
-| `frontend/src/apps/gift-pile/`   | 嘉年华堆堆乐 at `/gift-pile`: icons fall from the top and pile up, up to 100k    |
-| `frontend/src/apps/dyhub-guide/` | DyHub Windows 安装教程 at `/dyhub-windows`, for streamers                        |
-| `frontend/src/services/`         | Shared non-UI code: the DyHub client, messages, fake data and saved settings     |
-| `frontend/src/ui/`               | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
-| `chat-bot/`                      | A bot that chats in a live room: answers @s, joins in, names songs, thanks gifts |
+| Path                                 | What it is                                                                       |
+| ------------------------------------ | -------------------------------------------------------------------------------- |
+| `frontend/src/`                      | The site itself: index page, React Router, entry (`main.tsx`)                    |
+| `frontend/src/apps/tetris/`          | 方块干预实验室 at `/tetris`: block game with audience curses                     |
+| `frontend/src/apps/danmaku/`         | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                           |
+| `frontend/src/apps/gift-pile/`       | 嘉年华堆堆乐 at `/gift-pile`: icons fall from the top and pile up, up to 100k    |
+| `frontend/src/apps/room-feed-guide/` | room-feed Windows 安装教程 at `/room-feed-windows`, for streamers                |
+| `frontend/src/services/`             | Shared non-UI code: the room-feed client, messages, fake data and saved settings |
+| `frontend/src/ui/`                   | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
+| `chat-bot/`                          | A bot that chats in a live room: answers @s, joins in, names songs, thanks gifts |
+| `room-feed/`                         | The server that reads a live room in Chrome and sends its chat and gifts on      |
 
 ## Layout
 
@@ -27,11 +28,11 @@ frontend/                 # @dy-apps/frontend: the one package
       integration-tests/  #     Playwright specs, against the site's production build
     services/             #   imported as `@dy-apps/services`: shared non-UI code
       demo-source.ts      #     fake or live source, the fake interval and `?demo=` in OBS links
-      dyhub-client.ts     #     DyhubClient: onComment / onGift / onLike / onStatus, with retry
-      dyhub.ts            #     the raw stream (connectDyhub), port/room validation, GiftCounter, status text
+      room-feed-client.ts     #     RoomFeedClient: onComment / onGift / onLike / onStatus, with retry
+      room-feed.ts            #     the raw stream (connectRoomFeed), port/room validation, GiftCounter, status text
       fake-messages.ts    #     made-up viewers, chat and gifts for previews
       like-batcher.ts     #     LikeBatcher: one total per viewer once they stop liking
-      live-message.ts     #     DanmakuMessage, and DyHub events turned into messages
+      live-message.ts     #     DanmakuMessage, and room-feed events turned into messages
       live-room.ts        #     liveRoomFrom, the room in OBS links, createConnectionStore
       local-storage.ts    #     createStore for `dy-apps:<app>.<key>` values
     ui/                   #   imported as `@dy-apps/ui`: design tokens + the components every app reuses
@@ -57,9 +58,17 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   src/wiring/             #   the IoC container (container.ts) and what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot)
   src/core/               #   pure logic: mentions, prompt, reply splitting, wallet, chat record and talk record formats
   src/app/                #   use cases: ChatBot (commands, charging), RoomFeed (chat and gifts in), MentionAnswerer (questions to Claude), RoomState (what prompts know about the room), Billing, Outbox, Transcriber; ports.ts for the outside
-  src/adapters/           #   DyHub, the Claude CLI, the ASR process, files and logging
+  src/adapters/           #   room-feed, the Claude CLI, the ASR process, files and logging
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + CAM++
   logs/  data/            #   winston logs; data/<房间号>/ per room: chat/, <user id>/, bot_logs.md, context.md, wallet.json (not in git)
+room-feed/                # @dy-apps/room-feed: one live room's events, run with tsx (see "room-feed" below)
+  src/main.ts             #   entry: `login` or `--room` (cli-options.ts), the real objects wired
+  src/room.ts             #   Room: keeps the room page open, reopens it when chat drops, chat queue
+  src/room-page.ts        #   the page in Chrome (Playwright): push frames over CDP, chat box, stream URL, screenshot
+  src/server.ts           #   HTTP + WebSocket for clients
+  src/events.ts           #   what clients get: chat, gift, like and status frames
+  src/douyin/             #   Douyin's protobuf, its messages turned into events, the streamer from the page
+  src/login.ts            #   `login`: a Chrome window to log in, the cookie saved to data/cookie.json
 eslint.config.js          # lint for the whole repo, including which folders may import which
 .prettierrc.json          # repo-wide formatting (+ .prettierignore)
 package.json              # private root: lint/format tools and the repo-wide checks
@@ -78,28 +87,26 @@ The site's Vite build (`frontend/config/vite.config.ts`) splits output so each p
 
 The index page loads `react`, `stylex` and `lib` (it's built from `@dy-apps/ui` too) but never an `app-*` chunk.
 
-## DyHub (live-room events)
+## room-feed (live-room events)
 
-Live chat and gifts come from [DyHub](https://github.com/ymstar/dyhub), a Douyin live-room event hub that runs on your own machine. The apps need **our fork, [miyabi2202/dyhub](https://github.com/miyabi2202/dyhub) (`main`)**, not upstream. The fork adds:
-
-- Correct gift fields, including `groupId` and `repeatEnd`, which `GiftCounter` needs to count each gift once (upstream PR [ymstar/dyhub#4](https://github.com/ymstar/dyhub/pull/4), not merged yet)
-- 网页登录 in the console: log in to Douyin in a pop-up window and the cookie is saved. Gift events need a logged-in cookie
-- A fix so a room isn't marked closed when some other WebSocket on the live page closes
-- The console's live feed merges the messages of one gift send
-- For the chat bot: `POST /api/rooms/:roomId/chat` sends chat as the logged-in account, `GET …/stream` gives the room's FLV stream URL and `GET …/screenshot` a JPEG of the player
-
-Run it on the machine that opens the app (the streaming PC, for OBS):
+Live chat, gifts and likes come from [`room-feed/`](room-feed) (`@dy-apps/room-feed`), a small server that runs on the streamer's own machine. It opens one Douyin live room in Chrome (headless), reads the chat socket's frames over CDP, and sends them on as JSON events to local clients over WebSocket. It started as a cut-down copy of [ymstar/dyhub](https://github.com/ymstar/dyhub) (MIT, see `room-feed/LICENSE`): only the browser collector, one room, no console.
 
 ```sh
-git clone https://github.com/miyabi2202/dyhub.git
-cd dyhub
-npm install
-npm run build && npm start   # console → http://localhost:8757
+pnpm room-feed login                 # log in to Douyin in a Chrome window; saved in room-feed/data/
+pnpm room-feed --room <房间号>        # serve that room on port 8757 (--port to change)
 ```
 
-It needs Node.js 20+ and Chrome installed. Log in once from the console (网页登录) to receive gifts. See the fork's README for environment variables such as `DYHUB_PORT`.
+It needs Chrome installed (`--chrome <path>` when it isn't found). Gifts only arrive, and chat can only be sent, when logged in. It serves one room: a client asking for another gets an error naming the room it serves, so two rooms need two room-feeds on different ports. When the chat socket drops, or no push frame comes within a minute (the room isn't live), it reopens the room page by itself.
 
-Apps connect through [`@dy-apps/services`](services) to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (DyHub's default is `8757`) and the room ID (the number in `live.douyin.com/<id>`), and DyHub starts collecting that room. The address is always `localhost`, so DyHub must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
+| Endpoint                         | What                                                                                                                 |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `ws://…/ws?roomId=<id>&types=…`  | events (`chat`, `gift`, `like`; types in `room-feed/src/events.ts`) and `__connecting` / `__connected` status frames |
+| `GET /api/rooms/<id>`            | status, the streamer (`meta.uid`, from the room page) and the login's `expiresAt`                                    |
+| `POST /api/rooms/<id>/chat`      | `{ text }`: send a chat as the logged-in account; `echoed` once it came back                                         |
+| `GET /api/rooms/<id>/stream`     | the FLV URL the page's player pulls (the bot's speech recognition)                                                   |
+| `GET /api/rooms/<id>/screenshot` | the player as a JPEG                                                                                                 |
+
+Apps connect through [`@dy-apps/services`](frontend/src/services) to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (`8757` by default) and the room ID (the number in `live.douyin.com/<id>`). The address is always `localhost`, so room-feed must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
 
 Status: both apps pick fake data or a live room in their 数据来源 panel. The danmaku wall shows the room's chat, gifts and likes; tetris turns its gifts into curses, one draw per diamond.
 

@@ -104,7 +104,7 @@ export function registerRoom(container: Container): void {
     })
     .register(BOT_CONFIG, (c) => readConfig(resolve(c.resolve(OPTIONS).configFile)))
     // The admins from config.json (read again when it changes, so admins can be added or removed
-    // while it runs), and the room's streamer once DyHub has read the room page (saved in
+    // while it runs), and the room's streamer once room-feed has read the room page (saved in
     // room_config.json).
     .register(ADMINS, (c) => {
       const log = c.resolve(LOG);

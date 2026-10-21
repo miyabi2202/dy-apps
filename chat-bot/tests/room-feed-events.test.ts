@@ -1,8 +1,8 @@
-import type { DyhubCommentEvent, DyhubGiftEvent } from '@dy-apps/services';
-import { chatFrom, giftFrom } from '../src/adapters/dyhub-events';
+import type { RoomFeedCommentEvent, RoomFeedGiftEvent } from '@dy-apps/services';
+import { chatFrom, giftFrom } from '../src/adapters/room-feed-events';
 
 test('keeps only the picked @mentions of a chat, and names an anonymous sender', () => {
-  const event: DyhubCommentEvent = {
+  const event: RoomFeedCommentEvent = {
     id: 'm1',
     roomId: '1',
     type: 'chat',
@@ -26,7 +26,7 @@ test('keeps only the picked @mentions of a chat, and names an anonymous sender',
 });
 
 test('a gift is worth its count times its diamonds, and needs someone to credit', () => {
-  const event: DyhubGiftEvent = {
+  const event: RoomFeedGiftEvent = {
     id: 'g1',
     roomId: '1',
     type: 'gift',
@@ -46,8 +46,8 @@ test('a gift is worth its count times its diamonds, and needs someone to credit'
   expect(giftFrom({ ...event, user: undefined }, 2)).toBeNull();
 });
 
-test("passes on the badges by the sender's name, when DyHub sends them", () => {
-  const event: DyhubCommentEvent = {
+test("passes on the badges by the sender's name, when room-feed sends them", () => {
+  const event: RoomFeedCommentEvent = {
     id: 'm2',
     roomId: '1',
     type: 'chat',
@@ -59,8 +59,8 @@ test("passes on the badges by the sender's name, when DyHub sends them", () => {
   expect(chatFrom({ ...event, user: { id: '7', nickname: '阿明' } })).not.toHaveProperty('badges');
 });
 
-test("carries a sender's badges, fan club and wealth level when DyHub sends them", () => {
-  const event: DyhubCommentEvent = {
+test("carries a sender's badges, fan club and wealth level when room-feed sends them", () => {
+  const event: RoomFeedCommentEvent = {
     id: 'm2',
     roomId: '1',
     type: 'chat',

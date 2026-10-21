@@ -29,12 +29,12 @@ import {
 import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DanmakuConfig } from './config';
-import { connectionStore } from './dyhub';
+import { connectionStore } from './room-feed';
 import { log as moduleLog } from './log';
 import { createMessageLogger } from './message-log';
 import { loadSettings, saveSettings } from './settings';
 import { Controls } from './ui/controls';
-import { useDyhub, type CreateDyhubClient } from './use-dyhub';
+import { useRoomFeed, type CreateRoomFeedClient } from './use-room-feed';
 
 /** Older messages are dropped past this, so a long stream doesn't grow memory forever. */
 const MAX_MESSAGES = 1000;
@@ -76,7 +76,7 @@ function optionsFromUrl(): PageOptions {
 
 interface Props {
   /** Swapped for a fake in tests. */
-  createClient?: CreateDyhubClient;
+  createClient?: CreateRoomFeedClient;
   /** The debug log (`[danmaku]` in the console); swapped for one with a fake sink in tests. */
   logger?: Logger;
   /** Where `?logmsg=1` writes each message; the console by default. */
@@ -121,7 +121,7 @@ export function DanmakuPage({ createClient, logger = moduleLog, log = console.lo
     pushFake,
     demoRandom ? Math.random : null,
   );
-  const dyhub = useDyhub(
+  const feed = useRoomFeed(
     demoRunning && demoSource === 'live' ? liveRoom : null,
     push,
     createClient,
@@ -197,7 +197,7 @@ export function DanmakuPage({ createClient, logger = moduleLog, log = console.lo
               onIntervalChange={setDemoIntervalMs}
               connection={connection}
               onConnectionChange={setConnection}
-              liveState={dyhub}
+              liveState={feed}
             >
               <Button onClick={() => setMessages([])}>清空</Button>
               <span {...stylex.props(text.muted)}>{messages.length} 条</span>

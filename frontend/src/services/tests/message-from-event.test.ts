@@ -1,28 +1,28 @@
-import { GiftCounter, type DyhubEvent } from '../dyhub';
+import { GiftCounter, type RoomFeedEvent } from '../room-feed';
 import { likeMessage, messageFromEvent } from '../live-message';
 
-const dyhubUser = {
+const roomFeedUser = {
   id: 'u1',
   nickname: '奶茶不加糖',
   avatar: 'https://example.com/a.png',
   fansClub: { name: '弹幕墙', level: 12, status: 1, anchorId: 'x' },
 };
 
-const chatEvent = (content: unknown): DyhubEvent => ({
+const chatEvent = (content: unknown): RoomFeedEvent => ({
   id: 'e1',
   roomId: 'r1',
   type: 'chat',
   ts: 100,
-  user: dyhubUser,
+  user: roomFeedUser,
   data: { content },
 });
 
-const giftEvent = (data: Record<string, unknown>, id = 'e2'): DyhubEvent => ({
+const giftEvent = (data: Record<string, unknown>, id = 'e2'): RoomFeedEvent => ({
   id,
   roomId: 'r1',
   type: 'gift',
   ts: 200,
-  user: dyhubUser,
+  user: roomFeedUser,
   data: { giftId: 'g1', giftName: '玫瑰', ...data },
 });
 
@@ -98,12 +98,12 @@ describe('messageFromEvent', () => {
 });
 
 describe('likes', () => {
-  const like = (data: Record<string, unknown>): DyhubEvent => ({
+  const like = (data: Record<string, unknown>): RoomFeedEvent => ({
     id: 'l1',
     roomId: 'r1',
     type: 'like',
     ts: 300,
-    user: dyhubUser,
+    user: roomFeedUser,
     data,
   });
 

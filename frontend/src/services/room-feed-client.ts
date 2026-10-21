@@ -1,47 +1,47 @@
 import {
-  connectDyhub,
+  connectRoomFeed,
   GiftCounter,
   likeCount,
-  type DyhubChatData,
-  type DyhubEvent,
-  type DyhubEventType,
-  type DyhubGiftData,
-  type DyhubSocket,
-  type DyhubStatus,
-} from './dyhub';
+  type RoomFeedChatData,
+  type RoomFeedEvent,
+  type RoomFeedEventType,
+  type RoomFeedGiftData,
+  type RoomFeedSocket,
+  type RoomFeedStatus,
+} from './room-feed';
 
 /** A chat message. */
-export type DyhubCommentEvent = Omit<DyhubEvent, 'type' | 'data'> & {
+export type RoomFeedCommentEvent = Omit<RoomFeedEvent, 'type' | 'data'> & {
   type: 'chat';
-  data: DyhubChatData;
+  data: RoomFeedChatData;
 };
 
-export type DyhubGiftEvent = Omit<DyhubEvent, 'type' | 'data'> & {
+export type RoomFeedGiftEvent = Omit<RoomFeedEvent, 'type' | 'data'> & {
   type: 'gift';
-  data: DyhubGiftData;
+  data: RoomFeedGiftData;
 };
 
-export type DyhubLikeEvent = Omit<DyhubEvent, 'type' | 'data'> & {
+export type RoomFeedLikeEvent = Omit<RoomFeedEvent, 'type' | 'data'> & {
   type: 'like';
   data: { count?: number; total?: number };
 };
 
 /** A connection's last status, for showing it; `idle` before connecting. */
-export interface DyhubState {
-  status: DyhubStatus | 'idle';
+export interface RoomFeedState {
+  status: RoomFeedStatus | 'idle';
   detail?: string;
 }
 
 /** Cancels what `schedule` set up. */
 type Cancel = () => void;
 
-export interface DyhubClientOptions {
+export interface RoomFeedClientOptions {
   port: number;
   roomId: string;
   /** Reconnect this long after an error or a drop. Without it, the client stays down. */
   retryMs?: number;
   /** Opens the WebSocket; tests pass a fake. */
-  openSocket?: (url: string) => DyhubSocket;
+  openSocket?: (url: string) => RoomFeedSocket;
   /** setTimeout by default; tests pass a fake clock. */
   schedule?: (run: () => void, ms: number) => Cancel;
   /** Counts new gifts across a combo's repeated messages. */
@@ -56,39 +56,39 @@ const defaultSchedule = (run: () => void, ms: number): Cancel => {
 type Handlers<T extends unknown[]> = Set<(...args: T) => void>;
 
 /**
- * One live room's DyHub stream. Add handlers with `onComment`, `onGift`, `onLike` and
+ * One live room's room-feed stream. Add handlers with `onComment`, `onGift`, `onLike` and
  * `onStatus`, then `connect()`; it subscribes only to the event types that have handlers.
  * Each `on…` returns a function that removes the handler.
  *
- *     const client = new DyhubClient({ port: 8757, roomId: '123', retryMs: 5000 });
+ *     const client = new RoomFeedClient({ port: 8757, roomId: '123', retryMs: 5000 });
  *     client.onGift((gift, newGifts) => …);
  *     client.connect();
  *     …
  *     client.close();
  */
-export class DyhubClient {
-  private readonly status: Handlers<[DyhubStatus, string | undefined]> = new Set();
-  private readonly comments: Handlers<[DyhubCommentEvent]> = new Set();
-  private readonly giftHandlers: Handlers<[DyhubGiftEvent, number]> = new Set();
-  private readonly likes: Handlers<[DyhubLikeEvent, number]> = new Set();
-  private readonly options: DyhubClientOptions;
+export class RoomFeedClient {
+  private readonly status: Handlers<[RoomFeedStatus, string | undefined]> = new Set();
+  private readonly comments: Handlers<[RoomFeedCommentEvent]> = new Set();
+  private readonly giftHandlers: Handlers<[RoomFeedGiftEvent, number]> = new Set();
+  private readonly likes: Handlers<[RoomFeedLikeEvent, number]> = new Set();
+  private readonly options: RoomFeedClientOptions;
   private readonly schedule: (run: () => void, ms: number) => Cancel;
   private readonly gifts: GiftCounter;
   private disconnect: (() => void) | null = null;
   private cancelRetry: Cancel | null = null;
 
-  constructor(options: DyhubClientOptions) {
+  constructor(options: RoomFeedClientOptions) {
     this.options = options;
     this.schedule = options.schedule ?? defaultSchedule;
     this.gifts = options.gifts ?? new GiftCounter();
   }
 
-  onStatus(handler: (status: DyhubStatus, detail?: string) => void): () => void {
+  onStatus(handler: (status: RoomFeedStatus, detail?: string) => void): () => void {
     return add(this.status, handler);
   }
 
   /** Chat messages that carry text. */
-  onComment(handler: (event: DyhubCommentEvent) => void): () => void {
+  onComment(handler: (event: RoomFeedCommentEvent) => void): () => void {
     return add(this.comments, handler);
   }
 
@@ -96,24 +96,24 @@ export class DyhubClient {
    * Every gift message, with how many new gifts it adds. Douyin repeats a combo's messages,
    * so that's 0 for repeats; count by it, not by messages.
    */
-  onGift(handler: (event: DyhubGiftEvent, newGifts: number) => void): () => void {
+  onGift(handler: (event: RoomFeedGiftEvent, newGifts: number) => void): () => void {
     return add(this.giftHandlers, handler);
   }
 
   /** Every like message, with how many taps it carries (Douyin batches a few). */
-  onLike(handler: (event: DyhubLikeEvent, count: number) => void): () => void {
+  onLike(handler: (event: RoomFeedLikeEvent, count: number) => void): () => void {
     return add(this.likes, handler);
   }
 
   /** Opens the stream, closing any open one first. */
   connect(): void {
     this.stop();
-    const types: DyhubEventType[] = [];
+    const types: RoomFeedEventType[] = [];
     if (this.comments.size) types.push('chat');
     if (this.giftHandlers.size) types.push('gift');
     if (this.likes.size) types.push('like');
     const { port, roomId, openSocket } = this.options;
-    this.disconnect = connectDyhub(
+    this.disconnect = connectRoomFeed(
       port,
       roomId,
       {
@@ -147,17 +147,18 @@ export class DyhubClient {
     this.cancelRetry = this.schedule(() => this.connect(), retryMs);
   }
 
-  private dispatch(event: DyhubEvent): void {
+  private dispatch(event: RoomFeedEvent): void {
     if (event.type === 'chat') {
       if (typeof event.data?.content !== 'string') return;
-      for (const h of this.comments) h(event as DyhubCommentEvent);
+      for (const h of this.comments) h(event as RoomFeedCommentEvent);
     } else if (event.type === 'gift') {
       if (typeof event.data?.giftId !== 'string') return;
       const newGifts = this.gifts.add(event);
-      for (const h of this.giftHandlers) h(event as DyhubGiftEvent, newGifts);
+      for (const h of this.giftHandlers) h(event as RoomFeedGiftEvent, newGifts);
     } else if (event.type === 'like') {
       const count = likeCount(event);
-      for (const h of this.likes) h({ ...event, data: event.data ?? {} } as DyhubLikeEvent, count);
+      for (const h of this.likes)
+        h({ ...event, data: event.data ?? {} } as RoomFeedLikeEvent, count);
     }
   }
 }

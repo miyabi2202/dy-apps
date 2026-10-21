@@ -1,14 +1,14 @@
 import {
-  dyhubUrl,
+  roomFeedUrl,
   GiftCounter,
   isRoomId,
   likeCount,
   parsePort,
-  type DyhubEvent,
-  type DyhubGiftData,
+  type RoomFeedEvent,
+  type RoomFeedGiftData,
 } from '..';
 
-describe('dyhub settings', () => {
+describe('room-feed settings', () => {
   it('accepts ports 1–65535 written as plain digits', () => {
     expect(parsePort('8757')).toBe(8757);
     expect(parsePort('1')).toBe(1);
@@ -26,20 +26,20 @@ describe('dyhub settings', () => {
   });
 
   it('always targets localhost with the chat and gift streams', () => {
-    expect(dyhubUrl(8757, '167920210669')).toBe(
+    expect(roomFeedUrl(8757, '167920210669')).toBe(
       'ws://localhost:8757/ws?roomId=167920210669&types=chat,gift',
     );
   });
 
   it('subscribes to the event types asked for', () => {
-    expect(dyhubUrl(8757, '1', ['chat', 'gift', 'like'])).toBe(
+    expect(roomFeedUrl(8757, '1', ['chat', 'gift', 'like'])).toBe(
       'ws://localhost:8757/ws?roomId=1&types=chat,gift,like',
     );
   });
 });
 
 describe('GiftCounter', () => {
-  const gift = (data: Partial<DyhubGiftData>, roomId = '1'): DyhubEvent => ({
+  const gift = (data: Partial<RoomFeedGiftData>, roomId = '1'): RoomFeedEvent => ({
     id: Math.random().toString(),
     roomId,
     type: 'gift',
@@ -85,7 +85,7 @@ describe('GiftCounter', () => {
     ).toBe(0);
   });
 
-  it('counts every message when DyHub sends no groupId', () => {
+  it('counts every message when room-feed sends no groupId', () => {
     const counter = new GiftCounter();
     expect(counter.add(gift({}))).toBe(1);
     expect(counter.add(gift({}))).toBe(1);
@@ -93,7 +93,7 @@ describe('GiftCounter', () => {
 });
 
 describe('likeCount', () => {
-  const like = (data: Record<string, unknown>): DyhubEvent => ({
+  const like = (data: Record<string, unknown>): RoomFeedEvent => ({
     id: 'l1',
     roomId: 'r1',
     type: 'like',

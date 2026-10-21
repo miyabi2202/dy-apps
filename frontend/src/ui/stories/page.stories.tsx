@@ -21,7 +21,7 @@ const meta = {
       <Column xstyle={styles.content}>
         <h1>方块干预实验室</h1>
         <p {...stylex.props(text.muted)}>Page 提供背景色、文字颜色和字体。</p>
-        <Panel title="DyHub 连接">
+        <Panel title="room-feed 连接">
           <Button variant="primary">连接</Button>
         </Panel>
       </Column>

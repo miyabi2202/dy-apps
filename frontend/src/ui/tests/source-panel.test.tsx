@@ -37,7 +37,7 @@ describe('SourcePanel', () => {
     expect(screen.getByRole('button', { name: '连接' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /安装教程/ })).toHaveAttribute(
       'href',
-      '/dyhub-windows',
+      '/room-feed-windows',
     );
     rerender(<SourcePanel {...live} running />);
     expect(screen.getByRole('button', { name: '断开' })).toBeInTheDocument();

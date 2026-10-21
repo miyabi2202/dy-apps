@@ -1,6 +1,6 @@
 import { createStore, type Store } from './local-storage';
 
-/** Where a preview's messages come from: made-up viewers, or a live room through DyHub. */
+/** Where a preview's messages come from: made-up viewers, or a live room through room-feed. */
 export const DEMO_SOURCES = ['fake', 'live'] as const;
 export type DemoSource = (typeof DEMO_SOURCES)[number];
 

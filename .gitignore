@@ -11,3 +11,4 @@ playwright/.cache
 .claude/settings.local.json
 .wrangler
 storybook-static
+room-feed/data

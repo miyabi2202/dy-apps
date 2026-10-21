@@ -29,7 +29,7 @@ import { chat, fakeEvents } from './fakes';
 const PACKAGE_DIR = join(__dirname, '..');
 
 /**
- * The whole bot built by the container, with the outside world (DyHub, Claude, Codex, Jev, the
+ * The whole bot built by the container, with the outside world (room-feed, Claude, Codex, Jev, the
  * speech worker) swapped for fakes, for the options `args` and the environment `env`.
  */
 function build(args: string[] = [], env: { JEV_API_KEY?: string } = { JEV_API_KEY: 'key' }) {

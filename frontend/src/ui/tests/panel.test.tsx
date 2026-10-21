@@ -3,9 +3,9 @@ import { Panel } from '..';
 
 describe('Panel', () => {
   it('is a region named by its title', () => {
-    render(<Panel title="DyHub 连接">内容</Panel>);
-    const region = screen.getByRole('region', { name: 'DyHub 连接' });
-    expect(region).toContainElement(screen.getByRole('heading', { name: 'DyHub 连接' }));
+    render(<Panel title="room-feed 连接">内容</Panel>);
+    const region = screen.getByRole('region', { name: 'room-feed 连接' });
+    expect(region).toContainElement(screen.getByRole('heading', { name: 'room-feed 连接' }));
     expect(region).toHaveTextContent('内容');
   });
 

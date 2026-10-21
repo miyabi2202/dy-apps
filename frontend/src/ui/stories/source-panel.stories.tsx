@@ -54,7 +54,7 @@ export const LiveError: Story = {
     source: 'live',
     running: true,
     connection: { port: '8757', roomId: '484088206186' },
-    liveState: { status: 'error', detail: '无法连接 localhost:8757，请确认 DyHub 已启动' },
+    liveState: { status: 'error', detail: '无法连接 localhost:8757，请确认 room-feed 已启动' },
   },
 };
 

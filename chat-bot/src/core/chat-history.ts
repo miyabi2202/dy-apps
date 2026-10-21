@@ -6,7 +6,7 @@ export class ChatHistory {
 
   constructor(private readonly size: number) {}
 
-  /** Keeps a line as it is, with the badges and levels DyHub sent (but not what an @ picked). */
+  /** Keeps a line as it is, with the badges and levels room-feed sent (but not what an @ picked). */
   add({ ts, userId, nickname, content, badges, fansClub, payLevel }: ChatLine): void {
     this.lines.push({
       ts,

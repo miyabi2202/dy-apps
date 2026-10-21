@@ -1,10 +1,10 @@
-import type { DanmakuMessage, DyhubSocket, LiveRoom } from '@dy-apps/services';
+import type { DanmakuMessage, RoomFeedSocket, LiveRoom } from '@dy-apps/services';
 import { act, renderHook } from '@testing-library/react';
-import { createDyhubClient, useDyhub } from '../use-dyhub';
+import { createRoomFeedClient, useRoomFeed } from '../use-room-feed';
 
-/** The page's real DyhubClients on fake sockets, so the test can send DyHub frames. */
+/** The page's real RoomFeedClients on fake sockets, so the test can send room-feed frames. */
 function fakeClients() {
-  const sockets: (DyhubSocket & { url: string; closed: boolean })[] = [];
+  const sockets: (RoomFeedSocket & { url: string; closed: boolean })[] = [];
   const openSocket = (url: string) => {
     const socket = {
       url,
@@ -15,11 +15,11 @@ function fakeClients() {
       close() {
         socket.closed = true;
       },
-    } as DyhubSocket & { url: string; closed: boolean };
+    } as RoomFeedSocket & { url: string; closed: boolean };
     sockets.push(socket);
     return socket;
   };
-  const create = jest.fn((r: LiveRoom) => createDyhubClient(r, openSocket));
+  const create = jest.fn((r: LiveRoom) => createRoomFeedClient(r, openSocket));
   const send = (frame: object) =>
     act(() => sockets.at(-1)!.onmessage?.({ data: JSON.stringify(frame) } as MessageEvent<string>));
   return { create, sockets, send };
@@ -49,7 +49,7 @@ function setup(initialRoom: LiveRoom | null = room) {
   const fake = fakeClients();
   const pushed: DanmakuMessage[] = [];
   const push = (m: DanmakuMessage) => pushed.push(m);
-  const hook = renderHook(({ r }) => useDyhub(r, push, fake.create), {
+  const hook = renderHook(({ r }) => useRoomFeed(r, push, fake.create), {
     initialProps: { r: initialRoom },
   });
   return { ...fake, pushed, hook };
@@ -58,7 +58,7 @@ function setup(initialRoom: LiveRoom | null = room) {
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
-describe('useDyhub', () => {
+describe('useRoomFeed', () => {
   it('stays idle without a room', () => {
     const { create, hook } = setup(null);
     expect(create).not.toHaveBeenCalled();

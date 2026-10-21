@@ -10,13 +10,13 @@ const TITLE = 'Windows 新手安装教程';
 const STEPS = SECTIONS.filter((s) => s.step !== undefined);
 
 /** Ids of the steps the reader has ticked off, kept between visits. */
-const doneStore = createStore<string[]>('dyhub-guide.done', {
+const doneStore = createStore<string[]>('room-feed-guide.done', {
   fallback: [],
   parse: (raw) =>
     Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : undefined,
 });
 
-/** The DyHub Windows install guide for streamers. */
+/** The room-feed Windows install guide for streamers. */
 export function GuidePage() {
   const [done, setDone] = useState(() => new Set(doneStore.read()));
   const active = useActiveSection();
@@ -39,7 +39,7 @@ export function GuidePage() {
   const doneCount = STEPS.filter((s) => done.has(s.id)).length;
 
   return (
-    <Page title={`DyHub ${TITLE}`} subtitle="给主播的安装教程" xstyle={styles.page}>
+    <Page title={`room-feed ${TITLE}`} subtitle="给主播的安装教程" xstyle={styles.page}>
       <div {...stylex.props(styles.layout)}>
         <nav aria-label="目录" {...stylex.props(styles.toc)}>
           <Column gap="md">
@@ -67,11 +67,13 @@ export function GuidePage() {
         <Column gap="xxl" xstyle={styles.main}>
           <header>
             <p {...stylex.props(styles.lead)}>
-              这份教程手把手教你在 <b>Windows 10 / Windows 11</b> 电脑上把 DyHub
-              跑起来。不需要任何编程基础，跟着一步一步做就行。
+              room-feed 是把抖音直播间的弹幕和礼物，送给弹幕墙、方块游戏这些小工具的程序。
+              这份教程手把手教你在 <b>Windows 10 / Windows 11</b> 电脑上把它跑起来。
+              不需要任何编程基础，跟着一步一步做就行。
             </p>
             <Callout kind="tip">
-              本教程用到的所有下载地址，在国内都可以直接打开，不需要对网络做任何额外设置。
+              Git、Node.js 和程序要用的零部件都从国内镜像下载。只有第 7 步从 GitHub 下载 room-feed
+              本身，国内有时会慢或者失败，多试几次就好。
             </Callout>
             <p {...stylex.props(styles.lead)}>
               整个过程分为 {STEPS.length} 步，第一次大约需要 <b>20～30 分钟</b>：

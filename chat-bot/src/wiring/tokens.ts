@@ -3,7 +3,7 @@
  * module here). A test swaps the adapters' for fakes.
  */
 import type { CodexCliOptions } from '../adapters/codex-cli';
-import type { DyhubRoomApi } from '../adapters/dyhub-room-api';
+import type { RoomFeedApi } from '../adapters/room-feed-api';
 import type { RoomConfig, RoomFiles, roomConfigFile } from '../adapters/room-files';
 import type { BotConfig } from '../adapters/config-file';
 import type { AutoReply } from '../app/auto-reply';
@@ -53,7 +53,7 @@ export const ENV = token<{ JEV_API_KEY?: string }>('env');
 
 // adapters.ts: the outside world, which a test replaces.
 export const ROOM_API =
-  token<Pick<DyhubRoomApi, 'sendChat' | 'streamUrl' | 'streamer' | 'screenshot'>>('roomApi');
+  token<Pick<RoomFeedApi, 'sendChat' | 'streamUrl' | 'streamer' | 'screenshot'>>('roomApi');
 export const ROOM_EVENTS = token<RoomEvents>('roomEvents');
 export const SPAWN_WORKER = token<SpawnWorker>('spawnWorker');
 export const WALLET_STORAGE = token<WalletStorage>('walletStorage');

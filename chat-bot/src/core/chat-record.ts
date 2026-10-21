@@ -30,7 +30,7 @@ export function chatRecord(chat: ChatLine): ChatRecord {
 
 /**
  * The sender's 直播间会员 badge (`V`, `V年`), fan club level (`灯牌16`) and wealth level
- * (`财富36`), as far as DyHub sends them: none in a 私密 room but the wealth level.
+ * (`财富36`), as far as room-feed sends them: none in a 私密 room but the wealth level.
  */
 function senderTags({ badges = [], fansClub, payLevel }: ChatLine): string[] {
   return [

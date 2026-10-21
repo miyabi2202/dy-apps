@@ -11,7 +11,7 @@ test('sends replies, then system messages, then notices, at least the interval a
   const outbox = new Outbox({
     send: (text) => {
       sentAt.push([text, now]);
-      now += 1_000; // DyHub takes a second to type and confirm
+      now += 1_000; // room-feed takes a second to type and confirm
       return text === '坏的'
         ? Promise.reject(new Error('风控'))
         : Promise.resolve({ echoed: true });

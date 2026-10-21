@@ -42,8 +42,12 @@ export const AllVariants: Story = {
 
 export const Link: Story = {
   render: () => (
-    <ButtonLink href="https://github.com/miyabi2202/dyhub" target="_blank" variant="primary">
-      打开 DyHub
+    <ButtonLink
+      href="https://github.com/miyabi2202/dy-apps/tree/master/room-feed"
+      target="_blank"
+      variant="primary"
+    >
+      打开 room-feed
     </ButtonLink>
   ),
 };

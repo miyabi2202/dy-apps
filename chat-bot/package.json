@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Command-line bot: reads a live room's chat from DyHub and answers @mentions with `claude -p`.",
+  "description": "Command-line bot: reads a live room's chat from room-feed and answers @mentions with `claude -p`.",
   "scripts": {
     "start": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",

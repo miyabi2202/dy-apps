@@ -6,7 +6,7 @@ import { KeyboardController } from './input/keyboard';
 import { log } from './log';
 import { App } from './ui/app';
 import { ObsView } from './ui/obs-view';
-import type { CreateDyhubClient } from './use-live-gifts';
+import type { CreateRoomFeedClient } from './use-live-gifts';
 
 /** `?seed=123` makes piece, garbage and gift randomness reproducible. */
 function seedFromUrl(): number | undefined {
@@ -34,7 +34,7 @@ function createGame({ probability }: TetrisConfig) {
 
 interface Props {
   /** Swapped for a fake in tests. */
-  createClient?: CreateDyhubClient;
+  createClient?: CreateRoomFeedClient;
 }
 
 /**

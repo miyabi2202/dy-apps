@@ -15,7 +15,7 @@ import { newGame, type GiftFeed } from '../gift-feed';
 import type { KeyboardController } from '../input/keyboard';
 import { labels } from '../messages';
 import { useGiftSource } from '../use-gift-source';
-import type { CreateDyhubClient } from '../use-live-gifts';
+import type { CreateRoomFeedClient } from '../use-live-gifts';
 import { CenterPanel } from './center-panel';
 import { GameLayout } from './game-layout';
 import { LogPanel } from './log-panel';
@@ -29,7 +29,7 @@ interface Props {
   /** Where gifts come from at first; the trigger chance comes from the engine. */
   config: TetrisConfig;
   /** Swapped for fakes in tests. */
-  createClient?: CreateDyhubClient;
+  createClient?: CreateRoomFeedClient;
   fakeGift?: () => DanmakuMessage;
 }
 

@@ -1,6 +1,6 @@
 import type { IncomingChat } from './room-events';
 
-/** Who the bot is: the Douyin account DyHub is logged in as. */
+/** Who the bot is: the Douyin account room-feed is logged in as. */
 export interface BotIdentity {
   nickname: string;
   /** The account's user id; matches @mentions exactly when Douyin sends it. */

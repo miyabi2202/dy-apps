@@ -37,7 +37,7 @@ export interface TranscriberOptions {
 /**
  * Keeps the room's speech transcribed into a Transcript: starts the worker, which loads its
  * models once, then gives it the room's stream, and when that ends (stream ended, URL expired)
- * asks DyHub for it again and gives it the new one. A worker that stops (crash) is started
+ * asks room-feed for it again and gives it the new one. A worker that stops (crash) is started
  * again. Audio stays inside the worker; only text comes back.
  */
 export class Transcriber {
@@ -177,7 +177,7 @@ export class Transcriber {
         // A stream that played a while had its URL expire, or a hiccup: ask again at once.
         if (this.now() - started > 60_000) continue;
       }
-      // Until the first stream, ask every second: DyHub has it moments after the bot enters the
+      // Until the first stream, ask every second: room-feed has it moments after the bot enters the
       // room, and the streamer often welcomes the bot by name right then.
       const wait = this.everListened ? this.retryMs : Math.min(this.retryMs, 1000);
       if ((await Promise.race([this.sleep(wait), gone])) === 'gone') return;

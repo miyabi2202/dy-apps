@@ -309,7 +309,7 @@ test("a command's prompt sees the badges by the asker's name, from their latest 
       { ts: 2, userId: 'u-小红', nickname: '小红', content: '同问', badges: ['V'] },
     ],
   });
-  // Nobody's badges known (DyHub doesn't send them yet), or said on the stream: none.
+  // Nobody's badges known (room-feed doesn't send them yet), or said on the stream: none.
   await ask({
     userId: 'u-小红',
     history: [{ ts: 3, userId: 'u-小红', nickname: '小红', content: '讲讲' }],

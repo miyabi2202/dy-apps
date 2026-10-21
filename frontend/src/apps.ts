@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import { meta as danmaku } from './apps/danmaku/meta';
-import { meta as dyhubGuide } from './apps/dyhub-guide/meta';
+import { meta as roomFeedGuide } from './apps/room-feed-guide/meta';
 import { meta as giftPile } from './apps/gift-pile/meta';
 import { meta as tetris } from './apps/tetris/meta';
 
@@ -22,7 +22,7 @@ export const APPS: readonly PageEntry[] = [
 
 /** Tutorials and other reading pages, listed separately on the index. */
 export const GUIDES: readonly PageEntry[] = [
-  { ...dyhubGuide, load: () => import('./apps/dyhub-guide').then((m) => m.GuidePage) },
+  { ...roomFeedGuide, load: () => import('./apps/room-feed-guide').then((m) => m.GuidePage) },
 ];
 
 /** Every routed page. */

@@ -15,7 +15,7 @@ export interface StreamerAdminOptions {
 
 /**
  * The admins, plus the room's streamer once `find` tells who that is: it's asked at start, and
- * again every `retryMs` until it answers (DyHub reads the room page a little after connecting).
+ * again every `retryMs` until it answers (room-feed reads the room page a little after connecting).
  */
 export class StreamerAdmin implements Admins {
   private streamer: { uid: string; nickname: string } | null = null;

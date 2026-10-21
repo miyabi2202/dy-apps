@@ -13,7 +13,7 @@ export interface OutgoingMessage {
    * too low", or something the bot says unprompted: in that order when several wait.
    */
   kind: (typeof KINDS)[number];
-  /** Called when DyHub couldn't send it, e.g. to refund the question it answers. */
+  /** Called when room-feed couldn't send it, e.g. to refund the question it answers. */
   onFailed?: () => void;
   /** Called once it's sent. */
   onSent?: () => void;
@@ -33,7 +33,7 @@ export interface NoticeFlood {
 export interface OutboxOptions {
   send: SendChat;
   log: Log;
-  /** Told of each message DyHub sent, e.g. to remember what the bot has said. */
+  /** Told of each message room-feed sent, e.g. to remember what the bot has said. */
   onSent?: (message: OutgoingMessage) => void;
   /** Without it, every notice is sent. */
   noticeFlood?: NoticeFlood;

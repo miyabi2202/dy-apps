@@ -1,6 +1,7 @@
 packages:
   - frontend
   - chat-bot
+  - room-feed
 
 allowBuilds:
   '@parcel/watcher': true

@@ -1,14 +1,14 @@
 import {
   DEMO_INTERVAL_RANGE,
   DEMO_SOURCES,
-  DYHUB_GUIDE_PATH,
-  DYHUB_PORT_HINT,
-  DYHUB_STATUS_TEXT,
+  ROOM_FEED_GUIDE_PATH,
+  ROOM_FEED_PORT_HINT,
+  ROOM_FEED_STATUS_TEXT,
   type Connection,
   type DemoIntervalRange,
   type DemoSource,
-  type DyhubState,
-  type DyhubStatus,
+  type RoomFeedState,
+  type RoomFeedStatus,
 } from '@dy-apps/services';
 import * as stylex from '@stylexjs/stylex';
 import type { ReactNode } from 'react';
@@ -23,8 +23,8 @@ import { text } from './text';
 import { colors } from './tokens.stylex';
 
 /** The live source retries after an error or a drop, so say so. */
-const STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
-  ...DYHUB_STATUS_TEXT,
+const STATUS_TEXT: Record<RoomFeedStatus | 'idle', string> = {
+  ...ROOM_FEED_STATUS_TEXT,
   error: '连接失败，稍后重试',
   closed: '已断开，稍后重试',
 };
@@ -42,14 +42,14 @@ interface SourcePanelProps {
   interval?: { range: DemoIntervalRange; step: number };
   connection: Connection;
   onConnectionChange: (next: Connection) => void;
-  liveState: DyhubState;
+  liveState: RoomFeedState;
   /** The toggle's text for fake messages, stopped and running; the live source says 连接 / 断开. */
   fakeLabels?: { start: string; stop: string };
   /** More controls after the toggle, such as a clear button. */
   children?: ReactNode;
 }
 
-/** Picks fake messages or a live room through DyHub, and starts or stops them. */
+/** Picks fake messages or a live room through room-feed, and starts or stops them. */
 export function SourcePanel(props: SourcePanelProps) {
   const {
     running,
@@ -92,7 +92,7 @@ export function SourcePanel(props: SourcePanelProps) {
           value={props.connection}
           onChange={props.onConnectionChange}
           connected={running}
-          portPlaceholder={DYHUB_PORT_HINT}
+          portPlaceholder={ROOM_FEED_PORT_HINT}
         />
       )}
       <Row gap="md" wrap>
@@ -107,7 +107,7 @@ export function SourcePanel(props: SourcePanelProps) {
       </Row>
       {source === 'live' && (
         <>
-          <p data-testid={testIds.dyhubStatus} {...stylex.props(text.muted, styles.line)}>
+          <p data-testid={testIds.roomFeedStatus} {...stylex.props(text.muted, styles.line)}>
             {running || props.canStart ? '状态：' : '请填写端口和直播间号 · 状态：'}
             <span {...stylex.props(liveState.status === 'error' && styles.error)}>
               {STATUS_TEXT[liveState.status]}
@@ -115,9 +115,9 @@ export function SourcePanel(props: SourcePanelProps) {
             {liveState.detail && `（${liveState.detail}）`}
           </p>
           <p {...stylex.props(text.muted, styles.line)}>
-            还没装 DyHub？看{' '}
+            还没装 room-feed？看{' '}
             <a
-              href={DYHUB_GUIDE_PATH}
+              href={ROOM_FEED_GUIDE_PATH}
               target="_blank"
               rel="noreferrer"
               {...stylex.props(styles.link)}

@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "room-feed": "pnpm --filter @dy-apps/room-feed start",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint --max-warnings 0 .",
     "test": "pnpm -r test",

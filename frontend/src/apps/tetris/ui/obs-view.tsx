@@ -7,7 +7,7 @@ import { newGame, type GiftFeed } from '../gift-feed';
 import type { KeyboardController } from '../input/keyboard';
 import type { TetrisConfig } from '../config';
 import { useGiftSource } from '../use-gift-source';
-import type { CreateDyhubClient } from '../use-live-gifts';
+import type { CreateRoomFeedClient } from '../use-live-gifts';
 import { CenterPanel } from './center-panel';
 import { GameLayout } from './game-layout';
 import { TeamPanel } from './team-panel';
@@ -19,7 +19,7 @@ interface Props {
   keyboard: KeyboardController;
   /** From the OBS link: fake gifts, or the live room's. */
   config: TetrisConfig;
-  createClient?: CreateDyhubClient;
+  createClient?: CreateRoomFeedClient;
 }
 
 /**

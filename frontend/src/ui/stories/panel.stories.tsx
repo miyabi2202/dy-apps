@@ -9,10 +9,10 @@ const meta = {
   title: 'Panel',
   component: Panel,
   args: {
-    title: 'DyHub 连接',
+    title: 'room-feed 连接',
     children: (
       <>
-        <p {...stylex.props(text.muted)}>在直播电脑上运行 DyHub，然后填写端口。</p>
+        <p {...stylex.props(text.muted)}>在直播电脑上运行 room-feed，然后填写端口。</p>
         <Field label="端口">
           <Input defaultValue="8757" />
         </Field>
@@ -27,4 +27,4 @@ type Story = StoryObj<typeof meta>;
 
 export const WithTitle: Story = {};
 
-export const WithoutTitle: Story = { args: { title: undefined, 'aria-label': 'DyHub 连接' } };
+export const WithoutTitle: Story = { args: { title: undefined, 'aria-label': 'room-feed 连接' } };

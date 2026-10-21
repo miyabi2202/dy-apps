@@ -7,7 +7,7 @@ export const testIds = {
   commitHash: 'commit-hash',
   danmakuList: 'danmaku-list',
   detail: 'detail',
-  dyhubStatus: 'dyhub-status',
+  roomFeedStatus: 'room-feed-status',
   fansClubLevel: 'fans-club-level',
   gift: 'gift',
   giftDiamonds: 'gift-diamonds',
@@ -17,7 +17,7 @@ export const testIds = {
 export const sourcePanelText = {
   /** The panel's title, and the source select's accessible name. */
   title: '数据来源',
-  sources: { fake: '模拟数据', live: '直播间（DyHub）' } satisfies Record<DemoSource, string>,
+  sources: { fake: '模拟数据', live: '直播间（room-feed）' } satisfies Record<DemoSource, string>,
   interval: '平均间隔',
   fake: { start: '开始预览', stop: '停止预览' },
   live: { start: '连接', stop: '断开' },

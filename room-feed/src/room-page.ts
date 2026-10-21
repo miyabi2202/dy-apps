@@ -1,0 +1,280 @@
+import { chromium, type Browser, type Page } from 'playwright-core';
+import { BROWSER_ARGS, hideAutomation, USER_AGENT } from './chrome';
+import { decodeFrame, type RawProtoMessage } from './douyin/proto';
+import { parseRoomMeta, type RoomMeta } from './douyin/room-meta';
+import { browserCookies } from './login-file';
+
+/** What a room page tells the Room. */
+export interface RoomPageHandlers {
+  /** A push frame came in, with these messages (maybe none). */
+  onPush(messages: RawProtoMessage[]): void;
+  /** The chat connection or the page itself went away; called once, never after `close()`. */
+  onClosed(why: string): void;
+}
+
+/** The live room open in Chrome: Douyin's page does the signing, we only watch and type. */
+export interface RoomPage {
+  /** The streamer, from the page's HTML; null if it couldn't be read. */
+  readonly meta: RoomMeta | null;
+  /** The FLV or HLS URL the player pulls, or null before it has one. */
+  streamUrl(): string | null;
+  /** Types `text` into the chat box and presses Enter; throws when it doesn't go. */
+  typeChat(text: string): Promise<void>;
+  /** The player as a JPEG. */
+  screenshot(): Promise<Uint8Array>;
+  close(): Promise<void>;
+}
+
+export type OpenRoomPage = (roomId: string, handlers: RoomPageHandlers) => Promise<RoomPage>;
+
+/** The chat box: Douyin's Slate editor, found by attributes that survive its class-name hashing. */
+const CHAT_INPUT = '[data-e2e="live-chatting"] [data-slate-editor="true"][contenteditable="true"]';
+
+/** The player's stream request: FLV or HLS. */
+const STREAM_URL = /^https?:\/\/[^/]+\/.+\.(flv|m3u8)(\?|$)/;
+
+/** The part of webcast/room/web/enter/'s answer with the stream URLs. */
+interface EnterAnswer {
+  data?: { data?: { stream_url?: { flv_pull_url?: Record<string, string> } }[] };
+}
+
+/** An FLV URL from webcast/room/web/enter/'s answer: the lowest quality, since all sound alike. */
+function flvUrlFromEnter(body: EnterAnswer): string | null {
+  const urls = body.data?.data?.[0]?.stream_url?.flv_pull_url;
+  if (!urls) return null;
+  for (const quality of ['SD2', 'SD1', 'HD1', 'FULL_HD1']) {
+    if (urls[quality]) return urls[quality];
+  }
+  return Object.values(urls)[0] ?? null;
+}
+
+export interface ChromeOptions {
+  executablePath: string;
+  headless: boolean;
+  /** The saved login's cookies (`k=v; k=v`), read on every open; null when not logged in. */
+  cookie: () => string | null;
+}
+
+/**
+ * Opens room pages in one Chrome, started on the first open and again if it dies. Each page
+ * gets a fresh context with the saved login, so a reopened page starts clean.
+ */
+export class ChromeRooms {
+  private browser: Promise<Browser> | null = null;
+
+  constructor(private readonly options: ChromeOptions) {}
+
+  readonly open: OpenRoomPage = async (roomId, handlers) => {
+    const browser = await this.launch();
+    const context = await browser.newContext({
+      userAgent: USER_AGENT,
+      viewport: { width: 1440, height: 900 },
+      locale: 'zh-CN',
+    });
+    try {
+      await hideAutomation(context);
+      const cookie = this.options.cookie();
+      if (cookie) await context.addCookies(browserCookies(cookie));
+      const page = await context.newPage();
+      return await LivePage.open(page, roomId, handlers);
+    } catch (e) {
+      await context.close().catch(() => {});
+      throw e;
+    }
+  };
+
+  async close(): Promise<void> {
+    const browser = await this.browser?.catch(() => null);
+    this.browser = null;
+    await browser?.close().catch(() => {});
+  }
+
+  private async launch(): Promise<Browser> {
+    const running = await this.browser?.catch(() => null);
+    if (running?.isConnected()) return running;
+    this.browser = chromium.launch({
+      executablePath: this.options.executablePath,
+      headless: this.options.headless,
+      args: [
+        ...BROWSER_ARGS,
+        '--autoplay-policy=no-user-gesture-required',
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--mute-audio',
+      ],
+    });
+    return this.browser;
+  }
+}
+
+class LivePage implements RoomPage {
+  /** WebSockets (CDP request ids) that have sent push frames: chat is down only when all close. */
+  private readonly pushSockets = new Set<string>();
+  private closed = false;
+  private requestedStream: string | null = null;
+  private enteredStream: string | null = null;
+  meta: RoomMeta | null = null;
+
+  private constructor(
+    private readonly page: Page,
+    private readonly handlers: RoomPageHandlers,
+  ) {}
+
+  static async open(page: Page, roomId: string, handlers: RoomPageHandlers): Promise<LivePage> {
+    const live = new LivePage(page, handlers);
+    await live.watch();
+    const response = await page.goto(`https://live.douyin.com/${roomId}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 45_000,
+    });
+    live.meta = parseRoomMeta((await response?.text().catch(() => '')) ?? '');
+    try {
+      await page.waitForFunction(() => document.title.length > 0, undefined, { timeout: 15_000 });
+    } catch {
+      // No title yet: carry on anyway.
+    }
+    await page.waitForTimeout(2500);
+    // A headless player starts, and the chat socket opens, only after a click.
+    await page.mouse.click(720, 450).catch(() => {});
+    return live;
+  }
+
+  /** Starts watching sockets and the stream URL, before the page loads. */
+  private async watch(): Promise<void> {
+    const cdp = await this.page.context().newCDPSession(this.page);
+    await cdp.send('Network.enable');
+    // CDP frames don't say which socket's URL they came from, so every frame is tried; those
+    // that aren't Douyin's push frames fail to decode and are skipped.
+    cdp.on('Network.webSocketFrameReceived', (params) => {
+      const data = params.response.payloadData;
+      if (!data || this.closed) return;
+      let frame;
+      try {
+        frame = decodeFrame(Buffer.from(data, 'base64'));
+      } catch {
+        return;
+      }
+      if (!frame.push) return;
+      this.pushSockets.add(params.requestId);
+      this.handlers.onPush(frame.messages);
+    });
+    cdp.on('Network.webSocketClosed', (params) => {
+      // The page's other sockets don't matter; chat is down when every push socket has closed.
+      if (this.pushSockets.delete(params.requestId) && this.pushSockets.size === 0) {
+        this.fail('弹幕连接断开');
+      }
+    });
+    this.page.on('close', () => this.fail('直播间页面被关闭'));
+
+    // The stream URL, from two places. The player's own request is the right one, but it's
+    // missed when the player pulls from a Web Worker (it does when logged in); the enter
+    // request's FLV URLs, asked for as the page loads, back it up. Both carry a signature and
+    // change when the player reconnects.
+    this.page.on('request', (req) => {
+      if (STREAM_URL.test(req.url())) this.requestedStream = req.url();
+    });
+    this.page.on('response', (res) => {
+      if (!res.url().includes('/webcast/room/web/enter/')) return;
+      res
+        .json()
+        .then((body: EnterAnswer) => {
+          this.enteredStream = flvUrlFromEnter(body ?? {}) ?? this.enteredStream;
+        })
+        .catch(() => {});
+    });
+  }
+
+  private fail(why: string): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.handlers.onClosed(why);
+  }
+
+  streamUrl(): string | null {
+    return this.requestedStream ?? this.enteredStream;
+  }
+
+  /** Sent once the box is empty after Enter; whether Douyin took it, the caller sees from the echo. */
+  async typeChat(text: string): Promise<void> {
+    const input = this.page.locator(CHAT_INPUT);
+    try {
+      await input.waitFor({ state: 'visible', timeout: 5000 });
+    } catch {
+      throw new Error('找不到弹幕输入框（没有登录，或者抖音改版了）');
+    }
+    await input.click();
+    // What an earlier chat left behind would be sent with this one, so clear it first.
+    await this.clearChatInput();
+    await this.page.keyboard.insertText(text);
+    await this.page.keyboard.press('Enter');
+    await this.page.waitForTimeout(500);
+    if (await this.chatInputText()) {
+      await this.clearChatInput().catch(() => {});
+      throw new Error('回车后输入框没有清空，弹幕可能没有发出（风控、要验证或字数超了）');
+    }
+  }
+
+  /** The box's text; an empty editor holds only a zero-width placeholder. */
+  private async chatInputText(): Promise<string> {
+    const text = await this.page.locator(CHAT_INPUT).innerText();
+    return text.replace(/[\u200b\s]/g, '');
+  }
+
+  /**
+   * Slate reacts only to real input, so the keyboard clears the box rather than fill(): select
+   * all and delete, then, if anything's left, Backspace from the end.
+   */
+  private async clearChatInput(): Promise<void> {
+    const { keyboard } = this.page;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const left = await this.chatInputText();
+      if (!left) return;
+      if (attempt === 0) {
+        await keyboard.press('ControlOrMeta+A');
+        await keyboard.press('Backspace');
+      } else {
+        await keyboard.press('ControlOrMeta+ArrowDown');
+        await keyboard.press('End');
+        for (let i = 0; i < [...left].length + 5; i++) await keyboard.press('Backspace');
+      }
+    }
+    if (await this.chatInputText()) throw new Error('输入框里有删不掉的文字，没有发送');
+  }
+
+  /** Just the player: the page's largest video, else its largest canvas, else the whole page. */
+  async screenshot(): Promise<Uint8Array> {
+    // No named functions in here: tsx (esbuild's keepNames) would add a __name the page lacks.
+    const clip = await this.page.evaluate(() => {
+      for (const selector of ['video', 'canvas']) {
+        let best: { x: number; y: number; width: number; height: number } | null = null;
+        for (const el of document.querySelectorAll(selector)) {
+          const r = el.getBoundingClientRect();
+          const x = Math.max(r.left, 0);
+          const y = Math.max(r.top, 0);
+          const width = Math.min(r.right, innerWidth) - x;
+          const height = Math.min(r.bottom, innerHeight) - y;
+          if (width > 0 && height > 0 && (!best || width * height > best.width * best.height)) {
+            best = { x, y, width, height };
+          }
+        }
+        // Anything small is an avatar or a gift animation, not the player.
+        if (best && best.width * best.height > innerWidth * innerHeight * 0.1) return best;
+      }
+      return null;
+    });
+    return this.page.screenshot({
+      type: 'jpeg',
+      quality: 80,
+      timeout: 10_000,
+      ...(clip ? { clip } : {}),
+    });
+  }
+
+  async close(): Promise<void> {
+    this.closed = true;
+    await this.page
+      .context()
+      .close()
+      .catch(() => {});
+  }
+}

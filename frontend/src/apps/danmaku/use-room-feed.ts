@@ -1,9 +1,9 @@
 import {
-  DyhubClient,
-  type DyhubSocket,
+  RoomFeedClient,
+  type RoomFeedSocket,
   LikeBatcher,
-  type DyhubLikeEvent,
-  type DyhubState,
+  type RoomFeedLikeEvent,
+  type RoomFeedState,
   likeMessage,
   messageFromEvent,
   type DanmakuMessage,
@@ -13,38 +13,38 @@ import {
 import { useEffect, useState } from 'react';
 import { log as moduleLog } from './log';
 
-/** DyHub may start after the page (OBS often opens first), so keep trying. */
+/** room-feed may start after the page (OBS often opens first), so keep trying. */
 const RETRY_MS = 5000;
 
 /** Makes the client for a room; tests pass one with a fake socket. */
-export type CreateDyhubClient = (room: LiveRoom) => DyhubClient;
+export type CreateRoomFeedClient = (room: LiveRoom) => RoomFeedClient;
 
-export const createDyhubClient = (
+export const createRoomFeedClient = (
   room: LiveRoom,
-  openSocket?: (url: string) => DyhubSocket,
-): DyhubClient => new DyhubClient({ ...room, retryMs: RETRY_MS, openSocket });
+  openSocket?: (url: string) => RoomFeedSocket,
+): RoomFeedClient => new RoomFeedClient({ ...room, retryMs: RETRY_MS, openSocket });
 
 /**
  * Stays connected to `room` while it's set, pushing each chat message and gift, and each
  * user's likes once they pause. When the connection fails or drops, it tries again after
  * a few seconds.
  */
-export function useDyhub(
+export function useRoomFeed(
   room: LiveRoom | null,
   push: (m: DanmakuMessage) => void,
-  create: CreateDyhubClient = createDyhubClient,
+  create: CreateRoomFeedClient = createRoomFeedClient,
   likeQuietMs?: number,
   log: Logger = moduleLog,
-): DyhubState {
-  const [state, setState] = useState<DyhubState>({ status: 'idle' });
+): RoomFeedState {
+  const [state, setState] = useState<RoomFeedState>({ status: 'idle' });
   const port = room?.port;
   const roomId = room?.roomId;
 
   useEffect(() => {
     if (port === undefined || roomId === undefined) return;
-    log.debug(`dyhub: connecting to ws://localhost:${port}/ws?roomId=${roomId}`);
+    log.debug(`room-feed: connecting to ws://localhost:${port}/ws?roomId=${roomId}`);
     const client = create({ port, roomId });
-    const likes = new LikeBatcher<DyhubLikeEvent>({
+    const likes = new LikeBatcher<RoomFeedLikeEvent>({
       quietMs: likeQuietMs,
       onFlush: (last, total) => {
         const message = likeMessage(last, total);
@@ -58,8 +58,8 @@ export function useDyhub(
       setState({ status, detail });
       const info = detail ? `${status} (${detail})` : status;
       if (status === 'error' || status === 'closed') {
-        log.debug(`dyhub: ${info}, retrying in ${RETRY_MS}ms`);
-      } else log.debug(`dyhub: ${info}`);
+        log.debug(`room-feed: ${info}, retrying in ${RETRY_MS}ms`);
+      } else log.debug(`room-feed: ${info}`);
     });
     client.onComment((ev) => pushEvent(messageFromEvent(ev, 0)));
     client.onGift((ev, newGifts) => pushEvent(messageFromEvent(ev, newGifts)));
@@ -68,7 +68,7 @@ export function useDyhub(
     });
     client.connect();
     return () => {
-      log.debug('dyhub: closing the connection');
+      log.debug('room-feed: closing the connection');
       client.close();
       likes.clear();
       setState({ status: 'idle' });

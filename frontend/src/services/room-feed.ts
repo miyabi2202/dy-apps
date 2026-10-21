@@ -1,18 +1,18 @@
 /**
- * Client for DyHub's WebSocket event stream (ws://localhost:<port>/ws?roomId=…&types=…).
- * DyHub runs on the streamer's machine and normalises Douyin live-room messages into
- * DanmakuEvent. This only parses the protocol; it does not touch the game engine.
+ * Client for room-feed's WebSocket event stream (ws://localhost:<port>/ws?roomId=…&types=…).
+ * room-feed (room-feed/ in this repo) runs on the streamer's machine and turns one Douyin live room's
+ * messages into events (room-feed/src/events.ts). This only parses the protocol.
  */
 
-/** DyHub's own default port, shown as a hint only. */
-export const DYHUB_PORT_HINT = '8757';
-/** The site route of the DyHub install guide, for apps to link to. */
-export const DYHUB_GUIDE_PATH = '/dyhub-windows';
+/** room-feed's own default port, shown as a hint only. */
+export const ROOM_FEED_PORT_HINT = '8757';
+/** The site route of the room-feed install guide, for apps to link to. */
+export const ROOM_FEED_GUIDE_PATH = '/room-feed-windows';
 /** The events subscribed to unless a caller asks for others. */
-export const DYHUB_EVENT_TYPES = ['chat', 'gift'] as const;
+export const ROOM_FEED_EVENT_TYPES = ['chat', 'gift'] as const;
 
-/** Event types DyHub can stream (its DanmakuEvent `type`). */
-export type DyhubEventType = 'chat' | 'gift' | 'member' | 'follow' | 'like' | 'room' | 'unknown';
+/** Event types room-feed can stream (its DanmakuEvent `type`). */
+export type RoomFeedEventType = 'chat' | 'gift' | 'like';
 
 /** A TCP port, 1–65535, or null. */
 export function parsePort(value: string): number | null {
@@ -26,16 +26,16 @@ export function isRoomId(value: string): boolean {
   return /^\d+$/.test(value);
 }
 
-export function dyhubUrl(
+export function roomFeedUrl(
   port: number,
   roomId: string,
-  types: readonly DyhubEventType[] = DYHUB_EVENT_TYPES,
+  types: readonly RoomFeedEventType[] = ROOM_FEED_EVENT_TYPES,
 ): string {
   return `ws://localhost:${port}/ws?roomId=${roomId}&types=${types.join(',')}`;
 }
 
-/** Event user. Levels need miyabi2202/dyhub with payGrade/fansClub support. */
-export interface DyhubUser {
+/** The viewer an event is from. */
+export interface RoomFeedUser {
   id: string;
   nickname: string;
   avatar?: string;
@@ -43,15 +43,12 @@ export interface DyhubUser {
   payLevel?: number;
   /** The fan club shown for the user, usually this room's streamer's; missing when not a member. */
   fansClub?: { name: string; level: number; status?: number; anchorId?: string };
-  /**
-   * The badges shown by the user's name, by their text (a 直播间会员's `V` or `V年`, say); missing
-   * when DyHub doesn't send them (it doesn't yet: Douyin's User badge list isn't decoded).
-   */
+  /** The badges shown by the user's name, by their text (a 直播间会员's `V` or `V年`, say); missing when none. */
   badges?: string[];
 }
 
-/** One piece of a chat's rich text, from DyHub's `data.parts`. */
-export type DyhubChatPart =
+/** One piece of a chat's rich text, from room-feed's `data.parts`. */
+export type RoomFeedChatPart =
   | { type: 'text'; text: string }
   | { type: 'emote'; url: string; name?: string }
   | { type: 'mention'; text: string; userId?: string };
@@ -60,27 +57,27 @@ export type DyhubChatPart =
  * A chat's data. `parts` comes when Douyin sends rich text (fan-club emotes, @mentions);
  * `sticker` marks a message that's one big emote image, with `content` its text fallback.
  */
-// A type, not an interface, so it fits DyhubEvent's `data: Record<string, unknown>`.
-export type DyhubChatData = {
+// A type, not an interface, so it fits RoomFeedEvent's `data: Record<string, unknown>`.
+export type RoomFeedChatData = {
   content: string;
-  parts?: DyhubChatPart[];
+  parts?: RoomFeedChatPart[];
   sticker?: boolean;
 };
 
-/** Subset of DyHub's DanmakuEvent that consumers rely on. */
-export interface DyhubEvent {
+/** Subset of room-feed's DanmakuEvent that consumers rely on. */
+export interface RoomFeedEvent {
   id: string;
   roomId: string;
   type: string;
   ts: number;
-  user?: DyhubUser;
+  user?: RoomFeedUser;
   data?: Record<string, unknown>;
 }
 
-export type DyhubStatus = 'opening' | 'roomConnecting' | 'ready' | 'error' | 'closed';
+export type RoomFeedStatus = 'opening' | 'roomConnecting' | 'ready' | 'error' | 'closed';
 
 /** What to show for each connection status; `idle` is before connecting. */
-export const DYHUB_STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
+export const ROOM_FEED_STATUS_TEXT: Record<RoomFeedStatus | 'idle', string> = {
   idle: '未连接',
   opening: '连接中…',
   roomConnecting: '房间连接中…',
@@ -89,36 +86,36 @@ export const DYHUB_STATUS_TEXT: Record<DyhubStatus | 'idle', string> = {
   closed: '已断开',
 };
 
-export interface DyhubHandlers {
-  onStatus(status: DyhubStatus, detail?: string): void;
-  onEvent(event: DyhubEvent): void;
+export interface RoomFeedHandlers {
+  onStatus(status: RoomFeedStatus, detail?: string): void;
+  onEvent(event: RoomFeedEvent): void;
 }
 
 /** The part of WebSocket the client uses, so tests can pass a fake. */
-export interface DyhubSocket {
+export interface RoomFeedSocket {
   onmessage: ((m: MessageEvent<string>) => void) | null;
   onerror: ((ev: Event) => void) | null;
   onclose: ((ev: CloseEvent) => void) | null;
   close(): void;
 }
 
-const openWebSocket = (url: string): DyhubSocket => new WebSocket(url);
+const openWebSocket = (url: string): RoomFeedSocket => new WebSocket(url);
 
 /**
- * Open a DyHub stream for one room. DyHub starts collecting the room if needed and
- * reports progress with __connecting / __connected / __error frames.
- * Returns a function that closes the connection. Most code wants DyhubClient instead.
+ * Open a room-feed stream for one room. room-feed reports the room's connection with __connecting /
+ * __connected frames, and turns away a client asking for a room it doesn't serve with __error.
+ * Returns a function that closes the connection. Most code wants RoomFeedClient instead.
  */
-export function connectDyhub(
+export function connectRoomFeed(
   port: number,
   roomId: string,
-  handlers: DyhubHandlers,
-  types: readonly DyhubEventType[] = DYHUB_EVENT_TYPES,
-  openSocket: (url: string) => DyhubSocket = openWebSocket,
+  handlers: RoomFeedHandlers,
+  types: readonly RoomFeedEventType[] = ROOM_FEED_EVENT_TYPES,
+  openSocket: (url: string) => RoomFeedSocket = openWebSocket,
 ): () => void {
-  let ws: DyhubSocket;
+  let ws: RoomFeedSocket;
   try {
-    ws = openSocket(dyhubUrl(port, roomId, types));
+    ws = openSocket(roomFeedUrl(port, roomId, types));
   } catch (e) {
     handlers.onStatus('error', e instanceof Error ? e.message : String(e));
     return () => {};
@@ -147,12 +144,12 @@ export function connectDyhub(
         handlers.onStatus('error', frame.error);
         return;
       default:
-        handlers.onEvent(frame as DyhubEvent);
+        handlers.onEvent(frame as RoomFeedEvent);
     }
   };
   ws.onerror = () => {
     failed = true;
-    handlers.onStatus('error', `无法连接 localhost:${port}，请确认 DyHub 已启动`);
+    handlers.onStatus('error', `无法连接 localhost:${port}，请确认 room-feed 已启动`);
   };
   ws.onclose = () => {
     if (!failed) handlers.onStatus('closed');
@@ -165,8 +162,8 @@ export function connectDyhub(
   };
 }
 
-/** Gift fields DyHub sends (see its GiftEvent). Older DyHub builds omit groupId / repeatEnd. */
-export type DyhubGiftData = {
+/** Gift fields room-feed sends (see its GiftEvent). */
+export type RoomFeedGiftData = {
   giftId: string;
   giftName?: string;
   /** Picture of the gift on Douyin's CDN. */
@@ -178,9 +175,9 @@ export type DyhubGiftData = {
 };
 
 /**
- * Turns DyHub gift events into "how many new gifts", like DouyinBarrageGrab does.
+ * Turns room-feed gift events into "how many new gifts", like DouyinBarrageGrab does.
  * Douyin pushes several messages per send: combo progress with a growing repeatCount,
- * then a closing repeatEnd copy. They share giftId + groupId but not msgId, so DyHub's
+ * then a closing repeatEnd copy. They share giftId + groupId but not msgId, so room-feed's
  * own dedupe lets them all through.
  */
 export class GiftCounter {
@@ -193,9 +190,9 @@ export class GiftCounter {
   ) {}
 
   /** New gifts this event adds: 0 for non-gifts, duplicates and out-of-order messages. */
-  add(event: DyhubEvent): number {
+  add(event: RoomFeedEvent): number {
     if (event.type !== 'gift') return 0;
-    const gift = event.data as unknown as DyhubGiftData;
+    const gift = event.data as unknown as RoomFeedGiftData;
     const now = this.now();
     for (const [key, group] of this.groups) {
       if (now - group.seenAt > this.ttlMs) this.groups.delete(key);
@@ -216,8 +213,8 @@ export class GiftCounter {
   }
 }
 
-/** How many likes one DyHub like event carries (Douyin batches a few taps). */
-export function likeCount(ev: DyhubEvent): number {
+/** How many likes one room-feed like event carries (Douyin batches a few taps). */
+export function likeCount(ev: RoomFeedEvent): number {
   const count = ev.data?.count;
   return typeof count === 'number' && count > 0 ? count : 1;
 }

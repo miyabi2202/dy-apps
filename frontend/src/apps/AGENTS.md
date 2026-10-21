@@ -4,16 +4,16 @@ The apps here are tools for Douyin live streams. The [root AGENTS.md](../../../A
 
 ## The goal: working in OBS
 
-The end goal for every app is something a streamer can use in OBS. They add the page as a browser source on the streaming PC, and it reacts to the live room through DyHub. An app that works only in an ordinary browser tab isn't finished.
+The end goal for every app is something a streamer can use in OBS. They add the page as a browser source on the streaming PC, and it reacts to the live room through room-feed. An app that works only in an ordinary browser tab isn't finished.
 
 When you build or change an app, keep it heading there:
 
 - **An OBS view.** One URL shows just what goes on stream: no editor controls, and a transparent background where the app is an overlay. `apps/danmaku` does this with `?obs=1`.
 - **Settings in the URL.** The streamer sets the app up in a normal tab, then copies a link into OBS. That link carries the settings, so the OBS source looks the same without anyone configuring it inside OBS.
-- **Live events from DyHub.** Chat and gifts come through `@dy-apps/services` from DyHub on `localhost` (see the [README](../../../README.md#dyhub-live-room-events)).
+- **Live events from room-feed.** Chat and gifts come through `@dy-apps/services` from room-feed on `localhost` (see the [README](../../../README.md#room-feed-live-room-events)).
 - **A demo mode.** It can be previewed without a live room, like danmaku's `?demo=<ms>`.
 
-`apps/dyhub-guide` isn't an OBS app; it's the tutorial that helps streamers install DyHub.
+`apps/room-feed-guide` isn't an OBS app; it's the tutorial that helps streamers install room-feed.
 
 ## Scaling: lots of gifts
 
@@ -36,5 +36,5 @@ Role names like `'button'` stay literal, and so does made-up test data such as a
 ## TODO
 
 - Add a template page for new apps.
-- Add a common config interface for the settings every app shares: the DyHub port and the room ID.
+- Add a common config interface for the settings every app shares: the room-feed port and the room ID.
 - Refactor the existing apps to match the template.

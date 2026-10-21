@@ -1,12 +1,12 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DyhubClient } from '@dy-apps/services';
+import { RoomFeedClient } from '@dy-apps/services';
 import { connectWorker } from '../adapters/asr-worker';
 import { claudeCli } from '../adapters/claude-cli';
 import { codexCli } from '../adapters/codex-cli';
-import { dyhubEvents } from '../adapters/dyhub-events';
-import { DyhubRoomApi } from '../adapters/dyhub-room-api';
+import { roomFeedEvents } from '../adapters/room-feed-events';
+import { RoomFeedApi } from '../adapters/room-feed-api';
 import { jev } from '../adapters/jev';
 import { readDownloads, runDownloads } from '../adapters/room-downloads';
 import { jsonFileStorage } from '../adapters/wallet-file';
@@ -30,17 +30,17 @@ import {
 } from './tokens';
 
 /**
- * Registers the real outside world: DyHub, `claude` and `codex`, Jev, the speech worker and the
+ * Registers the real outside world: room-feed, `claude` and `codex`, Jev, the speech worker and the
  * room's files. Register fakes for these tokens after it, to build the bot without any of that.
  */
 export function registerAdapters(container: Container): void {
   container
-    .register(ROOM_API, (c) => new DyhubRoomApi(c.resolve(OPTIONS).port, c.resolve(OPTIONS).roomId))
+    .register(ROOM_API, (c) => new RoomFeedApi(c.resolve(OPTIONS).port, c.resolve(OPTIONS).roomId))
     .register(ROOM_EVENTS, (c) => {
       const { port, roomId } = c.resolve(OPTIONS);
       const roomConfig = c.resolve(ROOM_CONFIG);
-      return dyhubEvents(
-        new DyhubClient({ port, roomId, retryMs: 5000 }),
+      return roomFeedEvents(
+        new RoomFeedClient({ port, roomId, retryMs: 5000 }),
         () => roomConfig().private,
       );
     })

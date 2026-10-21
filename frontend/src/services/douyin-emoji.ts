@@ -1,6 +1,6 @@
 /**
  * Douyin's chat emoji: each `[名]` code and its image in `public/emoji/`. The images were
- * downloaded from the URLs in DyHub's console table (src/ui/emoji.js in miyabi2202/dyhub),
+ * downloaded from the URLs in room-feed's console table (src/ui/emoji.js in ymstar/dyhub),
  * which came from https://www.douyin.com/aweme/v1/web/emoji/list via
  * https://github.com/skmcj/dycast, then fitted within 64 px as WebP (the text shows them at
  * about 1.3em). Files have short English names (微笑 is smile.webp); codes that share an

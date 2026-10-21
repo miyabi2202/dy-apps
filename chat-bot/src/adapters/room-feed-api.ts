@@ -1,10 +1,10 @@
 import type { FindStreamer, Screenshot, SendChat, StreamUrl } from '../app/ports';
 
 /**
- * One live room's HTTP API on DyHub: send chat, get the stream URL and a screenshot of the
- * player (these need DyHub's browser collector to have the room open), and who the streamer is.
+ * One live room's HTTP API on room-feed: send chat, get the stream URL and a screenshot of the
+ * player (once the room is live), and who the streamer is.
  */
-export class DyhubRoomApi {
+export class RoomFeedApi {
   private readonly base: string;
 
   constructor(
@@ -23,7 +23,7 @@ export class DyhubRoomApi {
       body: JSON.stringify({ text }),
     });
     const body = (await res.json().catch(() => ({}))) as { echoed?: boolean; error?: string };
-    if (!res.ok) throw new Error(body.error ?? `DyHub answered ${res.status}`);
+    if (!res.ok) throw new Error(body.error ?? `room-feed answered ${res.status}`);
     return { echoed: body.echoed === true };
   };
 
@@ -35,7 +35,7 @@ export class DyhubRoomApi {
     return body.url ?? null;
   };
 
-  /** `GET …` (the room): the streamer, from the room page, once DyHub has read it. */
+  /** `GET …` (the room): the streamer, from the room page, once room-feed has read it. */
   readonly streamer: FindStreamer = async () => {
     const res = await this.fetchFn(this.base);
     if (!res.ok) return null;
@@ -49,7 +49,7 @@ export class DyhubRoomApi {
     const res = await this.fetchFn(`${this.base}/screenshot`);
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error ?? `DyHub answered ${res.status}`);
+      throw new Error(body.error ?? `room-feed answered ${res.status}`);
     }
     return new Uint8Array(await res.arrayBuffer());
   };

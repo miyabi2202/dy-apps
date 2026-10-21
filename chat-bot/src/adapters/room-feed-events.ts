@@ -1,9 +1,9 @@
-import type { DyhubClient, DyhubCommentEvent, DyhubGiftEvent } from '@dy-apps/services';
+import type { RoomFeedClient, RoomFeedCommentEvent, RoomFeedGiftEvent } from '@dy-apps/services';
 import type { RoomEvents } from '../app/ports';
 import type { Gift, IncomingChat } from '../core/room-events';
 import { viewerIdOf } from '../core/viewer-id';
 
-export function chatFrom(event: DyhubCommentEvent, hidden = false): IncomingChat {
+export function chatFrom(event: RoomFeedCommentEvent, hidden = false): IncomingChat {
   return {
     ts: event.ts,
     userId: event.user && viewerIdOf(event.user, hidden),
@@ -24,7 +24,7 @@ export function chatFrom(event: DyhubCommentEvent, hidden = false): IncomingChat
 }
 
 /** `newGifts` of the event's gift, or null when there's nobody to credit or nothing new. */
-export function giftFrom(event: DyhubGiftEvent, newGifts: number, hidden = false): Gift | null {
+export function giftFrom(event: RoomFeedGiftEvent, newGifts: number, hidden = false): Gift | null {
   if (!event.user || newGifts <= 0) return null;
   return {
     userId: viewerIdOf(event.user, hidden),
@@ -36,11 +36,11 @@ export function giftFrom(event: DyhubGiftEvent, newGifts: number, hidden = false
 }
 
 /**
- * A DyHub room stream as the bot's RoomEvents; `hidden` tells, as each event comes, whether it's
+ * A room-feed room stream as the bot's RoomEvents; `hidden` tells, as each event comes, whether it's
  * a 私密 room (see userIdOf).
  */
-export function dyhubEvents(
-  client: Pick<DyhubClient, 'onComment' | 'onGift' | 'onStatus' | 'connect' | 'close'>,
+export function roomFeedEvents(
+  client: Pick<RoomFeedClient, 'onComment' | 'onGift' | 'onStatus' | 'connect' | 'close'>,
   hidden: () => boolean = () => false,
 ): RoomEvents {
   return {

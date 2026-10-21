@@ -30,7 +30,7 @@ export class RoomFeed {
 
   start(): void {
     const { events, bus, bot, history, log, record, billing } = this.options;
-    events.onStatus((status, detail) => log.info(`dyhub ${status}`, detail ? { detail } : {}));
+    events.onStatus((status, detail) => log.info(`room-feed ${status}`, detail ? { detail } : {}));
     events.onChat((chat) => {
       log.debug('chat', { ...chat });
       record?.add(chatRecord(chat));

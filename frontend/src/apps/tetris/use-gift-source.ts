@@ -3,14 +3,14 @@ import {
   fakeGiftAt,
   type DanmakuMessage,
   type DemoConfig,
-  type DyhubState,
+  type RoomFeedState,
   type LiveRoom,
 } from '@dy-apps/services';
 import { useDemo } from '@dy-apps/ui';
 import { useCallback, useEffect } from 'react';
 import type { GiftFeed } from './gift-feed';
 import { log } from './log';
-import { useLiveGifts, type CreateDyhubClient } from './use-live-gifts';
+import { useLiveGifts, type CreateRoomFeedClient } from './use-live-gifts';
 
 export interface GiftSourceOptions {
   /** Fake gifts at an interval, or the live room's. */
@@ -21,7 +21,7 @@ export interface GiftSourceOptions {
   feed: GiftFeed;
   /** Makes a fake gift; tests pass a fixed one. */
   fakeGift?: () => DanmakuMessage;
-  createClient?: CreateDyhubClient;
+  createClient?: CreateRoomFeedClient;
 }
 
 /**
@@ -36,7 +36,7 @@ export function useGiftSource({
   feed,
   fakeGift = createFakeGift,
   createClient,
-}: GiftSourceOptions): DyhubState {
+}: GiftSourceOptions): RoomFeedState {
   // `?random=0`: the fake gifts in list order at a fixed interval, the same every run.
   const random = demo.random !== false;
   const sendFake = useCallback(

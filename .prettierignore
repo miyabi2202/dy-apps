@@ -7,3 +7,4 @@ storybook-static
 .venv
 chat-bot/data
 chat-bot/logs
+room-feed/data

@@ -1,5 +1,5 @@
 /**
- * What the bot needs from the outside world. `adapters/` implements these with DyHub, the Claude
+ * What the bot needs from the outside world. `adapters/` implements these with room-feed, the Claude
  * CLI, files and processes; tests pass fakes.
  */
 import type { AdditionalCommandEntry } from '../core/additional-command';
@@ -67,7 +67,7 @@ export interface SendResult {
 /** A JPEG of the live video. */
 export type Screenshot = () => Promise<Uint8Array>;
 
-/** The room's stream URL, or null while there isn't one (not live, or DyHub still opening it). */
+/** The room's stream URL, or null while there isn't one (not live, or room-feed still opening it). */
 export type StreamUrl = () => Promise<string | null>;
 
 /** One question for a model (Claude or Codex): the prompt, and optionally a JPEG to look at with it. */

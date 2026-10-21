@@ -75,6 +75,7 @@ export default tseslint.config(
       'frontend/src/services/tests/**/*.ts',
       'frontend/src/ui/tests/**/*.{ts,tsx}',
       'chat-bot/tests/**/*.ts',
+      'room-feed/tests/**/*.ts',
     ],
     languageOptions: { globals: globals.jest },
   },
@@ -123,7 +124,7 @@ export default tseslint.config(
   },
 
   // The chat bot's layers: core is pure logic, app the use cases, adapters the outside world
-  // (DyHub, Claude CLI, files, processes). Only adapters and the entry touch the outside.
+  // (room-feed, Claude CLI, files, processes). Only adapters and the entry touch the outside.
   {
     files: ['chat-bot/src/**/*.ts'],
     plugins: { 'import-x': importX },
@@ -185,11 +186,24 @@ export default tseslint.config(
           patterns: [
             {
               group: ['node:*', '@dy-apps/services', 'winston'],
-              message: 'Only adapters and main.ts talk to Node, DyHub and logging libraries.',
+              message: 'Only adapters and main.ts talk to Node, room-feed and logging libraries.',
             },
           ],
         },
       ],
+    },
+  },
+
+  // room-feed's Douyin decoding: protobufjs hands back untyped bodies, read field by field.
+  {
+    files: ['room-feed/src/douyin/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
     },
   },
 
