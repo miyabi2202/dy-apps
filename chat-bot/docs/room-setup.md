@@ -8,7 +8,7 @@
 data/<房间号>/
   room_config.json        直播间设置（见下）
   context.md              直播间背景，每个提示词都会带上
-  personas/<名字>.md      这个直播间的人设，可以有好几个，room_config.json 的 persona 选一个（见「人设」）
+  personas/<name>.md      这个直播间的人设，可以有好几个，room_config.json 的 persona 选一个（见「人设」）
   artifacts/              下载下来、或者手动放进来的资料（歌单之类）
   additional_commands/    这个直播间自己的指令（见下）
     index.json
@@ -74,12 +74,12 @@ data/<房间号>/
 "persona": "personas/fairy.md"
 ```
 
-一个直播间可以准备好几个人设（`personas/fairy.md`、`personas/课代表.md`……），换人设只改这一个字段，马上生效。不写 `persona` 就没有人设。
+一个直播间可以准备好几个人设（`personas/fairy.md`、`personas/class-rep.md`……），换人设只改这一个字段，马上生效。不写 `persona` 就没有人设。文件名用英文小写、单词之间用 `-`（`class-rep.md`，不用 `课代表.md`），和仓库里别的文件一样。
 
 人设文件有两种写法：
 
 - **完整的人设**：整个文件就是人设，直接写。
-- **在共用人设上改一改**：好几个直播间用同一个人设（比如 Fairy）时，它放在 `chat-bot/prompts/personas/<名字>.md`（在 git 里，和 `prompt.md` 这些共用提示词放在一起）。直播间的人设文件开头写一段 `---` 包起来的头，`base` 写共用人设的名字，下面只写这个直播间要改的地方，没有要改的就只写头：
+- **在共用人设上改一改**：好几个直播间用同一个人设（比如 Fairy）时，它放在 `chat-bot/prompts/personas/<name>.md`（在 git 里，和 `prompt.md` 这些共用提示词放在一起）。直播间的人设文件开头写一段 `---` 包起来的头，`base` 写共用人设的名字，下面只写这个直播间要改的地方，没有要改的就只写头：
 
 ```markdown
 ---
@@ -168,7 +168,7 @@ base: fairy
 
 ### 共用的指令（base）
 
-好几个直播间都有的指令（比如「主播会唱 xxx 吗」）放在 `chat-bot/prompts/commands/<名字>/`：`command.json` 写字段（和 index.json 里的一样），`prompt` 是这个文件夹里的提示词。直播间的 index.json 只写一行：
+好几个直播间都有的指令（比如「主播会唱 xxx 吗」）放在 `chat-bot/prompts/commands/<name>/`：`command.json` 写字段（和 index.json 里的一样），`prompt` 是这个文件夹里的提示词。直播间的 index.json 只写一行：
 
 ```json
 {
