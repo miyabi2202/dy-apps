@@ -5,7 +5,7 @@ import type { SpawnWorker } from '../app/ports';
 /** A connection to the speech service: lines in and out, until it closes. */
 export interface WorkerSocket {
   write(line: string): void;
-  /** Disconnects; the service itself goes on. */
+  /** Disconnects, after sending what was written; the service itself goes on (unless asked to quit). */
   close(): void;
   onLine(handler: (line: string) => void): void;
   onClose(handler: () => void): void;
@@ -26,7 +26,8 @@ const openTcp: OpenSocket = (port) =>
       const lines = createInterface({ input: socket });
       resolve({
         write: (line) => void socket.write(`${line}\n`),
-        close: () => socket.destroy(),
+        // end(), not destroy(): what was just written (a quit request) still goes out first.
+        close: () => void socket.end(),
         onLine: (handler) => void lines.on('line', handler),
         onClose: (handler) => void socket.once('close', handler),
       });

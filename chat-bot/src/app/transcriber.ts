@@ -121,8 +121,10 @@ export class Transcriber {
     this.markReady();
   }
 
-  stop(): void {
+  /** With `quitService`, the speech service is asked to exit too, rather than wait for a bot. */
+  stop({ quitService = false } = {}): void {
     this.stopped = true;
+    if (quitService) this.worker?.send(JSON.stringify({ quit: true }));
     this.worker?.kill();
   }
 

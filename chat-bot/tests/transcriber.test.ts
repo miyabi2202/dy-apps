@@ -141,6 +141,34 @@ test('is ready once the models load, before any stream; and starts a worker that
   await running;
 });
 
+test('stopping with quitService asks the speech service to exit before disconnecting', async () => {
+  const sent: string[] = [];
+  const transcriber = new Transcriber({
+    streamUrl: () => Promise.resolve(null),
+    bus: fakeBus(),
+    transcript: new Transcript(),
+    log: silentLog,
+    spawnWorker: ({ onLine }) => {
+      const worker = fakeWorker(onLine, () => []);
+      return {
+        ...worker,
+        send: (line) => sent.push(line),
+        kill: () => {
+          sent.push('killed');
+          worker.kill();
+        },
+      };
+    },
+    sleep: () => new Promise((resolve) => setTimeout(resolve, 0)),
+  });
+  const running = transcriber.run();
+  await transcriber.ready();
+
+  transcriber.stop({ quitService: true });
+  await running;
+  expect(sent).toEqual([JSON.stringify({ quit: true }), 'killed']);
+});
+
 test('a busy speech service is let go, so the bot enters the room and tries again later', async () => {
   let spawned = 0;
   const warnings: string[] = [];

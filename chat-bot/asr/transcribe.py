@@ -36,6 +36,8 @@ they have. When the bot disconnects its stream is stopped (ffmpeg killed), but t
 voiceprints it learned stay loaded, and the next connection is told `{"ready": true}` at once. That
 way restarting the bot doesn't reload the models. It's started by hand, before the bot, which only
 connects to it (src/adapters/asr-worker.ts); stop it with Ctrl+C or `pkill -f "transcribe.py --serve"`.
+The bot can stop it too, by writing `{"quit": true}`: it does when room-feed has gone (the stream
+ended), as it exits itself.
 
 The bot can also ask what music is playing, by writing `{"music_id": 1}` (any id) as a line to
 stdin: the worker looks up the last 15 s with Shazam (shazamio: the fingerprint is worked out
@@ -373,7 +375,8 @@ class Stream:
 def read_requests(lines, urls: queue.Queue, music: queue.Queue, stream: Stream) -> None:
     """
     Reads the bot's `lines` (stdin, or its connection): `{"url": …}` (stop the stream being
-    listened to, if any, and listen to this one) goes to `urls`, `{"music_id": …}` to `music`. When
+    listened to, if any, and listen to this one) goes to `urls`, `{"music_id": …}` to `music`;
+    `{"quit": true}` ends the whole process, `--serve` or not. When
     they end (the bot is gone), puts None on both and stops the stream, so the session ends.
     """
     try:
@@ -383,9 +386,14 @@ def read_requests(lines, urls: queue.Queue, music: queue.Queue, stream: Stream) 
                 if "url" in message:
                     urls.put(str(message["url"]))
                     stream.stop()
+                elif message.get("quit"):
+                    # The room's stream is over and the bot is leaving: the service goes too.
+                    log("the bot asked the service to quit")
+                    stream.stop()
+                    os._exit(0)
                 else:
                     music.put(message["music_id"])
-            except (ValueError, KeyError, TypeError):
+            except (ValueError, KeyError, TypeError, AttributeError):
                 log(f"not a request: {request.strip()!r}")
     except (OSError, ValueError) as err:  # the connection broke, or its bytes weren't text
         log(f"stopped reading requests: {err}")

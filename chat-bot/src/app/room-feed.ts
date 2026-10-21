@@ -5,6 +5,26 @@ import type { Billing } from './billing';
 import type { EventBus } from './event-bus';
 import type { Log, RoomEvents, RoomRecord } from './ports';
 
+/**
+ * Calls `onGone` once when room-feed goes away after the bot was connected to it: it exits when
+ * the stream has ended or its page showed another room, and there's nothing left to do then. A
+ * room-feed that isn't up yet when the bot starts isn't gone: the client keeps trying.
+ */
+export function whenRoomFeedGone(
+  events: Pick<RoomEvents, 'onStatus'>,
+  onGone: (detail?: string) => void,
+): void {
+  let connected = false;
+  let gone = false;
+  events.onStatus((status, detail) => {
+    if (status === 'roomConnecting' || status === 'ready') connected = true;
+    else if ((status === 'closed' || status === 'error') && connected && !gone) {
+      gone = true;
+      onGone(detail);
+    }
+  });
+}
+
 export interface RoomFeedOptions {
   events: RoomEvents;
   /** Where it tells of each mention, chat and gift. */

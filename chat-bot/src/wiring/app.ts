@@ -1,3 +1,4 @@
+import { whenRoomFeedGone } from '../app/room-feed';
 import type { Container } from './container';
 import {
   ADMINS,
@@ -10,6 +11,7 @@ import {
   ON_SING,
   OPTIONS,
   ROOM,
+  ROOM_EVENTS,
   SETTINGS,
   SONG_INTRO,
   TRANSCRIBER,
@@ -23,8 +25,13 @@ export interface App {
    * hearing the streamer from the start. Resolves once the bot is in the room.
    */
   start(): Promise<void>;
-  /** Stops it, from a signal; a start that's still waiting for the models then doesn't go on. */
-  stop(): void;
+  /**
+   * Stops it, from a signal; a start that's still waiting for the models then doesn't go on.
+   * With `quitSpeech`, the speech service is told to exit too.
+   */
+  stop(options?: { quitSpeech?: boolean }): void;
+  /** Called once when room-feed goes away after the bot was connected to it. */
+  onRoomFeedGone(handler: (detail?: string) => void): void;
 }
 
 /** Everything the bot is made of, made now, and started and stopped in order. */
@@ -72,13 +79,16 @@ export function registerApp(container: Container): void {
           void autoReply.run();
         }
       },
-      stop() {
+      stop({ quitSpeech = false } = {}) {
         stopping = true;
-        log.info('stopping');
+        log.info('stopping', quitSpeech ? { quitSpeech } : {});
         bot.stop();
-        transcriber?.stop();
+        transcriber?.stop({ quitService: quitSpeech });
         autoReply.stop();
         wallet.touch();
+      },
+      onRoomFeedGone(handler) {
+        whenRoomFeedGone(c.resolve(ROOM_EVENTS), handler);
       },
     };
   });

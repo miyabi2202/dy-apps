@@ -1,6 +1,6 @@
 import { ChatLog } from '../src/adapters/chat-log-files';
 import { Billing } from '../src/app/billing';
-import { RoomFeed } from '../src/app/room-feed';
+import { RoomFeed, whenRoomFeedGone } from '../src/app/room-feed';
 import { ChatHistory } from '../src/core/chat-history';
 import type { ChatLine, Gift } from '../src/core/room-events';
 import { BOT, NOW, chat, fakeBus, fakeEvents, gift, memoryWallet, silentLog } from './fakes';
@@ -96,4 +96,35 @@ test('credits gifts to their givers, and passes on those worth diamonds', () => 
 
   expect(wallet.balance('u-阿明')).toBe(3);
   expect(gifts).toEqual([gift('阿明', 3, 1)]);
+});
+
+describe('whenRoomFeedGone', () => {
+  function watch() {
+    let status: (status: string, detail?: string) => void = () => {};
+    const gone: (string | undefined)[] = [];
+    whenRoomFeedGone({ onStatus: (handler) => (status = handler) }, (detail) => gone.push(detail));
+    return { status: (s: string, detail?: string) => status(s, detail), gone };
+  }
+
+  test('waits while room-feed is not up yet', () => {
+    const { status, gone } = watch();
+    status('opening');
+    status('error', '无法连接 localhost:8757，请确认 room-feed 已启动');
+    status('opening');
+    status('error', '无法连接 localhost:8757，请确认 room-feed 已启动');
+
+    expect(gone).toEqual([]);
+  });
+
+  test('tells once when room-feed goes away after the bot was connected', () => {
+    const { status, gone } = watch();
+    status('opening');
+    status('roomConnecting');
+    status('ready');
+    status('closed');
+    status('opening');
+    status('error', '无法连接');
+
+    expect(gone).toEqual([undefined]);
+  });
 });
