@@ -80,7 +80,7 @@ export function zoomServer({ size, crop }: ZoomServerOptions) {
 }
 
 /** Crops with ffmpeg: the JPEG it wrote, or what it said went wrong. */
-export function ffmpegCrop(file: string, ffmpeg = 'ffmpeg') {
+function ffmpegCrop(file: string, ffmpeg = 'ffmpeg') {
   return (region: Region, scale: number): Uint8Array | string => {
     const run = spawnSync(ffmpeg, zoomArgs(file, region, scale), { maxBuffer: 64 * 1024 * 1024 });
     if (run.error) return run.error.message;

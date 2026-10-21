@@ -26,12 +26,6 @@ export interface DetailPart {
   color?: string;
 }
 
-/** The detail line as plain text, however it was given. */
-export function detailText(detail: DanmakuMessage['detail']): string {
-  if (detail === undefined) return '';
-  return typeof detail === 'string' ? detail : detail.map((part) => part.text).join('');
-}
-
 /** A chat message, a gift or a run of likes (the last two have an empty `text`). */
 export interface DanmakuMessage {
   id: string;

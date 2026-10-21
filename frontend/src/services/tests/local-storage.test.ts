@@ -1,4 +1,4 @@
-import { createStore, KEY_PREFIX } from '..';
+import { createStore } from '..';
 
 const asNumber = (raw: unknown) => (typeof raw === 'number' ? raw : undefined);
 
@@ -8,7 +8,7 @@ test('round-trips a value under the prefixed key', () => {
   const store = createStore('test.count', { fallback: 0, parse: asNumber });
   expect(store.read()).toBe(0);
   store.write(42);
-  expect(localStorage.getItem(`${KEY_PREFIX}test.count`)).toBe('42');
+  expect(localStorage.getItem('dy-apps:test.count')).toBe('42');
   expect(store.read()).toBe(42);
 });
 

@@ -1,5 +1,5 @@
 /** Every key is stored under this prefix, so apps on the one origin don't collide with other sites' keys. */
-export const KEY_PREFIX = 'dy-apps:';
+const KEY_PREFIX = 'dy-apps:';
 
 export interface Store<T> {
   /** Full localStorage key, prefix included. */

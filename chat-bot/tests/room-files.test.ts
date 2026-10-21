@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   livePrompt,
-  liveRoomConfig,
   liveSection,
+  roomConfigFile,
   roomFiles,
   saveStreamer,
 } from '../src/adapters/room-files';
@@ -29,7 +29,8 @@ test('room_config.json starts not private, and is read again as it changes', () 
   const { config } = roomFiles(mkdtempSync(join(tmpdir(), 'room-files-')));
   expect(JSON.parse(readFileSync(config, 'utf8'))).toEqual({ private: false });
   const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
-  const roomConfig = liveRoomConfig(config, { log });
+  const file = roomConfigFile(config, { log });
+  const roomConfig = () => file.get();
   expect(roomConfig()).toEqual({
     private: false,
     aliases: [],
@@ -87,7 +88,7 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
     private: true,
     streamer: { nickname: '晨曦FM ⁹⁰¹', uid: '7500039236442915865' },
   });
-  expect(liveRoomConfig(config, { log })()).toEqual({
+  expect(roomConfigFile(config, { log }).get()).toEqual({
     private: true,
     aliases: [],
     atTrimStart: [],
@@ -159,7 +160,8 @@ test("room_config.json's aliases are the other names of the bot, read again as t
   const { config } = roomFiles(mkdtempSync(join(tmpdir(), 'room-files-')));
   const warned: string[] = [];
   const log = { ...noLog, warn: (message: string) => void warned.push(message) };
-  const roomConfig = liveRoomConfig(config, { log });
+  const file = roomConfigFile(config, { log });
+  const roomConfig = () => file.get();
 
   writeFileSync(config, '{ "aliases": ["Fairy", " 菲瑞 ", ""] }');
   expect(roomConfig().aliases).toEqual(['Fairy', '菲瑞']);

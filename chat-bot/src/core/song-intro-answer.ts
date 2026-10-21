@@ -6,7 +6,7 @@ export interface SongIntroAnswer {
 }
 
 /** The most messages it may say. */
-export const SONG_INTRO_MAX = 2;
+const SONG_INTRO_MAX = 2;
 
 /** The JSON Schema SongIntroAnswer follows (strict: every field required, no others). */
 export const SONG_INTRO_SCHEMA = {

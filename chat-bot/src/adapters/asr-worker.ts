@@ -15,7 +15,7 @@ export interface WorkerSocket {
 export type OpenSocket = (port: number) => Promise<WorkerSocket>;
 
 /** Real TCP, on localhost. */
-export const openTcp: OpenSocket = (port) =>
+const openTcp: OpenSocket = (port) =>
   new Promise((resolve, reject) => {
     const socket = createConnection({ port, host: '127.0.0.1' });
     socket.once('error', reject);

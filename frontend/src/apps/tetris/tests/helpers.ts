@@ -1,3 +1,4 @@
+import type { DanmakuMessage } from '@dy-apps/services';
 import { createBoard } from '../core/board';
 import { CURSE_LIST, EFFECT_POOL, type EffectType } from '../core/curses';
 import { GameEngine, type EngineOptions } from '../core/game';
@@ -48,4 +49,10 @@ export function dropOnEmpty(engine: GameEngine, times: number): void {
     if (engine.active) engine.active = createPiece(engine.active.shape);
     engine.hardDrop();
   }
+}
+
+/** A message's detail line as plain text, however it was given. */
+export function detailText(detail: DanmakuMessage['detail']): string {
+  if (detail === undefined) return '';
+  return typeof detail === 'string' ? detail : detail.map((part) => part.text).join('');
 }

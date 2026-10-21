@@ -29,7 +29,7 @@ frontend/                 # @dy-apps/frontend: the one package
       integration-tests/  #     Playwright specs, against the site's production build
     services/             #   imported as `@dy-apps/services`: shared non-UI code
       demo-source.ts      #     fake or live source, the fake interval and `?demo=` in OBS links
-      room-feed.ts        #     the site's room-feed bits: the port hint, the guide's route, status text
+      room-feed.ts        #     the site's room-feed bits: the port hint, the guide's route
       fake-messages.ts    #     made-up viewers, chat and gifts for previews
       like-batcher.ts     #     LikeBatcher: one total per viewer once they stop liking
       live-message.ts     #     DanmakuMessage, and room-feed events turned into messages

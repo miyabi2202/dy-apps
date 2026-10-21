@@ -34,7 +34,7 @@ export const SETTING_DEFAULTS: Readonly<Settings> = {
 };
 
 /** The settings' names, in the order room_config.json lists them. */
-export const SETTING_NAMES = Object.keys(SETTING_DEFAULTS) as (keyof Settings)[];
+const SETTING_NAMES = Object.keys(SETTING_DEFAULTS) as (keyof Settings)[];
 
 /**
  * The settings in `raw` (a parsed room_config.json), each checked on its own: a missing one is its

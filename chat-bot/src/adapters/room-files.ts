@@ -174,18 +174,6 @@ export function roomConfigFile(
 }
 
 /**
- * The room's `room_config.json` as it is now (see roomConfigFile): read on each call, parsed again
- * when it changed.
- */
-export function liveRoomConfig(
-  path: string,
-  options: { log: Log; read?: (path: string) => string },
-): () => RoomConfig {
-  const file = roomConfigFile(path, options);
-  return () => file.get();
-}
-
-/**
  * Fills in `room_config.json` at start so it has every field (see ROOM_FIELDS): one that's missing
  * is written with the command-line option `given` for it, else its default. One that's there wins
  * over an option (the file is the room's memory: a restart with other options keeps it), with a

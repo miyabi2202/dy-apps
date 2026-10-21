@@ -22,7 +22,7 @@ export interface DemoConfig {
 }
 
 /** The interval clamped to `range`, or undefined if it isn't a number. */
-export function clampDemoInterval(
+function clampDemoInterval(
   ms: number,
   range: DemoIntervalRange = DEMO_INTERVAL_RANGE,
 ): number | undefined {
