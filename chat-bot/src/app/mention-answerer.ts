@@ -17,12 +17,13 @@ import {
 import type { UnpromptedReply } from '../core/reply-pick';
 import type { ChatLine } from '../core/room-events';
 import type { Billing } from './billing';
-import type { PromptOptions } from './command';
+import { done, failed, type Command, type PromptOptions } from './command';
 import type { EventBus } from './event-bus';
 import type { Outbox } from './outbox';
 import { Pending } from './pending';
-import type { AskModel, Log, UserTalk } from './ports';
+import type { AskModel, Log, SettingsStore, UserTalk } from './ports';
 import type { RoomState } from './room-state';
+import { setting } from './setting';
 
 /**
  * A question for Claude, paid for by `userId` unless they're an admin or it's free; a command's
@@ -87,6 +88,8 @@ export interface MentionAnswererOptions {
   maxReplyLength?: number;
   /** A long answer goes out as up to this many messages, `@asker (1/3) …`. */
   maxReplyParts?: number;
+  /** Where `maxReplyParts` is kept (room_config.json), so `/回复条数` changes it for good. */
+  settings?: SettingsStore;
   /**
    * Told when, answering with the usual prompt, Claude found the asker asking for a command in
    * so many words (修改人设 for 「把你的人设改成小猫」): true when it took it from there (ran it, or
@@ -114,21 +117,46 @@ export class MentionAnswerer {
   private readonly pending: Mention[] = [];
   private busy = false;
   private readonly work = new Pending();
-  private readonly limits: ReplyLimits;
+  private readonly maxLength: number;
+  private readonly partsSetting: { get(): number; set(value: number): void };
   private readonly maxPending: number;
 
   constructor(private readonly options: MentionAnswererOptions) {
-    this.limits = {
-      maxLength: options.maxReplyLength ?? DOUYIN_CHAT_LIMIT,
-      maxParts: options.maxReplyParts ?? 5,
-    };
+    this.maxLength = options.maxReplyLength ?? DOUYIN_CHAT_LIMIT;
+    this.partsSetting = setting(options.settings, 'maxReplyParts', options.maxReplyParts ?? 5);
     this.maxPending = options.maxPending ?? 20;
+  }
+
+  /** The most messages one @'s answer is split into, as set now. */
+  get maxParts(): number {
+    return this.partsSetting.get();
+  }
+
+  /** `/回复条数 3`: an @'s answer is split into at most that many messages (1 to 10). */
+  commands(): Command[] {
+    return [
+      {
+        name: '回复条数',
+        adminOnly: true,
+        price: 0,
+        run: (args) => {
+          if (!/^\d+$/.test(args) || Number(args) < 1 || Number(args) > 10)
+            return failed('条数要写成 1 到 10 的整数，用法：/回复条数 3');
+          this.partsSetting.set(Number(args));
+          this.options.log.info('reply parts', { maxParts: this.maxParts });
+          return done('已处理回复条数请求');
+        },
+      },
+    ];
   }
 
   /** How long `mention`'s answer may be (one message when unprompted), with the room's 单推符号. */
   private limitsFor(mention: Pick<Mention, 'unprompted'>): ReplyLimits {
-    const limits = mention.unprompted ? { ...this.limits, maxParts: 1 } : this.limits;
-    return { ...limits, atTrimStart: this.options.room.atTrimStart() };
+    return {
+      maxLength: this.maxLength,
+      maxParts: mention.unprompted ? 1 : this.maxParts,
+      atTrimStart: this.options.room.atTrimStart(),
+    };
   }
 
   /**

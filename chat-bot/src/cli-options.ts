@@ -72,7 +72,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       prompt: { type: 'string', default: join(packageDir, 'prompt.md') },
       history: { type: 'string', default: '100' },
       'max-reply': { type: 'string', default: String(DOUYIN_CHAT_LIMIT) },
-      'max-parts': { type: 'string', default: '5' },
+      'max-parts': { type: 'string' },
       tools: { type: 'string', default: 'WebSearch,WebFetch,Read,Glob,Grep' },
       model: { type: 'string', default: 'opus' },
       // Claude may write up its thinking or searching before the answer; only what follows the
@@ -134,6 +134,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     ...(values['auto-song-id'] !== undefined && { autoSongId: values['auto-song-id'] }),
     ...(values['malice-watch'] !== undefined && { maliceWatch: values['malice-watch'] }),
     ...(values.screenshot !== undefined && { screenshots: values.screenshot }),
+    ...(values['max-parts'] !== undefined && { maxReplyParts: Number(values['max-parts']) }),
   };
   // A setting given as something that isn't a number, 0 or more (`--cost abc`), is a mistake: say
   // so, rather than write it into the room's room_config.json for good.
@@ -150,7 +151,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     promptFile: values.prompt,
     historySize: Number(values.history),
     maxReplyLength: Number(values['max-reply']),
-    maxReplyParts: Number(values['max-parts']),
+    maxReplyParts: settings.maxReplyParts,
     tools: values.tools.split(',').filter(Boolean),
     model: values.model,
     systemPrompt: values.system,

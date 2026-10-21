@@ -27,6 +27,7 @@ import {
   PACKAGE_DIR,
   PROMPT,
   ROOM,
+  SETTINGS,
   SONG_ID,
   THANKER,
   TRANSCRIBER,
@@ -54,6 +55,8 @@ export function registerBot(container: Container): void {
         maxPending: options.maxPending,
         maxReplyLength: options.maxReplyLength,
         maxReplyParts: options.maxReplyParts,
+        // /回复条数 changes it, kept in room_config.json.
+        settings: c.resolve(SETTINGS),
         bus: c.resolve(BUS),
         // 「把你的人设改成小猫」 and the like: run the command if they may. The bot is made after
         // this, and asked only when an answer has come.
@@ -72,6 +75,7 @@ export function registerBot(container: Container): void {
         personaCommand(room),
         ...c.resolve(BILLING).commands(),
         ...c.resolve(AUTO_REPLY).commands(),
+        ...c.resolve(ANSWERER).commands(),
         ...c.resolve(THANKER).commands(),
         screenshotCommand(room),
         ...(c.resolve(SONG_ID)?.commands() ?? []),

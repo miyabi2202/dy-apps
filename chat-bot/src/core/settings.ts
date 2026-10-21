@@ -17,6 +17,8 @@ export interface Settings {
   maliceWatch: boolean;
   /** Whether prompts get a screenshot of the live video (`/截图`). */
   screenshots: boolean;
+  /** The most messages one @'s answer is split into (`/回复条数`, `--max-parts`). */
+  maxReplyParts: number;
 }
 
 /** Each setting's value when neither room_config.json nor the command line says. */
@@ -28,6 +30,7 @@ export const SETTING_DEFAULTS: Readonly<Settings> = {
   autoSongId: false,
   maliceWatch: false,
   screenshots: false,
+  maxReplyParts: 5,
 };
 
 /** The settings' names, in the order room_config.json lists them. */

@@ -12,6 +12,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/修改收费 <钻>`       | Change what an @ costs                             | yes         | 0 (free)    |
 | `/自动回复阈值 <0–1>`  | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
 | `/自动回复间隔 <秒>`   | How long it keeps quiet after joining in           | yes         | 60          |
+| `/回复条数 <1–10>`     | How many messages one @'s answer may take          | yes         | 5           |
 | `/自动谢礼 <钻>`       | Thank viewers who give more than this in 5 minutes | yes         | 99999 (off) |
 | `/截图 <0\|1>`         | Send Claude the live video or not                  | yes         | 0           |
 | `/识歌 [提示]`         | Name the song the streamer sings, from its lyrics  | no          | –           |
@@ -28,6 +29,7 @@ Admin-only commands are free; the others are for anyone, and cost what an @ does
 | `/修改收费 <钻>`       | `mentionCost`              | `0`     |
 | `/自动回复阈值 <0–1>`  | `autoReplyThreshold`       | `1`     |
 | `/自动回复间隔 <秒>`   | `autoReplyIntervalSeconds` | `60`    |
+| `/回复条数 <1–10>`     | `maxReplyParts`            | `5`     |
 | `/自动谢礼 <钻>`       | `thanksThreshold`          | `99999` |
 | `/自动识歌 <0\|1>`     | `autoSongId`               | `false` |
 | `/识别恶意言论 <0\|1>` | `maliceWatch`              | `false` |
@@ -84,6 +86,18 @@ How many seconds auto-reply keeps quiet after it answered someone unprompted: wh
 
 @默认关闭 /自动回复间隔 半分钟
 → 间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20
+```
+
+### /回复条数
+
+The most messages one @'s answer is split into, `@昵称 (1/3) …`, sent one every `--send-interval` seconds; Claude is also told that much less room, so it writes less rather than being cut off. It starts at `--max-parts` (5). What the bot says unprompted is always one message, whatever this says.
+
+```text
+@默认关闭 /回复条数 2
+→ 已处理回复条数请求
+
+@默认关闭 /回复条数 十
+→ 条数要写成 1 到 10 的整数，用法：/回复条数 3
 ```
 
 ### /自动谢礼

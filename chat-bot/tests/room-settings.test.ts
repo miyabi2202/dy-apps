@@ -56,6 +56,7 @@ test('fills in the fields a room_config.json lacks with their defaults, and keep
     autoSongId: false,
     maliceWatch: false,
     screenshots: false,
+    maxReplyParts: 5,
   });
   // Stable formatting: 2 spaces, a trailing newline, the existing fields first.
   expect(file.state.text.endsWith('}\n')).toBe(true);
@@ -328,4 +329,13 @@ test('room_config.json says where the streamer is: Beijing time when it does not
   expect(messages('room_config.json has bad values, keeping their last ones')).toHaveLength(1);
   file.state.text = '{}\n';
   expect(config.get().timeZone).toBe('Asia/Shanghai');
+});
+
+test('--max-parts seeds maxReplyParts, which then lives in room_config.json like the others', () => {
+  const args = ['--room', '416362684969', '--bot-name', '默认关闭'];
+  expect(parseCliOptions([...args, '--max-parts', '2'], '/pkg')?.given).toEqual({
+    maxReplyParts: 2,
+  });
+  expect(parseCliOptions(args, '/pkg')?.given).toEqual({});
+  expect(parseCliOptions(args, '/pkg')?.maxReplyParts).toBe(5);
 });

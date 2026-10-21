@@ -1,3 +1,4 @@
+import { SETTING_DEFAULTS } from '../src/core/settings';
 import { Billing } from '../src/app/billing';
 import type { EventBus } from '../src/app/event-bus';
 import { MentionAnswerer, type Mention } from '../src/app/mention-answerer';
@@ -342,4 +343,38 @@ test("the reply @s the whole nickname when it fits, and only a shortened @ goes 
   expect(sent[1]).toBe(
     '@阿拂（ 先换首顺手的唱回回血，这首的调交给二号去研究，不开心的锅归伴奏不归茜茜',
   );
+});
+
+test('/回复条数 sets how many messages an answer may take, kept in the room settings', async () => {
+  const stored: Record<string, unknown> = {};
+  const settings = {
+    get: () => ({ ...SETTING_DEFAULTS, ...stored }),
+    set: (patch: object) => void Object.assign(stored, patch),
+  };
+  const { outbox, sent } = fakeOutbox();
+  const answerer = new MentionAnswerer({
+    ask: () => Promise.resolve('一二三四五六七八九十。'.repeat(20)),
+    outbox,
+    room: fakeRoom({ now: () => NOW }),
+    log: silentLog,
+    promptTemplate: () => TEMPLATE,
+    settings,
+  });
+  const [command] = answerer.commands();
+  const run = (args: string) =>
+    command && 'run' in command && command.run ? command.run(args) : undefined;
+
+  expect(await run('0')).toEqual({
+    ok: false,
+    reply: '条数要写成 1 到 10 的整数，用法：/回复条数 3',
+  });
+  expect(await run('两')).toMatchObject({ ok: false });
+  expect(await run('2')).toEqual({ ok: true, reply: '已处理回复条数请求' });
+  expect(stored).toEqual({ maxReplyParts: 2 });
+
+  answerer.ask({ asker: '阿明', paid: 0, question: '讲讲', history: [] });
+  await answerer.idle();
+  await outbox.idle();
+  expect(sent).toHaveLength(2);
+  expect(sent[0]).toMatch(/^@阿明 \(1\/2\) /);
 });
