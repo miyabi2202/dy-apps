@@ -110,13 +110,13 @@ pnpm room-feed --room <房间号>        # serve that room on port 8757 (--port 
 
 It needs Chrome installed (`--chrome <path>` when it isn't found). Gifts only arrive, and chat can only be sent, when logged in. It serves one room: a client asking for another gets an error naming the room it serves, so two rooms need two room-feeds on different ports. When the chat socket drops, or no push frame comes within a minute (the room isn't live), it reopens the room page by itself.
 
-| Endpoint                         | What                                                                              |
-| -------------------------------- | --------------------------------------------------------------------------------- |
-| `ws://…/ws?roomId=<id>&types=…`  | events (`chat`, `gift`, `like`) and `__connecting` / `__connected` status frames  |
-| `GET /api/rooms/<id>`            | status, the streamer (`meta.uid`, from the room page) and the login's `expiresAt` |
-| `POST /api/rooms/<id>/chat`      | `{ text }`: send a chat as the logged-in account; `echoed` once it came back      |
-| `GET /api/rooms/<id>/stream`     | the FLV or HLS URL the page's player pulls (the bot's speech recognition)         |
-| `GET /api/rooms/<id>/screenshot` | the player as a JPEG                                                              |
+| Endpoint                         | What                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------------------------------- |
+| `ws://…/ws?roomId=<id>&types=…`  | events (`chat`, `gift`, `like`) and `__connecting` / `__connected` / `__ended` status frames |
+| `GET /api/rooms/<id>`            | status, the streamer (`meta.uid`, from the room page) and the login's `expiresAt`            |
+| `POST /api/rooms/<id>/chat`      | `{ text }`: send a chat as the logged-in account; `echoed` once it came back                 |
+| `GET /api/rooms/<id>/stream`     | the FLV or HLS URL the page's player pulls (the bot's speech recognition)                    |
+| `GET /api/rooms/<id>/screenshot` | the player as a JPEG                                                                         |
 
 Every shape here is a type in [`room-feed-protocol/`](room-feed-protocol) (`@dy-apps/room-feed-protocol`), along with the client that reads them (`RoomFeedClient`, `GiftCounter`, `parsePort`, `roomIdFrom`): room-feed sends them, and the site and the chat bot read them through it.
 

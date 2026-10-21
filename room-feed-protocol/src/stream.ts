@@ -7,7 +7,8 @@
 import { eventsUrl } from './api';
 import type { EventType, Frame, LikeEvent, RoomEvent } from './events';
 
-export type RoomFeedStatus = 'opening' | 'roomConnecting' | 'ready' | 'error' | 'closed';
+/** `ended`: room-feed is about to exit for good, the detail saying why (see `__ended`). */
+export type RoomFeedStatus = 'opening' | 'roomConnecting' | 'ready' | 'ended' | 'error' | 'closed';
 
 export interface RoomFeedHandlers {
   onStatus(status: RoomFeedStatus, detail?: string): void;
@@ -65,6 +66,9 @@ export function connectRoomFeed(
       case '__error':
         failed = true;
         handlers.onStatus('error', frame.error);
+        return;
+      case '__ended':
+        handlers.onStatus('ended', frame.detail);
         return;
       default:
         handlers.onEvent(frame);

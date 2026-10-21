@@ -1,6 +1,12 @@
 import { normalize } from './douyin/normalize';
 import type { RawProtoMessage } from './douyin/proto';
-import type { RoomEvent, RoomInfoAnswer, RoomMeta, RoomStatus } from '@dy-apps/room-feed-protocol';
+import type {
+  RoomEvent,
+  RoomGoneReason,
+  RoomInfoAnswer,
+  RoomMeta,
+  RoomStatus,
+} from '@dy-apps/room-feed-protocol';
 import type { OpenRoomPage, RoomPage } from './room-page';
 
 /** A request the room can't do now, with the HTTP status to answer it with. */
@@ -26,11 +32,6 @@ export interface RoomOptions {
   schedule?: (run: () => void, ms: number) => Cancel;
   now?: () => number;
   log?: (line: string) => void;
-  /**
-   * Called once when the room stops for good: its stream has ended (`ended`), or the page showed
-   * another room (`wrongRoom`). room-feed exits then, instead of reopening.
-   */
-  onGone?: (why: string, kind: 'ended' | 'wrongRoom') => void;
   /** Reload the page when no push frame came this long after opening it (the room isn't live). */
   liveTimeoutMs?: number;
   /** Waits before reopening, one per failure in a row; the last repeats. */
@@ -73,7 +74,6 @@ export class Room {
   private readonly schedule: NonNullable<RoomOptions['schedule']>;
   private readonly now: () => number;
   private readonly log: (line: string) => void;
-  private readonly onGone: NonNullable<RoomOptions['onGone']>;
   private readonly liveTimeoutMs: number;
   private readonly retryMs: readonly number[];
   private readonly chatIntervalMs: number;
@@ -90,6 +90,7 @@ export class Room {
   private readonly seen = new RecentIds(200_000);
   private readonly eventListeners = new Set<(event: RoomEvent) => void>();
   private readonly statusListeners = new Set<(status: RoomStatus) => void>();
+  private readonly goneListeners = new Set<(why: string, reason: RoomGoneReason) => void>();
   private chatQueue: Promise<unknown> = Promise.resolve();
   private lastChatAt = -Infinity;
 
@@ -99,7 +100,6 @@ export class Room {
     this.schedule = options.schedule ?? defaultSchedule;
     this.now = options.now ?? Date.now;
     this.log = options.log ?? console.log;
-    this.onGone = options.onGone ?? (() => {});
     this.liveTimeoutMs = options.liveTimeoutMs ?? 60_000;
     this.retryMs = options.retryMs ?? [5_000, 15_000, 30_000, 60_000];
     this.chatIntervalMs = options.chatIntervalMs ?? 3_000;
@@ -132,6 +132,16 @@ export class Room {
   onStatus(listener: (status: RoomStatus) => void): () => void {
     this.statusListeners.add(listener);
     return () => this.statusListeners.delete(listener);
+  }
+
+  /**
+   * Called once when the room stops for good: its stream has ended (`ended`), or the page showed
+   * another room (`wrongRoom`). room-feed exits then, instead of reopening. Returns a function
+   * that removes the listener.
+   */
+  onGone(listener: (why: string, reason: RoomGoneReason) => void): () => void {
+    this.goneListeners.add(listener);
+    return () => this.goneListeners.delete(listener);
   }
 
   /**
@@ -233,10 +243,10 @@ export class Room {
     this.cancelTimer = this.schedule(() => void this.connect(), delay);
   }
 
-  private async end(why: string, kind: 'ended' | 'wrongRoom'): Promise<void> {
+  private async end(why: string, reason: RoomGoneReason): Promise<void> {
     this.log(`[room-feed] ${why}，不再重新打开直播间`);
     await this.stop();
-    this.onGone(why, kind);
+    for (const listener of this.goneListeners) listener(why, reason);
   }
 
   private receive(messages: RawProtoMessage[]): void {

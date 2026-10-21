@@ -77,7 +77,15 @@ export type StatusFrame =
   | { type: '__hello'; roomId: string; types: EventType[]; ts: number }
   | { type: '__connecting'; roomId: string; ts: number }
   | { type: '__connected'; roomId: string; ts: number }
-  | { type: '__error'; roomId: string; error: string; ts: number };
+  | { type: '__error'; roomId: string; error: string; ts: number }
+  /**
+   * Sent just before room-feed exits for good: the stream has ended (or hadn't started), or the
+   * page showed another room. `detail` says which, in words for the log.
+   */
+  | { type: '__ended'; roomId: string; reason: RoomGoneReason; detail: string; ts: number };
+
+/** Why room-feed stopped for good. */
+export type RoomGoneReason = 'ended' | 'wrongRoom';
 
 /** One WebSocket message from room-feed. */
 export type Frame = RoomEvent | StatusFrame;

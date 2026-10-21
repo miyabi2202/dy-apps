@@ -1,6 +1,6 @@
 import type { AddressInfo } from 'node:net';
 import { WebSocket } from 'ws';
-import type { RoomEvent, RoomStatus } from '@dy-apps/room-feed-protocol';
+import type { RoomEvent, RoomGoneReason, RoomStatus } from '@dy-apps/room-feed-protocol';
 import { RoomError } from '../src/room';
 import { createRoomFeedServer, type RoomFeedServer, type ServedRoom } from '../src/server';
 
@@ -10,6 +10,7 @@ class FakeRoom implements ServedRoom {
   chats: string[] = [];
   private readonly eventListeners = new Set<(event: RoomEvent) => void>();
   private readonly statusListeners = new Set<(status: RoomStatus) => void>();
+  private readonly goneListeners = new Set<(why: string, reason: RoomGoneReason) => void>();
 
   info() {
     return {
@@ -26,6 +27,10 @@ class FakeRoom implements ServedRoom {
     this.statusListeners.add(listener);
     return () => this.statusListeners.delete(listener);
   }
+  onGone(listener: (why: string, reason: RoomGoneReason) => void) {
+    this.goneListeners.add(listener);
+    return () => this.goneListeners.delete(listener);
+  }
   sendChat(text: string) {
     this.chats.push(text);
     return Promise.resolve({ echoed: true });
@@ -40,6 +45,9 @@ class FakeRoom implements ServedRoom {
 
   emit(event: RoomEvent) {
     for (const listener of this.eventListeners) listener(event);
+  }
+  gone(why: string, reason: RoomGoneReason) {
+    for (const listener of this.goneListeners) listener(why, reason);
   }
   setStatus(status: RoomStatus) {
     this.status = status;
@@ -98,6 +106,22 @@ describe('the event stream', () => {
       chat,
     ]);
     ws.close();
+  });
+
+  it('tells clients why before room-feed exits, and closes their sockets cleanly', async () => {
+    const { frames, closed } = await connect('roomId=123');
+    await until(() => frames.length === 2);
+    room.gone('直播已结束', 'ended');
+    await feed.close();
+    await closed;
+
+    expect(frames[2]).toEqual({
+      type: '__ended',
+      roomId: '123',
+      reason: 'ended',
+      detail: '直播已结束',
+      ts: 5,
+    });
   });
 
   it('turns away a client asking for another room', async () => {

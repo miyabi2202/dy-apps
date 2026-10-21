@@ -127,4 +127,14 @@ describe('whenRoomFeedGone', () => {
 
     expect(gone).toEqual([undefined]);
   });
+
+  test("gives room-feed's reason when it says why it's going", () => {
+    const { status, gone } = watch();
+    status('opening');
+    status('ready');
+    status('ended', '直播已结束');
+    status('closed');
+
+    expect(gone).toEqual(['直播已结束']);
+  });
 });

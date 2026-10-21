@@ -76,11 +76,13 @@ describe('RoomFeedClient', () => {
     send({ type: '__hello' });
     send({ type: '__connecting' });
     send({ type: '__connected' });
+    send({ type: '__ended', reason: 'ended', detail: '直播已结束' });
     send({ type: '__error', error: '房间未开播' });
     expect(statuses).toEqual([
       ['opening', undefined],
       ['roomConnecting', undefined],
       ['ready', undefined],
+      ['ended', '直播已结束'],
       ['error', '房间未开播'],
     ]);
   });

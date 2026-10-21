@@ -96,7 +96,6 @@ function setup({ ended = false } = {}) {
       pages.push(page);
       return Promise.resolve(page);
     },
-    onGone: (_why, kind) => gone.push(kind),
     schedule: clock.schedule,
     now: clock.now,
     log: (line) => log.push(line),
@@ -109,6 +108,7 @@ function setup({ ended = false } = {}) {
   const statuses: RoomStatus[] = [];
   room.onEvent((event) => events.push(event));
   room.onStatus((status) => statuses.push(status));
+  room.onGone((_why, reason) => gone.push(reason));
   return { clock, pages, room, events, statuses, log, gone, opens: () => opens };
 }
 

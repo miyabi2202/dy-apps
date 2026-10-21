@@ -15,7 +15,7 @@ import { RoomError, type Room } from './room';
 
 export type ServedRoom = Pick<
   Room,
-  'roomId' | 'info' | 'onEvent' | 'onStatus' | 'sendChat' | 'streamUrl' | 'screenshot'
+  'roomId' | 'info' | 'onEvent' | 'onStatus' | 'onGone' | 'sendChat' | 'streamUrl' | 'screenshot'
 >;
 
 export interface ServerOptions {
@@ -28,8 +28,12 @@ export interface ServerOptions {
 
 export interface RoomFeedServer {
   server: Server;
+  /** Closes the clients' sockets cleanly (what was sent still arrives), then the server. */
   close(): Promise<void>;
 }
+
+/** How long close() waits for clients to finish closing before cutting them off. */
+const CLOSE_WAIT_MS = 1000;
 
 /** The JSON body of a POST, or {} when there's none or it isn't JSON. */
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -157,6 +161,12 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
   const offStatus = room.onStatus((status) => {
     for (const ws of clients.keys()) send(ws, statusFrame(status));
   });
+  // Told before room-feed exits, so a client (the chat bot) knows it wasn't a crash.
+  const offGone = room.onGone((detail, reason) => {
+    for (const ws of clients.keys()) {
+      send(ws, { type: '__ended', roomId: room.roomId, reason, detail, ts: now() });
+    }
+  });
   const ping = setInterval(() => {
     for (const ws of clients.keys()) if (ws.readyState === WebSocket.OPEN) ws.ping();
   }, options.pingMs ?? 20_000);
@@ -167,7 +177,22 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
       clearInterval(ping);
       offEvent();
       offStatus();
-      for (const ws of clients.keys()) ws.terminate();
+      offGone();
+      const sockets = [...clients.keys()];
+      await Promise.race([
+        Promise.all(
+          sockets.map(
+            (ws) =>
+              new Promise<void>((resolve) => {
+                if (ws.readyState === WebSocket.CLOSED) return resolve();
+                ws.once('close', () => resolve());
+                ws.close(1001, 'room-feed exiting');
+              }),
+          ),
+        ),
+        new Promise<void>((resolve) => setTimeout(resolve, CLOSE_WAIT_MS).unref()),
+      ]);
+      for (const ws of sockets) ws.terminate();
       wss.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },

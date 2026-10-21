@@ -7,8 +7,10 @@ import type { Log, RoomEvents, RoomRecord } from './ports';
 
 /**
  * Calls `onGone` once when room-feed goes away after the bot was connected to it: it exits when
- * the stream has ended or its page showed another room, and there's nothing left to do then. A
- * room-feed that isn't up yet when the bot starts isn't gone: the client keeps trying.
+ * the stream has ended or its page showed another room, and there's nothing left to do then. Its
+ * `ended` status says why first (the detail), so that's what `onGone` gets; a room-feed that just
+ * went (stopped by hand, crashed) gives only the socket's error. A room-feed that isn't up yet
+ * when the bot starts isn't gone: the client keeps trying.
  */
 export function whenRoomFeedGone(
   events: Pick<RoomEvents, 'onStatus'>,
@@ -18,7 +20,8 @@ export function whenRoomFeedGone(
   let gone = false;
   events.onStatus((status, detail) => {
     if (status === 'roomConnecting' || status === 'ready') connected = true;
-    else if ((status === 'closed' || status === 'error') && connected && !gone) {
+    else if (gone) return;
+    else if (status === 'ended' || ((status === 'closed' || status === 'error') && connected)) {
       gone = true;
       onGone(detail);
     }
