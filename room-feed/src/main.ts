@@ -13,7 +13,7 @@ import { Room } from './room';
 import { ChromeRooms } from './room-page';
 import { createRoomFeedServer } from './server';
 
-/** room-feed/data/: the saved login and the login window's Chrome profile (not in git). */
+/** room-feed/data/: the saved login, the login window's Chrome profile and screenshots (not in git). */
 const DATA_DIR = fileURLToPath(new URL('../data/', import.meta.url));
 
 async function main(): Promise<number> {
@@ -52,6 +52,7 @@ async function main(): Promise<number> {
     executablePath: chrome,
     headless: !options.headed,
     cookie: () => loginFile.read()?.cookie ?? null,
+    shotsDir: join(DATA_DIR, 'screenshots'),
   });
   const room = new Room({ roomId: options.roomId, open: chromeRooms.open });
   const feed = createRoomFeedServer(room, { login: () => loginFile.read() });

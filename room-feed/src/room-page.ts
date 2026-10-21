@@ -1,3 +1,5 @@
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { BROWSER_ARGS, hideAutomation, USER_AGENT } from './chrome';
 import { decodeFrame, type RawProtoMessage } from './douyin/proto';
@@ -54,6 +56,8 @@ export interface ChromeOptions {
   headless: boolean;
   /** The saved login's cookies (`k=v; k=v`), read on every open; null when not logged in. */
   cookie: () => string | null;
+  /** Where a screenshot of the whole page goes when something covers the chat box; none if unset. */
+  shotsDir?: string;
 }
 
 /**
@@ -77,7 +81,7 @@ export class ChromeRooms {
       const cookie = this.options.cookie();
       if (cookie) await context.addCookies(browserCookies(cookie));
       const page = await context.newPage();
-      return await LivePage.open(page, roomId, handlers);
+      return await LivePage.open(page, roomId, handlers, this.options.shotsDir);
     } catch (e) {
       await context.close().catch(() => {});
       throw e;
@@ -119,10 +123,16 @@ class LivePage implements RoomPage {
   private constructor(
     private readonly page: Page,
     private readonly handlers: RoomPageHandlers,
+    private readonly shotsDir: string | undefined,
   ) {}
 
-  static async open(page: Page, roomId: string, handlers: RoomPageHandlers): Promise<LivePage> {
-    const live = new LivePage(page, handlers);
+  static async open(
+    page: Page,
+    roomId: string,
+    handlers: RoomPageHandlers,
+    shotsDir?: string,
+  ): Promise<LivePage> {
+    const live = new LivePage(page, handlers, shotsDir);
     await live.watch();
     const response = await page.goto(`https://live.douyin.com/${roomId}`, {
       waitUntil: 'domcontentloaded',
@@ -203,7 +213,13 @@ class LivePage implements RoomPage {
     } catch {
       throw new Error('找不到弹幕输入框（没有登录，或者抖音改版了）');
     }
-    await input.click();
+    try {
+      await input.click();
+    } catch (e) {
+      // Usually a popup's mask over the box: keep a picture of the page to see which.
+      const shot = await this.saveShot('chat-blocked').catch(() => null);
+      throw shot ? new Error(`${String(e)}\n截图：${shot}`) : e;
+    }
     // What an earlier chat left behind would be sent with this one, so clear it first.
     await this.clearChatInput();
     await this.page.keyboard.insertText(text);
@@ -213,6 +229,16 @@ class LivePage implements RoomPage {
       await this.clearChatInput().catch(() => {});
       throw new Error('回车后输入框没有清空，弹幕可能没有发出（风控、要验证或字数超了）');
     }
+  }
+
+  /** The whole visible page as a PNG in `shotsDir`; its path, or null with no `shotsDir`. */
+  private async saveShot(name: string): Promise<string | null> {
+    if (!this.shotsDir) return null;
+    await mkdir(this.shotsDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const path = join(this.shotsDir, `${stamp}-${name}.png`);
+    await this.page.screenshot({ path, timeout: 10_000 });
+    return path;
   }
 
   /** The box's text; an empty editor holds only a zero-width placeholder. */
