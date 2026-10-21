@@ -3,17 +3,10 @@ import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { labels, testIds } from '../messages';
-
-export interface PileStats {
-  /** Icons in the world, falling or at rest. */
-  total: number;
-  falling: number;
-  /** Asked for but not yet released. */
-  queued: number;
-}
+import type { PileCounts } from '../pile';
 
 interface Props {
-  stats: PileStats;
+  stats: PileCounts;
   /** The most icons the pile holds; the input is capped at what's left. */
   maxItems: number;
   onAdd: (count: number) => void;
@@ -83,7 +76,7 @@ export function ControlPanel({ stats, maxItems, onAdd, onRemove, onClear, childr
       </form>
       <dl data-testid={testIds.stats} {...stylex.props(styles.stats)}>
         <Stat label={labels.stats.total} value={stats.total} />
-        <Stat label={labels.stats.falling} value={stats.falling} />
+        <Stat label={labels.stats.moving} value={stats.moving} />
         <Stat label={labels.stats.queued} value={stats.queued} />
       </dl>
       {children}
