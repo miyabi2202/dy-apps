@@ -366,8 +366,7 @@ export function liveText(path: string, fallback: () => string = () => ''): () =>
  * `base` there, the file is changes to `sharedDir/<base>.md` (see composePersona); either way its
  * `{{…}}`s are filled in from the header. A file or shared persona that can't be read, a header line
  * that can't, and a `{{…}}` with no value are each warned about once: the bot then plays what's left
- * (nothing, the room's changes alone, the blank as it is). A room's old `persona.md`, no longer
- * read, is warned about too.
+ * (nothing, the room's changes alone, the blank as it is).
  */
 export function livePersona({
   roomDir,
@@ -397,15 +396,7 @@ export function livePersona({
   };
   return () => {
     const name = file();
-    if (!name) {
-      const old = join(roomDir, 'persona.md');
-      if (existsSync(old)) {
-        warnOnce('persona.md is no longer read: name a persona file in room_config.json', {
-          path: old,
-        });
-      }
-      return '';
-    }
+    if (!name) return '';
     const text = read(join(roomDir, name), 'could not read the persona file, playing no persona');
     if (text === null) return '';
     const { base, vars, body, problems } = parsePersonaFile(text);

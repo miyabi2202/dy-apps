@@ -50,7 +50,7 @@ export function mergePersona(shared: string, room: string): string {
 }
 
 /**
- * Who the bot plays in a room: the room's own persona.md as it is, or, when the room builds on a
+ * Who the bot plays in a room: the room's persona file as it is, or, when it builds on a
  * shared persona, that persona with the room's changes (mergePersona). Then each `{{name}}` with a
  * value in `vars` (what this room calls its streamer, say) is filled in; `missing` lists those
  * without one, left as they are.

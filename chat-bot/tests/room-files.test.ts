@@ -243,17 +243,6 @@ describe('livePersona', () => {
       expect.anything(),
     );
   });
-
-  test('warns that an old persona.md is no longer read', () => {
-    const { roomDir, log, persona } = setup();
-    writeFileSync(join(roomDir, 'persona.md'), '旧人设\n');
-
-    expect(persona()).toBe('');
-    expect(log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('persona.md is no longer read'),
-      expect.anything(),
-    );
-  });
 });
 
 test("room_config.json's persona is a file in the room's folder; one outside it keeps the last good one", () => {

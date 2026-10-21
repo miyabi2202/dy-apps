@@ -57,7 +57,8 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
     intro.md              #     what the bot says about itself when asked (in prompt.md)
     limitations.md        #     what it can't do and why, for when viewers notice (in prompt.md)
     wording.md            #     the sentences the program says to Jev, Codex and Claude around what it fills in (asked, relevance, song notes…)
-    personas/             #     shared personas a room can build on (fairy.md, …)
+    personas/             #     shared personas a room's persona file can build on (fairy.md, …)
+    commands/             #     shared room commands a room's index.json can build on (can-sing/, …)
   config.json             #   admins (user ids) and what viewers call them (adminNames)
   src/main.ts             #   entry: options (cli-options.ts), the container built, started and stopped
   src/wiring/             #   the IoC container (container.ts) and what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot)
@@ -65,7 +66,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   src/app/                #   use cases: ChatBot (commands, charging), RoomFeed (chat and gifts in), MentionAnswerer (questions to Claude), RoomState (what prompts know about the room), Billing, Outbox, Transcriber; ports.ts for the outside
   src/adapters/           #   room-feed, the Claude CLI, the ASR process, files and logging
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + CAM++
-  logs/  data/            #   winston logs; data/<房间号>/ per room: chat/, <user id>/, bot_logs.md, context.md, wallet.json (not in git)
+  logs/  data/            #   winston logs; data/<房间号>/ per room: room_config.json, context.md, personas/, additional_commands/, chat/, <user id>/, bot_logs.md, wallet.json (not in git)
 room-feed-protocol/       # @dy-apps/room-feed-protocol: room-feed's events and API, and the client that reads them
   src/events.ts           #   chat, gift, like events and the status frames, one JSON object per WebSocket message
   src/api.ts              #   the HTTP API's answers, the default port, the URLs, port and room-number checks
