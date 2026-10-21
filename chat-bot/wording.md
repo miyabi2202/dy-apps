@@ -8,7 +8,7 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 ## aliases-you
 
-直播间里也有人叫你「{{names}}」，语音识别可能把它写成同音、近音的别的字或别的大小写，这些都是在叫你。
+直播间里也有人叫你「{{names}}」，语音识别可能把它写成同音、近音的别的字或别的大小写，这些都是在叫你。这里面有的只是语音识别的错字（全大写、拼错的英文，同音字）：你自己提到名字时，用人设里的写法或最像正式名字的那个（比如 Fairy），不要照抄识别出来的错字。
 
 ## aliases-it
 
