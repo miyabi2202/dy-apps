@@ -1,24 +1,17 @@
 import {
-  createConnectionStore,
-  createDemoStores,
+  createSourceStores,
   createStore,
-  liveRoomFrom,
-  readDemoInterval,
-  readDemoRandom,
-  readLiveRoom,
-  setDemoParams,
-  setLiveRoomParams,
-  type Connection,
-  type DemoConfig,
+  readSourceConfig,
+  saveSourceConfig,
+  setSourceParams,
+  type SourceConfig,
 } from '@dy-apps/services';
 import { CONFIG } from './core/config';
 
 /** Everything 方块干预实验室 is set up with: where gifts come from and the trigger chance. */
-export interface TetrisConfig extends Connection {
+export interface TetrisConfig extends SourceConfig {
   /** Chance that one diamond triggers a curse, a whole percent in CONFIG.gifts.probabilityRange. */
   probability: number;
-  /** Fake gifts (the default), or the live room in `port` and `roomId`. */
-  demo: DemoConfig;
 }
 
 /** URL parameter for the trigger chance, in whole percent (`?chance=15`). */
@@ -31,9 +24,6 @@ function probabilityFrom(raw: unknown): number | undefined {
   return Math.round(Math.min(max, Math.max(min, raw)) * 100) / 100;
 }
 
-/** What the config page's form last held, valid or not, so a reload keeps the typing. */
-export const connectionStore = createConnectionStore('tetris');
-
 const probabilityStore = createStore('tetris.probability', {
   fallback: CONFIG.gifts.defaultProbability,
   parse: probabilityFrom,
@@ -42,38 +32,25 @@ const probabilityStore = createStore('tetris.probability', {
 /** Fake gifts come every 10 s on average: gifts are rarer than chat, and each one counts. */
 export const DEMO_INTERVAL = { range: [2000, 30_000], step: 500 } as const;
 
-const demoStores = createDemoStores(
+const stores = createSourceStores(
   'tetris',
   { source: 'fake', intervalMs: 10_000 },
   DEMO_INTERVAL.range,
 );
 
-/**
- * From the URL where it says, otherwise what was saved last time. `?port=…&room=…` means
- * live gifts from that room, `?demo=<ms>` fake ones, and `?random=0` fake gifts in a fixed
- * order at a fixed interval.
- */
+/** The source from the URL or what was saved (see readSourceConfig), plus the chance (`?chance=`). */
 export function readConfig(search: string): TetrisConfig {
-  const room = readLiveRoom(search);
-  const demo = readDemoInterval(search, DEMO_INTERVAL.range);
   const chance = new URLSearchParams(search).get(CHANCE_PARAM);
   return {
-    ...(room ? { port: String(room.port), roomId: room.roomId } : connectionStore.read()),
+    ...readSourceConfig(search, stores),
     probability:
       (chance?.trim() && probabilityFrom(Number(chance) / 100)) || probabilityStore.read(),
-    demo: {
-      source: room ? 'live' : demo !== null ? 'fake' : demoStores.source.read(),
-      intervalMs: demo ?? demoStores.intervalMs.read(),
-      random: readDemoRandom(search),
-    },
   };
 }
 
 export function saveConfig(config: TetrisConfig): void {
-  connectionStore.write({ port: config.port, roomId: config.roomId });
+  saveSourceConfig(stores, config);
   probabilityStore.write(config.probability);
-  demoStores.source.write(config.demo.source);
-  demoStores.intervalMs.write(config.demo.intervalMs);
 }
 
 /** Parameters for the OBS link: the chance, and the room or the fake interval. */
@@ -81,10 +58,6 @@ export function configToParams(config: TetrisConfig): URLSearchParams {
   const params = new URLSearchParams({
     [CHANCE_PARAM]: String(Math.round(config.probability * 100)),
   });
-  const room = liveRoomFrom(config);
-  if (config.demo.source === 'live' && room) setLiveRoomParams(params, room);
-  if (config.demo.source === 'fake') {
-    setDemoParams(params, config.demo.intervalMs, config.demo.random !== false);
-  }
+  setSourceParams(params, config);
   return params;
 }

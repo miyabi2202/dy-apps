@@ -6,4 +6,5 @@ export * from './fake-messages';
 export * from './like-batcher';
 export * from './live-message';
 export * from './live-room';
+export * from './live-source';
 export * from './local-storage';
