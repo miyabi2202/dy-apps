@@ -41,6 +41,7 @@ import {
   OPTIONS,
   OUTBOX,
   PACKAGE_DIR,
+  PROMPTS_DIR,
   PROMPT,
   RECORD,
   ROOM,
@@ -153,11 +154,11 @@ export function registerRoom(container: Container): void {
     // The prompts are shared by every room, a room's own file overrides one (see PROMPT_FILES);
     // all read on every use so edits apply while it runs.
     .register(PROMPT, (c) => {
-      const [packageDir, roomDir] = [c.resolve(PACKAGE_DIR), c.resolve(ROOM_DIR)];
-      return (name) => livePrompt(name, { packageDir, roomDir });
+      const [promptsDir, roomDir] = [c.resolve(PROMPTS_DIR), c.resolve(ROOM_DIR)];
+      return (name) => livePrompt(name, { promptsDir, roomDir });
     })
     // What the room looks like now, for every prompt. The bot plays the room's persona (its
-    // persona.md, on its own or as changes to a shared persona in chat-bot/personas/, see
+    // persona.md, on its own or as changes to a shared persona in chat-bot/prompts/personas/, see
     // livePersona), read on every use like context.md. The prompts also get the settings admins
     // can change (each feature gives its own part), and the list of commands from commands.md, so
     // the bot can tell viewers what it can do.
@@ -178,15 +179,15 @@ export function registerRoom(container: Container): void {
         transcriptMs: options.transcriptMs,
         persona: livePersona({
           roomPersona: files.persona,
-          personasDir: join(c.resolve(PACKAGE_DIR), 'personas'),
+          personasDir: join(c.resolve(PROMPTS_DIR), 'personas'),
           persona: () => roomConfig().persona,
           log: c.resolve(LOG),
         }),
         context: liveText(files.context),
         // What the bot says about itself when asked, shared by every room.
-        intro: liveText(join(c.resolve(PACKAGE_DIR), 'intro.md')),
+        intro: liveText(join(c.resolve(PROMPTS_DIR), 'intro.md')),
         // What it can't do and why, for when viewers notice (limitations.md, shared by every room).
-        limitations: liveText(join(c.resolve(PACKAGE_DIR), 'limitations.md')),
+        limitations: liveText(join(c.resolve(PROMPTS_DIR), 'limitations.md')),
         botTalk: c.resolve(BOT_TALK),
         // Off unless --screenshot; /截图 switches it while the bot runs.
         screenshot: c.resolve(ROOM_API).screenshot,
@@ -200,7 +201,7 @@ export function registerRoom(container: Container): void {
         // Where the streamer is: every time in the prompts is in it (Beijing time when not known).
         timeZone: () => roomConfig().timeZone,
         // What prompts say around what they fill in, shared by every room.
-        wording: liveWording(join(c.resolve(PACKAGE_DIR), 'wording.md')),
+        wording: liveWording(join(c.resolve(PROMPTS_DIR), 'wording.md')),
         // commands.md's list, and the room's own commands, which Claude asks for by name.
         commands: () =>
           additionalCommands.length

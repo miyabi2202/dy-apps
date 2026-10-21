@@ -47,6 +47,8 @@ import { token } from './container';
 // Given to buildContainer: what the entry knows.
 export const OPTIONS = token<CliOptions>('options');
 export const PACKAGE_DIR = token<string>('packageDir');
+/** chat-bot/prompts/: every text the models are sent (the prompts, wording.md, the shared personas). */
+export const PROMPTS_DIR = token<string>('promptsDir');
 export const LOG = token<Log>('log');
 /** The environment variables the bot reads (`JEV_API_KEY` from chat-bot/.env). */
 export const ENV = token<{ JEV_API_KEY?: string }>('env');

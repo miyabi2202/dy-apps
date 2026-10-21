@@ -106,14 +106,14 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
 
 describe('livePrompt', () => {
   const dirs = () => ({
-    packageDir: mkdtempSync(join(tmpdir(), 'package-')),
+    promptsDir: mkdtempSync(join(tmpdir(), 'prompts-')),
     roomDir: mkdtempSync(join(tmpdir(), 'room-')),
   });
 
   test("the room's own file, named with underscores, wins over the shared one", () => {
-    const { packageDir, roomDir } = dirs();
-    writeFileSync(join(packageDir, 'song-id.md'), 'shared');
-    const prompt = livePrompt('songId', { packageDir, roomDir });
+    const { promptsDir, roomDir } = dirs();
+    writeFileSync(join(promptsDir, 'song-id.md'), 'shared');
+    const prompt = livePrompt('songId', { promptsDir, roomDir });
     expect(prompt()).toBe('shared');
 
     writeFileSync(join(roomDir, 'song_id.md'), 'room');
@@ -124,35 +124,35 @@ describe('livePrompt', () => {
   });
 
   test('edits to the shared file are picked up', () => {
-    const { packageDir, roomDir } = dirs();
-    writeFileSync(join(packageDir, 'gift-thanks.md'), 'one');
-    const prompt = livePrompt('giftThanks', { packageDir, roomDir });
-    writeFileSync(join(packageDir, 'gift-thanks.md'), 'two');
+    const { promptsDir, roomDir } = dirs();
+    writeFileSync(join(promptsDir, 'gift-thanks.md'), 'one');
+    const prompt = livePrompt('giftThanks', { promptsDir, roomDir });
+    writeFileSync(join(promptsDir, 'gift-thanks.md'), 'two');
     expect(prompt()).toBe('two');
   });
 
   test('a prompt without roomDir ignores room files, and sharedPath replaces the shared file', () => {
-    const { packageDir, roomDir } = dirs();
-    writeFileSync(join(packageDir, 'prompt.md'), 'shared');
+    const { promptsDir, roomDir } = dirs();
+    writeFileSync(join(promptsDir, 'prompt.md'), 'shared');
     writeFileSync(join(roomDir, 'prompt.md'), 'room');
     writeFileSync(join(roomDir, 'mine.md'), 'mine');
-    expect(livePrompt('mention', { packageDir })()).toBe('shared');
-    expect(livePrompt('mention', { packageDir, sharedPath: join(roomDir, 'mine.md') })()).toBe(
+    expect(livePrompt('mention', { promptsDir })()).toBe('shared');
+    expect(livePrompt('mention', { promptsDir, sharedPath: join(roomDir, 'mine.md') })()).toBe(
       'mine',
     );
   });
 
   test('the shared file read at the start is used if it can no longer be read', () => {
-    const { packageDir, roomDir } = dirs();
-    writeFileSync(join(packageDir, 'song-intro.md'), 'first');
-    const prompt = livePrompt('songIntro', { packageDir, roomDir });
-    rmSync(join(packageDir, 'song-intro.md'));
+    const { promptsDir, roomDir } = dirs();
+    writeFileSync(join(promptsDir, 'song-intro.md'), 'first');
+    const prompt = livePrompt('songIntro', { promptsDir, roomDir });
+    rmSync(join(promptsDir, 'song-intro.md'));
     expect(prompt()).toBe('first');
   });
 
   test('a missing shared file throws at construction', () => {
-    const { packageDir, roomDir } = dirs();
-    expect(() => livePrompt('replyPick', { packageDir, roomDir })).toThrow();
+    const { promptsDir, roomDir } = dirs();
+    expect(() => livePrompt('replyPick', { promptsDir, roomDir })).toThrow();
   });
 });
 

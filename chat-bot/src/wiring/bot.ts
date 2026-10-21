@@ -24,7 +24,7 @@ import {
   MALICE_WATCH,
   OPTIONS,
   OUTBOX,
-  PACKAGE_DIR,
+  PROMPTS_DIR,
   PROMPT,
   ROOM,
   SETTINGS,
@@ -41,7 +41,7 @@ export function registerBot(container: Container): void {
       const options = c.resolve(OPTIONS);
       // The mention prompt is the one with no room override; --prompt may point elsewhere.
       const mentionTemplate = livePrompt('mention', {
-        packageDir: c.resolve(PACKAGE_DIR),
+        promptsDir: c.resolve(PROMPTS_DIR),
         sharedPath: resolve(options.promptFile),
       });
       return new MentionAnswerer({

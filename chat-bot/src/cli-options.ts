@@ -70,7 +70,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       port: { type: 'string', default: String(DEFAULT_PORT) },
       'bot-name': { type: 'string' },
       'bot-id': { type: 'string' },
-      prompt: { type: 'string', default: join(packageDir, 'prompt.md') },
+      prompt: { type: 'string', default: join(packageDir, 'prompts', 'prompt.md') },
       history: { type: 'string', default: '100' },
       'max-reply': { type: 'string', default: String(DOUYIN_CHAT_LIMIT) },
       'max-parts': { type: 'string' },

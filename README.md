@@ -46,14 +46,18 @@ frontend/                 # @dy-apps/frontend: the one package
   tsconfig.json           #   stays here so editors and ESLint find it
 chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (see "Chat bot" below)
   commands.md             #   every /command: who may run it, price, where it's defined, how to add one
-  prompt.md               #   the prompt sent to Claude: {{history}}, {{transcript}}, {{asker}}, {{question}}, …
-  song-id.md              #   the prompt for /识歌 (Codex)
-  solve.md                #   the prompt for /解题 and /拼命解题 (Codex)
-  gift-thanks.md          #   the prompt for thanking big givers
-  song-intro.md           #   the prompt for saying more about a song once it's named
-  reply-pick.md           #   the prompt for picking whom to answer unprompted
-  intro.md                #   what the bot says about itself when asked (in prompt.md)
-  wording.md              #   the sentences the program says to Jev, Codex and Claude around what it fills in (asked, relevance, song notes…)
+  prompts/                #   every text the models are sent, read on every use
+    prompt.md             #     the prompt sent to Claude: {{history}}, {{transcript}}, {{asker}}, {{question}}, …
+    song-id.md            #     the prompt for /识歌 (Codex)
+    solve.md              #     the prompt for /解题 and /拼命解题 (Codex)
+    gift-thanks.md        #     the prompt for thanking big givers
+    song-intro.md         #     the prompt for saying more about a song once it's named
+    reply-pick.md         #     the prompt for picking whom to answer unprompted
+    malice.md             #     the prompt for spotting malicious chat (Codex)
+    intro.md              #     what the bot says about itself when asked (in prompt.md)
+    limitations.md        #     what it can't do and why, for when viewers notice (in prompt.md)
+    wording.md            #     the sentences the program says to Jev, Codex and Claude around what it fills in (asked, relevance, song notes…)
+    personas/             #     shared personas a room can build on (fairy.md, …)
   config.json             #   admins (user ids) and what viewers call them (adminNames)
   src/main.ts             #   entry: options (cli-options.ts), the container built, started and stopped
   src/wiring/             #   the IoC container (container.ts) and what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot)

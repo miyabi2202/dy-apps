@@ -41,9 +41,9 @@ export interface RoomConfig extends Settings {
    */
   timeZone: string;
   /**
-   * The shared persona this room builds on (`persona.base`, a file in chat-bot/personas/), and
-   * the values for its `{{…}}`s (`persona.vars`); none when the room's persona.md is the whole
-   * persona.
+   * The shared persona this room builds on (`persona.base`, a file in chat-bot/prompts/personas/),
+   * and the values for its `{{…}}`s (`persona.vars`); none when the room's persona.md is the
+   * whole persona.
    */
   persona?: PersonaChoice;
 }
@@ -316,7 +316,7 @@ export function saveStreamer(
 }
 
 /**
- * The prompt files in chat-bot/, by what they're for. A room overrides one with a file of the same
+ * The prompt files in chat-bot/prompts/, by what they're for. A room overrides one with a file of the same
  * name in its folder, with `_` for `-`: `song-id.md` by `song_id.md`.
  */
 export const PROMPT_FILES = {
@@ -333,7 +333,7 @@ export type PromptName = keyof typeof PROMPT_FILES;
 
 /**
  * The prompt `name`, read on every call so edits apply at once: the room's own file in `roomDir`
- * when there is one, else the shared one in `packageDir` (or `sharedPath`, for a prompt the command
+ * when there is one, else the shared one in `promptsDir` (or `sharedPath`, for a prompt the command
  * line points elsewhere). Without `roomDir` the prompt has no room override. The shared file is read
  * once now, so a missing one stops the bot at start; it's also the text used if the shared file
  * can't be read later.
@@ -341,13 +341,13 @@ export type PromptName = keyof typeof PROMPT_FILES;
 export function livePrompt(
   name: PromptName,
   {
-    packageDir,
+    promptsDir,
     roomDir,
     sharedPath,
-  }: { packageDir: string; roomDir?: string; sharedPath?: string },
+  }: { promptsDir: string; roomDir?: string; sharedPath?: string },
 ): () => string {
   const file = PROMPT_FILES[name];
-  const shared = sharedPath ?? join(packageDir, file);
+  const shared = sharedPath ?? join(promptsDir, file);
   const first = readFileSync(shared, 'utf8');
   const sharedText = liveText(shared, () => first);
   if (!roomDir) return sharedText;

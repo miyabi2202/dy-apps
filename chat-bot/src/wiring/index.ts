@@ -9,7 +9,8 @@ import { registerMalice } from './malice';
 import { registerModels } from './models';
 import { registerRoom } from './room';
 import { registerSongs } from './songs';
-import { ENV, LOG, OPTIONS, PACKAGE_DIR } from './tokens';
+import { join } from 'node:path';
+import { ENV, LOG, OPTIONS, PACKAGE_DIR, PROMPTS_DIR } from './tokens';
 import { registerTranscriber } from './transcriber';
 
 export { APP, BOT } from './tokens';
@@ -31,6 +32,7 @@ export function buildContainer({ options, packageDir, log, env }: Given): Contai
   const container = new Container()
     .register(OPTIONS, () => options)
     .register(PACKAGE_DIR, () => packageDir)
+    .register(PROMPTS_DIR, () => join(packageDir, 'prompts'))
     .register(LOG, () => log)
     .register(ENV, () => env);
   registerAdapters(container);
