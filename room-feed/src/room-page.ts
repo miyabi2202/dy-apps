@@ -275,21 +275,28 @@ class LivePage implements RoomPage {
     return this.requestedStream ?? this.entered?.flvUrl ?? null;
   }
 
-  /** Sent once the box is empty after Enter; whether Douyin took it, the caller sees from the echo. */
+  /**
+   * Sent once the box is empty after Enter; whether Douyin took it, the caller sees from the echo.
+   * When it fails, a picture of the page (a popup's mask, a 禁言 notice) goes with the error.
+   */
   async typeChat(text: string): Promise<void> {
+    try {
+      await this.tryTypeChat(text);
+    } catch (e) {
+      const shot = await this.saveShot('chat-failed').catch(() => null);
+      const message = e instanceof Error ? e.message : String(e);
+      throw new Error(shot ? `${message}\n截图：${shot}` : message, { cause: e });
+    }
+  }
+
+  private async tryTypeChat(text: string): Promise<void> {
     const input = this.page.locator(CHAT_INPUT);
     try {
       await input.waitFor({ state: 'visible', timeout: 5000 });
     } catch {
-      throw new Error('找不到弹幕输入框（没有登录，或者抖音改版了）');
+      throw new Error('找不到弹幕输入框（没有登录、被禁言，或者抖音改版了）');
     }
-    try {
-      await input.click();
-    } catch (e) {
-      // Usually a popup's mask over the box: keep a picture of the page to see which.
-      const shot = await this.saveShot('chat-blocked').catch(() => null);
-      throw shot ? new Error(`${String(e)}\n截图：${shot}`) : e;
-    }
+    await input.click();
     // What an earlier chat left behind would be sent with this one, so clear it first.
     await this.clearChatInput();
     await this.page.keyboard.insertText(text);
