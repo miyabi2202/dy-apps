@@ -54,7 +54,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   reply-pick.md           #   the prompt for picking whom to answer unprompted
   intro.md                #   what the bot says about itself when asked (in prompt.md)
   wording.md              #   the sentences the program says to Jev, Codex and Claude around what it fills in (asked, relevance, song notes…)
-  config.json             #   admins (user ids) and the starting persona
+  config.json             #   admins (user ids) and what viewers call them (adminNames)
   src/main.ts             #   entry: options (cli-options.ts), the container built, started and stopped
   src/wiring/             #   the IoC container (container.ts) and what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot)
   src/core/               #   pure logic: mentions, prompt, reply splitting, wallet, chat record and talk record formats

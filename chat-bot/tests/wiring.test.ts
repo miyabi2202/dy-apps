@@ -116,7 +116,6 @@ function build(args: string[] = [], env: { JEV_API_KEY?: string } = { JEV_API_KE
 }
 
 const ALL_COMMANDS = [
-  '修改人设',
   '修改收费',
   '自动回复阈值',
   '自动回复间隔',
@@ -265,17 +264,18 @@ test('a command asked for in words runs through the bot, which the answerer reac
     JSON.stringify({
       message: '好的',
       others: [],
-      command_request: '修改人设',
-      command_args: '小猫',
+      command_request: '修改收费',
+      command_args: '2',
     }),
   );
-  bot.say(mention('雅', '7001', '@小助手 把你的人设改成小猫'));
+  bot.say(mention('雅', '7001', '@小助手 以后每次收 2 钻'));
   await bot.container.resolve(BOT).idle();
   await bot.container.resolve(OUTBOX).idle();
   app.stop();
 
-  expect(bot.sent).toEqual(['@雅 已处理修改人设请求']);
-  expect(readFileSync(join(bot.dir, 'data', '123', 'persona.md'), 'utf8')).toBe('小猫\n');
+  expect(bot.sent).toEqual(['@雅 已处理修改收费请求']);
+  const config = readFileSync(join(bot.dir, 'data', '123', 'room_config.json'), 'utf8');
+  expect(JSON.parse(config)).toMatchObject({ mentionCost: 2 });
 });
 
 test("starts filling in the room's room_config.json: an option seeds a missing setting, and what the file has wins", () => {

@@ -3,7 +3,7 @@ import { livePrompt } from '../adapters/room-files';
 import { ChatBot } from '../app/chat-bot';
 import { MentionAnswerer } from '../app/mention-answerer';
 import { musicCommand } from '../app/music-command';
-import { personaCommand, screenshotCommand } from '../app/room-state';
+import { screenshotCommand } from '../app/room-state';
 import { solveCommand } from '../app/solve-command';
 import type { Container } from './container';
 import {
@@ -58,7 +58,7 @@ export function registerBot(container: Container): void {
         // /最大回复条数 changes it, kept in room_config.json.
         settings: c.resolve(SETTINGS),
         bus: c.resolve(BUS),
-        // 「把你的人设改成小猫」 and the like: run the command if they may. The bot is made after
+        // 「以后 100 钻以下的礼物不用谢了」 and the like: run the command if they may. The bot is made after
         // this, and asked only when an answer has come.
         onCommandRequest: (mention, name, args) =>
           c.resolve(BOT).requestCommand(mention, name, args),
@@ -72,7 +72,6 @@ export function registerBot(container: Container): void {
       const ask = c.resolve(ASK_SOLVE);
       const transcriber = c.resolve(TRANSCRIBER);
       return [
-        personaCommand(room),
         ...c.resolve(BILLING).commands(),
         ...c.resolve(AUTO_REPLY).commands(),
         ...c.resolve(ANSWERER).commands(),

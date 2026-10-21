@@ -9,7 +9,7 @@ const KINDS = ['reply', 'system', 'notice', 'talk'] as const;
 export interface OutgoingMessage {
   text: string;
   /**
-   * An answer to a question, a system message like "已处理修改人设请求", a notice like "balance
+   * An answer to a question, a system message like "已处理修改收费请求", a notice like "balance
    * too low", or something the bot says unprompted: in that order when several wait.
    */
   kind: (typeof KINDS)[number];

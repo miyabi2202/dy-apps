@@ -32,8 +32,6 @@ export interface RoomStateOptions {
   transcriptMs?: number;
   /** Who the bot plays, for `{{persona}}`, read each time so edits apply at once. */
   persona?: () => string;
-  /** Keeps a persona /修改人设 set, so the next `persona()` reads it, and so does the next run. */
-  savePersona?: (persona: string) => void;
   /** Background on the room for `{{context}}`, read each time so edits apply at once. */
   context?: () => string;
   /** What the bot says about itself for `{{intro}}`, read each time so edits apply at once. */
@@ -77,8 +75,6 @@ export class RoomState {
   readonly wording: Wording;
   private readonly clock: () => number;
   private readonly screenshotsSetting: ReturnType<typeof setting<'screenshots'>>;
-  /** The persona, without a `persona` to read it from. */
-  private ownPersona = '';
   /** The parts of the room's settings the features keep, for `{{settings}}`. */
   private readonly settingsParts: (() => SettingsPart)[] = [];
 
@@ -93,15 +89,9 @@ export class RoomState {
     this.clock = options.now ?? Date.now;
   }
 
-  /** Who the bot plays; admins change it while the bot runs. */
+  /** Who the bot plays, as the room's files say now. */
   get persona(): string {
-    const { persona } = this.options;
-    return persona ? persona().trim() : this.ownPersona;
-  }
-
-  set persona(persona: string) {
-    this.ownPersona = persona;
-    this.options.savePersona?.(persona);
+    return this.options.persona?.().trim() ?? '';
   }
 
   now(): number {
@@ -210,20 +200,6 @@ export class RoomState {
       return undefined;
     }
   }
-}
-
-/** `/修改人设 …`: changes who the bot plays (in the room's persona.md, so it stays). */
-export function personaCommand(room: Pick<RoomState, 'persona'>): Command {
-  return {
-    name: '修改人设',
-    adminOnly: true,
-    price: 0,
-    run(args) {
-      if (!args) return failed('人设不能为空，用法：/修改人设 人设');
-      room.persona = args;
-      return done('已处理修改人设请求');
-    },
-  };
 }
 
 /** `/截图 1` or `/截图 0`: turns screenshots on or off, until the bot stops. */

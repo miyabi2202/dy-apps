@@ -4,7 +4,7 @@ import { parseJsonObject } from './json-answer';
 export interface MentionAnswer {
   /** The reply to send. */
   message: string;
-  /** A command they asked for in so many words (`修改人设`), without the slash; empty for none. */
+  /** A command they asked for in so many words (`自动谢礼`), without the slash; empty for none. */
   command: string;
   /** What goes after the command, as its usage says; empty for none. */
   args: string;
@@ -78,7 +78,7 @@ export const MENTION_ANSWER_SCHEMA = {
     command_request: {
       type: 'string',
       description:
-        '对方要你做的事对应的指令名（不带 /），比如 修改人设；不是在要求调用指令就是空字符串',
+        '对方要你做的事对应的指令名（不带 /），比如 自动谢礼；不是在要求调用指令就是空字符串',
     },
     command_args: {
       type: 'string',

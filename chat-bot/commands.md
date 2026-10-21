@@ -8,7 +8,6 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 
 | Command                | What it does                                       | Admins only | Default     |
 | ---------------------- | -------------------------------------------------- | ----------- | ----------- |
-| `/修改人设 <人设>`     | Change who the bot plays                           | yes         | none        |
 | `/修改收费 <钻>`       | Change what an @ costs                             | yes         | 0 (free)    |
 | `/自动回复阈值 <0–1>`  | How sure it must be it's talked about to join in   | yes         | 1 (off)     |
 | `/自动回复间隔 <秒>`   | How long it keeps quiet after joining in           | yes         | 60          |
@@ -22,7 +21,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/修改�
 | `/自动识歌 <0\|1>`     | Name the songs the streamer sings, unasked         | yes         | 0           |
 | `/识别恶意言论 <0\|1>` | @ viewers who keep posting malicious chat          | yes         | 0           |
 
-Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). A command that changes a setting writes it to the room's `data/<房间号>/room_config.json` (one field each, in the table below), so it stays after a restart, and the bot reads that file again whenever it changes: editing the field by hand does the same as the command, with no restart. `/修改人设` writes `persona.md` instead. A command-line option only seeds a room's setting the first time, when its `room_config.json` has no such field; after that the file wins, and an option that differs from it is a `setting from room_config, ignoring option` warning at start.
+Admin-only commands are free; the others are for anyone, and cost what an @ does (admins never pay). A command that changes a setting writes it to the room's `data/<房间号>/room_config.json` (one field each, in the table below), so it stays after a restart, and the bot reads that file again whenever it changes: editing the field by hand does the same as the command, with no restart. A command-line option only seeds a room's setting the first time, when its `room_config.json` has no such field; after that the file wins, and an option that differs from it is a `setting from room_config, ignoring option` warning at start.
 
 | Command                | `room_config.json` field   | Default |
 | ---------------------- | -------------------------- | ------- |
@@ -36,18 +35,6 @@ Admin-only commands are free; the others are for anyone, and cost what an @ does
 | `/截图 <0\|1>`         | `screenshots`              | `false` |
 
 When Jev runs out of money the bot sets `autoReplyThreshold` to `10` (off) in the file too.
-
-### /修改人设
-
-Sets who the bot plays: every prompt gets `你的人设是<人设>`. It's kept in the room's `data/<房间号>/persona.md`, which is read on every use: `/修改人设` writes it, so it stays after a restart, and a persona too long to type in the room can be written there directly.
-
-```text
-@默认关闭 /修改人设 爱讲冷笑话的小猫
-→ 已处理修改人设请求
-
-@默认关闭 /修改人设
-→ 人设不能为空，用法：/修改人设 人设
-```
 
 ### /修改收费
 
@@ -198,7 +185,7 @@ Watches the chat for malicious messages (insults, attacks on looks or age, and s
    - **runs code** (`run(args)`): it returns `{ ok, reply }`; `reply` goes out as a system message (sent after replies, before notices), and a failed one (`ok: false`) is refunded.
    - **asks Claude with its own prompt** (`prompt: () => string`): the args become the question and it's answered exactly like a mention (queued for Claude, split into messages, refunded if it fails), from that template instead of `prompt.md`.
 
-**Asked for in words.** An admin-only command can also be asked for without the slash, in a mention or in what someone says to the bot unprompted: 「把你的人设改成小猫」, 「以后 100 钻以下的礼物不用谢了」. `prompt.md` answers in JSON (`message`, `command_request`, `command_args`; `src/core/mention-answer.ts`), and when Claude names a command there, `ChatBot.requestCommand` takes over instead of sending its message: an admin's (or the streamer's) runs as if they'd typed `/修改人设 小猫`, and anyone else gets `你无权调用「修改人设」指令，只有主播和雅才可以` (雅 is `adminNames` in `config.json`). Other commands asked for this way just get Claude's reply, since they cost diamonds the mention already paid.
+**Asked for in words.** An admin-only command can also be asked for without the slash, in a mention or in what someone says to the bot unprompted: 「把截图打开」, 「以后 100 钻以下的礼物不用谢了」. `prompt.md` answers in JSON (`message`, `command_request`, `command_args`; `src/core/mention-answer.ts`), and when Claude names a command there, `ChatBot.requestCommand` takes over instead of sending its message: an admin's (or the streamer's) runs as if they'd typed `/截图 1`, and anyone else gets `你无权调用「截图」指令，只有主播和雅才可以` (雅 is `adminNames` in `config.json`). Other commands asked for this way just get Claude's reply, since they cost diamonds the mention already paid.
 
 Commands are logged as `command` in `logs/chat-bot.log` (`command requested` for one asked for in words).
 
@@ -208,7 +195,7 @@ Each feature offers its own commands, and `src/wiring/bot.ts` hands them all to 
 
 | Command                    | Defined in                                                                             |
 | -------------------------- | -------------------------------------------------------------------------------------- |
-| 修改人设, 截图             | `personaCommand`, `screenshotCommand` in `src/app/room-state.ts`                       |
+| 截图                       | `screenshotCommand` in `src/app/room-state.ts`                                         |
 | 修改收费                   | `Billing.commands()` in `src/app/billing.ts`                                           |
 | 自动回复阈值, 自动回复间隔 | `AutoReply.commands()` in `src/app/auto-reply.ts`                                      |
 | 最大回复条数               | `MentionAnswerer.commands()` in `src/app/mention-answerer.ts`                          |

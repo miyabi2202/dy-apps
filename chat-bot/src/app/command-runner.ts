@@ -47,7 +47,7 @@ export interface CommandRunnerOptions {
 }
 
 /**
- * Runs the commands a mention can give (`/修改人设 …`), once they're paid for, and tells the
+ * Runs the commands a mention can give (`/修改收费 …`), once they're paid for, and tells the
  * asker how each went in a system message. Admin-only commands, and commands nobody has, are
  * ignored from anyone but an admin, who's told what there is. A command with its own prompt is
  * handed to the answerer like a mention. Also says things to an asker, `@asker text`.

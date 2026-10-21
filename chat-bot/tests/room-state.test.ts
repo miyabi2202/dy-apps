@@ -21,7 +21,6 @@ test('gives every prompt the room as it is now: chat, recent speech, persona, co
     transcript,
     transcriptMs: 5 * 60_000,
     persona: () => persona,
-    savePersona: (next) => void (persona = next),
     context: () => context,
     botTalk: { recent: () => '你好呀' },
     chatDir: '/data/chat',
@@ -44,13 +43,10 @@ test('gives every prompt the room as it is now: chat, recent speech, persona, co
     botTalk: '你好呀',
   });
 
-  // Persona and context are read each time, and /修改人设 saves the persona.
+  // Persona and context are read each time.
   persona = '小狗';
   context = '主播今天生日';
   expect(room.promptInput()).toMatchObject({ persona: '小狗', context: '主播今天生日' });
-  room.persona = '小猫';
-  expect(persona).toBe('小猫');
-  expect(room.promptInput()).toMatchObject({ persona: '小猫' });
 });
 
 test('screenshots go to Claude only while on, and admins switch them with /截图', async () => {

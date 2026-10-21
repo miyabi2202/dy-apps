@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { ChatLog } from '../adapters/chat-log-files';
 import { liveAdmins, readConfig } from '../adapters/config-file';
@@ -6,6 +6,7 @@ import { loadAdditionalCommands } from '../adapters/additional-command-files';
 import {
   fillRoomConfig,
   roomConfigFile,
+  livePersona,
   livePrompt,
   liveSection,
   liveText,
@@ -155,8 +156,9 @@ export function registerRoom(container: Container): void {
       const [packageDir, roomDir] = [c.resolve(PACKAGE_DIR), c.resolve(ROOM_DIR)];
       return (name) => livePrompt(name, { packageDir, roomDir });
     })
-    // What the room looks like now, for every prompt. The bot plays the room's persona.md, read on
-    // every use like context.md and written by /修改人设. The prompts also get the settings admins
+    // What the room looks like now, for every prompt. The bot plays the room's persona (its
+    // persona.md, on its own or as changes to a shared persona in the data folder's personas/, see
+    // livePersona), read on every use like context.md. The prompts also get the settings admins
     // can change (each feature gives its own part), and the list of commands from commands.md, so
     // the bot can tell viewers what it can do.
     .register(ROOM, (c) => {
@@ -174,8 +176,12 @@ export function registerRoom(container: Container): void {
         gifts,
         transcript: c.resolve(TRANSCRIPT),
         transcriptMs: options.transcriptMs,
-        persona: liveText(files.persona),
-        savePersona: (persona) => writeFileSync(files.persona, `${persona}\n`),
+        persona: livePersona({
+          roomPersona: files.persona,
+          personasDir: join(resolve(options.dataDir), 'personas'),
+          persona: () => roomConfig().persona,
+          log: c.resolve(LOG),
+        }),
         context: liveText(files.context),
         // What the bot says about itself when asked, shared by every room.
         intro: liveText(join(c.resolve(PACKAGE_DIR), 'intro.md')),

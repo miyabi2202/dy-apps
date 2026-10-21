@@ -92,7 +92,7 @@ export interface MentionAnswererOptions {
   settings?: SettingsStore;
   /**
    * Told when, answering with the usual prompt, Claude found the asker asking for a command in
-   * so many words (修改人设 for 「把你的人设改成小猫」): true when it took it from there (ran it, or
+   * so many words (自动谢礼 for 「以后 100 钻以下的礼物不用谢了」): true when it took it from there (ran it, or
    * said they may not), so Claude's own reply isn't sent.
    */
   onCommandRequest?: (mention: Mention, name: string, args: string) => boolean;

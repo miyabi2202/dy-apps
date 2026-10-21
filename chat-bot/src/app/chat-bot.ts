@@ -55,7 +55,7 @@ export interface ChatBotOptions {
 
 /**
  * Decides what each @mention of the bot is: a question, paid for by the asker and handed to the
- * answerer, or, with a `/` first, one of `commands` (`/修改人设 …`), paid for like a question but
+ * answerer, or, with a `/` first, one of `commands` (`/修改收费 …`), paid for like a question but
  * at the command's own price, which the CommandRunner runs. With billing, a viewer who
  * can't pay gets a fixed notice, put in the outbox straight away rather than waiting behind the
  * questions for Claude, and their mention (the last one) waits: a gift from them within

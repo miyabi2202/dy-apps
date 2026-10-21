@@ -3,7 +3,7 @@ import { ChatBot } from '../src/app/chat-bot';
 import type { Command } from '../src/app/command';
 import { MentionAnswerer, type Mention } from '../src/app/mention-answerer';
 import { RoomFeed } from '../src/app/room-feed';
-import { personaCommand } from '../src/app/room-state';
+import { screenshotCommand } from '../src/app/room-state';
 import { SongId } from '../src/app/song-id';
 import { solveCommand } from '../src/app/solve-command';
 import { MESSAGE_SCHEMA } from '../src/core/mention-answer';
@@ -24,7 +24,7 @@ interface SetupOptions {
   ask?: () => Promise<string>;
   admins?: string[];
   persona?: string;
-  /** Instead of changing the persona and (with a wallet) the price. */
+  /** Instead of /截图 and (with a wallet) the price. */
   commands?: Command[];
   /** Instead of the real answerer. */
   answerer?: Pick<MentionAnswerer, 'ask' | 'idle'>;
@@ -43,12 +43,9 @@ function setup(options: SetupOptions = {}) {
   const prompts: string[] = [];
   const { outbox, sent } = fakeOutbox();
   const history = new ChatHistory(100);
-  // The room's persona.md, which /修改人设 writes.
-  let persona = options.persona ?? '';
   const room = fakeRoom({
     history,
-    persona: () => persona,
-    savePersona: (next) => void (persona = next),
+    persona: () => options.persona ?? '',
     // A live video to screenshot, with screenshots off (/截图 0).
     ...(options.screenshot && {
       screenshot: () => Promise.resolve(new Uint8Array([0xff, 0xd8])),
@@ -82,7 +79,7 @@ function setup(options: SetupOptions = {}) {
     billing,
     admins: new Set(options.admins),
     streamer: () => options.streamer ?? null,
-    commands: options.commands ?? [personaCommand(room), ...(billing?.commands() ?? [])],
+    commands: options.commands ?? [screenshotCommand(room), ...(billing?.commands() ?? [])],
     now: options.now,
     adminNames: '雅',
     additionalCommands: options.additionalCommands,
@@ -285,30 +282,30 @@ test('someone who cannot pay for an unprompted answer is told in other words, an
 
 test('asked in words for an admin-only command, an admin has it run, as if typed', async () => {
   const answer = JSON.stringify({
-    message: '好的，马上变猫',
-    command_request: '修改人设',
-    command_args: '爱说冷笑话的猫',
+    message: '好的，这就看',
+    command_request: '截图',
+    command_args: '1',
   });
-  const { settle, say, sent, room } = setup({ answer, admins: ['u-雅'] });
-  say(chat('雅', '@小助手 把你的人设改成爱说冷笑话的猫'));
+  const { settle, say, sent, room } = setup({ answer, admins: ['u-雅'], screenshot: true });
+  say(chat('雅', '@小助手 把截图打开'));
   await settle();
 
-  expect(room.persona).toBe('爱说冷笑话的猫');
-  expect(sent).toEqual(['@雅 已处理修改人设请求']);
+  expect(room.screenshots).toBe(true);
+  expect(sent).toEqual(['@雅 已处理截图请求']);
 });
 
 test('anyone else asking for an admin-only command is told who may', async () => {
   const answer = JSON.stringify({
-    message: '好的，马上变猫',
-    command_request: '修改人设',
-    command_args: '猫',
+    message: '好的，这就看',
+    command_request: '截图',
+    command_args: '1',
   });
-  const { settle, say, sent, room } = setup({ answer, admins: ['u-雅'] });
-  say(chat('阿明', '@小助手 把你的人设改成猫'));
+  const { settle, say, sent, room } = setup({ answer, admins: ['u-雅'], screenshot: true });
+  say(chat('阿明', '@小助手 把截图打开'));
   await settle();
 
-  expect(room.persona).toBe('');
-  expect(sent).toEqual(['@阿明 你无权调用「修改人设」指令，只有主播和雅才可以']);
+  expect(room.screenshots).toBe(false);
+  expect(sent).toEqual(['@阿明 你无权调用「截图」指令，只有主播和雅才可以']);
 });
 
 test("a command that isn't admin-only, or isn't one, gets Claude's reply instead", async () => {
@@ -372,7 +369,7 @@ test('a low-balance notice goes out while Claude is still answering someone else
   ]);
 });
 
-test('an admin changes the persona and the price, each confirmed with a system message', async () => {
+test('an admin changes the price, confirmed with a system message', async () => {
   const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 2, spent: 0 } });
   const { settle, say, prompts, sent } = setup({
     wallet,
@@ -381,21 +378,15 @@ test('an admin changes the persona and the price, each confirmed with a system m
     template: '{{persona}}|{{question}}',
   });
   say(chat('管理', '@小助手 第一问'));
-  say(chat('管理', '@小助手/修改人设 爱讲冷笑话的小猫'));
   say(chat('管理', '@小助手 /修改收费\u30002'));
   say(chat('阿明', '@小助手 第二问'));
   await settle();
 
   // Admins ask for free; 阿明's 2 diamonds now pay for one mention.
-  expect(prompts).toEqual(['你的人设是数学老师|第一问', '你的人设是爱讲冷笑话的小猫|第二问']);
+  expect(prompts).toEqual(['你的人设是数学老师|第一问', '你的人设是数学老师|第二问']);
   expect(wallet.balance('u-阿明')).toBe(0);
   // Commands take effect at once; the answers wait for Claude.
-  expect(sent).toEqual([
-    '@管理 已处理修改人设请求',
-    '@管理 已处理修改收费请求',
-    '@管理 你好呀',
-    '@阿明 你好呀',
-  ]);
+  expect(sent).toEqual(['@管理 已处理修改收费请求', '@管理 你好呀', '@阿明 你好呀']);
 });
 
 test('ignores commands from anyone but an admin, and answers bad ones with how to use them', async () => {
@@ -406,7 +397,7 @@ test('ignores commands from anyone but an admin, and answers bad ones with how t
     price: 0,
     run: () => ({ ok: false, reply: '收费要写成钻石数，用法：/修改收费 2' }),
   });
-  const commands = ['修改人设', '修改收费', '自动回复阈值', '自动谢礼'].map(admin);
+  const commands = ['截图', '修改收费', '自动回复阈值', '自动谢礼'].map(admin);
   const { settle, say, prompts, sent } = setup({ wallet, admins: ['u-管理'], commands });
   say(chat('阿明', '@小助手 /修改收费 0'));
   say(chat('管理', '@小助手 /修改收费 两钻'));
@@ -417,7 +408,7 @@ test('ignores commands from anyone but an admin, and answers bad ones with how t
   expect(wallet.balance('u-阿明')).toBe(5);
   expect(sent).toEqual([
     '@管理 收费要写成钻石数，用法：/修改收费 2',
-    '@管理 没有指令「删库」，可用的有：修改人设、修改收费、自动回复阈值、自动谢礼',
+    '@管理 没有指令「删库」，可用的有：截图、修改收费、自动回复阈值、自动谢礼',
   ]);
 });
 
