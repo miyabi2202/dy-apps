@@ -260,9 +260,13 @@ class Voices:
         self.seconds: list[float] = []
         self.host: int | None = None
 
-    def __call__(self, audio: np.ndarray, speech: float) -> tuple[int | None, bool | None, float | None]:
+    def __call__(
+        self, audio: np.ndarray, speech: float, lang: str | None
+    ) -> tuple[int | None, bool | None, float | None]:
         seconds = len(audio) / RATE
-        if seconds < MIN_VOICE_SECONDS or speech < SUNG_BELOW_SPEECH:
+        # Japanese and Korean here are almost always lyrics, sung over music that can score as
+        # speech: one such line heard first once became "the streamer", and her talking the guest's.
+        if seconds < MIN_VOICE_SECONDS or speech < SUNG_BELOW_SPEECH or lang in SENSEVOICE_LANGS:
             return None, None, None
         embedding = self.model.generate(input=audio, disable_pbar=True)[0]["spk_embedding"]
         voiceprint = embedding.reshape(-1).float().cpu().numpy()
@@ -435,7 +439,7 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
         if not re.search(r"\w", text):
             return
         speech, music = voice(audio)
-        speaker, host, similarity = voices(audio, speech)
+        speaker, host, similarity = voices(audio, speech, lang)
         now = time.time()
         duration = (end - beg) / 1000
         line = {
