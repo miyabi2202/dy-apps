@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RoomFeedClient } from '@dy-apps/services';
+import { RoomFeedClient } from '@dy-apps/room-feed-protocol';
 import { connectWorker } from '../adapters/asr-worker';
 import { claudeCli } from '../adapters/claude-cli';
 import { codexCli } from '../adapters/codex-cli';

@@ -1,5 +1,5 @@
 import type { ChatEvent, GiftEvent } from '@dy-apps/room-feed-protocol';
-import type { RoomFeedClient } from '@dy-apps/services';
+import type { RoomFeedClient } from '@dy-apps/room-feed-protocol';
 import type { RoomEvents } from '../app/ports';
 import type { Gift, IncomingChat } from '../core/room-events';
 import { viewerIdOf } from '../core/viewer-id';

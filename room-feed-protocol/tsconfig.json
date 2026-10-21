@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    // No DOM and no Node: room-feed, the site and the chat bot all import this.
-    "lib": ["ES2022"],
+    // DOM for the client's WebSocket, which browsers and Node 22+ both have; no Node APIs, since
+    // the site imports this too.
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
@@ -13,7 +14,7 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": []
+    "types": ["jest"]
   },
-  "include": ["src"]
+  "include": ["src", "tests", "jest.config.js"]
 }

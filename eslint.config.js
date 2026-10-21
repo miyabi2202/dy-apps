@@ -185,7 +185,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['node:*', '@dy-apps/services', 'winston'],
+              group: ['node:*', '@dy-apps/room-feed-protocol', 'winston'],
               message: 'Only adapters and main.ts talk to Node, room-feed and logging libraries.',
             },
           ],

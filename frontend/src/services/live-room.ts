@@ -1,4 +1,4 @@
-import { isRoomId, parsePort } from './room-feed';
+import { isRoomId, parsePort } from '@dy-apps/room-feed-protocol';
 import { createStore, type Store } from './local-storage';
 
 /** The port and room number as typed, valid or not (a ConnectionForm's value). */

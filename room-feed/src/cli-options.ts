@@ -1,4 +1,4 @@
-import { DEFAULT_PORT } from '@dy-apps/room-feed-protocol';
+import { DEFAULT_PORT, parsePort, roomIdFrom } from '@dy-apps/room-feed-protocol';
 import { parseArgs } from 'node:util';
 
 export const USAGE =
@@ -13,18 +13,6 @@ export const USAGE =
 export type CliOptions =
   | { command: 'login'; chrome?: string }
   | { command: 'serve'; roomId: string; port: number; chrome?: string; headed: boolean };
-
-/**
- * The room number in what was typed: the digits, or the tail of a live.douyin.com link. Full-width
- * digits (from a Chinese input method) count too. Null when there's no room number in it.
- */
-export function roomIdFrom(input: string): string | null {
-  const ascii = input.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
-  const fromUrl = /live\.douyin\.com\/(\d+)/.exec(ascii)?.[1];
-  if (fromUrl) return fromUrl;
-  const digits = ascii.trim();
-  return /^\d+$/.test(digits) ? digits : null;
-}
 
 /** The options, or an error to print above the usage. */
 export function parseCliOptions(argv: string[]): CliOptions | { error: string } {
@@ -52,8 +40,8 @@ export function parseCliOptions(argv: string[]): CliOptions | { error: string } 
   const roomId = roomIdFrom(values.room);
   if (!roomId)
     return { error: `--room 应该是房间号（live.douyin.com/ 后面的数字）：${values.room}` };
-  const port = Number(values.port);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  const port = parsePort(values.port);
+  if (port === null) {
     return { error: `--port 应该是 1 到 65535 的数字：${values.port}` };
   }
   return { command: 'serve', roomId, port, headed: values.headed, ...chrome };

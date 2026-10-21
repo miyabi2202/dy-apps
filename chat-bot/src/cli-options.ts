@@ -1,7 +1,7 @@
 import { DEFAULT_PORT } from '@dy-apps/room-feed-protocol';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { isRoomId, parsePort } from '@dy-apps/services';
+import { isRoomId, parsePort } from '@dy-apps/room-feed-protocol';
 import { DOUYIN_CHAT_LIMIT } from './core/reply';
 import { SETTING_DEFAULTS, type Settings } from './core/settings';
 import { DEFAULT_TRANSCRIPT_WINDOW_MS } from './core/transcript';

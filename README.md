@@ -9,7 +9,7 @@ Small live-stream apps, served as one site: an index page at `/` and each app on
 | `frontend/src/apps/danmaku/`         | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                           |
 | `frontend/src/apps/gift-pile/`       | 嘉年华堆堆乐 at `/gift-pile`: icons fall from the top and pile up, up to 100k    |
 | `frontend/src/apps/room-feed-guide/` | room-feed Windows 安装教程 at `/room-feed-windows`, for streamers                |
-| `frontend/src/services/`             | Shared non-UI code: the room-feed client, messages, fake data and saved settings |
+| `frontend/src/services/`             | Shared non-UI code: wall messages, likes, fake data and saved settings           |
 | `frontend/src/ui/`                   | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
 | `chat-bot/`                          | A bot that chats in a live room: answers @s, joins in, names songs, thanks gifts |
 | `room-feed-protocol/`                | What room-feed sends and answers: events, status frames, HTTP API types, URLs    |
@@ -29,8 +29,7 @@ frontend/                 # @dy-apps/frontend: the one package
       integration-tests/  #     Playwright specs, against the site's production build
     services/             #   imported as `@dy-apps/services`: shared non-UI code
       demo-source.ts      #     fake or live source, the fake interval and `?demo=` in OBS links
-      room-feed-client.ts     #     RoomFeedClient: onComment / onGift / onLike / onStatus, with retry
-      room-feed.ts            #     the raw stream (connectRoomFeed), port/room validation, GiftCounter, status text
+      room-feed.ts            #     the site's room-feed bits: the port hint, the guide's route, status text
       fake-messages.ts    #     made-up viewers, chat and gifts for previews
       like-batcher.ts     #     LikeBatcher: one total per viewer once they stop liking
       live-message.ts     #     DanmakuMessage, and room-feed events turned into messages
@@ -62,9 +61,11 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   src/adapters/           #   room-feed, the Claude CLI, the ASR process, files and logging
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + CAM++
   logs/  data/            #   winston logs; data/<房间号>/ per room: chat/, <user id>/, bot_logs.md, context.md, wallet.json (not in git)
-room-feed-protocol/       # @dy-apps/room-feed-protocol: room-feed's events and API, as types (+ DEFAULT_PORT, eventsUrl, roomUrl)
+room-feed-protocol/       # @dy-apps/room-feed-protocol: room-feed's events and API, and the client that reads them
   src/events.ts           #   chat, gift, like events and the status frames, one JSON object per WebSocket message
-  src/api.ts              #   the HTTP API's answers, the default port and the URLs
+  src/api.ts              #   the HTTP API's answers, the default port, the URLs, port and room-number checks
+  src/stream.ts           #   connectRoomFeed (the raw stream), GiftCounter, likeCount
+  src/client.ts           #   RoomFeedClient: onComment / onGift / onLike / onStatus, with retry
 room-feed/                # @dy-apps/room-feed: one live room's events, run with tsx (see "room-feed" below)
   src/main.ts             #   entry: `login` or `--room` (cli-options.ts), the real objects wired
   src/room.ts             #   Room: keeps the room page open, reopens it when chat drops, chat queue
@@ -109,9 +110,9 @@ It needs Chrome installed (`--chrome <path>` when it isn't found). Gifts only ar
 | `GET /api/rooms/<id>/stream`     | the FLV URL the page's player pulls (the bot's speech recognition)                |
 | `GET /api/rooms/<id>/screenshot` | the player as a JPEG                                                              |
 
-Every shape here is a type in [`room-feed-protocol/`](room-feed-protocol) (`@dy-apps/room-feed-protocol`): room-feed sends them, and `@dy-apps/services` and the chat bot read them.
+Every shape here is a type in [`room-feed-protocol/`](room-feed-protocol) (`@dy-apps/room-feed-protocol`), along with the client that reads them (`RoomFeedClient`, `GiftCounter`, `parsePort`, `roomIdFrom`): room-feed sends them, and the site and the chat bot read them through it.
 
-Apps connect through [`@dy-apps/services`](frontend/src/services) to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (`8757` by default) and the room ID (the number in `live.douyin.com/<id>`). The address is always `localhost`, so room-feed must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
+Apps connect through `RoomFeedClient` to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (`8757` by default) and the room ID (the number in `live.douyin.com/<id>`). The address is always `localhost`, so room-feed must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
 
 Status: both apps pick fake data or a live room in their 数据来源 panel. The danmaku wall shows the room's chat, gifts and likes; tetris turns its gifts into curses, one draw per diamond.
 

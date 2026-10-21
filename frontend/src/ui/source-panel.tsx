@@ -1,3 +1,4 @@
+import { type RoomFeedState, type RoomFeedStatus } from '@dy-apps/room-feed-protocol';
 import {
   DEMO_INTERVAL_RANGE,
   DEMO_SOURCES,
@@ -7,8 +8,6 @@ import {
   type Connection,
   type DemoIntervalRange,
   type DemoSource,
-  type RoomFeedState,
-  type RoomFeedStatus,
 } from '@dy-apps/services';
 import * as stylex from '@stylexjs/stylex';
 import type { ReactNode } from 'react';

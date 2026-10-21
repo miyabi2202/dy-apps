@@ -1,4 +1,5 @@
-import { RoomFeedClient, type RoomFeedSocket, type RoomFeedStatus } from '..';
+import { RoomFeedClient } from '../src/client';
+import type { RoomFeedSocket, RoomFeedStatus } from '../src/stream';
 
 /** A fake openSocket: records each socket so the test can send it frames. */
 function fakeSockets() {

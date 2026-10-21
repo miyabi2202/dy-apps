@@ -1,7 +1,6 @@
 export * from './demo-source';
 export * from './log';
 export * from './room-feed';
-export * from './room-feed-client';
 export * from './emoji';
 export * from './fake-messages';
 export * from './like-batcher';

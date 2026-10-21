@@ -1,9 +1,9 @@
+import { type RoomFeedState } from '@dy-apps/room-feed-protocol';
 import {
   createFakeGift,
   fakeGiftAt,
   type DanmakuMessage,
   type DemoConfig,
-  type RoomFeedState,
   type LiveRoom,
 } from '@dy-apps/services';
 import { useDemo } from '@dy-apps/ui';

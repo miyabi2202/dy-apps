@@ -1,4 +1,5 @@
-import type { DanmakuMessage, RoomFeedSocket, LiveRoom } from '@dy-apps/services';
+import type { RoomFeedSocket } from '@dy-apps/room-feed-protocol';
+import type { DanmakuMessage, LiveRoom } from '@dy-apps/services';
 import { act, renderHook } from '@testing-library/react';
 import { createRoomFeedClient, useRoomFeed } from '../use-room-feed';
 

@@ -83,4 +83,4 @@ Options that are a room's settings (`--cost`, `--screenshot`, `--auto-reply-thre
 
 The console shows info and up (mentions, gifts, what was heard, replies); `logs/chat-bot.log` has everything, including every chat line and prompt, as JSON lines. `--bot-id` makes @mentions match by user id rather than nickname; room-feed shows it as the `user.id` of the bot's own chat messages.
 
-Shared code comes from `@dy-apps/services` (the `RoomFeedClient`), read from `frontend/src/services` through `paths` in `chat-bot/tsconfig.json` and `moduleNameMapper` in `chat-bot/jest.config.js`.
+The room-feed client (`RoomFeedClient`), its event types and the port and room-number checks come from [`@dy-apps/room-feed-protocol`](../room-feed-protocol), a workspace package; the bot imports nothing from the site.

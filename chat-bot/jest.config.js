@@ -5,7 +5,7 @@ const require = createRequire(import.meta.url);
 // Prompts show clock times; keep them the same on every machine.
 process.env.TZ = 'UTC';
 
-/** Node + SWC, with `@dy-apps/services` read from the site's source like tsconfig.json does. */
+/** Node + SWC. */
 export default {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
@@ -18,8 +18,5 @@ export default {
         module: { type: 'commonjs' },
       },
     ],
-  },
-  moduleNameMapper: {
-    '^@dy-apps/services$': '<rootDir>/../frontend/src/services/index.ts',
   },
 };

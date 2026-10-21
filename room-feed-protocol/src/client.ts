@@ -1,17 +1,11 @@
-import type {
-  ChatEvent,
-  EventType,
-  GiftEvent,
-  LikeEvent,
-  RoomEvent,
-} from '@dy-apps/room-feed-protocol';
+import type { ChatEvent, EventType, GiftEvent, LikeEvent, RoomEvent } from './events';
 import {
   connectRoomFeed,
   GiftCounter,
   likeCount,
   type RoomFeedSocket,
   type RoomFeedStatus,
-} from './room-feed';
+} from './stream';
 
 /** A connection's last status, for showing it; `idle` before connecting. */
 export interface RoomFeedState {

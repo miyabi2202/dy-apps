@@ -1,8 +1,10 @@
 import {
   RoomFeedClient,
   type RoomFeedSocket,
-  LikeBatcher,
   type RoomFeedState,
+} from '@dy-apps/room-feed-protocol';
+import {
+  LikeBatcher,
   likeMessage,
   messageFromEvent,
   type DanmakuMessage,

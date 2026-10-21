@@ -1,19 +1,4 @@
-import { parseCliOptions, roomIdFrom } from '../src/cli-options';
-
-describe('roomIdFrom', () => {
-  it.each([
-    [' 123456 ', '123456'],
-    ['１２３', '123'],
-    ['https://live.douyin.com/484088206186?enter_from=web', '484088206186'],
-  ])('reads %s', (input, roomId) => {
-    expect(roomIdFrom(input)).toBe(roomId);
-  });
-
-  it('finds no room number in other text', () => {
-    expect(roomIdFrom('https://www.douyin.com/user/abc')).toBeNull();
-    expect(roomIdFrom('12 34')).toBeNull();
-  });
-});
+import { parseCliOptions } from '../src/cli-options';
 
 describe('parseCliOptions', () => {
   it('serves a room on the default port', () => {

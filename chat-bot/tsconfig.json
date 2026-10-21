@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    // DOM for the WebSocket types in @dy-apps/services; Node 22+ has WebSocket built in.
+    // DOM for the WebSocket types in @dy-apps/room-feed-protocol's client; Node 22+ has WebSocket built in.
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -14,11 +14,7 @@
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node", "jest"],
-    // The site's shared non-UI library, read from source (tsx and Jest map it the same way).
-    "paths": {
-      "@dy-apps/services": ["../frontend/src/services/index.ts"]
-    }
+    "types": ["node", "jest"]
   },
   "include": ["src", "tests", "jest.config.js"]
 }

@@ -56,6 +56,30 @@ export interface ErrorAnswer {
   error: string;
 }
 
+/** A TCP port, 1–65535, or null. */
+export function parsePort(value: string): number | null {
+  if (!/^\d+$/.test(value)) return null;
+  const port = Number(value);
+  return port >= 1 && port <= 65535 ? port : null;
+}
+
+/** A Douyin room number: digits only (the tail of a live.douyin.com link). */
+export function isRoomId(value: string): boolean {
+  return /^\d+$/.test(value);
+}
+
+/**
+ * The room number in what was typed: the digits, or the tail of a live.douyin.com link. Full-width
+ * digits (from a Chinese input method) count too. Null when there's no room number in it.
+ */
+export function roomIdFrom(input: string): string | null {
+  const ascii = input.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  const fromUrl = /live\.douyin\.com\/(\d+)/.exec(ascii)?.[1];
+  if (fromUrl) return fromUrl;
+  const digits = ascii.trim();
+  return isRoomId(digits) ? digits : null;
+}
+
 /** The WebSocket for a room's events of these types (all of them when none are given). */
 export function eventsUrl(port: number, roomId: string, types: readonly EventType[] = []): string {
   return `ws://localhost:${port}/ws?roomId=${roomId}&types=${types.join(',')}`;

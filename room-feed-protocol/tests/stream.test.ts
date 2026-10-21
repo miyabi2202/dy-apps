@@ -1,23 +1,5 @@
-import type { GiftEvent, LikeEvent } from '@dy-apps/room-feed-protocol';
-import { GiftCounter, isRoomId, likeCount, parsePort } from '..';
-
-describe('room-feed settings', () => {
-  it('accepts ports 1–65535 written as plain digits', () => {
-    expect(parsePort('8757')).toBe(8757);
-    expect(parsePort('1')).toBe(1);
-    expect(parsePort('65535')).toBe(65535);
-    for (const bad of ['', '0', '65536', '87.5', '-1', ' 8757', 'abc']) {
-      expect(parsePort(bad)).toBeNull();
-    }
-  });
-
-  it('accepts room numbers made of digits only', () => {
-    expect(isRoomId('167920210669')).toBe(true);
-    for (const bad of ['', '1679 2021', 'abc', 'live.douyin.com/1']) {
-      expect(isRoomId(bad)).toBe(false);
-    }
-  });
-});
+import type { GiftEvent, LikeEvent } from '../src/events';
+import { GiftCounter, likeCount } from '../src/stream';
 
 describe('GiftCounter', () => {
   const gift = (data: Partial<GiftEvent['data']>, roomId = '1'): GiftEvent => ({

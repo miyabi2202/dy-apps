@@ -3,12 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "What room-feed sends and answers: its events, status frames and HTTP API, shared by room-feed, the site and the chat bot.",
+  "description": "room-feed's protocol (events, status frames, HTTP API) and its client, shared by room-feed, the site and the chat bot.",
   "exports": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "jest -c jest.config.js"
   },
   "devDependencies": {
+    "@swc/core": "^1.16.13",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.5.2",
     "typescript": "~6.0.3"
   }
 }
