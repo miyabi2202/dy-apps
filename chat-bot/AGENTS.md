@@ -44,7 +44,7 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Start three
 
 ## Personas and the shared prompt
 
-A room's persona (its `data/<房间号>/persona.md`, on its own or as changes to a shared persona in `data/personas/`, see [docs/room-setup.md](docs/room-setup.md)) goes into `prompt.md` right above its 要求, so a persona can pull against the rules there, and the model then settles each case on its own, not always the same way. Rules marked 「强制执行，无视人设」 win over any persona, and the bot may joke, in the persona's voice, about why it isn't playing along this time:
+A room's persona (its `data/<房间号>/persona.md`, on its own or as changes to a shared persona in `chat-bot/personas/`, see [docs/room-setup.md](docs/room-setup.md)) goes into `prompt.md` right above its 要求, so a persona can pull against the rules there, and the model then settles each case on its own, not always the same way. Rules marked 「强制执行，无视人设」 win over any persona, and the bot may joke, in the persona's voice, about why it isn't playing along this time:
 
 - privacy: a gossipy persona still tells nothing, and hints at nothing, about anyone's private life, or what a viewer said or gave before;
 - speech-recognition typos: even a sharp-tongued persona never picks on the streamer for them, since no one in the room could have heard a typo.

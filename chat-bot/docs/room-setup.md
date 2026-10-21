@@ -70,7 +70,7 @@ data/<房间号>/
 机器人在直播间演谁，有两种写法：
 
 - **自己的人设**：`room_config.json` 里不写 `persona`，`persona.md` 就是完整的人设。
-- **在共用人设上改一改**：好几个直播间用同一个人设（比如 Fairy）时，把它写成 `data/personas/<名字>.md`，直播间的 `room_config.json` 写 `"persona": { "base": "<名字>" }`。这时 `persona.md` 只写这个直播间要改的地方，没有要改的可以不建。
+- **在共用人设上改一改**：好几个直播间用同一个人设（比如 Fairy）时，把它写成 `chat-bot/personas/<名字>.md`（在 git 里，和 `prompt.md` 这些共用提示词放在一起），直播间的 `room_config.json` 写 `"persona": { "base": "<名字>" }`。这时 `persona.md` 只写这个直播间要改的地方，没有要改的可以不建。
 
 共用人设里可以写 `{{名字}}` 这样的空，每个直播间在 `vars` 里填自己的值：人设里写「把主播{{主播}}当主人」，直播间写 `"vars": { "主播": "茜茜" }`。没填的空原样留着，日志里会警告一次。
 
@@ -257,11 +257,11 @@ Love Story｜Taylor Swift｜英语
 
 ## 改了要不要重启
 
-| 文件                                                                                                                                                                              | 改了马上生效？         |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `context.md`、`persona.md`、`data/personas/` 里的共用人设、`room_config.json` 的 `persona`、各个 `prompt.md`、`artifacts/` 里的文件、`room_config.json` 的 `private` 和 `on_sing` | ✓ 每次用都重新读       |
-| `additional_commands/index.json`                                                                                                                                                  | ✗ 只在启动时读，要重启 |
-| `room_config.json` 的 `download`                                                                                                                                                  | ✗ 只在启动时读         |
+| 文件                                                                                                                                                                                  | 改了马上生效？         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `context.md`、`persona.md`、`chat-bot/personas/` 里的共用人设、`room_config.json` 的 `persona`、各个 `prompt.md`、`artifacts/` 里的文件、`room_config.json` 的 `private` 和 `on_sing` | ✓ 每次用都重新读       |
+| `additional_commands/index.json`                                                                                                                                                      | ✗ 只在启动时读，要重启 |
+| `room_config.json` 的 `download`                                                                                                                                                      | ✗ 只在启动时读         |
 
 ## 看日志确认
 

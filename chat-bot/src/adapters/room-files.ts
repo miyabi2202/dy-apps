@@ -41,9 +41,9 @@ export interface RoomConfig extends Settings {
    */
   timeZone: string;
   /**
-   * The shared persona this room builds on (`persona.base`, a file in the data folder's
-   * `personas/`), and the values for its `{{…}}`s (`persona.vars`); none when the room's
-   * persona.md is the whole persona.
+   * The shared persona this room builds on (`persona.base`, a file in chat-bot/personas/), and
+   * the values for its `{{…}}`s (`persona.vars`); none when the room's persona.md is the whole
+   * persona.
    */
   persona?: PersonaChoice;
 }
