@@ -358,6 +358,12 @@ class Stream:
         with self.lock:
             if self.ffmpeg and self.ffmpeg.poll() is None:
                 self.ffmpeg.terminate()
+                # On a live stream ffmpeg can sit out the first SIGTERM, still pulling the stream
+                # for a bot that's gone; then it's killed.
+                try:
+                    self.ffmpeg.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    self.ffmpeg.kill()
 
 
 def read_requests(lines, urls: queue.Queue, music: queue.Queue, stream: Stream) -> None:
