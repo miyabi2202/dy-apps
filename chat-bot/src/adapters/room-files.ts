@@ -256,19 +256,19 @@ function prefixList(raw: unknown): string[] {
 }
 
 /**
- * `aliases` as a list of Alias (none when absent), or an error saying what's wrong with it: each a
- * name (`"菲瑞"`), or `{ "name": "Fairy", "heardAs": ["ferry"] }`.
+ * `aliases` as a list of Alias (none when absent), or an error saying what's wrong with it: each
+ * `{ "name": "Fairy", "heardAs": ["ferry"] }`, `heardAs` [] when left out.
  */
 function aliasList(raw: unknown): Alias[] {
   if (raw === undefined) return [];
   const wrong = () =>
     new Error(
-      'aliases must be a list of names, like ["菲瑞", { "name": "Fairy", "heardAs": ["ferry"] }]',
+      'aliases must be a list like [{ "name": "Fairy", "heardAs": ["ferry"] }, { "name": "菲瑞", "heardAs": [] }]',
     );
   if (!Array.isArray(raw)) throw wrong();
   return raw.flatMap((item: unknown): Alias[] => {
-    if (typeof item === 'string') return item.trim() ? [{ name: item.trim(), heardAs: [] }] : [];
-    const { name, heardAs = [] } = (item ?? {}) as Record<string, unknown>;
+    if (typeof item !== 'object' || item === null) throw wrong();
+    const { name, heardAs = [] } = item as Record<string, unknown>;
     if (typeof name !== 'string' || !Array.isArray(heardAs)) throw wrong();
     if (!heardAs.every((form) => typeof form === 'string')) throw wrong();
     const forms = heardAs.map((form: string) => form.trim()).filter(Boolean);

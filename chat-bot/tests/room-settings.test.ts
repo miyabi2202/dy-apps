@@ -278,7 +278,9 @@ test('the command line says which settings it gave, and the rest stay the room�
 });
 
 test('a bad value in room_config.json keeps that one field as it was, not the whole file', () => {
-  const file = memoryFile('{ "private": true, "aliases": ["Fairy"], "mentionCost": 5 }\n');
+  const file = memoryFile(
+    '{ "private": true, "aliases": [{ "name": "Fairy", "heardAs": [] }], "mentionCost": 5 }\n',
+  );
   const { log, messages } = recordingLog();
   const config = roomConfigFile('room_config.json', { log, ...file });
   expect(config.get()).toMatchObject({
@@ -289,7 +291,7 @@ test('a bad value in room_config.json keeps that one field as it was, not the wh
 
   // A hand edit with a string where a number goes: 私密 stays on, the rest stays read.
   file.state.text =
-    '{ "private": true, "aliases": ["Fairy", "菲瑞"], "mentionCost": "6", "autoSongId": true }\n';
+    '{ "private": true, "aliases": [{ "name": "Fairy", "heardAs": [] }, { "name": "菲瑞" }], "mentionCost": "6", "autoSongId": true }\n';
   expect(config.get()).toMatchObject({
     private: true,
     aliases: [
