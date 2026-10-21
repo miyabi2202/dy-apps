@@ -34,6 +34,7 @@ frontend/                 # @dy-apps/frontend: the one package
       like-batcher.ts     #     LikeBatcher: one total per viewer once they stop liking
       live-message.ts     #     DanmakuMessage, and room-feed events turned into messages
       live-room.ts        #     liveRoomFrom, the room in OBS links, createConnectionStore
+      live-source.ts      #     the config every app shares (room + demo): read from the URL or storage, saved, OBS link
       local-storage.ts    #     createStore for `dy-apps:<app>.<key>` values
     ui/                   #   imported as `@dy-apps/ui`: design tokens + the components every app reuses
   config/

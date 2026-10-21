@@ -1,15 +1,10 @@
 import * as stylex from '@stylexjs/stylex';
 import {
   addMessage,
-  createDemoStores,
   createFakeMessage,
   fakeMessageAt,
   liveRoomFrom,
-  readDemoInterval,
-  readDemoRandom,
-  readLiveRoom,
-  setDemoParams,
-  setLiveRoomParams,
+  urlSource,
   type Connection,
   type DanmakuMessage,
   type Logger,
@@ -29,17 +24,14 @@ import {
 } from '@dy-apps/ui';
 import { colors, radius, space } from '@dy-apps/ui/tokens.stylex';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { DanmakuConfig } from './config';
-import { connectionStore } from './room-feed';
+import { configToParams, readConfig, saveConfig, type DanmakuConfig } from './config';
 import { log as moduleLog } from './log';
 import { createMessageLogger } from './message-log';
-import { loadSettings, saveSettings } from './settings';
 import { Controls } from './ui/controls';
 import { useWallFeed } from './use-wall-feed';
 
 /** Older messages are dropped past this, so a long stream doesn't grow memory forever. */
 const MAX_MESSAGES = 1000;
-const demoStores = createDemoStores('danmaku', { source: 'fake', intervalMs: 900 });
 
 interface PageOptions {
   /** `?obs=1`: overlay only, no editor chrome, transparent background. */
@@ -53,25 +45,13 @@ interface PageOptions {
 }
 
 function optionsFromUrl(): PageOptions {
-  const q = new URLSearchParams(window.location.search);
-  const demo = readDemoInterval(window.location.search);
-  // `?port=…&room=…`: demo with real chat from this live room.
-  const liveRoom = readLiveRoom(window.location.search);
+  const { search } = window.location;
+  const q = new URLSearchParams(search);
   return {
     obs: q.get('obs') === '1',
     logMessages: q.get('logmsg') === '1',
-    autoDemo: demo !== null || liveRoom !== null,
-    config: {
-      ...(liveRoom
-        ? { port: String(liveRoom.port), roomId: liveRoom.roomId }
-        : connectionStore.read()),
-      style: loadSettings(window.location.search),
-      demo: {
-        source: liveRoom ? 'live' : demo !== null ? 'fake' : demoStores.source.read(),
-        intervalMs: demo ?? demoStores.intervalMs.read(),
-        random: readDemoRandom(window.location.search),
-      },
-    },
+    autoDemo: urlSource(search) !== null,
+    config: readConfig(search),
   };
 }
 
@@ -157,10 +137,11 @@ export function DanmakuPage({ createClient, logger = moduleLog, log = console.lo
   // Only the editor saves: an OBS source opened from a link mustn't overwrite the editor's config.
   useEffect(() => {
     if (initial.obs) return;
-    saveSettings(settings);
-    demoStores.source.write(demoSource);
-    demoStores.intervalMs.write(demoIntervalMs);
-    connectionStore.write(connection);
+    saveConfig({
+      ...connection,
+      style: settings,
+      demo: { source: demoSource, intervalMs: demoIntervalMs },
+    });
   }, [initial.obs, settings, demoSource, demoIntervalMs, connection]);
 
   const font = styles.font(fontFamily(settings), settings.fontSize);
@@ -170,10 +151,14 @@ export function DanmakuPage({ createClient, logger = moduleLog, log = console.lo
     return <div {...stylex.props(styles.obs, font)}>{list}</div>;
   }
 
-  const obsParams = cardStyleToParams(settings);
-  obsParams.set('obs', '1');
-  if (demoRunning && demoSource === 'fake') setDemoParams(obsParams, demoIntervalMs, demoRandom);
-  if (demoRunning && demoSource === 'live' && liveRoom) setLiveRoomParams(obsParams, liveRoom);
+  const obsParams = configToParams(
+    {
+      ...connection,
+      style: settings,
+      demo: { source: demoSource, intervalMs: demoIntervalMs, random: demoRandom },
+    },
+    demoRunning,
+  );
   const obsUrl = `${window.location.origin}${window.location.pathname}?${obsParams.toString()}`;
 
   return (
