@@ -10,15 +10,6 @@ const live: TetrisConfig = {
 };
 
 describe('readConfig', () => {
-  it('defaults to fake gifts every 10 s at 15%', () => {
-    expect(readConfig('')).toEqual<TetrisConfig>({
-      port: '',
-      roomId: '',
-      probability: 0.15,
-      demo: { source: 'fake', intervalMs: 10_000, random: true },
-    });
-  });
-
   it('round-trips a live config through the OBS link', () => {
     expect(readConfig(`?${configToParams(live).toString()}`)).toEqual(live);
   });

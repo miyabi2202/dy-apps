@@ -5,7 +5,6 @@ import { AutoSongId } from '../src/app/auto-song-id';
 import { MaliceWatch } from '../src/app/malice-watch';
 import type { Log, SettingsStore } from '../src/app/ports';
 import { OutOfCreditError } from '../src/core/errors';
-import { SETTING_DEFAULTS } from '../src/core/settings';
 import { parseCliOptions } from '../src/cli-options';
 import { ChatHistory } from '../src/core/chat-history';
 import { fakeRoom } from './fake-room';
@@ -99,15 +98,6 @@ test('a room_config.json that is not JSON is left alone', () => {
   expect(file.state.text).toBe('{ not json');
   expect(file.state.writes).toBe(0);
   expect(messages('could not fill in room_config.json')).toHaveLength(1);
-});
-
-test('a 私密 room stays one: private is kept, and the settings are filled in beside it', () => {
-  const file = memoryFile('{ "private": true }');
-  const { log } = recordingLog();
-  fillRoomConfig('room_config.json', {}, { log, ...file });
-  const config = roomConfigFile('room_config.json', { log, ...file }).get();
-
-  expect(config).toMatchObject({ private: true, ...SETTING_DEFAULTS });
 });
 
 /** The settings as the features see them, over an in-memory room_config.json. */

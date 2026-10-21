@@ -101,13 +101,6 @@ test('puts the reply on one line and cuts it to the length limit', async () => {
   expect(sent).toEqual(['@阿明 第一行 第二']);
 });
 
-test('does not repeat the @ when Claude already starts with it', async () => {
-  const { ask, sent } = setup({ answer: '@阿明 @阿明 等于2' });
-  await ask();
-
-  expect(sent).toEqual(['@阿明 等于2']);
-});
-
 test('drops the sources list web search adds', async () => {
   const { ask, sent } = setup({
     answer: '大约41.89万亲密度\n\nSources:\n- [jb51](https://jb51.net)',

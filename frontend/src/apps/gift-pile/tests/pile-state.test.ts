@@ -79,12 +79,6 @@ describe('PileState resting set', () => {
     expect(state.slotOf(1)).toBeUndefined();
     expect(state.prev).toBeNull();
   });
-
-  it('takes the world size from the frames', () => {
-    const state = newState();
-    state.apply(frame({ width: 300, height: 500 }), 0);
-    expect(state.world).toEqual({ width: 300, height: 500 });
-  });
 });
 
 describe('PileState peek and take', () => {

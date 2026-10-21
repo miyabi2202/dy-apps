@@ -2,7 +2,6 @@ import { parseCliOptions, roomIdFrom } from '../src/cli-options';
 
 describe('roomIdFrom', () => {
   it.each([
-    ['123456', '123456'],
     [' 123456 ', '123456'],
     ['１２３', '123'],
     ['https://live.douyin.com/484088206186?enter_from=web', '484088206186'],

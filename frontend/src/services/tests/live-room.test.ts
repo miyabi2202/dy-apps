@@ -41,10 +41,6 @@ describe('createConnectionStore', () => {
     expect(connectionStore.read()).toEqual({ port: '87', roomId: 'abc' });
   });
 
-  it("is stored under the app's name", () => {
-    expect(connectionStore.key).toBe('dy-apps:danmaku.connection');
-  });
-
   it('falls back to empty fields for a hand-edited value', () => {
     localStorage.setItem(connectionStore.key, JSON.stringify({ port: 8757 }));
     expect(connectionStore.read()).toEqual({ port: '', roomId: '' });

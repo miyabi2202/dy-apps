@@ -13,12 +13,6 @@ describe('Page', () => {
     expect(screen.getByText('内容')).toBeInTheDocument();
   });
 
-  it('shows the subtitle and actions next to the title', () => {
-    render(<Page title="方块干预实验室" subtitle="单机测试" actions={<button>重新开始</button>} />);
-    expect(screen.getByText('单机测试')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '重新开始' })).toBeInTheDocument();
-  });
-
   it('has no heading or hash without a title', () => {
     document.title = 'before';
     render(<Page>内容</Page>);

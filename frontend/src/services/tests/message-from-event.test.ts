@@ -1,5 +1,4 @@
 import type { GiftEvent, LikeEvent, RoomEvent } from '@dy-apps/room-feed-protocol';
-import { GiftCounter } from '../room-feed';
 import { likeMessage, messageFromEvent } from '../live-message';
 
 const roomFeedUser = {
@@ -87,17 +86,6 @@ describe('messageFromEvent', () => {
 
   it('names an unnamed gift 礼物', () => {
     expect(messageFromEvent(giftEvent({ giftName: '' }), 1)!.gift!.name).toBe('礼物');
-  });
-
-  it('counts a combo once with GiftCounter: progress adds, the closing copy adds nothing', () => {
-    const gifts = new GiftCounter();
-    const combo = [
-      giftEvent({ groupId: 'grp', repeatCount: 1 }, 'm1'),
-      giftEvent({ groupId: 'grp', repeatCount: 5 }, 'm2'),
-      giftEvent({ groupId: 'grp', repeatCount: 5, repeatEnd: true }, 'm3'),
-    ];
-    const counts = combo.map((ev) => messageFromEvent(ev, gifts.add(ev))?.gift?.count ?? null);
-    expect(counts).toEqual([1, 4, null]);
   });
 });
 

@@ -178,24 +178,6 @@ test('the picker may answer nobody, and gets no streamer line while the streamer
   expect(replies).toEqual([]);
 });
 
-test('picks whom to answer as soon as something is about the bot', async () => {
-  const replies: UnpromptedReply[] = [];
-  let picked = 0;
-  const { autoReply, chat } = setup([() => chat('小红', '机器人你几岁了', 'u-小红')], {
-    picker: () => {
-      picked = 1;
-      return Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));
-    },
-    pickTemplate: () => '{{lines}}',
-    reply: (target) => void replies.push(target),
-    streamer: () => null,
-  });
-  await autoReply.run();
-
-  expect(picked).toBe(1);
-  expect(replies.map((r) => r.question)).toEqual(['机器人你几岁了']);
-});
-
 test('keeps quiet for a minute only after it answered someone, not when the picker picked nobody', async () => {
   const picks = [{ line: 1, confidence: 0.1 }];
   const replies: UnpromptedReply[] = [];

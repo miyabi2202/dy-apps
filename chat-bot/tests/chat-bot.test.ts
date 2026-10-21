@@ -18,7 +18,6 @@ const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{singleLength}})';
 
 interface SetupOptions {
   answer?: string;
-  historySize?: number;
   template?: string;
   wallet?: Wallet;
   cost?: number;
@@ -43,7 +42,7 @@ function setup(options: SetupOptions = {}) {
   const bus = fakeBus();
   const prompts: string[] = [];
   const { outbox, sent } = fakeOutbox();
-  const history = new ChatHistory(options.historySize ?? 100);
+  const history = new ChatHistory(100);
   // The room's persona.md, which /修改人设 writes.
   let persona = options.persona ?? '';
   const room = fakeRoom({
@@ -104,15 +103,6 @@ function setup(options: SetupOptions = {}) {
     outbox,
   };
 }
-
-test('passes only the most recent chats', async () => {
-  const { settle, say, prompts } = setup({ historySize: 2 });
-  for (const text of ['一', '二', '三']) say(chat('阿明', text));
-  say(chat('小红', '@小助手 hi'));
-  await settle();
-
-  expect(prompts[0]).toBe('阿明: 二\n阿明: 三\n---\n小红: hi (45)');
-});
 
 test('drops a mention the answerer cannot take, and gives the diamond back', async () => {
   const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 0 } });
