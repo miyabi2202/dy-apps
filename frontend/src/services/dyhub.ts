@@ -43,6 +43,11 @@ export interface DyhubUser {
   payLevel?: number;
   /** The fan club shown for the user, usually this room's streamer's; missing when not a member. */
   fansClub?: { name: string; level: number; status?: number; anchorId?: string };
+  /**
+   * The badges shown by the user's name, by their text (a 直播间会员's `V` or `V年`, say); missing
+   * when DyHub doesn't send them (it doesn't yet: Douyin's User badge list isn't decoded).
+   */
+  badges?: string[];
 }
 
 /** One piece of a chat's rich text, from DyHub's `data.parts`. */

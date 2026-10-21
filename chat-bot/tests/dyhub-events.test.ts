@@ -45,3 +45,16 @@ test('a gift is worth its count times its diamonds, and needs someone to credit'
   expect(giftFrom(event, 0)).toBeNull();
   expect(giftFrom({ ...event, user: undefined }, 2)).toBeNull();
 });
+
+test("passes on the badges by the sender's name, when DyHub sends them", () => {
+  const event: DyhubCommentEvent = {
+    id: 'm2',
+    roomId: '1',
+    type: 'chat',
+    ts: 6,
+    user: { id: '7', nickname: '阿明', badges: ['V年'] },
+    data: { content: '讲讲曲面积分' },
+  };
+  expect(chatFrom(event).badges).toEqual(['V年']);
+  expect(chatFrom({ ...event, user: { id: '7', nickname: '阿明' } })).not.toHaveProperty('badges');
+});

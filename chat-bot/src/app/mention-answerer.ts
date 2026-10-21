@@ -49,6 +49,12 @@ export interface Mention extends PromptOptions {
 
 export type { UnpromptedReply };
 
+/** The badges by `mention`'s asker's name, from their latest chat line it saw (none for speech). */
+function badgesOf({ userId, history }: Pick<Mention, 'userId' | 'history'>): readonly string[] {
+  if (!userId) return [];
+  return [...history].reverse().find((line) => line.userId === userId)?.badges ?? [];
+}
+
 /** Gives `mention`'s price back to whoever paid it, if anything was paid. */
 export function refundMention(
   billing: Pick<Billing, 'refund'> | undefined,
@@ -171,6 +177,7 @@ export class MentionAnswerer {
         maxLength: answerBudget(mention.asker, limits),
         userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
         askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
+        askerBadges: badgesOf(mention),
         unprompted: mention.unprompted,
       });
       log.debug('prompt', { prompt });

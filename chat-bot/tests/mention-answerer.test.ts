@@ -298,3 +298,22 @@ test("the usual prompt's answer may @ someone else instead of the asker", async 
 
   expect(sent).toEqual(['@🍄老杨 杨叔早上好，谢谢山药']);
 });
+
+test("a command's prompt sees the badges by the asker's name, from their latest chat line", async () => {
+  const { ask, prompts } = setup({ template: '{{askerBadges}}' });
+  await ask({
+    userId: 'u-阿明',
+    history: [
+      { ts: 1, userId: 'u-阿明', nickname: '阿明', content: '讲讲曲面积分', badges: ['V年'] },
+      { ts: 2, userId: 'u-小红', nickname: '小红', content: '同问', badges: ['V'] },
+    ],
+  });
+  // Nobody's badges known (DyHub doesn't send them yet), or said on the stream: none.
+  await ask({
+    userId: 'u-小红',
+    history: [{ ts: 3, userId: 'u-小红', nickname: '小红', content: '讲讲' }],
+  });
+  await ask({});
+
+  expect(prompts).toEqual(['V年', '（无）', '（无）']);
+});

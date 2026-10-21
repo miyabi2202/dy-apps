@@ -9,6 +9,7 @@ export function chatFrom(event: DyhubCommentEvent, hidden = false): IncomingChat
     userId: event.user && viewerIdOf(event.user, hidden),
     nickname: event.user?.nickname ?? '匿名',
     content: event.data.content,
+    ...(event.user?.badges?.length && { badges: event.user.badges }),
     mentions: (event.data.parts ?? []).flatMap((part) =>
       part.type === 'mention' ? [{ text: part.text, userId: part.userId }] : [],
     ),
