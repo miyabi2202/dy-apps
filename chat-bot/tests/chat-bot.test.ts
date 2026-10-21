@@ -229,7 +229,7 @@ test('answers what someone said to it unprompted like a mention, charged, saying
   expect(wallet.balance('u-阿明')).toBe(0);
 });
 
-test('an unprompted answer is one message, cut to fit', async () => {
+test('a long unprompted answer is split like an @', async () => {
   const { bot, settle, sent } = setup({ answer: '好'.repeat(80) });
   bot.replyUnprompted({
     nickname: '阿明',
@@ -239,7 +239,8 @@ test('an unprompted answer is one message, cut to fit', async () => {
   });
   await settle();
 
-  expect(sent).toHaveLength(1);
+  expect(sent.length).toBeGreaterThan(1);
+  expect(sent[0]).toMatch(/^@阿明 \(1\/\d\) 好/);
 });
 
 test('the streamer is answered for free, as said on the stream', async () => {

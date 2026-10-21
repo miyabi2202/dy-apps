@@ -150,11 +150,11 @@ export class MentionAnswerer {
     ];
   }
 
-  /** How long `mention`'s answer may be (one message when unprompted), with the room's 单推符号. */
-  private limitsFor(mention: Pick<Mention, 'unprompted'>): ReplyLimits {
+  /** How long an answer may be, unprompted or not, with the room's 单推符号. */
+  private limits(): ReplyLimits {
     return {
       maxLength: this.maxLength,
-      maxParts: mention.unprompted ? 1 : this.maxParts,
+      maxParts: this.maxParts,
       atTrimStart: this.options.room.atTrimStart(),
     };
   }
@@ -208,7 +208,7 @@ export class MentionAnswerer {
   /** Sends `text` to the asker as a reply, like an answer; refunded if it can't go out. */
   private sendFixed(mention: Mention, text: string): void {
     const { outbox, log, userTalk, bus } = this.options;
-    const limits = this.limitsFor(mention);
+    const limits = this.limits();
     const messages = replyMessages(mention.asker, text, limits);
     if (!messages.length) {
       log.warn('a fixed reply is empty', { asker: mention.asker });
@@ -239,8 +239,7 @@ export class MentionAnswerer {
 
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, room, log, promptTemplate, userTalk } = this.options;
-    // What the bot says unprompted is one message: nobody asked for a long answer.
-    const limits = this.limitsFor(mention);
+    const limits = this.limits();
     try {
       const transcript = room.recentTranscript();
       const prompt = room.prompt(mention.template ?? promptTemplate(), {
