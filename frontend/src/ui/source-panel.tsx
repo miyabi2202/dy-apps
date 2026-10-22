@@ -27,6 +27,8 @@ const STATUS_TEXT: Record<RoomFeedStatus | 'idle', string> = {
   opening: '连接中…',
   roomConnecting: '房间连接中…',
   ready: '已就绪',
+  // room-feed exited for good (the stream ended, or the page showed another room).
+  ended: 'room-feed 已退出，重新启动后再连接',
   error: '连接失败，稍后重试',
   closed: '已断开，稍后重试',
 };
