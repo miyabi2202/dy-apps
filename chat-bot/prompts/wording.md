@@ -96,7 +96,7 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 ## song-last
 
-你 {{minutes}} 分钟前已经说过这首是《{{title}}》{{artist}}。这次认出来的如果还是这首（哪怕版本、写法不一样），很可能主播还在唱同一首：title 和 artist 照常填，message 留空字符串，不要再说；只有上次说错了、需要更正时才写 message，并说明是更正。
+你 {{minutes}} 分钟前已经说过一首是《{{title}}》{{artist}}。这次认出来的如果还是这首（哪怕版本、写法不一样），主播还在唱同一首：title 和 artist 照常填，message 留空字符串，不要再说。认出来的是另一首时，多半是主播唱完那首接着唱了这首（两首连着唱，中间没停）：当成新的一首照常报，不要说「更正」「刚才报错了」。只有你确定上次那首报错了（前面那些歌词也对不上《{{title}}》）才说是更正。
 
 ## forbidden-words
 
