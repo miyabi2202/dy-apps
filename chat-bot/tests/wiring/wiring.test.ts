@@ -329,7 +329,7 @@ test("starts filling in the room's room_config.json: an option seeds a missing s
   expect(warned).toContain('setting from room_config, ignoring option');
 });
 
-test('the bot has identify_song and identify_bgm for Claude by default, and none without --mcp or without listening', () => {
+test('the bot has its tools for Claude by default, and none without --mcp', () => {
   const tools = (bot: ReturnType<typeof build>) =>
     bot.container.resolve(MCP_SERVER)?.open({ asker: 'a', question: '' });
   const withMcp = build(['--mcp']);
@@ -337,11 +337,11 @@ test('the bot has identify_song and identify_bgm for Claude by default, and none
   expect(withMcp.container.resolve(MCP_SERVER)).not.toBeNull();
   expect(tools(withMcp)).toBeNull();
   expect(build().container.resolve(MCP_SERVER)).toBeNull();
-  // Without listening there is no song id to ask and no music to hear: no tools at all.
-  expect(build(['--mcp', '--no-asr']).container.resolve(MCP_SERVER)).toBeNull();
+  // Without listening there is no song id to ask and no music to hear, but the threshold is still there.
+  expect(build(['--mcp', '--no-asr']).container.resolve(MCP_SERVER)).not.toBeNull();
 });
 
-test('the tools server starts with the bot, serves identify_song and identify_bgm, and stops with it', async () => {
+test('the tools server starts with the bot, serves its tools (an admin the admin-only ones too), and stops with it', async () => {
   const bot = build(['--mcp', '--mcp-port', '0']);
   const app = bot.container.resolve(APP);
   const started = app.start();
@@ -350,6 +350,8 @@ test('the tools server starts with the bot, serves identify_song and identify_bg
   await started;
   const session = bot.container.resolve(MCP_SERVER)!.open({ asker: 'a', question: '' })!;
   expect(session.access.tools).toEqual(['identify_song', 'identify_bgm']);
+  const admin = bot.container.resolve(MCP_SERVER)!.open({ asker: 'a', question: '', admin: true })!;
+  expect(admin.access.tools).toEqual(['identify_song', 'identify_bgm', 'set_thanks_threshold']);
   app.stop();
   await jest
     .requireActual<typeof import('node:timers/promises')>('node:timers/promises')

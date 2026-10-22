@@ -116,7 +116,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'asr-port': { type: 'string', default: '8758' },
       // /识歌 and /自动识歌 search the lyrics on NetEase first; --no-lyrics-search always asks Codex.
       'lyrics-search': { type: 'boolean', default: true },
-      // Claude may call the bot's tools (identify_song, identify_bgm) while answering; the server
+      // Claude may call the bot's tools (identify_song, identify_bgm, set_thanks_threshold) while answering; the server
       // listens on 127.0.0.1 only, on a free port unless --mcp-port says one.
       mcp: { type: 'boolean', default: true },
       'mcp-port': { type: 'string', default: '0' },

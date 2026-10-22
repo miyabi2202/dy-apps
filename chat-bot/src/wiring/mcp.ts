@@ -2,13 +2,15 @@ import { identifyBgmTool } from '../mcp/identify-bgm';
 import { identifySongTool } from '../mcp/identify-song';
 import type { BotTool } from '../mcp/rpc';
 import { BotMcpServer } from '../mcp/server';
+import { setThanksThresholdTool } from '../mcp/set-thanks-threshold';
 import type { Container } from './container';
-import { LOG, MCP_SERVER, OPTIONS, ROOM, SONG_ID, TRANSCRIBER } from './tokens';
+import { LOG, MCP_SERVER, OPTIONS, ROOM, SONG_ID, THANKER, TRANSCRIBER } from './tokens';
 
 /**
  * The bot's tools for Claude (an MCP server in this process, src/mcp/): what it can do when
  * someone @s it, without a command round trip. Each needs what its command needs (listening to
- * the stream; Codex for the song); with none, or with --no-mcp, there is no server.
+ * the stream; Codex for the song), and an admin-only one is offered only when an admin asks; with
+ * none, or with --no-mcp, there is no server.
  */
 export function registerMcp(container: Container): void {
   container.register(MCP_SERVER, (c) => {
@@ -29,6 +31,7 @@ export function registerMcp(container: Container): void {
           ]
         : []),
       ...(transcriber ? [identifyBgmTool(() => transcriber.identifyMusic(), log)] : []),
+      setThanksThresholdTool(c.resolve(THANKER)),
     ];
     return tools.length ? new BotMcpServer({ tools, log, port: options.mcpPort }) : null;
   });
