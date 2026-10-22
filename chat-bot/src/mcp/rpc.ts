@@ -23,22 +23,27 @@ export interface BotTool {
   inputSchema: object;
   /** The bot command doing the same job; Claude also asking for it (`command_request`) is then ignored. */
   command?: string;
+  /** Offered only when an admin (or the streamer) asks; anyone else's session doesn't have it. */
+  adminOnly?: boolean;
   call(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult>;
 }
 
 /**
- * One question's tools: who it's for, what each tool answered (a tool runs at most once per
+ * One question's tools: who it's for, the tools it may call (an admin-only one only for an admin),
+ * what each tool answered (a tool runs at most once per
  * question, so a repeated call returns the first result, which caps what a slow one such as the
  * song search can cost), and the order they were called in.
  */
 export interface Session {
   context: ToolContext;
+  tools: readonly BotTool[];
   memo: Map<string, Promise<ToolResult>>;
   used: string[];
 }
 
-export const newSession = (context: ToolContext): Session => ({
+export const newSession = (context: ToolContext, tools: readonly BotTool[]): Session => ({
   context,
+  tools: tools.filter((tool) => !tool.adminOnly || context.admin === true),
   memo: new Map(),
   used: [],
 });
@@ -54,15 +59,13 @@ const textResult = (result: ToolResult) =>
 
 /**
  * Answers one MCP message for `session` (null for a notification, which gets none): the
- * JSON-RPC part of the server, apart from HTTP so it can be tested on its own. A tool that
- * throws is an error result Claude can read, not a failed request.
+ * JSON-RPC part of the server, apart from HTTP so it can be tested on its own. Only the session's
+ * tools are listed or run, so a tool kept from the asker is unknown to them. A tool that throws is
+ * an error result Claude can read, not a failed request.
  */
-export async function handleRpc(
-  message: RpcMessage,
-  tools: readonly BotTool[],
-  session: Session,
-): Promise<object | null> {
+export async function handleRpc(message: RpcMessage, session: Session): Promise<object | null> {
   const { id, method, params = {} } = message;
+  const { tools } = session;
   if (id === undefined) return null;
   switch (method) {
     case 'initialize':

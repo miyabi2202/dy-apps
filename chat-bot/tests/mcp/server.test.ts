@@ -138,3 +138,16 @@ test('a body that is not JSON is a 400, not a crash', async () => {
   expect((await post(session, 'not json')).status).toBe(400);
   expect((await post(session, 'null')).status).toBe(400);
 });
+
+test('a non-admin’s session leaves out the admin-only tools', async () => {
+  const server = new BotMcpServer({
+    tools: [tool, { ...tool, name: 'set_threshold', command: '自动谢礼', adminOnly: true }],
+    log: silentLog,
+  });
+  servers.push(server);
+  await server.start();
+
+  expect(server.open({ asker: 'a', question: '' })!.access.tools).toEqual(['identify_song']);
+  const admin = server.open({ asker: 'a', question: '', admin: true })!;
+  expect(admin.access.tools).toEqual(['identify_song', 'set_threshold']);
+});

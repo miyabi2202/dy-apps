@@ -12,9 +12,12 @@ function setup() {
       return Promise.resolve({ text: `第 ${calls.length} 次` });
     },
   };
-  const session = newSession({ asker: '苦***', userId: '111111-苦***-31', question: '这是什么歌' });
+  const session = newSession(
+    { asker: '苦***', userId: '111111-苦***-31', question: '这是什么歌' },
+    [tool],
+  );
   const rpc = (message: object) =>
-    handleRpc({ jsonrpc: '2.0', ...message }, [tool], session) as Promise<{
+    handleRpc({ jsonrpc: '2.0', ...message }, session) as Promise<{
       result?: { content?: { text: string }[]; isError?: boolean; [key: string]: unknown };
       error?: { code: number };
     }>;
@@ -63,7 +66,6 @@ test('an unknown tool is an error result Claude can read; an unknown method is -
 });
 
 test('a tool that throws is an error result, not a failed request', async () => {
-  const session = newSession({ asker: 'a', question: '' });
   const broken: BotTool = {
     name: 'broken',
     description: '',
@@ -72,8 +74,39 @@ test('a tool that throws is an error result, not a failed request', async () => 
   };
   const answer = (await handleRpc(
     { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'broken' } },
-    [broken],
-    session,
+    newSession({ asker: 'a', question: '' }, [broken]),
   )) as { result: { isError: boolean } };
   expect(answer.result.isError).toBe(true);
+});
+
+test('an admin-only tool is listed and run only in an admin’s session', async () => {
+  const ran: string[] = [];
+  const tool = (name: string, adminOnly?: boolean): BotTool => ({
+    name,
+    description: '',
+    inputSchema: {},
+    ...(adminOnly && { adminOnly }),
+    call: () => {
+      ran.push(name);
+      return Promise.resolve({ text: 'ok' });
+    },
+  });
+  const tools = [tool('identify_song'), tool('set_threshold', true)];
+  const list = async (admin?: boolean) => {
+    const answer = (await handleRpc(
+      { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+      newSession({ asker: 'a', question: '', admin }, tools),
+    )) as { result: { tools: { name: string }[] } };
+    return answer.result.tools.map(({ name }) => name);
+  };
+  expect(await list()).toEqual(['identify_song']);
+  expect(await list(false)).toEqual(['identify_song']);
+  expect(await list(true)).toEqual(['identify_song', 'set_threshold']);
+
+  const refused = (await handleRpc(
+    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'set_threshold' } },
+    newSession({ asker: 'a', question: '' }, tools),
+  )) as { result: { isError: boolean } };
+  expect(refused.result.isError).toBe(true);
+  expect(ran).toEqual([]);
 });

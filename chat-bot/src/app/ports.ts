@@ -108,6 +108,8 @@ export interface ToolContext {
   /** The asker's user id as the adapter gives it (`111111-苦***-31` in a 私密 room). */
   userId?: string;
   question: string;
+  /** Whether the asker is an admin (or the streamer): only then are admin-only tools offered. */
+  admin?: boolean;
 }
 
 /** One question's tools, open until `close()`. */

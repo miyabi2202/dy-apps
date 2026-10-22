@@ -46,7 +46,8 @@ function readBody(request: IncomingMessage): Promise<string> {
  * The bot's tools for Claude, as an MCP server inside the bot process: streamable HTTP with JSON
  * responses only, stateless, on 127.0.0.1. A question opens a session (`open`) with a token of its
  * own that Claude sends as a bearer header, and closes it when the answer is done, so the tools
- * work only while the bot is answering that question. A request must come to `127.0.0.1` or
+ * work only while the bot is answering that question, and offer an admin-only tool only when an
+ * admin asked. A request must come to `127.0.0.1` or
  * `localhost` and carry no `Origin` (a browser's), which keeps web pages and DNS rebinding out.
  */
 export class BotMcpServer implements BotTools {
@@ -109,19 +110,19 @@ export class BotMcpServer implements BotTools {
   open(context: ToolContext): ToolSession | null {
     if (!this.server) return null;
     const token = (this.options.newToken ?? (() => randomBytes(24).toString('base64url')))();
-    const session = newSession(context);
+    const session = newSession(context, this.tools);
     this.sessions.set(token, session);
     const access: ToolAccess = {
       url: `http://127.0.0.1:${this.port}/mcp`,
       token,
-      tools: this.tools.map((tool) => tool.name),
+      tools: session.tools.map((tool) => tool.name),
     };
     return {
       access,
       used: () => [...session.used],
       replaces: (command) =>
         session.used.some(
-          (name) => this.tools.find((tool) => tool.name === name)?.command === command,
+          (name) => session.tools.find((tool) => tool.name === name)?.command === command,
         ),
       close: () => void this.sessions.delete(token),
     };
@@ -162,11 +163,11 @@ export class BotMcpServer implements BotTools {
     }
     if (Array.isArray(body)) {
       const answers = (
-        await Promise.all(messages.map((m) => handleRpc(m as RpcMessage, this.tools, session)))
+        await Promise.all(messages.map((m) => handleRpc(m as RpcMessage, session)))
       ).filter((answer) => answer !== null);
       return answers.length ? send(200, answers) : send(202);
     }
-    const answer = await handleRpc(body as RpcMessage, this.tools, session);
+    const answer = await handleRpc(body as RpcMessage, session);
     return answer ? send(200, answer) : send(202);
   }
 }

@@ -1,5 +1,5 @@
 import { MentionAnswerer, type Mention } from '../../../src/app/replies/mention-answerer';
-import type { BotTools, Question, ToolContext, ToolSession } from '../../../src/app/ports';
+import type { Admins, BotTools, Question, ToolContext, ToolSession } from '../../../src/app/ports';
 import { fakeRoom } from '../../support/fake-room';
 import { NOW, fakeOutbox, silentLog } from '../../support/fakes';
 
@@ -9,6 +9,7 @@ function setup(
     answer?: string;
     use?: string[];
     fail?: boolean;
+    admins?: Admins;
   } = {},
 ) {
   const { outbox, sent } = fakeOutbox();
@@ -42,6 +43,7 @@ function setup(
     log: silentLog,
     promptTemplate: () => '{{question}}',
     tools,
+    admins: options.admins,
   });
   const ask = async (mention: Partial<Mention> = {}) => {
     answerer.ask({ asker: '阿明', question: '在吗', history: [], ...mention });
@@ -77,9 +79,17 @@ test('the session is closed when answering fails, and opened with a 私密 viewe
   const { ask, opened, events, sent } = setup({ fail: true });
   await ask({ asker: '苦***', userId, question: '这是什么歌' });
 
-  expect(opened).toEqual([{ asker: '苦***', userId, question: '这是什么歌' }]);
+  expect(opened).toEqual([{ asker: '苦***', userId, question: '这是什么歌', admin: false }]);
   expect(events).toEqual(['open', 'close']);
   expect(sent).toEqual([]);
+});
+
+test('the session is told whether the asker is an admin', async () => {
+  const { ask, opened } = setup({ admins: { has: (userId) => userId === 'u-雅' } });
+  await ask({ asker: '雅', userId: 'u-雅' });
+  await ask({ asker: '阿明', userId: 'u-阿明' });
+  await ask({ asker: '无名' });
+  expect(opened.map(({ admin }) => admin)).toEqual([true, false, false]);
 });
 
 test("a command_request for what Claude already did with a tool is ignored, and Claude's message is sent", async () => {

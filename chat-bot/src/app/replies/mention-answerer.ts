@@ -19,7 +19,7 @@ import { done, failed, type Command, type PromptOptions } from '../commands/comm
 import type { EventBus } from '../event-bus';
 import type { Outbox } from './outbox';
 import { Pending } from '../pending';
-import type { AskModel, BotTools, Log, UserTalk } from '../ports';
+import type { Admins, AskModel, BotTools, Log, UserTalk } from '../ports';
 import type { RoomState } from '../room/room-state';
 
 /** A question for Claude; a command's own prompt may come with its PromptOptions. */
@@ -85,6 +85,8 @@ export interface MentionAnswererOptions {
    * the answer is done.
    */
   tools?: BotTools;
+  /** Who the admins are: only their questions get the admin-only tools. */
+  admins?: Admins;
 }
 
 /** An answer that may call tools can run longer than one that can't. */
@@ -203,6 +205,7 @@ export class MentionAnswerer {
           asker: mention.asker,
           userId: mention.userId,
           question: mention.question,
+          admin: mention.userId !== undefined && !!this.options.admins?.has(mention.userId),
         })) ||
       null;
     try {

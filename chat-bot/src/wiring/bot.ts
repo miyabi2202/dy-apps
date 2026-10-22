@@ -55,6 +55,7 @@ export function registerBot(container: Container): void {
         bus: c.resolve(BUS),
         // Its tools resolve the song id and the transcriber, not the answerer: no cycle.
         tools: c.resolve(MCP_SERVER) ?? undefined,
+        admins: c.resolve(ADMINS),
         // 「以后 100 钻以下的礼物不用谢了」 and the like: run the command if they may. The bot is made after
         // this, and asked only when an answer has come.
         onCommandRequest: (mention, name, args) =>
