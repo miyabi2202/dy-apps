@@ -79,27 +79,31 @@ export class CommandRunner {
   }
 
   /**
-   * Someone asked, in so many words, for what the admin-only command `name` does: an admin's runs
-   * as if they'd typed it, and anyone else is told they may not. False for anything else.
+   * Someone asked, in so many words (typed, or said on the stream), for what the command `name`
+   * does: it runs as if they'd typed it, except that an admin-only one from anyone but an admin is
+   * answered that they may not. What the mention cost is given back first, and the command takes
+   * its own price as typed. False when there's no such command, so Claude's own reply goes out.
    */
   request(
-    { asker, userId }: Pick<Mention, 'asker' | 'userId'>,
+    mention: Pick<Mention, 'asker' | 'userId' | 'paid'>,
     name: string,
     args: string,
   ): boolean {
+    const { asker, userId } = mention;
     const command = this.commands.get(name);
-    if (!command?.adminOnly) return false;
+    if (!command) return false;
     const { log, adminNames = '机器人管理员' } = this.options;
     const admin = this.options.isAdmin(userId);
     log.info('command requested', { asker, userId, name, args, admin });
-    if (!admin) {
+    if (command.adminOnly && !admin) {
       this.say(asker, 'system', `你无权调用「${name}」指令，只有主播和${adminNames}才可以`);
       return true;
     }
+    this.options.refund(mention);
     const question = `/${name}${args ? ` ${args}` : ''}`;
     const ts = (this.options.now ?? Date.now)();
     const chat: IncomingChat = { ts, userId, nickname: asker, content: question, mentions: [] };
-    this.run(chat, question, { name, args }, true);
+    this.run(chat, question, { name, args }, admin);
     return true;
   }
 

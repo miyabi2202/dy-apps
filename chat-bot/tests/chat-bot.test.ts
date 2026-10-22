@@ -309,18 +309,67 @@ test('anyone else asking for an admin-only command is told who may', async () =>
   expect(sent).toEqual(['@阿明 你无权调用「截图」指令，只有主播和雅才可以']);
 });
 
-test("a command that isn't admin-only, or isn't one, gets Claude's reply instead", async () => {
+test('asked in words for a command anyone may use, anyone has it run, as if typed', async () => {
   const answer = JSON.stringify({
-    message: '想知道歌名就发 /识歌',
-    command_request: '识歌',
+    message: '收到，这就听一下',
+    command_request: '识别背景音乐',
     command_args: '',
   });
-  const songId = { name: '识歌', adminOnly: false, run: () => ({ ok: true, reply: '' }) };
-  const { settle, say, sent } = setup({ answer, commands: [songId] });
-  say(chat('阿明', '@小助手 这是什么歌'));
+  const music: Command = {
+    name: '识别背景音乐',
+    adminOnly: false,
+    price: 1,
+    run: () => Promise.resolve({ ok: true, reply: '是《晴天》，周杰伦' }),
+  };
+  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 5, spent: 0 } });
+  const { settle, say, sent } = setup({ answer, wallet, cost: 2, commands: [music] });
+  say(chat('阿明', '@小助手 识别一下背景音乐'));
   await settle();
 
-  expect(sent).toEqual(['@阿明 想知道歌名就发 /识歌']);
+  // The command's answer goes out, not Claude's; the @'s 2 diamonds come back, and the command takes its 1.
+  expect(sent).toEqual(['@阿明 是《晴天》，周杰伦']);
+  expect(wallet.balance('u-阿明')).toBe(4);
+});
+
+test('the streamer asking on the stream has the command run too', async () => {
+  const answer = JSON.stringify({
+    message: '收到，这就听一下',
+    command_request: '识别背景音乐',
+    command_args: '',
+  });
+  let ran = 0;
+  const music: Command = {
+    name: '识别背景音乐',
+    adminOnly: false,
+    run: () => {
+      ran++;
+      return { ok: true, reply: '是《晴天》，周杰伦' };
+    },
+  };
+  const { bot, settle, sent } = setup({ answer, admins: ['s-1'], commands: [music] });
+  bot.replyUnprompted({
+    nickname: '虾虾',
+    userId: 's-1',
+    question: 'FERRY识别一下我的背景音乐',
+    heard: 'speech',
+  });
+  await settle();
+
+  expect(ran).toBe(1);
+  expect(sent).toEqual(['@虾虾 是《晴天》，周杰伦']);
+});
+
+test("asked for a command there isn't, Claude's own reply goes out", async () => {
+  const answer = JSON.stringify({
+    message: '这个我还不会',
+    command_request: '点歌',
+    command_args: '晴天',
+  });
+  const { settle, say, sent } = setup({ answer, commands: [] });
+  say(chat('阿明', '@小助手 帮我点首晴天'));
+  await settle();
+
+  expect(sent).toEqual(['@阿明 这个我还不会']);
 });
 
 test('/解题 is answered by its own Claude, from its own prompt, with a screenshot even while they are off', async () => {

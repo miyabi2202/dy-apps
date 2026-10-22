@@ -180,11 +180,11 @@ export class ChatBot {
   }
 
   /**
-   * Someone asked, in so many words, for what an admin-only command does (Claude found it in their
-   * mention, or in what they said to the bot): an admin's runs as if they'd typed it, and anyone
-   * else is told they may not. One of the room's own commands (主播会唱xxx吗) is asked again with
-   * its own prompt, already paid for. False for anything else, so Claude's own reply goes out
-   * instead (the others cost diamonds, already paid for the mention).
+   * Someone asked, in so many words, for what a command does (Claude found it in their mention, or
+   * in what they said to the bot, the streamer on the stream too): it runs as if they'd typed it,
+   * but an admin-only one from anyone else is answered that they may not (see
+   * CommandRunner.request). One of the room's own commands (主播会唱xxx吗) is asked again with its own
+   * prompt, already paid for. False when there's no such command, so Claude's own reply goes out.
    */
   requestCommand(mention: Mention, name: string, args: string): boolean {
     const { asker, userId } = mention;
