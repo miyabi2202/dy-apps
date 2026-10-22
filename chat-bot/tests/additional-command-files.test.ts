@@ -45,7 +45,7 @@ test('reads the index: the commands by id, each checked', () => {
     { id: 'plain', name: '别的', when: '在问别的', trigger: null, prompt: 'plain/prompt.md' },
   ]);
   expect(errors).toEqual([
-    'no-prompt: needs a prompt or a fixedReply',
+    'no-prompt: needs a prompt, a fixedReply or a run',
     'outside: prompt must be inside the folder: ../prompt.md',
     'bad-price: price must be whole diamonds, 0 or more',
   ]);
@@ -157,7 +157,25 @@ test('a command may have a fixedReply instead of a prompt, or both', () => {
   expect(errors).toEqual([
     'empty: fixedReply must be a non-empty string',
     'number: fixedReply must be a non-empty string',
-    'none: needs a prompt or a fixedReply',
+    'none: needs a prompt, a fixedReply or a run',
+  ]);
+});
+
+test("a command may run one of the bot's commands instead, another while the streamer is singing", () => {
+  const base = { name: '这是什么歌', when: '在问现在放的是什么歌' };
+  const { commands, errors } = parseCommandIndex({
+    'what-song': { ...base, run: '/识别背景音乐', runWhileSinging: '识歌' },
+    bgm: { ...base, run: '识别背景音乐' },
+    'singing-only': { ...base, prompt: 'p.md', runWhileSinging: '识歌' },
+    blank: { ...base, run: ' ' },
+  });
+  expect(commands.map((c) => [c.id, c.run, c.runWhileSinging])).toEqual([
+    ['what-song', '识别背景音乐', '识歌'],
+    ['bgm', '识别背景音乐', undefined],
+  ]);
+  expect(errors).toEqual([
+    'singing-only: runWhileSinging needs a run',
+    'blank: run must be a non-empty string',
   ]);
 });
 

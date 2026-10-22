@@ -2,6 +2,7 @@ import { appliesTo, type Viewer } from '../core/additional-command';
 import { parseCommand } from '../core/command';
 import type { ChatLine, Gift, IncomingChat } from '../core/room-events';
 import type { Heard } from '../core/prompt';
+import { singingNow } from '../core/transcript';
 import type { Billing, Charge } from './billing';
 import type { Command } from './command';
 import { CommandRunner, type ChargeRequest } from './command-runner';
@@ -26,7 +27,7 @@ export interface ChatBotOptions {
   /** Answers the questions the bot has been paid for. */
   answerer: Pick<MentionAnswerer, 'ask' | 'idle'>;
   /** The chat before a question goes with it to the answerer. */
-  room: Pick<RoomState, 'recentChat' | 'replyLimits'>;
+  room: Pick<RoomState, 'recentChat' | 'replyLimits' | 'recentTranscript'>;
   /** Where notices and command replies go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
   log: Log;
@@ -114,8 +115,11 @@ export class ChatBot {
       this.runner.run(chat, question, call, admin);
       return;
     }
+    // One that runs a command of the bot's isn't taken by its trigger: run with no answer to fall
+    // back on, it waits for Claude to ask for it (requestCommand).
     const taken = (this.options.additionalCommands?.() ?? []).filter(
-      ({ trigger, adminOnly }) => trigger?.test(question) && (!adminOnly || admin),
+      ({ trigger, adminOnly, run }) =>
+        run === undefined && trigger?.test(question) && (!adminOnly || admin),
     );
     const viewer = this.viewerOf(chat, admin);
     const own = taken.find((command) => this.appliesTo(command, viewer));
@@ -201,6 +205,12 @@ export class ChatBot {
       this.options.log.info('additional command not for them', { asker, userId, command: own.id });
       return false;
     }
+    if (own?.run !== undefined) {
+      // The @ costs nothing more: the command takes its own price, as typed.
+      this.refund(mention);
+      this.runFor(own, { ts: this.now(), userId, nickname: asker, mentions: [] });
+      return true;
+    }
     if (own) {
       this.options.log.info('additional command requested', { asker, userId, command: own.id });
       // The @ was paid for at an @'s price; a cheaper command gives the difference back.
@@ -234,6 +244,10 @@ export class ChatBot {
       this.skipped(own, nickname, userId);
       return;
     }
+    if (own?.run !== undefined) {
+      this.runFor(own, chat);
+      return;
+    }
     const charge = this.charge({
       chat,
       question,
@@ -251,6 +265,30 @@ export class ChatBot {
       unprompted: heard,
       ...(own && this.commandPrompt(own, nickname)),
     });
+  }
+
+  /**
+   * Runs the command of the bot's that the room's own command `own` runs (its `runWhileSinging`
+   * while the streamer is singing, else its `run`), as if `chat`'s sender had typed it: at its
+   * own price, an admin-only one only for an admin.
+   */
+  private runFor(own: AdditionalCommand, chat: Omit<IncomingChat, 'content'>): void {
+    const { room, log } = this.options;
+    const singing = singingNow(room.recentTranscript(), this.now());
+    const name = (singing && own.runWhileSinging) || own.run;
+    if (name === undefined) return;
+    const question = `/${name}`;
+    log.info('additional command runs', { id: own.id, asker: chat.nickname, run: name, singing });
+    this.runner.run(
+      { ...chat, content: question },
+      question,
+      { name, args: '' },
+      this.isAdmin(chat.userId),
+    );
+  }
+
+  private now(): number {
+    return (this.options.now ?? Date.now)();
   }
 
   /**

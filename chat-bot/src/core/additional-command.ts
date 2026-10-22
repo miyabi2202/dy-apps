@@ -18,6 +18,13 @@ export interface AdditionalCommandEntry {
   prompt?: string;
   /** What it says, as it is, to whoever it's chosen for, with no model asked. */
   fixedReply?: string;
+  /**
+   * One of the bot's commands (commands.md) it runs instead, as if the asker had typed it, at
+   * that command's price: 识别背景音乐.
+   */
+  run?: string;
+  /** The command it runs instead of `run` while the streamer is singing (see singingNow): 识歌. */
+  runWhileSinging?: string;
   /** It applies only to viewers matching any of these. */
   only?: UserCondition[];
   /** It doesn't apply to viewers matching any of these. */
@@ -49,8 +56,10 @@ export interface IndexOptions {
 
 /**
  * The commands in `index.json` (already parsed): an object of `"<id>": { "base"?, "name", "when",
- * "prompt"?, "fixedReply"?, "trigger"?, "price"?, "mentions"?, "adminOnly"?, "atOthers"?, "only"?,
- * "except"? }`, at least one of `prompt` and `fixedReply`, `trigger` a regular expression, `price`
+ * "prompt"?, "fixedReply"?, "run"?, "runWhileSinging"?, "trigger"?, "price"?, "mentions"?,
+ * "adminOnly"?, "atOthers"?, "only"?, "except"? }`, at least one of `prompt`, `fixedReply` and
+ * `run` (`runWhileSinging` only with a `run`), `run` and `runWhileSinging` names of the bot's
+ * commands without the slash, `trigger` a regular expression, `price`
  * whole diamonds, `mentions` a file in the room's folder, `adminOnly` and `atOthers` true or
  * false, `only` and `except` lists of UserCondition. A command with a `base` starts from that
  * shared command's fields, and any the room writes replace them. `{{streamerNames}}` in `when`
@@ -123,7 +132,8 @@ function toEntry(
   streamerNames: readonly string[],
 ): AdditionalCommandEntry | string {
   if (!/^[\w-]+$/.test(id)) return 'the id may have only letters, digits, _ and -';
-  const { name, prompt, fixedReply, price, mentions, adminOnly, atOthers } = fields;
+  const { name, prompt, fixedReply, run, runWhileSinging, price, mentions, adminOnly, atOthers } =
+    fields;
   const when =
     typeof fields.when === 'string' ? streamerNamesIn(fields.when, streamerNames) : fields.when;
   const trigger =
@@ -134,14 +144,15 @@ function toEntry(
   for (const [key, value] of Object.entries({ name, when })) {
     if (typeof value !== 'string' || !value.trim()) return `${key} must be a non-empty string`;
   }
-  for (const [key, value] of Object.entries({ prompt, fixedReply })) {
+  for (const [key, value] of Object.entries({ prompt, fixedReply, run, runWhileSinging })) {
     if (value !== undefined && (typeof value !== 'string' || !value.trim())) {
       return `${key} must be a non-empty string`;
     }
   }
-  if (prompt === undefined && fixedReply === undefined) {
-    return 'needs a prompt or a fixedReply';
+  if (prompt === undefined && fixedReply === undefined && run === undefined) {
+    return 'needs a prompt, a fixedReply or a run';
   }
+  if (runWhileSinging !== undefined && run === undefined) return 'runWhileSinging needs a run';
   if (prompt !== undefined && !isInside(prompt as string)) {
     return `prompt must be inside the folder: ${prompt as string}`;
   }
@@ -177,6 +188,10 @@ function toEntry(
     trigger: pattern,
     ...(prompt !== undefined && { prompt: prompt as string }),
     ...(fixedReply !== undefined && { fixedReply: fixedReply as string }),
+    ...(run !== undefined && { run: (run as string).trim().replace(/^\//, '') }),
+    ...(runWhileSinging !== undefined && {
+      runWhileSinging: (runWhileSinging as string).trim().replace(/^\//, ''),
+    }),
     ...filters,
     ...(price !== undefined && { price: price as number }),
     ...(mentions !== undefined && { mentions: mentions }),

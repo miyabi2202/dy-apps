@@ -10,6 +10,7 @@ import { MESSAGE_SCHEMA } from '../src/core/mention-answer';
 import type { AdditionalCommand, Log, Question } from '../src/app/ports';
 import { ChatHistory } from '../src/core/chat-history';
 import type { IncomingChat } from '../src/core/room-events';
+import { Transcript } from '../src/core/transcript';
 import type { Wallet } from '../src/core/wallet';
 import { fakeRoom } from './fake-room';
 import { BOT, chat, fakeBus, fakeEvents, fakeOutbox, gift, memoryWallet, silentLog } from './fakes';
@@ -33,6 +34,8 @@ interface SetupOptions {
   additionalCommands?: AdditionalCommand[];
   /** The room's streamer, once known. */
   streamer?: { uid: string };
+  /** What the streamer said and sang. */
+  transcript?: Transcript;
   log?: Log;
 }
 
@@ -45,6 +48,7 @@ function setup(options: SetupOptions = {}) {
   const history = new ChatHistory(100);
   const room = fakeRoom({
     history,
+    ...(options.transcript && { transcript: options.transcript }),
     persona: () => options.persona ?? '',
     // A live video to screenshot, with screenshots off (/截图 0).
     ...(options.screenshot && {
@@ -538,6 +542,79 @@ test("/识歌 asks its own model with its own prompt, at a mention's price, answ
     '@阿明 「识歌」要先给主播送礼：每次1钻，你送的还剩0钻（不另外扣钱），送了马上回你',
     '@阿明 这首是《aLIEz》',
   ]);
+});
+
+const WHAT_SONG: AdditionalCommand = {
+  id: 'what-song',
+  name: '这是什么歌',
+  when: '在问现在放的是什么歌',
+  trigger: /什么歌/,
+  prompt: () => '',
+  run: '识别背景音乐',
+  runWhileSinging: '识歌',
+};
+
+/** /识歌 and /识别背景音乐, each answering with its own name, noting in `ran` that it ran. */
+const songCommands = (ran: string[]): Command[] =>
+  ['识歌', '识别背景音乐'].map((name) => ({
+    name,
+    adminOnly: false,
+    run: () => {
+      ran.push(name);
+      return { ok: true, reply: `${name}的结果` };
+    },
+  }));
+
+test("a room command that runs one of the bot's: the background music, or the song while the streamer sings", async () => {
+  let now = 100_000;
+  const transcript = new Transcript(Infinity, () => now);
+  const ran: string[] = [];
+  const { bot, settle, sent } = setup({
+    transcript,
+    now: () => now,
+    commands: songCommands(ran),
+    additionalCommands: [WHAT_SONG],
+  });
+  const ask = (question: string) =>
+    bot.replyUnprompted({
+      nickname: '阿明',
+      userId: 'u-阿明',
+      question,
+      heard: 'chat',
+      command: 'what-song',
+    });
+  ask('这是什么歌');
+  await settle();
+  // Three lines sung in the last minute: she's singing.
+  for (const end of [180_000, 188_000, 196_000]) {
+    transcript.add({ start: end - 3000, end, text: '啦啦啦', speech: 0.05 });
+  }
+  now = 200_000;
+  ask('这首叫什么');
+  await settle();
+
+  expect(ran).toEqual(['识别背景音乐', '识歌']);
+  expect(sent).toEqual(['@阿明 识别背景音乐的结果', '@阿明 识歌的结果']);
+});
+
+test("an @ matching such a command's trigger goes to Claude, and runs it when Claude asks for it", async () => {
+  const ran: string[] = [];
+  const answer = JSON.stringify({
+    message: '我听听',
+    command_request: 'what-song',
+    command_args: '',
+  });
+  const { settle, say, sent, prompts } = setup({
+    answer,
+    commands: songCommands(ran),
+    additionalCommands: [WHAT_SONG],
+  });
+  say(chat('阿明', '@小助手 这是什么歌'));
+  await settle();
+
+  expect(prompts).toHaveLength(1);
+  expect(ran).toEqual(['识别背景音乐']);
+  expect(sent).toEqual(['@阿明 识别背景音乐的结果']);
 });
 
 const CAN_SING: AdditionalCommand = {
