@@ -1,4 +1,4 @@
-import { chatRecord, formatRecord } from '../src/core/chat-record';
+import { chatRecord, formatRecord, singingRecord } from '../src/core/chat-record';
 
 const at = Date.UTC(2026, 9, 21, 8, 0, 0);
 
@@ -29,4 +29,28 @@ test("a chat's sender comes with their member badge, fan club and wealth levels,
       'Asia/Shanghai',
     ),
   ).toBe('2026-10-21 16:00:00+08:00 [苦***#111111-苦***-31|财富31](chat) 好');
+});
+
+test('a sung line is whose the speech service took it for, with its voice and how close', () => {
+  const sung = (extra: object) =>
+    formatRecord(
+      singingRecord({
+        start: at - 3000,
+        end: at,
+        text: 'SUMMERTIME SADNESS',
+        speech: 0.05,
+        ...extra,
+      }),
+      at,
+      'Asia/Shanghai',
+    );
+  expect(sung({ speaker: 2, host: true, voice: 0.83 })).toBe(
+    '2026-10-21 16:00:00+08:00 [主播|声2|0.83](sing) SUMMERTIME SADNESS',
+  );
+  // A voice heard first has no closeness yet.
+  expect(sung({ speaker: 3, host: false })).toBe(
+    '2026-10-21 16:00:00+08:00 [连线|声3](sing) SUMMERTIME SADNESS',
+  );
+  // Too short for a voiceprint: the streamer's, untagged.
+  expect(sung({})).toBe('2026-10-21 16:00:00+08:00 [主播](sing) SUMMERTIME SADNESS');
 });

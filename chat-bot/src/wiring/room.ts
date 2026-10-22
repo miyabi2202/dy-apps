@@ -45,8 +45,8 @@ import {
   PROMPTS_DIR,
   FORBIDDEN_WORDS,
   PROMPT,
-  GUEST_SINGING,
   RECORD,
+  SINGING,
   ROOM,
   ROOM_API,
   ROOM_CONFIG,
@@ -83,9 +83,9 @@ export function registerRoom(container: Container): void {
       // Its times in the streamer's time zone, with the offset, so a model reading it needn't convert.
       return new ChatLog(c.resolve(CHAT_DIR), { timeZone: () => roomConfig().timeZone });
     })
-    // What a guest sang, as the speech service tells singers apart (sing.txt): only kept, to see
-    // how well that works; the chat record and the prompts still have it as the streamer's.
-    .register(GUEST_SINGING, (c) => {
+    // Every sung line, as whose the speech service took it for (sing.txt): only kept, to see how
+    // well it tells singers apart; the chat record and the prompts have them all as the streamer's.
+    .register(SINGING, (c) => {
       const roomConfig = c.resolve(ROOM_CONFIG);
       return new RecordFile(join(c.resolve(ROOM_DIR), 'sing.txt'), {
         timeZone: () => roomConfig().timeZone,

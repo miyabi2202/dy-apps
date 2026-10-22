@@ -52,9 +52,22 @@ export function speechRecord(line: TranscriptLine): ChatRecord {
   };
 }
 
-/** A line a guest sang (see isGuestSinging), as `[连线](sing)`. */
-export function guestSingingRecord(line: TranscriptLine): ChatRecord {
-  return { type: 'sing', sender: '连线', text: line.text };
+/**
+ * A sung line as the speech service told whose it is, for looking at how well it tells singers
+ * apart: `[主播|声2|0.83](sing)`, or `[连线|声3](sing)` for another voice (tagged with the voice's
+ * number and how close the line was to it; no closeness for a voice heard first).
+ */
+export function singingRecord(line: TranscriptLine): ChatRecord {
+  const tags = [
+    ...(line.speaker !== undefined ? [`声${line.speaker}`] : []),
+    ...(line.voice !== undefined ? [String(line.voice)] : []),
+  ];
+  return {
+    type: 'sing',
+    sender: line.host === false ? '连线' : '主播',
+    ...(tags.length && { tags }),
+    text: line.text,
+  };
 }
 
 /**

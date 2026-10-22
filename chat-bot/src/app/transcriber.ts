@@ -1,12 +1,7 @@
-import { guestSingingRecord, speechRecord } from '../core/chat-record';
+import { singingRecord, speechRecord } from '../core/chat-record';
 import { errorMessage } from '../core/errors';
 import { musicRequest, parseMusicLine, type MusicAnswer, type MusicMatch } from '../core/music';
-import {
-  isGuestSinging,
-  parseStatusLine,
-  parseWorkerLine,
-  type Transcript,
-} from '../core/transcript';
+import { isSung, parseStatusLine, parseWorkerLine, type Transcript } from '../core/transcript';
 import type { EventBus } from './event-bus';
 import type { Log, RoomRecord, SpawnWorker, StreamUrl, Worker } from './ports';
 
@@ -18,10 +13,10 @@ export interface TranscriberOptions {
   /** Where each sentence is also recorded, as said by 主播. */
   record?: RoomRecord;
   /**
-   * Where a line a guest sang is also recorded, as `[连线](sing)` (see isGuestSinging): kept for
-   * looking at, read by nothing; everywhere else it's the streamer's.
+   * Where each sung line is also recorded, as whose the speech service took it for (see
+   * singingRecord): kept for looking at, read by nothing; everywhere else it's the streamer's.
    */
-  guestSinging?: Pick<RoomRecord, 'add'>;
+  singing?: Pick<RoomRecord, 'add'>;
   log: Log;
   spawnWorker: SpawnWorker;
   /**
@@ -217,7 +212,7 @@ export class Transcriber {
         if (!line) return;
         transcript.add(line);
         this.options.record?.add(speechRecord(line));
-        if (isGuestSinging(line)) this.options.guestSinging?.add(guestSingingRecord(line));
+        if (isSung(line)) this.options.singing?.add(singingRecord(line));
         const { text: heard, lang, speech, music, speaker, host, voice } = line;
         log.info('heard', { text: heard, lang, speech, music, speaker, host, voice });
         this.options.bus.emit('heard', line);

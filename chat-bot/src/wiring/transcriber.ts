@@ -2,11 +2,11 @@ import { Transcriber } from '../app/transcriber';
 import type { Container } from './container';
 import {
   BUS,
-  GUEST_SINGING,
   LOG,
   OPTIONS,
   RECORD,
   ROOM_API,
+  SINGING,
   SPAWN_WORKER,
   TRANSCRIBER,
   TRANSCRIPT,
@@ -21,7 +21,7 @@ export function registerTranscriber(container: Container): void {
           bus: c.resolve(BUS),
           transcript: c.resolve(TRANSCRIPT),
           record: c.resolve(RECORD),
-          guestSinging: c.resolve(GUEST_SINGING),
+          singing: c.resolve(SINGING),
           log: c.resolve(LOG),
           spawnWorker: c.resolve(SPAWN_WORKER),
         })

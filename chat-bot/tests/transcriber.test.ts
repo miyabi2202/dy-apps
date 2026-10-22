@@ -72,7 +72,9 @@ test('keeps what the worker hears, giving the same worker a fresh stream URL whe
     bus,
     transcript,
     record: chatLog,
-    guestSinging: { add: (record) => sung.push(`${record.sender} ${record.type}`) },
+    singing: {
+      add: (record) => sung.push(`${record.sender} ${record.type} ${record.tags?.join(' ')}`),
+    },
     log: silentLog,
     spawnWorker: ({ onLine }) => {
       const worker = fakeWorker(onLine, (url) => {
@@ -112,12 +114,12 @@ test('keeps what the worker hears, giving the same worker a fresh stream URL whe
       host: false,
     },
   ]);
-  // A guest's singing is the streamer's in the chat record, and kept apart as theirs.
+  // A guest's singing is the streamer's in the chat record, and kept as theirs with the sung lines.
   expect(written).toBe(
     '2026-10-16 08:00:00+00:00 [连线](speech) 从 url-1 听到\n' +
       '2026-10-16 08:00:00+00:00 [主播](sing) 从 url-2 听到\n',
   );
-  expect(sung).toEqual(['连线 sing']);
+  expect(sung).toEqual(['连线 sing 声3']);
 });
 
 test('is ready once the models load, before any stream; and starts a worker that stops again', async () => {
