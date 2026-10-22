@@ -17,6 +17,7 @@ import {
   JEV_CLIENT,
   LYRICS_SEARCH,
   MALICE_WATCH,
+  MCP_SERVER,
   OUTBOX,
   ROOM_API,
   ROOM_EVENTS,
@@ -40,6 +41,8 @@ function build(args: string[] = [], env: { JEV_API_KEY?: string } = { JEV_API_KE
     [
       ...['--room', '123', '--bot-name', '小助手', '--bot-id', 'bot-1', '--send-interval', '0'],
       ...['--data', join(dir, 'data'), '--logs', dir, '--config', join(dir, 'config.json')],
+      // No real server on a real port, unless a test asks for it with --mcp.
+      '--no-mcp',
       ...args,
     ],
     PACKAGE_DIR,
@@ -319,4 +322,32 @@ test("starts filling in the room's room_config.json: an option seeds a missing s
   expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ mentionCost: 2 });
   expect(container.resolve(BILLING).cost).toBe(2);
   expect(warned).toContain('setting from room_config, ignoring option');
+});
+
+test('the bot has identify_song and identify_bgm for Claude by default, and none without --mcp or without listening', () => {
+  const tools = (bot: ReturnType<typeof build>) =>
+    bot.container.resolve(MCP_SERVER)?.open({ asker: 'a', question: '' });
+  const withMcp = build(['--mcp']);
+  // Not started, so it hands out no session; what it offers is what it was built with.
+  expect(withMcp.container.resolve(MCP_SERVER)).not.toBeNull();
+  expect(tools(withMcp)).toBeNull();
+  expect(build().container.resolve(MCP_SERVER)).toBeNull();
+  // Without listening there is no song id to ask and no music to hear: no tools at all.
+  expect(build(['--mcp', '--no-asr']).container.resolve(MCP_SERVER)).toBeNull();
+});
+
+test('the tools server starts with the bot, serves identify_song and identify_bgm, and stops with it', async () => {
+  const bot = build(['--mcp', '--mcp-port', '0']);
+  const app = bot.container.resolve(APP);
+  const started = app.start();
+  await Promise.resolve();
+  bot.workerReady();
+  await started;
+  const session = bot.container.resolve(MCP_SERVER)!.open({ asker: 'a', question: '' })!;
+  expect(session.access.tools).toEqual(['identify_song', 'identify_bgm']);
+  app.stop();
+  await jest
+    .requireActual<typeof import('node:timers/promises')>('node:timers/promises')
+    .setImmediate();
+  expect(bot.container.resolve(MCP_SERVER)!.open({ asker: 'a', question: '' })).toBeNull();
 });

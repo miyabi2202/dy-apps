@@ -13,7 +13,7 @@ export const USAGE =
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 0 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
   '       [--auto-reply-interval 60] [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]\n' +
-  '       [--malice-watch] [--asr-port 8758] [--no-lyrics-search]';
+  '       [--malice-watch] [--asr-port 8758] [--no-lyrics-search] [--no-mcp] [--mcp-port 0]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -60,6 +60,10 @@ export interface CliOptions {
   asrPort: number;
   /** Name songs from NetEase's lyrics search before asking Codex. */
   lyricsSearch: boolean;
+  /** Offer Claude the bot's tools (identify_song…) while it answers an @. */
+  mcp: boolean;
+  /** The local port of the tools' server; 0 lets the OS pick a free one. */
+  mcpPort: number;
 }
 
 /** `args` (without node and the script) as options, or null when they're unusable. */
@@ -117,12 +121,18 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'asr-port': { type: 'string', default: '8758' },
       // /识歌 and /自动识歌 search the lyrics on NetEase first; --no-lyrics-search always asks Codex.
       'lyrics-search': { type: 'boolean', default: true },
+      // Claude may call the bot's tools (identify_song, identify_bgm) while answering; the server
+      // listens on 127.0.0.1 only, on a free port unless --mcp-port says one.
+      mcp: { type: 'boolean', default: true },
+      'mcp-port': { type: 'string', default: '0' },
     },
   });
   const roomId = values.room ?? '';
   const port = parsePort(values.port);
   const botName = values['bot-name'];
-  if (!isRoomId(roomId) || port === null || !botName) return null;
+  // 0 is allowed here (the OS picks a port), unlike room-feed's.
+  const mcpPort = values['mcp-port'] === '0' ? 0 : parsePort(values['mcp-port']);
+  if (!isRoomId(roomId) || port === null || mcpPort === null || !botName) return null;
   const given: Partial<Settings> = {
     ...(values.test
       ? { mentionCost: 0 }
@@ -178,5 +188,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     given,
     asrPort: Number(values['asr-port']),
     lyricsSearch: values['lyrics-search'],
+    mcp: values.mcp,
+    mcpPort,
   };
 }

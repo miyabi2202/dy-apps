@@ -22,6 +22,7 @@ import {
   FEED,
   LOG,
   MALICE_WATCH,
+  MCP_SERVER,
   OPTIONS,
   OUTBOX,
   PROMPTS_DIR,
@@ -54,6 +55,8 @@ export function registerBot(container: Container): void {
         maxPending: options.maxPending,
         maxReplyLength: options.maxReplyLength,
         bus: c.resolve(BUS),
+        // Its tools resolve the song id and the transcriber, not the answerer: no cycle.
+        tools: c.resolve(MCP_SERVER) ?? undefined,
         // 「以后 100 钻以下的礼物不用谢了」 and the like: run the command if they may. The bot is made after
         // this, and asked only when an answer has come.
         onCommandRequest: (mention, name, args) =>

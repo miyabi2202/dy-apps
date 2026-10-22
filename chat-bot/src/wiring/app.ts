@@ -1,3 +1,4 @@
+import { errorMessage } from '../core/errors';
 import { whenRoomFeedGone } from '../app/room-feed';
 import type { Container } from './container';
 import {
@@ -8,6 +9,7 @@ import {
   BOT_CONFIG,
   DOWNLOADS,
   LOG,
+  MCP_SERVER,
   ON_SING,
   OPTIONS,
   ROOM,
@@ -41,6 +43,7 @@ export function registerApp(container: Container): void {
     const bot = c.resolve(BOT);
     const autoReply = c.resolve(AUTO_REPLY);
     const transcriber = c.resolve(TRANSCRIBER);
+    const mcp = c.resolve(MCP_SERVER);
     const wallet = c.resolve(WALLET);
     const admins = c.resolve(ADMINS);
     const room = c.resolve(ROOM);
@@ -73,6 +76,10 @@ export function registerApp(container: Container): void {
           autoSongId: settings.autoSongId,
         });
         void transcriber?.run();
+        // Without it Claude has no tools (the server's `open` gives none), and answers as before.
+        await mcp?.start().catch((err: unknown) => {
+          log.warn('could not start the mcp server', { error: errorMessage(err) });
+        });
         await transcriber?.ready();
         if (!stopping) {
           bot.start();
@@ -85,6 +92,7 @@ export function registerApp(container: Container): void {
         bot.stop();
         transcriber?.stop({ quitService: quitSpeech });
         autoReply.stop();
+        void mcp?.stop();
         wallet.touch();
       },
       onRoomFeedGone(handler) {

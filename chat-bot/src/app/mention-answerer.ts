@@ -15,7 +15,7 @@ import { done, failed, type Command, type PromptOptions } from './command';
 import type { EventBus } from './event-bus';
 import type { Outbox } from './outbox';
 import { Pending } from './pending';
-import type { AskModel, Log, UserTalk } from './ports';
+import type { AskModel, BotTools, Log, UserTalk } from './ports';
 import type { RoomState } from './room-state';
 
 /**
@@ -93,7 +93,16 @@ export interface MentionAnswererOptions {
   /** Mentions waiting for Claude beyond this are dropped, so a busy room can't pile up a
    * backlog nobody remembers asking. */
   maxPending?: number;
+  /**
+   * The bot's own tools (identify_song…), which Claude may call while answering with the usual
+   * prompt; never for a command's own prompt. Each question gets its own session, closed when
+   * the answer is done.
+   */
+  tools?: BotTools;
 }
+
+/** An answer that may call tools can run longer than one that can't. */
+const TOOLS_TIMEOUT_MS = 300_000;
 
 /**
  * Answers mentions: the question and the chat before it go to Claude, and the answer joins the
@@ -214,6 +223,18 @@ export class MentionAnswerer {
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, room, log, promptTemplate, userTalk } = this.options;
     const limits = this.options.room.replyLimits(this.maxLength);
+    // The usual prompt answers in MENTION_ANSWER_SCHEMA; a command's own prompt, as it says,
+    // or in MESSAGE_SCHEMA (MESSAGES_SCHEMA when it may @ others too).
+    const usual = mention.template === undefined;
+    // Only the usual prompt's answer gets the tools: a command has its own way to do its job.
+    const session =
+      (usual &&
+        this.options.tools?.open({
+          asker: mention.asker,
+          userId: mention.userId,
+          question: mention.question,
+        })) ||
+      null;
     try {
       const transcript = room.recentTranscript();
       const prompt = room.prompt(mention.template ?? promptTemplate(), {
@@ -232,9 +253,6 @@ export class MentionAnswerer {
       const image = await room.screenshot(mention.alwaysScreenshot);
       const started = room.now();
       const { tools, maxTurns } = mention;
-      // The usual prompt answers in MENTION_ANSWER_SCHEMA; a command's own prompt, as it says,
-      // or in MESSAGE_SCHEMA (MESSAGES_SCHEMA when it may @ others too).
-      const usual = mention.template === undefined;
       const schema = usual
         ? MENTION_ANSWER_SCHEMA
         : mention.jsonMessage
@@ -248,12 +266,22 @@ export class MentionAnswerer {
         tools,
         maxTurns,
         ...(schema && { schema }),
+        ...(session && { botTools: session.access, timeoutMs: TOOLS_TIMEOUT_MS }),
       });
-      log.info('claude answered', { answer: raw, ms: room.now() - started, image: !!image });
+      const used = session?.used() ?? [];
+      log.info('claude answered', {
+        answer: raw,
+        ms: room.now() - started,
+        image: !!image,
+        ...(used.length && { tools: used }),
+      });
       const answer = schema ? parseMentionAnswer(raw).message : raw;
       if (usual) {
         const { command, args } = parseMentionAnswer(raw);
-        if (command && this.options.onCommandRequest?.(mention, command, args)) {
+        if (command && session?.replaces(command)) {
+          // Claude already did that job with its tool and wrote the reply: send it.
+          log.info('command request ignored, the tool did it', { command });
+        } else if (command && this.options.onCommandRequest?.(mention, command, args)) {
           if (mention.userId) {
             const { asker: nickname, question } = mention;
             const asked = `（要调用指令 /${command}${args ? ` ${args}` : ''}）`;
@@ -319,6 +347,8 @@ export class MentionAnswerer {
         error: errorMessage(err),
       });
       this.refund(mention);
+    } finally {
+      session?.close();
     }
   }
 }

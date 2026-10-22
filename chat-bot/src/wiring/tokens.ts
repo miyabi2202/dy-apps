@@ -14,6 +14,7 @@ import type { Command } from '../app/command';
 import type { EventBus } from '../app/event-bus';
 import type { GiftThanker } from '../app/gift-thanker';
 import type { MaliceWatch } from '../app/malice-watch';
+import type { BotMcpServer } from '../mcp/server';
 import type { MentionAnswerer } from '../app/mention-answerer';
 import type { OnSing } from '../app/on-sing';
 import type { Outbox } from '../app/outbox';
@@ -124,6 +125,9 @@ export const MALICE_WATCH = token<MaliceWatch | null>('maliceWatch');
 
 // transcriber.ts: null with --no-asr.
 export const TRANSCRIBER = token<Transcriber | null>('transcriber');
+
+// mcp.ts: the bot's tools for Claude; null with --no-mcp or when there are none.
+export const MCP_SERVER = token<BotMcpServer | null>('mcpServer');
 
 // bot.ts: the mentions' answerer, the commands and the bot.
 export const ANSWERER = token<MentionAnswerer>('answerer');
