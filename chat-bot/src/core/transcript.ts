@@ -12,7 +12,10 @@ export interface TranscriptLine {
   /** How much it sounds like speech and like music, 0–1; a song, sung or played, scores high on music. */
   speech?: number;
   music?: number;
-  /** Which voice said it, numbered as heard; unknown for a sentence too short or sung. */
+  /**
+   * Which voice said it, numbered as heard (voices heard singing are told apart from those heard
+   * talking); unknown for a sentence too short.
+   */
   speaker?: number;
   /** Whether that voice is the streamer's rather than someone they're linked up with (连线). */
   host?: boolean;

@@ -21,6 +21,11 @@ dependencies = [
 # Not on PyPI; pinned to a commit.
 fireredasr2s = { git = "https://github.com/FireRedTeam/FireRedASR2S", rev = "4e7d9aaf4482a47cec1724807026b9b151926eb5" }
 
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
 [tool.uv]
 # fireredasr2s pins exact versions of these (torch==2.10.0, …); ours win.
 override-dependencies = ["torch>=2.4", "torchaudio>=2.4", "transformers>=4.40", "numpy"]

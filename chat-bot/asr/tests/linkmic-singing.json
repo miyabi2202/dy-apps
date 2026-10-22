@@ -1,0 +1,18 @@
+{
+  "about": "A link-up (连线) in room 812790489357 on 2026-10-22, recorded from 08:07:33 (+08:00) for 9 min: the guest sings two lines of a Chinese song a cappella, then the streamer sings Adele's Easy On Me over backing music, then the two talk. Times are seconds into the recording.",
+  "recording": "812790489357/recordings/linkmic-singing-20261022-110733.aac",
+  "sung": [
+    {
+      "from": 70,
+      "to": 92,
+      "who": "guest",
+      "lyrics": "不对剩自己在流泪我想念你我恨自己错过爱你但说不出口你说太累所以是谁惹的祸是我爱你但说不出口"
+    },
+    {
+      "from": 127,
+      "to": 190,
+      "who": "host",
+      "lyrics": "THERE AIN'T NO GOLD IN THIS RIVER THAT I'VE BEEN WASHING MY HANDS IN FOREVER I KNOW THERE AIN'T …"
+    }
+  ]
+}

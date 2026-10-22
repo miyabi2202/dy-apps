@@ -16,8 +16,9 @@ whoever they're linked up with (连线). Each sentence is printed to stdout as o
 "ja", "ko", …), null for a sentence under 2 s, which skips it and is taken for Mandarin (only a
 sentence LID is at least 0.8 sure is Japanese or Korean goes to SenseVoiceSmall); `speech` and `music` are AST's 0–1 scores. `speaker` numbers the voices heard so
 far, `host` says whether it's the streamer's (see Voices), and `voice` is how close it was to that
-voice (null for a new one); all three are null for a sentence too short or sung, whose voiceprint
-can't be trusted. FireRedASR2-AED's text has no punctuation; SenseVoiceSmall's has. Logs go to
+voice (null for a new one); all three are null for a sentence too short for a voiceprint. Sung
+sentences are sorted among the voices heard singing, apart from those heard talking (a singing
+voice doesn't match the same person's talking one), numbered with them. FireRedASR2-AED's text has no punctuation; SenseVoiceSmall's has. Logs go to
 stderr. Audio never touches the disk: only the sentence being spoken, and the last 15 s for
 naming the music, are held in memory.
 
@@ -58,6 +59,7 @@ import asyncio
 import collections
 import contextlib
 import io
+import itertools
 import json
 import logging
 import os
@@ -102,7 +104,10 @@ SAME_VOICE = 0.6
 # Shorter sentences give voiceprints too rough to sort.
 MIN_VOICE_SECONDS = 1.5
 # Below this speech score a line is sung (as in the bot's transcript.ts); singing changes a voice
-# too much for its voiceprint to match the same person talking.
+# too much for its voiceprint to match the same person talking (on a link-up, the streamer's
+# singing scored 0.33 against her talking and 0.28 against the guest's), so the two are sorted
+# apart. Sung lines of one singer scored 0.66–0.93 against that singer and 0.28–0.42 against
+# another, so the same SAME_VOICE sorts them.
 SUNG_BELOW_SPEECH = 0.2
 # On music the decoder can get stuck repeating a character; a sentence can't hold more than this
 # many tokens a second (Mandarin is about 4–6 characters a second, quick singing a bit more).
@@ -245,49 +250,68 @@ class VoiceClassifier:
         return round(float(scores[self.speech].max()), 2), round(float(scores[self.music].max()), 2)
 
 
-class Voices:
+class VoiceSet:
     """
-    Tells voices apart as they come: each sentence's CAM++ voiceprint joins the closest voice heard
-    so far if it's close enough (moving that voice's average towards it), or starts a new voice.
-    The streamer is the first voice heard, until another has been heard for more than twice as
-    long: a guest speaking first is soon corrected, but an even back-and-forth doesn't keep
-    swapping who's who.
+    Voices told apart as they come: each voiceprint joins the closest voice heard so far if it's
+    close enough (moving that voice's average towards it), or starts a new voice. The streamer is
+    the first voice heard, until another has been heard for more than twice as long: a guest heard
+    first is soon corrected, but an even back-and-forth doesn't keep swapping who's who.
     """
 
-    def __init__(self, same_voice: float):
+    def __init__(self, same_voice: float, new_id):
         self.same_voice = same_voice
-        # Small enough for the CPU, which leaves the GPU to the recognizer.
-        self.model = AutoModel(model="cam++", device="cpu", disable_update=True, log_level="ERROR")
+        self.new_id = new_id
         self.centroids: list[np.ndarray] = []
         self.seconds: list[float] = []
+        self.ids: list[int] = []
         self.host: int | None = None
 
-    def __call__(
-        self, audio: np.ndarray, speech: float, lang: str | None
-    ) -> tuple[int | None, bool | None, float | None]:
-        seconds = len(audio) / RATE
-        # Japanese and Korean here are almost always lyrics, sung over music that can score as
-        # speech: one such line heard first once became "the streamer", and her talking the guest's.
-        if seconds < MIN_VOICE_SECONDS or speech < SUNG_BELOW_SPEECH or lang in SENSEVOICE_LANGS:
-            return None, None, None
-        embedding = self.model.generate(input=audio, disable_pbar=True)[0]["spk_embedding"]
-        voiceprint = embedding.reshape(-1).float().cpu().numpy()
-        voiceprint /= np.linalg.norm(voiceprint)
+    def add(self, voiceprint: np.ndarray, seconds: float) -> tuple[int, bool, float | None]:
+        """Which voice `voiceprint` is (its number), whether it's the streamer's, and how close."""
         similarities = [float(c @ voiceprint) for c in self.centroids]
         best = int(np.argmax(similarities)) if similarities else -1
         if best < 0 or similarities[best] < self.same_voice:
             self.centroids.append(voiceprint)
             self.seconds.append(seconds)
-            speaker, similarity = len(self.centroids) - 1, None
+            self.ids.append(self.new_id())
+            voice, similarity = len(self.centroids) - 1, None
         else:
             weight = self.seconds[best]
             centroid = self.centroids[best] * weight + voiceprint * seconds
             self.centroids[best] = centroid / np.linalg.norm(centroid)
             self.seconds[best] += seconds
-            speaker, similarity = best, round(similarities[best], 2)
-        if self.host is None or self.seconds[speaker] > 2 * self.seconds[self.host]:
-            self.host = speaker
-        return speaker, speaker == self.host, similarity
+            voice, similarity = best, round(similarities[best], 2)
+        if self.host is None or self.seconds[voice] > 2 * self.seconds[self.host]:
+            self.host = voice
+        return self.ids[voice], voice == self.host, similarity
+
+
+class Voices:
+    """
+    Tells voices apart by their CAM++ voiceprints (see VoiceSet), the streamer's from whoever
+    they're linked up with: the voices heard talking, and apart from them those heard singing.
+    """
+
+    def __init__(self, same_voice: float, model: AutoModel | None = None):
+        # Small enough for the CPU, which leaves the GPU to the recognizer.
+        self.model = model or AutoModel(model="cam++", device="cpu", disable_update=True, log_level="ERROR")
+        ids = itertools.count()
+        self.talking = VoiceSet(same_voice, lambda: next(ids))
+        self.singing = VoiceSet(same_voice, lambda: next(ids))
+
+    def __call__(
+        self, audio: np.ndarray, speech: float, lang: str | None
+    ) -> tuple[int | None, bool | None, float | None]:
+        seconds = len(audio) / RATE
+        if seconds < MIN_VOICE_SECONDS:
+            return None, None, None
+        embedding = self.model.generate(input=audio, disable_pbar=True)[0]["spk_embedding"]
+        voiceprint = embedding.reshape(-1).float().cpu().numpy()
+        voiceprint /= np.linalg.norm(voiceprint)
+        # Japanese and Korean here are almost always lyrics, sung over music that can score as
+        # speech: one such line once became "the streamer" talking, and her talking the guest's.
+        sung = speech < SUNG_BELOW_SPEECH or lang in SENSEVOICE_LANGS
+        return (self.singing if sung else self.talking).add(voiceprint, seconds)
 
 
 def load_models(
