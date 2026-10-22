@@ -1,0 +1,22 @@
+{
+  "name": "@dy-apps/lyrics-search",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Names a song from the lines sung, with NetEase's lyrics search, and its singer only when one clearly owns it.",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "jest -c jest.config.js"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.16.13",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.5.2",
+    "typescript": "~6.0.3"
+  },
+  "dependencies": {
+    "opencc-js": "^1.4.2"
+  }
+}

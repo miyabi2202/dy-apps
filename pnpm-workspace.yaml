@@ -3,6 +3,7 @@ packages:
   - chat-bot
   - room-feed
   - room-feed-protocol
+  - lyrics-search
 
 allowBuilds:
   '@parcel/watcher': true

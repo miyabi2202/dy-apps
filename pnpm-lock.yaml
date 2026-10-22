@@ -44,6 +44,9 @@ importers:
 
   chat-bot:
     dependencies:
+      '@dy-apps/lyrics-search':
+        specifier: workspace:*
+        version: link:../lyrics-search
       '@dy-apps/room-feed-protocol':
         specifier: workspace:*
         version: link:../room-feed-protocol
@@ -157,6 +160,28 @@ importers:
       vite:
         specifier: ^8.3.2
         version: 8.3.2(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)
+
+  lyrics-search:
+    dependencies:
+      opencc-js:
+        specifier: ^1.4.2
+        version: 1.4.2
+    devDependencies:
+      '@swc/core':
+        specifier: ^1.16.13
+        version: 1.16.13
+      '@swc/jest':
+        specifier: ^0.2.39
+        version: 0.2.39(@swc/core@1.16.13)
+      '@types/jest':
+        specifier: ^30.0.0
+        version: 30.0.0
+      jest:
+        specifier: ^30.5.2
+        version: 30.5.2(@types/node@26.6.3)
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
 
   room-feed:
     dependencies:
@@ -3033,6 +3058,9 @@ packages:
   open@10.2.0:
     resolution: {integrity: sha512-YgBpdJHPyQ2UE5x+hlSXcnejzAvD0b22U2OuAP+8OnlJT+PjWPxtgmGqKKc+RgTM63U9gN0YzrYc71R2WT/hTA==}
     engines: {node: '>=18'}
+
+  opencc-js@1.4.2:
+    resolution: {integrity: sha512-EdcspgdROiCCZDM+jZR6Pa670xW+EW2QhctPBQ8gRjg6lrx4IHEl+2s+kt5izk/TkxVRgdWuFgaGkaEdIUfdaw==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -6561,6 +6589,8 @@ snapshots:
       define-lazy-prop: 3.0.0
       is-inside-container: 1.0.0
       wsl-utils: 0.1.0
+
+  opencc-js@1.4.2: {}
 
   optionator@0.9.4:
     dependencies:
