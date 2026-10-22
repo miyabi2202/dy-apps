@@ -35,6 +35,8 @@ export interface ClaudeCliOptions {
 
 /** The zoom server's tool, as Claude Code names an MCP tool. */
 const ZOOM_TOOL = 'mcp__zoom__zoom';
+/** The bot's own MCP server (src/mcp/), whose tools are `mcp__bot__<tool>`. */
+const BOT_SERVER = 'bot';
 
 /** Tools that read files: never pre-approved, so they stay inside the working directories. */
 const FILE_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead']);
@@ -81,7 +83,7 @@ export function resultFrom(output: string): string {
  * `claude -p`, with the question as a stream-json message on stdin so it can carry an image.
  * Chat is untrusted, so the run gets only the listed tools (web search and fetch, and reading `readDirs`,
  * by default), no saved session, and no MCP server but `zoom` (which only reads the screenshot),
- * for a question with one.
+ * for a question with one, and the bot's own (which a question gets only when asked to).
  */
 export function claudeCli({
   command = 'claude',
@@ -99,7 +101,8 @@ export function claudeCli({
     const allowed = question.tools ?? tools;
     const preApproved = [
       ...allowed.filter((tool) => !FILE_TOOLS.has(tool)),
-      ...(mcpConfig ? [ZOOM_TOOL] : []),
+      ...(zoom && question.image ? [ZOOM_TOOL] : []),
+      ...(question.botTools?.tools.map((tool) => `mcp__${BOT_SERVER}__${tool}`) ?? []),
     ].join(',');
     const readsFiles = allowed.some((tool) => FILE_TOOLS.has(tool));
     return [
@@ -125,15 +128,31 @@ export function claudeCli({
   };
   return (question) =>
     new Promise((resolve, reject) => {
-      // The screenshot, and the config that starts the zoom server on it, in a folder of their own.
-      const dir = zoom && question.image ? mkdtempSync(join(tmpdir(), 'chat-bot-zoom-')) : null;
+      // The MCP servers' config (the zoom server started on the screenshot, and the bot's tools,
+      // reached with this question's token) and the screenshot, in a folder of their own.
+      const { botTools } = question;
+      const zooming = zoom && question.image ? { zoom, image: question.image } : null;
+      const dir = zooming || botTools ? mkdtempSync(join(tmpdir(), 'chat-bot-mcp-')) : null;
       let mcpConfig: string | null = null;
-      if (dir && zoom && question.image) {
-        const screenshot = join(dir, 'screenshot.jpg');
-        writeFileSync(screenshot, question.image);
+      if (dir) {
+        const mcpServers: Record<string, object> = {};
+        if (zooming) {
+          const screenshot = join(dir, 'screenshot.jpg');
+          writeFileSync(screenshot, zooming.image);
+          mcpServers.zoom = {
+            command: zooming.zoom.command,
+            args: [...zooming.zoom.args, screenshot],
+          };
+        }
+        if (botTools) {
+          mcpServers[BOT_SERVER] = {
+            type: 'http',
+            url: botTools.url,
+            headers: { Authorization: `Bearer ${botTools.token}` },
+          };
+        }
         mcpConfig = join(dir, 'mcp.json');
-        const server = { command: zoom.command, args: [...zoom.args, screenshot] };
-        writeFileSync(mcpConfig, JSON.stringify({ mcpServers: { zoom: server } }));
+        writeFileSync(mcpConfig, JSON.stringify({ mcpServers }));
       }
       const cleanUp = () => dir && rmSync(dir, { recursive: true, force: true });
       let child: ReturnType<typeof spawn>;
@@ -148,10 +167,11 @@ export function claudeCli({
       }
       let stdout = '';
       let stderr = '';
+      const limitMs = question.timeoutMs ?? timeoutMs;
       const timer = setTimeout(() => {
         child.kill();
-        reject(new Error(`claude timed out after ${timeoutMs} ms`));
-      }, timeoutMs);
+        reject(new Error(`claude timed out after ${limitMs} ms`));
+      }, limitMs);
       child.stdout?.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
       child.stderr?.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
       child.on('error', (err) => {

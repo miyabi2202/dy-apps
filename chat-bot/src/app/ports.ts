@@ -86,6 +86,43 @@ export interface Question {
   schema?: object;
   /** Why it's asked, for the log (`alias`, `judge`…); the models ignore it. */
   why?: string;
+  /** The bot's own tools for this question (see BotTools): Claude may call them. Codex ignores it. */
+  botTools?: ToolAccess;
+  /** Give up after this long, when not the model's usual limit (a question with tools may wait on one). */
+  timeoutMs?: number;
+}
+
+/** Where Claude reaches the bot's tools for one question, and the tools it may call. */
+export interface ToolAccess {
+  url: string;
+  /** Only for this question: it stops working when the answer is done. */
+  token: string;
+  /** The tool names. */
+  tools: readonly string[];
+}
+
+/** Who asked and what, so a tool knows whom it works for. */
+export interface ToolContext {
+  /** The asker's nickname as given (`苦***` in a 私密 room). */
+  asker: string;
+  /** The asker's user id as the adapter gives it (`111111-苦***-31` in a 私密 room). */
+  userId?: string;
+  question: string;
+}
+
+/** One question's tools, open until `close()`. */
+export interface ToolSession {
+  access: ToolAccess;
+  /** The tools Claude called so far, in order. */
+  used(): string[];
+  /** Whether Claude already called the tool doing what the bot command `command` does. */
+  replaces(command: string): boolean;
+  close(): void;
+}
+
+/** The bot's tools for Claude (an MCP server, src/mcp/): a session for one question, or null when there are none. */
+export interface BotTools {
+  open(context: ToolContext): ToolSession | null;
 }
 
 /**
