@@ -1,7 +1,12 @@
-import { speechRecord } from '../core/chat-record';
+import { guestSingingRecord, speechRecord } from '../core/chat-record';
 import { errorMessage } from '../core/errors';
 import { musicRequest, parseMusicLine, type MusicAnswer, type MusicMatch } from '../core/music';
-import { parseStatusLine, parseWorkerLine, type Transcript } from '../core/transcript';
+import {
+  isGuestSinging,
+  parseStatusLine,
+  parseWorkerLine,
+  type Transcript,
+} from '../core/transcript';
 import type { EventBus } from './event-bus';
 import type { Log, RoomRecord, SpawnWorker, StreamUrl, Worker } from './ports';
 
@@ -12,6 +17,11 @@ export interface TranscriberOptions {
   transcript: Transcript;
   /** Where each sentence is also recorded, as said by 主播. */
   record?: RoomRecord;
+  /**
+   * Where a line a guest sang is also recorded, as `[连线](sing)` (see isGuestSinging): kept for
+   * looking at, read by nothing; everywhere else it's the streamer's.
+   */
+  guestSinging?: Pick<RoomRecord, 'add'>;
   log: Log;
   spawnWorker: SpawnWorker;
   /**
@@ -207,6 +217,7 @@ export class Transcriber {
         if (!line) return;
         transcript.add(line);
         this.options.record?.add(speechRecord(line));
+        if (isGuestSinging(line)) this.options.guestSinging?.add(guestSingingRecord(line));
         const { text: heard, lang, speech, music, speaker, host, voice } = line;
         log.info('heard', { text: heard, lang, speech, music, speaker, host, voice });
         this.options.bus.emit('heard', line);

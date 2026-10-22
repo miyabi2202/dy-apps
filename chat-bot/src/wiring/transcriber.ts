@@ -2,6 +2,7 @@ import { Transcriber } from '../app/transcriber';
 import type { Container } from './container';
 import {
   BUS,
+  GUEST_SINGING,
   LOG,
   OPTIONS,
   RECORD,
@@ -20,6 +21,7 @@ export function registerTranscriber(container: Container): void {
           bus: c.resolve(BUS),
           transcript: c.resolve(TRANSCRIPT),
           record: c.resolve(RECORD),
+          guestSinging: c.resolve(GUEST_SINGING),
           log: c.resolve(LOG),
           spawnWorker: c.resolve(SPAWN_WORKER),
         })

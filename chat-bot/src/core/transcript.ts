@@ -23,9 +23,18 @@ export interface TranscriptLine {
   voice?: number;
 }
 
-/** Whether someone the streamer is linked up with (连线) said it, as far as voices tell. */
+/**
+ * Whether someone the streamer is linked up with (连线) said it, as far as voices tell. A sung line
+ * is the streamer's here whatever its voice: who sang isn't acted on yet, only kept apart (see
+ * isGuestSinging).
+ */
 export function isGuest(line: TranscriptLine): boolean {
-  return line.host === false;
+  return line.host === false && !isSung(line);
+}
+
+/** Whether a voice other than the streamer's sang it, as the speech service tells singers apart. */
+export function isGuestSinging(line: TranscriptLine): boolean {
+  return line.host === false && isSung(line);
 }
 
 /**

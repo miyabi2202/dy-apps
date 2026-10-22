@@ -20,10 +20,13 @@ test('a song is the sung lines since the last pause, once at least 3 of the last
   expect(song?.lines).toEqual(lines);
   expect(song?.start).toBe(7000);
 
-  // Too few sung lines yet, a spoken line, and a guest's sung one are no song.
+  // Too few sung lines yet, a spoken line, and a guest's spoken one are no song.
   expect(singingSong(lines.slice(0, 2), lines[1]!)).toBeNull();
   expect(singingSong([...lines, line(26, false)], line(26, false))).toBeNull();
-  expect(singingSong([...lines, line(26, true, false)], line(26, true, false))).toBeNull();
+  expect(singingSong([...lines, line(26, false, false)], line(26, false, false))).toBeNull();
+  // A line another voice sang is still the streamer's song: who sang isn't acted on yet.
+  const guestSang = line(26, true, false);
+  expect(singingSong([...lines, guestSang], guestSang)?.lines).toEqual([...lines, guestSang]);
 });
 
 test('a song after a long pause starts a new one, and the same one counts again after a while', () => {

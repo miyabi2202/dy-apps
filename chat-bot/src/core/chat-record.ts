@@ -52,6 +52,11 @@ export function speechRecord(line: TranscriptLine): ChatRecord {
   };
 }
 
+/** A line a guest sang (see isGuestSinging), as `[连线](sing)`. */
+export function guestSingingRecord(line: TranscriptLine): ChatRecord {
+  return { type: 'sing', sender: '连线', text: line.text };
+}
+
 /**
  * One record as one line, short to keep Claude's reading cheap, its time in `timeZone` (the
  * room's) with the offset:

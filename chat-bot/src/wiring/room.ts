@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { forbiddenWordsOf } from '../core/forbidden';
 import { join, resolve } from 'node:path';
-import { ChatLog } from '../adapters/chat-log-files';
+import { ChatLog, RecordFile } from '../adapters/chat-log-files';
 import { liveAdmins, readConfig } from '../adapters/config-file';
 import { liveAdditionalCommands } from '../adapters/additional-command-files';
 import {
@@ -45,6 +45,7 @@ import {
   PROMPTS_DIR,
   FORBIDDEN_WORDS,
   PROMPT,
+  GUEST_SINGING,
   RECORD,
   ROOM,
   ROOM_API,
@@ -81,6 +82,14 @@ export function registerRoom(container: Container): void {
       const roomConfig = c.resolve(ROOM_CONFIG);
       // Its times in the streamer's time zone, with the offset, so a model reading it needn't convert.
       return new ChatLog(c.resolve(CHAT_DIR), { timeZone: () => roomConfig().timeZone });
+    })
+    // What a guest sang, as the speech service tells singers apart (sing.txt): only kept, to see
+    // how well that works; the chat record and the prompts still have it as the streamer's.
+    .register(GUEST_SINGING, (c) => {
+      const roomConfig = c.resolve(ROOM_CONFIG);
+      return new RecordFile(join(c.resolve(ROOM_DIR), 'sing.txt'), {
+        timeZone: () => roomConfig().timeZone,
+      });
     })
     .register(ROOM_FILES, (c) => roomFiles(c.resolve(ROOM_DIR)))
     // The room's room_config.json, read again when it changes: whether it's a 私密 room, and what

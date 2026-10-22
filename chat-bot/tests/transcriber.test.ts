@@ -45,18 +45,19 @@ const sentence = (url: string) =>
     end: 102.5,
     text: `从 ${url} 听到`,
     // The first stream's line is said in Mandarin by someone linked up with the streamer, the
-    // second's is a Japanese song (so there's no telling whose voice).
+    // second's is a Japanese song they sing.
     lang: url === 'url-2' ? 'ja' : 'zh',
     speech: url === 'url-2' ? 0.05 : 0.9,
     music: url === 'url-2' ? 0.9 : 0.05,
-    speaker: url === 'url-2' ? null : 1,
-    host: url === 'url-2' ? null : false,
+    speaker: url === 'url-2' ? 3 : 1,
+    host: false,
     voice: null,
   });
 
 test('keeps what the worker hears, giving the same worker a fresh stream URL when one ends', async () => {
   const transcript = new Transcript(Infinity);
   let written = '';
+  const sung: string[] = [];
   const chatLog = new ChatLog('/data/chat/1', {
     now: () => Date.UTC(2026, 9, 16, 8, 0, 0),
     append: (_path, text) => (written += text),
@@ -71,6 +72,7 @@ test('keeps what the worker hears, giving the same worker a fresh stream URL whe
     bus,
     transcript,
     record: chatLog,
+    guestSinging: { add: (record) => sung.push(`${record.sender} ${record.type}`) },
     log: silentLog,
     spawnWorker: ({ onLine }) => {
       const worker = fakeWorker(onLine, (url) => {
@@ -106,12 +108,16 @@ test('keeps what the worker hears, giving the same worker a fresh stream URL whe
       lang: 'ja',
       speech: 0.05,
       music: 0.9,
+      speaker: 3,
+      host: false,
     },
   ]);
+  // A guest's singing is the streamer's in the chat record, and kept apart as theirs.
   expect(written).toBe(
     '2026-10-16 08:00:00+00:00 [连线](speech) 从 url-1 听到\n' +
       '2026-10-16 08:00:00+00:00 [主播](sing) 从 url-2 听到\n',
   );
+  expect(sung).toEqual(['连线 sing']);
 });
 
 test('is ready once the models load, before any stream; and starts a worker that stops again', async () => {

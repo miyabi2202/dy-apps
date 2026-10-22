@@ -96,6 +96,7 @@ export const TRANSCRIPT = token<Transcript>('transcript');
 export const WALLET = token<Wallet>('wallet');
 export const BILLING = token<Billing>('billing');
 export const RECORD = token<RoomRecord>('record');
+export const GUEST_SINGING = token<Pick<RoomRecord, 'add'>>('guestSinging');
 export const BOT_TALK = token<BotTalk>('botTalk');
 export const USER_TALK = token<UserTalk>('userTalk');
 export const ADDITIONAL_COMMANDS = token<() => AdditionalCommand[]>('additionalCommands');

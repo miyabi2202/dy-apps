@@ -11,7 +11,8 @@ const now = () => 600_000;
 function setUp(answer: string) {
   const transcript = new Transcript(30 * 60_000, now);
   transcript.add({ start: 500_000, end: 503_000, text: '给你幸福的是我', speech: 0.05 });
-  transcript.add({ start: 504_000, end: 506_000, text: '谁在唱', speech: 0.05, host: false });
+  // A guest talking, which is no part of the song.
+  transcript.add({ start: 504_000, end: 506_000, text: '谁在唱', speech: 0.8, host: false });
   const room = new RoomState({
     history: new ChatHistory(10),
     transcript,

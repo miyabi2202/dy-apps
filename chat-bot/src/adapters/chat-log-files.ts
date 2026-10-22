@@ -46,3 +46,27 @@ export class ChatLog implements RoomRecord {
     this.lines = (this.lines + 1) % this.perFile;
   }
 }
+
+/** Records, in the chat record's format, all in one file at `path`, one a line. */
+export class RecordFile {
+  private readonly now: () => number;
+  private readonly timeZone: () => string | undefined;
+  private readonly append: (path: string, text: string) => void;
+
+  constructor(
+    readonly path: string,
+    {
+      now = Date.now,
+      timeZone = () => undefined,
+      append = appendFileSync,
+    }: Omit<ChatLogOptions, 'perFile'> = {},
+  ) {
+    this.now = now;
+    this.timeZone = timeZone;
+    this.append = append;
+  }
+
+  add(record: ChatRecord): void {
+    this.append(this.path, formatRecord(record, this.now(), this.timeZone()) + '\n');
+  }
+}
