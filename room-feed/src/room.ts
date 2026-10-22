@@ -1,5 +1,5 @@
 import { normalize } from './douyin/normalize';
-import type { RawProtoMessage } from './douyin/proto';
+import { isStreamEnd, type RawProtoMessage } from './douyin/proto';
 import type {
   RoomEvent,
   RoomGoneReason,
@@ -262,6 +262,11 @@ export class Room {
       this.log(`[room-feed] 已连上直播间 ${this.roomId} 的弹幕`);
     }
     for (const message of messages) {
+      if (isStreamEnd(message)) {
+        // Douyin's own word, before the page reopens on whatever room it moves on to.
+        void this.end('直播已结束', 'ended');
+        return;
+      }
       const event = normalize(message, this.roomId, this.now());
       if (!event) {
         this.onDropped?.(message);

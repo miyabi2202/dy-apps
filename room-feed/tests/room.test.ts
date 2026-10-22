@@ -194,6 +194,38 @@ describe('Room', () => {
     expect(opens()).toBe(1);
   });
 
+  it('stops for good when Douyin says the stream has ended, before the chat socket closes', async () => {
+    const control = protobuf
+      .parse(
+        `syntax = "proto3";
+         message ControlMessage { Common common = 1; int64 status = 2; }
+         message Common { string method = 1; uint64 roomId = 3; }`,
+      )
+      .root.lookupType('ControlMessage');
+    const status = (n: number): RawProtoMessage => ({
+      method: 'WebcastControlMessage',
+      msgId: String(n),
+      payload: control.encode({ common: { method: 'WebcastControlMessage' }, status: n }).finish(),
+    });
+    const { clock, pages, room, events, gone, log, opens } = setup();
+    room.start();
+    await clock.advance(0);
+    // Another status (a pause, say) changes nothing.
+    pages[0]!.handlers.onPush([status(1), chat('1', '你好')]);
+    expect(gone).toEqual([]);
+    pages[0]!.handlers.onPush([status(3), chat('2', '还在吗')]);
+    await clock.advance(0);
+
+    expect(gone).toEqual(['ended']);
+    expect(events.map((e) => e.type === 'chat' && e.data.content)).toEqual(['你好']);
+    expect(pages[0]!.closed).toBe(true);
+    expect(log).toContain('[room-feed] 直播已结束，不再重新打开直播间');
+    // The page closing as it ends doesn't reopen it on whatever room Douyin moves on to.
+    pages[0]!.handlers.onClosed('弹幕连接断开');
+    await clock.advance(10 * 60_000);
+    expect(opens()).toBe(1);
+  });
+
   it('stops for good when the page shows another room', async () => {
     const { clock, pages, room, gone, statuses } = setup();
     room.start();

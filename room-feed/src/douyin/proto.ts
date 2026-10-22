@@ -112,6 +112,12 @@ message LikeMessage {
   uint64 total = 3;
   User user = 5;
 }
+// The stream's state changing: status 3 is the stream having ended (as on 2026-10-22, when it
+// came right before the chat socket closed and the room page moved on to another live room).
+message ControlMessage {
+  Common common = 1;
+  int64 status = 2;
+}
 // Every body starts with Common: decoding just it gives any message's room.
 message Envelope {
   Common common = 1;
@@ -250,6 +256,17 @@ export function decodeMessageBody(msg: RawProtoMessage): DecodedMessage | null {
     return { method: msg.method, msgId: msg.msgId, body: lookup(typeName).decode(msg.payload) };
   } catch {
     return null;
+  }
+}
+
+/** Whether `msg` is Douyin saying the stream has ended (a ControlMessage with status 3). */
+export function isStreamEnd(msg: RawProtoMessage): boolean {
+  if (msg.method !== 'WebcastControlMessage') return false;
+  try {
+    const body = lookup('ControlMessage').decode(msg.payload) as any;
+    return longToStr(body.status) === '3';
+  } catch {
+    return false;
   }
 }
 
