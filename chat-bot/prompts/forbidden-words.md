@@ -26,32 +26,12 @@ Words the bot must never say in a room: Douyin quietly holds back a message with
 
 ## Countries
 
-- 中国
 - 日本
 - 韩国
 - 南韩
 - 朝鲜
 - 北韩
 - 美国
-- 英国
-- 法国
-- 德国
-- 意大利
-- 西班牙
 - 俄罗斯
 - 乌克兰
 - 印度
-- 巴基斯坦
-- 越南
-- 泰国
-- 新加坡
-- 马来西亚
-- 菲律宾
-- 印度尼西亚
-- 伊朗
-- 以色列
-- 巴勒斯坦
-- 土耳其
-- 加拿大
-- 澳大利亚
-- 巴西
