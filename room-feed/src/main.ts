@@ -8,12 +8,16 @@ import { fileURLToPath } from 'node:url';
 import { findChrome } from './chrome';
 import { parseCliOptions, USAGE } from './cli-options';
 import { login } from './login';
+import { droppedLogIn } from './dropped-log';
 import { LoginFile } from './login-file';
 import { Room } from './room';
 import { ChromeRooms } from './room-page';
 import { createRoomFeedServer } from './server';
 
-/** room-feed/data/: the saved login, the login window's Chrome profile and screenshots (not in git). */
+/**
+ * room-feed/data/: the saved login, the login window's Chrome profile, screenshots and the messages
+ * it doesn't decode (`dropped/<房间号>/`), none of it in git.
+ */
 const DATA_DIR = fileURLToPath(new URL('../data/', import.meta.url));
 
 async function main(): Promise<number> {
@@ -57,7 +61,12 @@ async function main(): Promise<number> {
   // Exit code 0 on a signal or when the stream has ended, 1 when the page showed another room.
   let gone: (code: number) => void = () => {};
   const stopped = new Promise<number>((resolve) => (gone = resolve));
-  const room = new Room({ roomId: options.roomId, open: chromeRooms.open });
+  const dropped = droppedLogIn(join(DATA_DIR, 'dropped', options.roomId));
+  const room = new Room({
+    roomId: options.roomId,
+    open: chromeRooms.open,
+    onDropped: (message) => dropped.add(message),
+  });
   const feed = createRoomFeedServer(room, { login: () => loginFile.read() });
   // After the server's own listener, which tells the clients why first.
   room.onGone((_why, reason) => gone(reason === 'ended' ? 0 : 1));
