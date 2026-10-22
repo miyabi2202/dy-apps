@@ -1,0 +1,79 @@
+import { handleRpc, newSession, type BotTool } from '../../src/mcp/rpc';
+
+function setup() {
+  const calls: { args: Record<string, unknown>; asker: string; userId?: string }[] = [];
+  const tool: BotTool = {
+    name: 'identify_song',
+    description: '认歌',
+    inputSchema: { type: 'object', properties: {} },
+    command: '识歌',
+    call: (args, { asker, userId }) => {
+      calls.push({ args, asker, userId });
+      return Promise.resolve({ text: `第 ${calls.length} 次` });
+    },
+  };
+  const session = newSession({ asker: '苦***', userId: '111111-苦***-31', question: '这是什么歌' });
+  const rpc = (message: object) =>
+    handleRpc({ jsonrpc: '2.0', ...message }, [tool], session) as Promise<{
+      result?: { content?: { text: string }[]; isError?: boolean; [key: string]: unknown };
+      error?: { code: number };
+    }>;
+  return { rpc, calls, session };
+}
+
+test('initialize echoes the client protocol version; notifications get no answer', async () => {
+  const { rpc } = setup();
+  const answer = await rpc({
+    id: 1,
+    method: 'initialize',
+    params: { protocolVersion: '2025-03-26' },
+  });
+  expect(answer.result).toMatchObject({
+    protocolVersion: '2025-03-26',
+    capabilities: { tools: {} },
+  });
+  expect(await rpc({ method: 'notifications/initialized' })).toBeNull();
+});
+
+test('lists its tools with their descriptions and schemas', async () => {
+  const { rpc } = setup();
+  const answer = await rpc({ id: 2, method: 'tools/list' });
+  expect(answer.result?.tools).toEqual([
+    { name: 'identify_song', description: '认歌', inputSchema: { type: 'object', properties: {} } },
+  ]);
+});
+
+test('a call runs the tool with the question’s context, once: a repeat gets the first result', async () => {
+  const { rpc, calls, session } = setup();
+  const call = (id: number) =>
+    rpc({ id, method: 'tools/call', params: { name: 'identify_song', arguments: { hint: '嗯' } } });
+
+  expect((await call(3)).result?.content).toEqual([{ type: 'text', text: '第 1 次' }]);
+  expect((await call(4)).result?.content).toEqual([{ type: 'text', text: '第 1 次' }]);
+  expect(calls).toEqual([{ args: { hint: '嗯' }, asker: '苦***', userId: '111111-苦***-31' }]);
+  expect(session.used).toEqual(['identify_song']);
+});
+
+test('an unknown tool is an error result Claude can read; an unknown method is -32601', async () => {
+  const { rpc } = setup();
+  const unknown = await rpc({ id: 5, method: 'tools/call', params: { name: 'nope' } });
+  expect(unknown.result).toMatchObject({ isError: true });
+  expect(unknown.result?.content?.[0]?.text).toContain('nope');
+  expect((await rpc({ id: 6, method: 'resources/list' })).error?.code).toBe(-32601);
+});
+
+test('a tool that throws is an error result, not a failed request', async () => {
+  const session = newSession({ asker: 'a', question: '' });
+  const broken: BotTool = {
+    name: 'broken',
+    description: '',
+    inputSchema: {},
+    call: () => Promise.reject(new Error('boom')),
+  };
+  const answer = (await handleRpc(
+    { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'broken' } },
+    [broken],
+    session,
+  )) as { result: { isError: boolean } };
+  expect(answer.result.isError).toBe(true);
+});

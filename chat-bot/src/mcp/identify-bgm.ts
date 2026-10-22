@@ -1,5 +1,5 @@
 import { errorMessage } from '../core/errors';
-import type { MusicMatch } from '../core/music';
+import type { MusicMatch } from '../core/songs/music';
 import type { Log } from '../app/ports';
 import type { BotTool } from './rpc';
 

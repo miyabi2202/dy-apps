@@ -1,10 +1,10 @@
 import { resolve } from 'node:path';
-import { livePrompt } from '../adapters/room-files';
-import { ChatBot } from '../app/chat-bot';
-import { MentionAnswerer } from '../app/mention-answerer';
-import { musicCommand } from '../app/music-command';
-import { screenshotCommand } from '../app/room-state';
-import { solveCommand } from '../app/solve-command';
+import { livePrompt } from '../adapters/files/room-files';
+import { ChatBot } from '../app/replies/chat-bot';
+import { MentionAnswerer } from '../app/replies/mention-answerer';
+import { musicCommand } from '../app/commands/music-command';
+import { screenshotCommand } from '../app/room/room-state';
+import { solveCommand } from '../app/commands/solve-command';
 import type { Container } from './container';
 import {
   ADDITIONAL_COMMANDS,

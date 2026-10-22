@@ -3,11 +3,11 @@
  * CLI, files and processes; tests pass fakes.
  */
 import type { SongGuess } from '@dy-apps/lyrics-search';
-import type { AdditionalCommandEntry } from '../core/additional-command';
-import type { ChatRecord } from '../core/chat-record';
-import type { Gift, IncomingChat } from '../core/room-events';
-import type { Settings } from '../core/settings';
-import type { Exchange } from '../core/talk-record';
+import type { AdditionalCommandEntry } from '../core/commands/additional-command';
+import type { ChatRecord } from '../core/chat/chat-record';
+import type { Gift, IncomingChat } from '../core/chat/room-events';
+import type { Settings } from '../core/commands/settings';
+import type { Exchange } from '../core/chat/talk-record';
 
 /** The room's settings, kept in its room_config.json: read each time (so a hand edit counts), and written when something changes one. */
 export interface SettingsStore {

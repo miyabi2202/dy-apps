@@ -1,5 +1,5 @@
-import { AutoReply } from '../app/auto-reply';
-import { GiftThanker } from '../app/gift-thanker';
+import { AutoReply } from '../app/replies/auto-reply';
+import { GiftThanker } from '../app/replies/gift-thanker';
 import type { AskModel } from '../app/ports';
 import type { Container } from './container';
 import {

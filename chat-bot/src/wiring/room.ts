@@ -1,9 +1,9 @@
 import { mkdirSync } from 'node:fs';
-import { forbiddenWordsOf } from '../core/forbidden';
+import { forbiddenWordsOf } from '../core/prompts/forbidden';
 import { join, resolve } from 'node:path';
-import { ChatLog, RecordFile } from '../adapters/chat-log-files';
-import { liveAdmins, readConfig } from '../adapters/config-file';
-import { liveAdditionalCommands } from '../adapters/additional-command-files';
+import { ChatLog, RecordFile } from '../adapters/files/chat-log-files';
+import { liveAdmins, readConfig } from '../adapters/files/config-file';
+import { liveAdditionalCommands } from '../adapters/files/additional-command-files';
 import {
   fillRoomConfig,
   roomConfigFile,
@@ -14,18 +14,18 @@ import {
   liveWording,
   roomFiles,
   saveStreamer,
-} from '../adapters/room-files';
-import { botTalkFile, userTalkFiles } from '../adapters/room-talk-files';
-import { Billing } from '../app/billing';
+} from '../adapters/files/room-files';
+import { botTalkFile, userTalkFiles } from '../adapters/files/room-talk-files';
+import { Billing } from '../app/commands/billing';
 import { EventBus } from '../app/event-bus';
-import { Outbox } from '../app/outbox';
-import { RoomFeed } from '../app/room-feed';
-import { RoomState } from '../app/room-state';
-import { StreamerAdmin } from '../app/streamer-admin';
-import { ChatHistory } from '../core/chat-history';
-import { RecentGifts } from '../core/recent-gifts';
-import { Transcript } from '../core/transcript';
-import { Wallet } from '../core/wallet';
+import { Outbox } from '../app/replies/outbox';
+import { RoomFeed } from '../app/room/room-feed';
+import { RoomState } from '../app/room/room-state';
+import { StreamerAdmin } from '../app/commands/streamer-admin';
+import { ChatHistory } from '../core/chat/chat-history';
+import { RecentGifts } from '../core/chat/recent-gifts';
+import { Transcript } from '../core/songs/transcript';
+import { Wallet } from '../core/viewers/wallet';
 import type { Container } from './container';
 import {
   ADDITIONAL_COMMANDS,

@@ -4,13 +4,13 @@ import { join } from 'node:path';
 import { LyricsSearch } from '@dy-apps/lyrics-search';
 import { RoomFeedClient } from '@dy-apps/room-feed-protocol';
 import { connectWorker } from '../adapters/asr-worker';
-import { claudeCli } from '../adapters/claude-cli';
-import { codexCli } from '../adapters/codex-cli';
-import { roomFeedEvents } from '../adapters/room-feed-events';
-import { RoomFeedApi } from '../adapters/room-feed-api';
-import { jev } from '../adapters/jev';
-import { readDownloads, runDownloads } from '../adapters/room-downloads';
-import { jsonFileStorage } from '../adapters/wallet-file';
+import { claudeCli } from '../adapters/models/claude-cli';
+import { codexCli } from '../adapters/models/codex-cli';
+import { roomFeedEvents } from '../adapters/room-feed/room-feed-events';
+import { RoomFeedApi } from '../adapters/room-feed/room-feed-api';
+import { jev } from '../adapters/models/jev';
+import { readDownloads, runDownloads } from '../adapters/files/room-downloads';
+import { jsonFileStorage } from '../adapters/files/wallet-file';
 import type { Container } from './container';
 import {
   CHAT_DIR,
@@ -101,11 +101,11 @@ export function registerAdapters(container: Container): void {
 
 /**
  * With a screenshot, Claude and Codex may zoom into part of it to read small figures and text
- * (src/adapters/zoom-mcp.ts, an MCP server cropping with ffmpeg).
+ * (src/adapters/models/zoom-mcp.ts, an MCP server cropping with ffmpeg).
  */
 export function zoomServer(packageDir: string) {
   return {
     command: join(packageDir, 'node_modules', '.bin', 'tsx'),
-    args: [join(packageDir, 'src', 'adapters', 'zoom-mcp.ts')],
+    args: [join(packageDir, 'src', 'adapters', 'models', 'zoom-mcp.ts')],
   };
 }

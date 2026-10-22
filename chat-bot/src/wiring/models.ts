@@ -1,4 +1,4 @@
-import { timedAsk, timedJudge } from '../app/timed-models';
+import { timedAsk, timedJudge } from '../app/models/timed-models';
 import type { Container } from './container';
 import { zoomServer } from './adapters';
 import {

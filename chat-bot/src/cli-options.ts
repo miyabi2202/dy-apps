@@ -2,9 +2,9 @@ import { DEFAULT_PORT } from '@dy-apps/room-feed-protocol';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { isRoomId, parsePort } from '@dy-apps/room-feed-protocol';
-import { DOUYIN_CHAT_LIMIT } from './core/reply';
-import { SETTING_DEFAULTS, type Settings } from './core/settings';
-import { DEFAULT_TRANSCRIPT_WINDOW_MS } from './core/transcript';
+import { DOUYIN_CHAT_LIMIT } from './core/replies/reply';
+import { SETTING_DEFAULTS, type Settings } from './core/commands/settings';
+import { DEFAULT_TRANSCRIPT_WINDOW_MS } from './core/songs/transcript';
 
 export const USAGE =
   `Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port ${DEFAULT_PORT}]\n` +

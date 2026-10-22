@@ -1,4 +1,4 @@
-import { Transcriber } from '../app/transcriber';
+import { Transcriber } from '../app/songs/transcriber';
 import type { Container } from './container';
 import {
   BUS,

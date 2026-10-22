@@ -1,5 +1,5 @@
 import { errorMessage } from '../core/errors';
-import { whenRoomFeedGone } from '../app/room-feed';
+import { whenRoomFeedGone } from '../app/room/room-feed';
 import type { Container } from './container';
 import {
   ADMINS,

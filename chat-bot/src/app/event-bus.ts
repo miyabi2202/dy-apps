@@ -1,6 +1,6 @@
 import { errorMessage } from '../core/errors';
-import type { Gift, IncomingChat } from '../core/room-events';
-import type { TranscriptLine } from '../core/transcript';
+import type { Gift, IncomingChat } from '../core/chat/room-events';
+import type { TranscriptLine } from '../core/songs/transcript';
 import type { Log } from './ports';
 
 /** The events of a room, by name, and what each comes with. */

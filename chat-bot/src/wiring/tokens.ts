@@ -2,22 +2,22 @@
  * Every token of the bot's container, by the area that registers it (see the `register…` in each
  * module here). A test swaps the adapters' for fakes.
  */
-import type { CodexCliOptions } from '../adapters/codex-cli';
-import type { RoomFeedApi } from '../adapters/room-feed-api';
-import type { RoomConfig, RoomFiles, roomConfigFile } from '../adapters/room-files';
-import type { BotConfig } from '../adapters/config-file';
-import type { AutoReply } from '../app/auto-reply';
-import type { AutoSongId } from '../app/auto-song-id';
-import type { Billing } from '../app/billing';
-import type { ChatBot } from '../app/chat-bot';
-import type { Command } from '../app/command';
+import type { CodexCliOptions } from '../adapters/models/codex-cli';
+import type { RoomFeedApi } from '../adapters/room-feed/room-feed-api';
+import type { RoomConfig, RoomFiles, roomConfigFile } from '../adapters/files/room-files';
+import type { BotConfig } from '../adapters/files/config-file';
+import type { AutoReply } from '../app/replies/auto-reply';
+import type { AutoSongId } from '../app/songs/auto-song-id';
+import type { Billing } from '../app/commands/billing';
+import type { ChatBot } from '../app/replies/chat-bot';
+import type { Command } from '../app/commands/command';
 import type { EventBus } from '../app/event-bus';
-import type { GiftThanker } from '../app/gift-thanker';
-import type { MaliceWatch } from '../app/malice-watch';
+import type { GiftThanker } from '../app/replies/gift-thanker';
+import type { MaliceWatch } from '../app/replies/malice-watch';
 import type { BotMcpServer } from '../mcp/server';
-import type { MentionAnswerer } from '../app/mention-answerer';
-import type { OnSing } from '../app/on-sing';
-import type { Outbox } from '../app/outbox';
+import type { MentionAnswerer } from '../app/replies/mention-answerer';
+import type { OnSing } from '../app/songs/on-sing';
+import type { Outbox } from '../app/replies/outbox';
 import type {
   AdditionalCommand,
   AskModel,
@@ -31,18 +31,18 @@ import type {
   SpawnWorker,
   UserTalk,
 } from '../app/ports';
-import type { RoomFeed } from '../app/room-feed';
-import type { RoomState } from '../app/room-state';
-import type { SongId } from '../app/song-id';
-import type { SongIntro } from '../app/song-intro';
-import type { StreamerAdmin } from '../app/streamer-admin';
-import type { Transcriber } from '../app/transcriber';
+import type { RoomFeed } from '../app/room/room-feed';
+import type { RoomState } from '../app/room/room-state';
+import type { SongId } from '../app/songs/song-id';
+import type { SongIntro } from '../app/songs/song-intro';
+import type { StreamerAdmin } from '../app/commands/streamer-admin';
+import type { Transcriber } from '../app/songs/transcriber';
 import type { CliOptions } from '../cli-options';
-import type { ChatHistory } from '../core/chat-history';
-import type { RecentGifts } from '../core/recent-gifts';
-import type { Transcript } from '../core/transcript';
-import type { Wallet, WalletStorage } from '../core/wallet';
-import type { PromptName } from '../adapters/room-files';
+import type { ChatHistory } from '../core/chat/chat-history';
+import type { RecentGifts } from '../core/chat/recent-gifts';
+import type { Transcript } from '../core/songs/transcript';
+import type { Wallet, WalletStorage } from '../core/viewers/wallet';
+import type { PromptName } from '../adapters/files/room-files';
 import type { App } from './app';
 import { token } from './container';
 

@@ -1,7 +1,7 @@
-import { AutoSongId, SONG_CHARS } from '../app/auto-song-id';
-import { OnSing } from '../app/on-sing';
-import { SongId } from '../app/song-id';
-import { SongIntro } from '../app/song-intro';
+import { AutoSongId, SONG_CHARS } from '../app/songs/auto-song-id';
+import { OnSing } from '../app/songs/on-sing';
+import { SongId } from '../app/songs/song-id';
+import { SongIntro } from '../app/songs/song-intro';
 import type { Container } from './container';
 import {
   ASK_CLAUDE,

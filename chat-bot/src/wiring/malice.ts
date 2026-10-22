@@ -1,4 +1,4 @@
-import { MaliceWatch } from '../app/malice-watch';
+import { MaliceWatch } from '../app/replies/malice-watch';
 import type { Container } from './container';
 import {
   ADMINS,
