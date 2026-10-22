@@ -161,9 +161,9 @@ export class RoomState {
   }
 
   /**
-   * Has `part`, read each time, in `{{settings}}`: a feature gives what it keeps there (how much an
-   * @ costs, say), which admins may change while the bot runs. Without any, there's no settings
-   * text at all.
+   * Has `part`, read each time, in `{{settings}}`: a feature gives what it keeps there (the
+   * auto-reply threshold, say), which admins may change while the bot runs. Without any, there's
+   * no settings text at all.
    */
   addSettings(part: () => SettingsPart): void {
     this.settingsParts.push(part);

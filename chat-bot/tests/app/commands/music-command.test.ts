@@ -4,7 +4,7 @@ import { silentLog } from '../../support/fakes';
 const run = (identify: Parameters<typeof musicCommand>[0]) =>
   musicCommand(identify, silentLog).run?.('');
 
-test('says what is playing, and fails (to be refunded) when nothing is found or it cannot look', async () => {
+test('says what is playing, and fails when nothing is found or it cannot look', async () => {
   await expect(
     run(() => Promise.resolve({ title: 'Aimaimoko', artist: 'Inori Minase' })),
   ).resolves.toEqual({

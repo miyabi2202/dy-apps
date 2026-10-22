@@ -6,8 +6,8 @@ import type { Log } from '../ports';
 /**
  * `/识别背景音乐`: names the music playing in the stream from its last 15 s of audio, by its
  * fingerprint (see Transcriber.identifyMusic), so it finds the original recording playing in the
- * background even under the streamer's talk. For anyone, at a mention's price, refunded when
- * nothing is found. `/识歌` is the one for what the streamer sings themselves.
+ * background even under the streamer's talk. For anyone. `/识歌` is the one for what the streamer
+ * sings themselves.
  */
 export function musicCommand(identify: () => Promise<MusicMatch | null>, log: Log): Command {
   return {

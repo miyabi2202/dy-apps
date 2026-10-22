@@ -27,8 +27,8 @@ export function registerAutoReply(container: Container): void {
     // Joins in when Jev scores something said in the room as about the bot at
     // --auto-reply-threshold or more (/自动回复阈值 changes it), or when someone it just answered
     // says something. Once Jev finds something about the bot, Codex (the cheap model, no web
-    // search) picks whom to answer, and each is answered like a mention (charged, with their own
-    // talk.txt; the streamer's too, by their uid). Without Codex there's no judge either, so the
+    // search) picks whom to answer, and each is answered like a mention (with their own talk.txt;
+    // the streamer's too, by their uid). Without Codex there's no judge either, so the
     // picker is never asked.
     .register(AUTO_REPLY, (c) => {
       const options = c.resolve(OPTIONS);

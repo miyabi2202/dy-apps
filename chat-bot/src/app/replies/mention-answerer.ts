@@ -126,24 +126,23 @@ export class MentionAnswerer {
   }
 
   /**
-   * Queues a mention for Claude; false when the queue is full and it was dropped. A `fixedReply`
-   * isn't queued: it's sent at once, with no model asked.
+   * Queues a mention for Claude, dropped when the queue is full. A `fixedReply` isn't queued:
+   * it's sent at once, with no model asked.
    */
-  ask(mention: Mention): boolean {
+  ask(mention: Mention): void {
     if (mention.fixedReply !== undefined) {
       this.sendFixed(mention, mention.fixedReply);
-      return true;
+      return;
     }
     if (this.pending.length >= this.maxPending) {
       this.options.log.warn('too many waiting, dropping one', {
         asker: mention.asker,
         question: mention.question,
       });
-      return false;
+      return;
     }
     this.pending.push(mention);
     this.drain();
-    return true;
   }
 
   /** Resolves once Claude has answered every queued mention. */

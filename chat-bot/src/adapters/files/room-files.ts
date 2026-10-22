@@ -74,9 +74,9 @@ const ROOM_FIELDS = {
 };
 
 /**
- * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and `wallet.json`): an
- * empty `context.md` and a default `room_config.json` created when missing, `bot_logs.md`, and a `<user id>/` folder for each
- * viewer the bot talked with. The prompts are shared by every room (see PROMPT_FILES); a room
+ * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/`): an empty `context.md`
+ * and a default `room_config.json` created when missing, `bot_logs.md`, and a `<user id>/` folder
+ * for each viewer the bot talked with. The prompts are shared by every room (see PROMPT_FILES); a room
  * only has its own when someone puts one there to override it.
  */
 export function roomFiles(dir: string): RoomFiles {

@@ -21,7 +21,7 @@ export interface ChatBotOptions {
   answerer: Pick<MentionAnswerer, 'ask' | 'idle'>;
   /** The chat before a question goes with it to the answerer. */
   room: Pick<RoomState, 'recentChat' | 'replyLimits' | 'recentTranscript'>;
-  /** Where notices and command replies go to be sent, spaced out. */
+  /** Where command replies go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
   log: Log;
   /** User ids of the admins: only they can run the admin-only commands. */

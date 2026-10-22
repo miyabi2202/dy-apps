@@ -7,15 +7,15 @@ test('an answer that is not JSON is the message itself', () => {
 test('reads the message, and the command asked for without its slash', () => {
   expect(
     parseMentionAnswer(
-      JSON.stringify({ message: '好的', command_request: '/修改收费', command_args: ' 2 ' }),
+      JSON.stringify({ message: '好的', command_request: '/自动谢礼', command_args: ' 100 ' }),
     ),
-  ).toEqual({ message: '好的', command: '修改收费', args: '2' });
+  ).toEqual({ message: '好的', command: '自动谢礼', args: '100' });
   expect(
     parseMentionAnswer(JSON.stringify({ message: '你好', command_request: '', command_args: '' })),
   ).toEqual({ message: '你好', command: '', args: '' });
 });
 
 test('JSON without a message is taken whole as the message', () => {
-  const text = JSON.stringify({ command_request: '修改收费' });
+  const text = JSON.stringify({ command_request: '自动谢礼' });
   expect(parseMentionAnswer(text)).toEqual({ message: text, command: '', args: '' });
 });

@@ -270,19 +270,19 @@ test('ignores commands from anyone but an admin, and answers bad ones with how t
   const admin = (name: string): Command => ({
     name,
     adminOnly: true,
-    run: () => ({ ok: false, reply: '收费要写成钻石数，用法：/修改收费 2' }),
+    run: () => ({ ok: false, reply: '阈值要写成钻石数，用法：/自动谢礼 100' }),
   });
-  const commands = ['截图', '修改收费', '自动回复阈值', '自动谢礼'].map(admin);
+  const commands = ['截图', '最大回复条数', '自动回复阈值', '自动谢礼'].map(admin);
   const { settle, say, prompts, sent } = setup({ admins: ['u-管理'], commands });
-  say(chat('阿明', '@小助手 /修改收费 0'));
-  say(chat('管理', '@小助手 /修改收费 两钻'));
+  say(chat('阿明', '@小助手 /自动谢礼 0'));
+  say(chat('管理', '@小助手 /自动谢礼 两钻'));
   say(chat('管理', '@小助手 /删库'));
   await settle();
 
   expect(prompts).toEqual([]);
   expect(sent).toEqual([
-    '@管理 收费要写成钻石数，用法：/修改收费 2',
-    '@管理 没有指令「删库」，可用的有：截图、修改收费、自动回复阈值、自动谢礼',
+    '@管理 阈值要写成钻石数，用法：/自动谢礼 100',
+    '@管理 没有指令「删库」，可用的有：截图、最大回复条数、自动回复阈值、自动谢礼',
   ]);
 });
 

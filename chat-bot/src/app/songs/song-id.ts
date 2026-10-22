@@ -189,7 +189,7 @@ export class SongId {
     if (introduce) this.options.onTold?.(song);
   }
 
-  /** `/识歌`, for anyone at a mention's price. */
+  /** `/识歌`, for anyone. */
   commands(): Command[] {
     return [
       {

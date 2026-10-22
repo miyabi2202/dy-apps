@@ -46,7 +46,7 @@ frontend/                 # @dy-apps/frontend: the one package
     storybook/            #   ui stories
   tsconfig.json           #   stays here so editors and ESLint find it
 chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (see "Chat bot" below)
-  commands.md             #   every /command: who may run it, price, where it's defined, how to add one
+  commands.md             #   every /command: who may run it, where it's defined, how to add one
   prompts/                #   every text the models are sent, read on every use
     prompt.md             #     the prompt sent to Claude: {{history}}, {{transcript}}, {{asker}}, {{question}}, …
     song-id.md            #     the prompt for /识歌 (Codex)
@@ -65,12 +65,12 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   config.json             #   admins (user ids) and what viewers call them (adminNames)
   src/main.ts             #   entry: options (cli-options.ts), the container built, started and stopped
   src/wiring/             #   the IoC container (container.ts) and what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot)
-  src/core/               #   pure logic: mentions, prompt, reply splitting, wallet, chat record and talk record formats
-  src/app/                #   use cases: ChatBot (commands, charging), RoomFeed (chat and gifts in), MentionAnswerer (questions to Claude), RoomState (what prompts know about the room), Billing, Outbox, Transcriber; ports.ts for the outside
+  src/core/               #   pure logic: mentions, prompt, reply splitting, viewer ids, chat record and talk record formats
+  src/app/                #   use cases: ChatBot (commands), RoomFeed (chat and gifts in), MentionAnswerer (questions to Claude), RoomState (what prompts know about the room), Outbox, Transcriber; ports.ts for the outside
   src/adapters/           #   room-feed, the Claude CLI, the ASR process, files and logging
   src/mcp/                #   the bot's tools for Claude, an MCP server in the bot's process (rpc.ts, server.ts, identify-song.ts, identify-bgm.ts)
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + CAM++
-  logs/  data/            #   winston logs; data/<房间号>/ per room: room_config.json, context.md, personas/, additional_commands/, chat/, <user id>/, bot_logs.md, wallet.json (not in git)
+  logs/  data/            #   winston logs; data/<房间号>/ per room: room_config.json, context.md, personas/, additional_commands/, chat/, <user id>/, bot_logs.md (not in git)
 room-feed-protocol/       # @dy-apps/room-feed-protocol: room-feed's events and API, and the client that reads them
   src/events.ts           #   chat, gift, like events and the status frames, one JSON object per WebSocket message
   src/api.ts              #   the HTTP API's answers, the default port, the URLs, port and room-number checks

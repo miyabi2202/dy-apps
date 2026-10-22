@@ -1,4 +1,4 @@
-/** A command as a viewer typed it, from a mention like `@机器人/修改收费 2`. */
+/** A command as a viewer typed it, from a mention like `@机器人/截图 1`. */
 export interface CommandCall {
   name: string;
   /** Everything after the name and the space, which may be an ASCII or a full-width one. */

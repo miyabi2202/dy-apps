@@ -59,7 +59,7 @@ function setup(options: SetupOptions = {}) {
   return {
     /** Asks Claude, then waits for the answer and for everything to be sent. */
     ask: async (mention: Partial<Mention> = {}) => {
-      const queued = answerer.ask({
+      answerer.ask({
         asker: '阿明',
         question: '在吗',
         history: [],
@@ -67,7 +67,6 @@ function setup(options: SetupOptions = {}) {
       });
       await answerer.idle();
       await outbox.idle();
-      return queued;
     },
     answerer,
     prompts,
@@ -191,9 +190,9 @@ test('drops what waits beyond the limit, answering the rest in order', async () 
   const mention = (asker: string): Mention => ({ asker, question: '在吗', history: [] });
 
   // The first is with Claude at once, the second waits, the third doesn't fit.
-  expect(answerer.ask(mention('甲'))).toBe(true);
-  expect(answerer.ask(mention('乙'))).toBe(true);
-  expect(answerer.ask(mention('丙'))).toBe(false);
+  answerer.ask(mention('甲'));
+  answerer.ask(mention('乙'));
+  answerer.ask(mention('丙'));
   const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
   await tick();
   finish[0]?.('一');
