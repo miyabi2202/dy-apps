@@ -27,6 +27,16 @@ describe('neteaseClient.searchLyrics', () => {
     expect(call.init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it('searches titles with type 1 and 20 results', async () => {
+    const { fetchFn, calls } = fakeFetch({ code: 200, result: { songs: [] } });
+    await neteaseClient({ fetch: fetchFn }).searchTitle('晴天');
+    expect(Object.fromEntries(calls[0]!.url.searchParams)).toEqual({
+      s: '晴天',
+      type: '1',
+      limit: '20',
+    });
+  });
+
   it('parses the songs into hits', async () => {
     const { fetchFn } = fakeFetch({
       code: 200,

@@ -11,7 +11,7 @@ describe('LyricsSearch.identify', () => {
     const guess = await search.identify(song.lines);
     expect(guess).toMatchObject({ title: '晴天', sure: true });
     expect(guess.artist).toBeUndefined();
-    expect(guess.artistShare).toBeLessThan(0.5);
+    expect(guess.artistShare).toBeLessThan(0.4);
     expect(guess.queries).toHaveLength(5);
     expect(guess.candidates[0]).toMatchObject({ title: '晴天' });
   });
@@ -36,7 +36,7 @@ describe('LyricsSearch.identify', () => {
       [b!]: Object.values(other.responses)[0],
     };
     const search = new LyricsSearch({
-      fetch: recordedFetch({ lines: [a!, b!], responses }),
+      fetch: recordedFetch({ lines: [a!, b!], responses, titles: {} }),
       limit: noLimit,
       minRatio: 5,
     });
@@ -45,6 +45,17 @@ describe('LyricsSearch.identify', () => {
     expect(guess.candidates.length).toBeGreaterThan(1);
     expect(guess.why).toMatch(/^score /);
     expect(guess.artist).toBeUndefined();
+  });
+
+  it('counts the title search for the singer, and only the lyric hits when it fails', async () => {
+    const song = recorded('FIRESTARTER');
+    const withTitles = new LyricsSearch({ fetch: recordedFetch(song), limit: noLimit });
+    expect((await withTitles.identify(song.lines)).artist).not.toBe('Oh_MacyLin');
+    const without = new LyricsSearch({
+      fetch: recordedFetch({ ...song, titles: {} }),
+      limit: noLimit,
+    });
+    expect(await without.identify(song.lines)).toMatchObject({ sure: true, artist: 'Oh_MacyLin' });
   });
 
   it('does not search with fewer than two usable lines', async () => {
@@ -79,7 +90,7 @@ describe('LyricsSearch.identify', () => {
     let clock = 0;
     const now = () => clock;
     const search = new LyricsSearch({
-      fetch: recordedFetch({ lines: song.lines, responses: {} }, (q) => calls.push(q)),
+      fetch: recordedFetch({ lines: song.lines, responses: {}, titles: {} }, (q) => calls.push(q)),
       limit: noLimit,
       now,
       breaker: new CircuitBreaker({ failures: 3, offMs: 600_000, now }),
@@ -106,6 +117,6 @@ describe('LyricsSearch.identify', () => {
       limit: noLimit,
       now: () => clock,
     });
-    expect((await search.identify(song.lines)).ms).toBe(250);
+    expect((await search.identify(song.lines)).ms).toBe(300);
   });
 });

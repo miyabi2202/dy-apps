@@ -1,7 +1,7 @@
 import { rankSingers, pickArtist } from './artist';
 import { CircuitBreaker, minGap } from './limits';
 import { neteaseClient } from './netease';
-import { displayTitle } from './normalise';
+import { displayTitle, normaliseTitle } from './normalise';
 import { lyricQueries } from './queries';
 import type { Hit, RateLimit, SongGuess, SungLine } from './types';
 import { decideTitle, vote } from './vote';
@@ -19,7 +19,7 @@ export interface LyricsSearchOptions {
   minScore?: number;
   /** How many times the runner-up's score the winner needs. */
   minRatio?: number;
-  /** The top singer's least share of the winning title's hits to be named. */
+  /** The top singer's least share of the winning title's lyric and title hits to be named. */
   artistShare?: number;
 }
 
@@ -50,7 +50,7 @@ export class LyricsSearch {
     this.maxQueries = options.maxQueries ?? 5;
     this.minScore = options.minScore ?? 1.0;
     this.minRatio = options.minRatio ?? 1.5;
-    this.artistShare = options.artistShare ?? 0.5;
+    this.artistShare = options.artistShare ?? 0.4;
   }
 
   async identify(lines: readonly SungLine[]): Promise<SongGuess> {
@@ -98,8 +98,12 @@ export class LyricsSearch {
       ms: 0,
     };
     if (decision.sure && winner) {
-      const winnerHits: Hit[] = hitsBy.get(winner[0]) ?? [];
-      const { artist, share } = pickArtist(winnerHits, this.artistShare);
+      const lyricHits: Hit[] = hitsBy.get(winner[0]) ?? [];
+      // One more request, for the singer: a failed one leaves the lyric hits to decide.
+      const titleHits = (await this.client.searchTitle(guess.title).catch(() => [])).filter(
+        (hit) => normaliseTitle(hit.title) === winner[0],
+      );
+      const { artist, share } = pickArtist({ lyricHits, titleHits }, this.artistShare);
       if (artist) guess.artist = artist;
       guess.artistShare = share;
     }

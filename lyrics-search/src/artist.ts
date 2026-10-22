@@ -29,13 +29,18 @@ export function rankSingers(hits: readonly Hit[]): SingerWeight[] {
 }
 
 /**
- * Names the singer only when one clearly owns the song on NetEase: the top singer's share of the
- * lyric hits under the winning title must be at least `share`. Covers rank high and the original
- * often isn't there (every hit for 晴天 is a cover), so a singer named from a crowd is usually
- * wrong; with no clear owner the answer is the title alone.
+ * Names the singer only when one clearly leads: the top singer's share of the hits under the
+ * winning title, counting both the lyric hits and the songs a title search found by that name,
+ * must be at least `share`. Covers rank high in a lyrics search and its index can miss the
+ * original even when NetEase has it (K/DA's FIRESTARTER: the lyrics search finds only covers, the
+ * title search the group's own recordings), so a singer named from lyric hits alone is often a
+ * cover; with no clear leader the answer is the title alone.
  */
-export function pickArtist(hits: readonly Hit[], share = 0.5): { artist?: string; share: number } {
-  const singers = rankSingers(hits);
+export function pickArtist(
+  hits: { lyricHits: readonly Hit[]; titleHits?: readonly Hit[] },
+  share = 0.4,
+): { artist?: string; share: number } {
+  const singers = rankSingers([...hits.lyricHits, ...(hits.titleHits ?? [])]);
   const total = singers.reduce((sum, s) => sum + s.weight, 0);
   const top = singers[0];
   if (!top || total === 0) return { share: 0 };

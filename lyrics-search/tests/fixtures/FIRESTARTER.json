@@ -1,0 +1,828 @@
+{
+  "lines": [
+    "FIRE OH I LIKE A LITTLE DRAMA CAUGHT MY FIREFIGHTER CALL ME CRAZY CALL ME KARMA I GOT YOU BURNING SO HOT YOU'LL BE PACKING UP MY WEATHER I'M A STAR TO FIRE I'M A FIRE STARTER COME ON",
+    "I'M LOOKIN' DOWN LOOKIN' AT THE LIGHTER COUNTIN' IT TO THE ZA UH PUT THE PAINT ON IT TRYNA GUCCI I CAN BE SWEET BUT I GOT GOLD WHEN I'M ON MY KNEES I'M ONLY SHOWING UP FOR A FEE YOU'RE ONLY SHOWING UP FOR THE TEA I'M INSANE",
+    "YEAH I KNOW YOU LIKE IT THAT WAY",
+    "THANK YOU",
+    "I'M A STARBOYEAH OH I LIKE A LITTLE DRAMA QUEEN OF FIREFIGHTER COME AND CRAZY CAUSE I COME AND GOT YOU BURNING SO HOW YOU BE BEGGING FOR WHAT I'M A STARBOYEAH I'M A FIREFIGHTER"
+  ],
+  "responses": {
+    "I'M LOOKIN' DOWN LOOKIN' AT THE": {
+      "code": 200,
+      "result": {
+        "songs": [
+          {
+            "name": "To the Light",
+            "ar": [
+              {
+                "name": "A.CHAL"
+              }
+            ],
+            "pop": 85
+          },
+          {
+            "name": "Looking Through Darkness",
+            "ar": [
+              {
+                "name": "Guru"
+              }
+            ],
+            "pop": 20
+          },
+          {
+            "name": "Alive",
+            "ar": [
+              {
+                "name": "Lil Jon"
+              },
+              {
+                "name": "Offset"
+              },
+              {
+                "name": "2 Chainz"
+              }
+            ],
+            "pop": 85
+          },
+          {
+            "name": "Zombie",
+            "ar": [
+              {
+                "name": "The Neighbourhood"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "Slumber Party",
+            "ar": [
+              {
+                "name": "Nicki Minaj"
+              },
+              {
+                "name": "Gucci Mane"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "King of the Mountain",
+            "ar": [
+              {
+                "name": "Louis II"
+              }
+            ],
+            "pop": 5
+          },
+          {
+            "name": "I'm the One",
+            "ar": [
+              {
+                "name": "Justin Bieber"
+              },
+              {
+                "name": "Lil Wayne"
+              },
+              {
+                "name": "Chance the Rapper"
+              },
+              {
+                "name": "Quavo"
+              },
+              {
+                "name": "DJ Khaled"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "Numb",
+            "ar": [
+              {
+                "name": "Marshmello"
+              },
+              {
+                "name": "Khalid"
+              }
+            ],
+            "pop": 90
+          },
+          {
+            "name": "Absurd",
+            "ar": [
+              {
+                "name": "san ré"
+              }
+            ],
+            "pop": 5
+          },
+          {
+            "name": "To the Light",
+            "ar": [
+              {
+                "name": "A.CHAL"
+              }
+            ],
+            "pop": 15
+          }
+        ]
+      }
+    },
+    "FIRE OH I LIKE A LITTLE DRAMA": {
+      "code": 200,
+      "result": {
+        "songs": [
+          {
+            "name": "FIRESTARTER",
+            "ar": [
+              {
+                "name": "Oh_MacyLin"
+              }
+            ],
+            "pop": 20
+          },
+          {
+            "name": "FIRESTARTER（男声翻唱版）",
+            "ar": [
+              {
+                "name": "么羊"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "Pretty Vanilla",
+            "ar": [
+              {
+                "name": "FRVRFRIDAY"
+              }
+            ],
+            "pop": 15
+          },
+          {
+            "name": "Lock In",
+            "ar": [
+              {
+                "name": "Gemini (제미나이)"
+              },
+              {
+                "name": "Destiny Rogers"
+              }
+            ],
+            "pop": 15
+          },
+          {
+            "name": "Law (Earthlings on Fire)",
+            "ar": [
+              {
+                "name": "David Bowie"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "YoYo",
+            "ar": [
+              {
+                "name": "RESCENE"
+              }
+            ],
+            "pop": 85
+          },
+          {
+            "name": "Lost My Way",
+            "ar": [
+              {
+                "name": "Galen Crew"
+              }
+            ],
+            "pop": 75
+          },
+          {
+            "name": "YoYo",
+            "ar": [
+              {
+                "name": "RESCENE"
+              }
+            ],
+            "pop": 50
+          },
+          {
+            "name": "YoYo (Japanese Version)",
+            "ar": [
+              {
+                "name": "RESCENE"
+              }
+            ],
+            "pop": 30
+          },
+          {
+            "name": "CatNap X DogDay Song (BFFs)",
+            "ar": [
+              {
+                "name": "BENJIxScarlett"
+              }
+            ],
+            "pop": 20
+          }
+        ]
+      }
+    },
+    "I'M A STARBOYEAH OH I LIKE A": {
+      "code": 200,
+      "result": {
+        "songs": [
+          {
+            "name": "Wide Awake",
+            "ar": [
+              {
+                "name": "Alan Wake 2"
+              },
+              {
+                "name": "Jaimes"
+              }
+            ],
+            "pop": 80
+          },
+          {
+            "name": "Love Tease",
+            "ar": [
+              {
+                "name": "i-dle"
+              }
+            ],
+            "pop": 95
+          },
+          {
+            "name": "self-esteem",
+            "ar": [
+              {
+                "name": "Kuzu Mellow"
+              }
+            ],
+            "pop": 90
+          },
+          {
+            "name": "Yearmix 2018",
+            "ar": [
+              {
+                "name": "NEXU"
+              }
+            ],
+            "pop": 95
+          },
+          {
+            "name": "很抱歉（Sorry Bout That Remix）",
+            "ar": [
+              {
+                "name": "Osama"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "Hammer",
+            "ar": [
+              {
+                "name": "Lorde"
+              }
+            ],
+            "pop": 80
+          },
+          {
+            "name": "I Blame You",
+            "ar": [
+              {
+                "name": "Ledisi"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "Popular Monster",
+            "ar": [
+              {
+                "name": "Falling In Reverse"
+              }
+            ],
+            "pop": 90
+          },
+          {
+            "name": "2Pac, Pop Smoke - Write This Down ft. Biggie, DMX, Eazy E, Ice Cube, Dr Dre, NWA, Nipsey, Snoop Dogg",
+            "ar": [
+              {
+                "name": "yeixs"
+              },
+              {
+                "name": "M4RLBORO"
+              },
+              {
+                "name": "Jeroxzy"
+              },
+              {
+                "name": "L1DER INC."
+              },
+              {
+                "name": "lovekillsus"
+              }
+            ],
+            "pop": 80
+          },
+          {
+            "name": "Barbie World (with Aqua)",
+            "ar": [
+              {
+                "name": "Nicki Minaj"
+              },
+              {
+                "name": "Ice Spice"
+              },
+              {
+                "name": "Aqua"
+              }
+            ],
+            "pop": 90
+          }
+        ]
+      }
+    },
+    "YEAH I KNOW YOU LIKE IT THAT": {
+      "code": 200,
+      "result": {
+        "songs": [
+          {
+            "name": "FIRESTARTER",
+            "ar": [
+              {
+                "name": "Oh_MacyLin"
+              }
+            ],
+            "pop": 20
+          },
+          {
+            "name": "FIRESTARTER（男声翻唱版）",
+            "ar": [
+              {
+                "name": "么羊"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "Bout You",
+            "ar": [
+              {
+                "name": "XUITCASECITY"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "Get You",
+            "ar": [
+              {
+                "name": "illkira"
+              }
+            ],
+            "pop": 75
+          },
+          {
+            "name": "Blessed",
+            "ar": [
+              {
+                "name": "Shenseea"
+              },
+              {
+                "name": "Tyga"
+              }
+            ],
+            "pop": 40
+          },
+          {
+            "name": "Like Her Too",
+            "ar": [
+              {
+                "name": "Mario"
+              },
+              {
+                "name": "Sabrina Claudio"
+              }
+            ],
+            "pop": 75
+          },
+          {
+            "name": "miss me",
+            "ar": [
+              {
+                "name": "CREAM"
+              }
+            ],
+            "pop": 25
+          },
+          {
+            "name": "LUV IS WAR",
+            "ar": [
+              {
+                "name": "SheedTs"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "Mona Lisa",
+            "ar": [
+              {
+                "name": "Dominic Fike"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "Back Seat (feat. Lourdiz)",
+            "ar": [
+              {
+                "name": "Saweetie"
+              },
+              {
+                "name": "Lourdiz"
+              }
+            ],
+            "pop": 100
+          }
+        ]
+      }
+    },
+    "THANK YOU": {
+      "code": 200,
+      "result": {
+        "songs": [
+          {
+            "name": "Lonely (Remastered)",
+            "ar": [
+              {
+                "name": "NANA DARKMAN"
+              },
+              {
+                "name": "Booya Family"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "Lonely",
+            "ar": [
+              {
+                "name": "Nana"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "Sins Of The Father",
+            "ar": [
+              {
+                "name": "Daniel Caesar"
+              },
+              {
+                "name": "Bon Iver"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "Fragile",
+            "ar": [
+              {
+                "name": "Tatsuro Y"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "Satisfied",
+            "ar": [
+              {
+                "name": "Renée Elise Goldsberry"
+              },
+              {
+                "name": "Original Broadway Cast of Hamilton"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "bad guy",
+            "ar": [
+              {
+                "name": "Billie Eilish"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "What I Want",
+            "ar": [
+              {
+                "name": "Gregor McMurray"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "RIP",
+            "ar": [
+              {
+                "name": "Croosh"
+              },
+              {
+                "name": "Shiloh Dynasty"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "FRAGILE",
+            "ar": [
+              {
+                "name": "山下達郎"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "Come to Life",
+            "ar": [
+              {
+                "name": "Kanye West"
+              }
+            ],
+            "pop": 100
+          }
+        ]
+      }
+    }
+  },
+  "titles": {
+    "FIRESTARTER": {
+      "code": 200,
+      "result": {
+        "songs": [
+          {
+            "name": "FIRESTARTER",
+            "id": 3450569159,
+            "ar": [
+              {
+                "name": "K/DA"
+              },
+              {
+                "name": "英雄联盟"
+              },
+              {
+                "name": "i-dle"
+              },
+              {
+                "name": "Mimi Webb"
+              },
+              {
+                "name": "Sophie Powers"
+              },
+              {
+                "name": "曺薇娟"
+              },
+              {
+                "name": "田小娟"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "FIRESTARTER",
+            "id": 3451247173,
+            "ar": [
+              {
+                "name": "K/DA"
+              },
+              {
+                "name": "英雄联盟"
+              },
+              {
+                "name": "i-dle"
+              },
+              {
+                "name": "Mimi Webb"
+              },
+              {
+                "name": "Sophie Powers"
+              },
+              {
+                "name": "曺薇娟"
+              },
+              {
+                "name": "田小娟"
+              }
+            ],
+            "pop": 5
+          },
+          {
+            "name": "fire starter",
+            "id": 3412352391,
+            "ar": [
+              {
+                "name": "ridgeclub"
+              }
+            ],
+            "pop": 100
+          },
+          {
+            "name": "Firestarter",
+            "id": 3440717383,
+            "ar": [
+              {
+                "name": "MAN WITH A MISSION"
+              }
+            ],
+            "pop": 55
+          },
+          {
+            "name": "FIRESTARTER（男声翻唱版）",
+            "id": 3451036742,
+            "ar": [
+              {
+                "name": "么羊"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "FIRESTARTER",
+            "id": 3451447749,
+            "ar": [
+              {
+                "name": "Oh_MacyLin"
+              }
+            ],
+            "pop": 20
+          },
+          {
+            "name": "Firestarter",
+            "id": 18933182,
+            "ar": [
+              {
+                "name": "KDrew"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "Firestarter (Empirion Mix)",
+            "id": 19460362,
+            "ar": [
+              {
+                "name": "The Prodigy"
+              }
+            ],
+            "pop": 15
+          },
+          {
+            "name": "Firestarter",
+            "id": 2643241903,
+            "ar": [
+              {
+                "name": "jeonghyeon"
+              },
+              {
+                "name": "KDH"
+              },
+              {
+                "name": "Lack D"
+              }
+            ],
+            "pop": 60
+          },
+          {
+            "name": "FIRESTARTER",
+            "id": 3451853830,
+            "ar": [
+              {
+                "name": "吴加疆"
+              }
+            ],
+            "pop": 5
+          },
+          {
+            "name": "Firestarter (Original Mix)",
+            "id": 29114029,
+            "ar": [
+              {
+                "name": "Rob Gasser"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "Firestarter",
+            "id": 1475904466,
+            "ar": [
+              {
+                "name": "Katali"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "FIRESTARTER (From \"K/DA\") Español",
+            "id": 3451810834,
+            "ar": [
+              {
+                "name": "Homulilly"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "Firestarter",
+            "id": 1952924177,
+            "ar": [
+              {
+                "name": "Da Tweekaz"
+              },
+              {
+                "name": "Crystal Lake"
+              },
+              {
+                "name": "Xception"
+              }
+            ],
+            "pop": 10
+          },
+          {
+            "name": "Firestarter",
+            "id": 3344686018,
+            "ar": [
+              {
+                "name": "EGOEGG"
+              }
+            ],
+            "pop": 20
+          },
+          {
+            "name": "Firestarter",
+            "id": 1825948760,
+            "ar": [
+              {
+                "name": "Garrett Kato"
+              }
+            ],
+            "pop": 70
+          },
+          {
+            "name": "Firestarter",
+            "id": 19460383,
+            "ar": [
+              {
+                "name": "The Prodigy"
+              }
+            ],
+            "pop": 70
+          },
+          {
+            "name": "FIRE STARTER",
+            "id": 22663864,
+            "ar": [
+              {
+                "name": "中森明菜"
+              }
+            ],
+            "pop": 25
+          },
+          {
+            "name": "Firestarter (feat. Rosendale)",
+            "id": 1419365737,
+            "ar": [
+              {
+                "name": "Romen Jewels"
+              },
+              {
+                "name": "Euphoria"
+              },
+              {
+                "name": "Rosendale"
+              }
+            ],
+            "pop": 5
+          },
+          {
+            "name": "Firestarter",
+            "id": 19460360,
+            "ar": [
+              {
+                "name": "The Prodigy"
+              }
+            ],
+            "pop": 20
+          }
+        ]
+      }
+    }
+  }
+}
