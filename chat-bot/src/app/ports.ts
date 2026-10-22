@@ -2,6 +2,7 @@
  * What the bot needs from the outside world. `adapters/` implements these with room-feed, the Claude
  * CLI, files and processes; tests pass fakes.
  */
+import type { SongGuess } from '@dy-apps/lyrics-search';
 import type { AdditionalCommandEntry } from '../core/additional-command';
 import type { ChatRecord } from '../core/chat-record';
 import type { Gift, IncomingChat } from '../core/room-events';
@@ -86,6 +87,14 @@ export interface Question {
   /** Why it's asked, for the log (`alias`, `judge`…); the models ignore it. */
   why?: string;
 }
+
+/**
+ * Names a song from the lines sung (NetEase's lyrics search, in about a second), and its singer
+ * only when one clearly leads; never throws for a service that is down (that is an unsure guess).
+ */
+export type SearchLyrics = (
+  lines: readonly { text: string; sung: boolean }[],
+) => Promise<SongGuess>;
 
 /** Asks a model (Claude or Codex) one question and resolves with its answer. */
 export type AskModel = (question: Question) => Promise<string>;

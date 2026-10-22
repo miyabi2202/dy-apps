@@ -24,6 +24,7 @@ import type {
   Judge,
   Log,
   RoomEvents,
+  SearchLyrics,
   RoomRecord,
   SettingsStore,
   SpawnWorker,
@@ -67,6 +68,8 @@ export const CLAUDE_CLI = token<AskModel>('claudeCli');
 export const CODEX_CLI = token<(over: CodexCliOptions) => AskModel>('codexCli');
 /** Jev, for an API key. */
 export const JEV_CLIENT = token<(apiKey: string) => Judge>('jevClient');
+/** Names a song from lyrics; null with --no-lyrics-search. */
+export const LYRICS_SEARCH = token<SearchLyrics | null>('lyricsSearch');
 /** Fetches the files the room's room_config.json lists, in the background. */
 export const DOWNLOADS = token<() => void>('downloads');
 

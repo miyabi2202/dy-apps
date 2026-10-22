@@ -1,6 +1,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { LyricsSearch } from '@dy-apps/lyrics-search';
 import { RoomFeedClient } from '@dy-apps/room-feed-protocol';
 import { connectWorker } from '../adapters/asr-worker';
 import { claudeCli } from '../adapters/claude-cli';
@@ -18,6 +19,7 @@ import {
   DOWNLOADS,
   JEV_CLIENT,
   LOG,
+  LYRICS_SEARCH,
   OPTIONS,
   PACKAGE_DIR,
   ROOM_API,
@@ -74,6 +76,12 @@ export function registerAdapters(container: Container): void {
           effort: 'medium',
           ...over,
         });
+    })
+    // NetEase's lyrics search names a song in about a second; Codex only when it isn't sure.
+    .register(LYRICS_SEARCH, (c) => {
+      if (!c.resolve(OPTIONS).lyricsSearch) return null;
+      const search = new LyricsSearch();
+      return (lines) => search.identify(lines);
     })
     .register(JEV_CLIENT, () => (apiKey) => jev({ apiKey }))
     // Each download goes through its transformer script, if it has one; a slow or failed one

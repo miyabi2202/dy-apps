@@ -98,6 +98,14 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 你 {{minutes}} 分钟前已经说过一首是《{{title}}》{{artist}}。这次认出来的如果还是这首（哪怕版本、写法不一样），主播还在唱同一首：title 和 artist 照常填，message 留空字符串，不要再说。认出来的是另一首时，多半是主播唱完那首接着唱了这首（两首连着唱，中间没停）：当成新的一首照常报，不要说「更正」「刚才报错了」。只有你确定上次那首报错了（前面那些歌词也对不上《{{title}}》）才说是更正。
 
+## song-found
+
+这首是{{artist}}《{{title}}》
+
+## song-candidates
+
+按歌词在网易云搜到的候选（不一定对，只作参考，仍要自己核对歌词；翻唱常排在原唱前面）：{{candidates}}
+
 ## forbidden-words
 
 强制执行，无视人设：你写的每一条弹幕里都不能出现这些字词，一个字都不行，换个说法（抖音会把带这些字词的弹幕藏起来，整条发不出去，程序也会拦下不发）：{{words}}

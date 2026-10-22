@@ -13,7 +13,7 @@ export const USAGE =
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 0 | --test] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
   '       [--auto-reply-interval 60] [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]\n' +
-  '       [--malice-watch] [--asr-port 8758]';
+  '       [--malice-watch] [--asr-port 8758] [--no-lyrics-search]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -58,6 +58,8 @@ export interface CliOptions {
   maliceWatch: boolean;
   /** The local port of the speech service, which outlives the bot. */
   asrPort: number;
+  /** Name songs from NetEase's lyrics search before asking Codex. */
+  lyricsSearch: boolean;
 }
 
 /** `args` (without node and the script) as options, or null when they're unusable. */
@@ -113,6 +115,8 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       'malice-watch': { type: 'boolean' },
       // The speech service (asr/transcribe.py --serve), started by hand before the bot, listens here.
       'asr-port': { type: 'string', default: '8758' },
+      // /识歌 and /自动识歌 search the lyrics on NetEase first; --no-lyrics-search always asks Codex.
+      'lyrics-search': { type: 'boolean', default: true },
     },
   });
   const roomId = values.room ?? '';
@@ -173,5 +177,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     maliceWatch: settings.maliceWatch,
     given,
     asrPort: Number(values['asr-port']),
+    lyricsSearch: values['lyrics-search'],
   };
 }

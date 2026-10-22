@@ -9,6 +9,7 @@ import {
   AUTO_SONG_ID,
   BUS,
   LOG,
+  LYRICS_SEARCH,
   ON_SING,
   OPTIONS,
   OUTBOX,
@@ -37,7 +38,8 @@ export function registerSongs(container: Container): void {
           maxLength: c.resolve(OPTIONS).maxReplyLength,
         }),
     )
-    // /识歌 and /自动识歌: Codex, which searches with Google; without Codex, neither.
+    // /识歌 and /自动识歌: the lyrics search, then Codex (which searches with Google) when it isn't
+    // sure; without Codex, neither.
     .register(SONG_ID, (c) => {
       if (!c.resolve(OPTIONS).codex) return null;
       // Made now, so a missing song-intro.md stops the bot at start.
@@ -49,6 +51,23 @@ export function registerSongs(container: Container): void {
           effort: 'medium',
         }),
         log: c.resolve(LOG),
+        // NetEase's lyrics search first: Codex only when it isn't sure of the title.
+        lyrics: c.resolve(LYRICS_SEARCH) ?? undefined,
+        found: ({ title, artist }) =>
+          c.resolve(ROOM).wording('song-found', { title, artist: artist ? `${artist}的` : '' }),
+        hints: (candidates) =>
+          c.resolve(ROOM).wording('song-candidates', {
+            candidates: candidates
+              .map(
+                (candidate) =>
+                  `《${candidate.title}》${
+                    candidate.artists.length
+                      ? `（${candidate.artists.slice(0, 2).join('、')}）`
+                      : ''
+                  }`,
+              )
+              .join('、'),
+          }),
         onTold: (song) => void songIntro.introduce(song),
         // Too little sung to go on: said so, without asking Codex (see wording.md).
         early: {

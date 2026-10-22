@@ -15,6 +15,7 @@ import {
   COMMANDS,
   DOWNLOADS,
   JEV_CLIENT,
+  LYRICS_SEARCH,
   MALICE_WATCH,
   OUTBOX,
   ROOM_API,
@@ -97,6 +98,18 @@ function build(args: string[] = [], env: { JEV_API_KEY?: string } = { JEV_API_KE
       jevKeys.push(apiKey);
       return () => Promise.resolve({});
     })
+    .register(
+      LYRICS_SEARCH,
+      () => () =>
+        Promise.resolve({
+          title: '',
+          sure: false,
+          candidates: [],
+          why: 'a test',
+          queries: [],
+          ms: 0,
+        }),
+    )
     .register(DOWNLOADS, () => () => {});
   return {
     container,
