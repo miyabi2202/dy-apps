@@ -40,8 +40,6 @@ export interface RoomOptions {
   chatIntervalMs?: number;
   /** How long a sent chat may take to come back in the push stream. */
   echoTimeoutMs?: number;
-  /** Told of each message it doesn't send on (members, banners, room notices…), to log them. */
-  onDropped?: (message: RawProtoMessage) => void;
 }
 
 const defaultSchedule = (run: () => void, ms: number): Cancel => {
@@ -80,7 +78,6 @@ export class Room {
   private readonly retryMs: readonly number[];
   private readonly chatIntervalMs: number;
   private readonly echoTimeoutMs: number;
-  private readonly onDropped: RoomOptions['onDropped'];
 
   private status: RoomStatus = 'connecting';
   private page: RoomPage | null = null;
@@ -107,7 +104,6 @@ export class Room {
     this.retryMs = options.retryMs ?? [5_000, 15_000, 30_000, 60_000];
     this.chatIntervalMs = options.chatIntervalMs ?? 3_000;
     this.echoTimeoutMs = options.echoTimeoutMs ?? 8_000;
-    this.onDropped = options.onDropped;
   }
 
   start(): void {
@@ -268,11 +264,7 @@ export class Room {
         return;
       }
       const event = normalize(message, this.roomId, this.now());
-      if (!event) {
-        this.onDropped?.(message);
-        continue;
-      }
-      if (event.id && this.seen.has(event.id)) continue;
+      if (!event || (event.id && this.seen.has(event.id))) continue;
       for (const listener of this.eventListeners) listener(event);
     }
   }

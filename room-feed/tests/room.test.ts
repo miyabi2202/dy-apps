@@ -128,33 +128,6 @@ describe('Room', () => {
     });
   });
 
-  it('hands each message it does not send on to onDropped', async () => {
-    const dropped: string[] = [];
-    const clock = new FakeClock();
-    const pages: FakePage[] = [];
-    const room = new Room({
-      roomId: '123',
-      open: (_roomId, handlers) => {
-        const page = new FakePage(handlers);
-        pages.push(page);
-        return Promise.resolve(page);
-      },
-      schedule: clock.schedule,
-      now: clock.now,
-      log: () => {},
-      onDropped: (message) => dropped.push(message.method),
-    });
-    const events: RoomEvent[] = [];
-    room.onEvent((event) => events.push(event));
-    room.start();
-    await clock.advance(0);
-    const notice = { method: 'WebcastRoomMessage', msgId: '3', payload: new Uint8Array() };
-    pages[0]!.handlers.onPush([chat('1', '你好'), notice]);
-
-    expect(events).toHaveLength(1);
-    expect(dropped).toEqual(['WebcastRoomMessage']);
-  });
-
   it('reopens the page when chat drops, waiting longer each time in a row', async () => {
     const { clock, pages, room, statuses } = setup();
     room.start();
