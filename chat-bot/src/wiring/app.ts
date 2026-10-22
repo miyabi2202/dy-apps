@@ -17,7 +17,6 @@ import {
   SETTINGS,
   SONG_INTRO,
   TRANSCRIBER,
-  WALLET,
 } from './tokens';
 
 /** The bot as a whole. */
@@ -44,7 +43,6 @@ export function registerApp(container: Container): void {
     const autoReply = c.resolve(AUTO_REPLY);
     const transcriber = c.resolve(TRANSCRIBER);
     const mcp = c.resolve(MCP_SERVER);
-    const wallet = c.resolve(WALLET);
     const admins = c.resolve(ADMINS);
     const room = c.resolve(ROOM);
     const options = c.resolve(OPTIONS);
@@ -67,7 +65,6 @@ export function registerApp(container: Container): void {
           botName: options.botName,
           asr: options.asr,
           screenshot: settings.screenshots,
-          cost: settings.mentionCost,
           admins: config.admins,
           persona: room.persona,
           autoReplyThreshold: settings.autoReplyThreshold,
@@ -93,7 +90,6 @@ export function registerApp(container: Container): void {
         transcriber?.stop({ quitService: quitSpeech });
         autoReply.stop();
         void mcp?.stop();
-        wallet.touch();
       },
       onRoomFeedGone(handler) {
         whenRoomFeedGone(c.resolve(ROOM_EVENTS), handler);

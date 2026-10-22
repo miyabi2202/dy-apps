@@ -114,7 +114,6 @@ export class GiftThanker extends ModelFeature<Thanks, string[]> {
       {
         name: '自动谢礼',
         adminOnly: true,
-        price: 0,
         run: (args) => {
           if (!/^\d+$/.test(args)) return failed('阈值要写成钻石数，用法：/自动谢礼 100');
           this.threshold = Number(args);

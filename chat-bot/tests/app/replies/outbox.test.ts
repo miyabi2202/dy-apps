@@ -3,10 +3,9 @@ import type { Log } from '../../../src/app/ports';
 
 const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 
-test('sends replies, then system messages, then notices, at least the interval apart, and reports a failed send', async () => {
+test('sends replies, then system messages, then unprompted talk, at least the interval apart, past a failed send', async () => {
   let now = 0;
   const sentAt: [string, number][] = [];
-  const failed: string[] = [];
   const delivered: string[] = [];
   const outbox = new Outbox({
     send: (text) => {
@@ -26,13 +25,13 @@ test('sends replies, then system messages, then notices, at least the interval a
     },
   });
   outbox.push({ kind: 'reply', text: '一' });
-  outbox.push({ kind: 'notice', text: '坏的', onFailed: () => failed.push('坏的') });
-  outbox.push({ kind: 'notice', text: '提醒' });
+  outbox.push({ kind: 'talk', text: '坏的' });
+  outbox.push({ kind: 'talk', text: '提醒' });
   outbox.push({ kind: 'system', text: '系统' });
   outbox.push({ kind: 'reply', text: '二' });
   await outbox.idle();
 
-  // '一' is already going out when the rest arrive; '二' then jumps the rest, '系统' the notices.
+  // '一' is already going out when the rest arrive; '二' then jumps the rest, '系统' the talk.
   expect(sentAt).toEqual([
     ['一', 0],
     ['二', 11_000],
@@ -40,7 +39,6 @@ test('sends replies, then system messages, then notices, at least the interval a
     ['坏的', 33_000],
     ['提醒', 44_000],
   ]);
-  expect(failed).toEqual(['坏的']);
   expect(delivered).toEqual(['一', '二', '系统', '提醒']);
 });
 
@@ -69,50 +67,9 @@ test("tells a message's own onSent once it's sent, at its turn, and not when sen
   ]);
 });
 
-test('a fourth notice within a minute drops the waiting ones, tells the room once, and mutes notices for five minutes', async () => {
-  let now = 0;
-  const sent: string[] = [];
-  const outbox = new Outbox({
-    send: (text) => {
-      sent.push(text);
-      return Promise.resolve({ echoed: true });
-    },
-    log: silentLog,
-    intervalMs: 10_000,
-    noticeFlood: {
-      max: 3,
-      windowMs: 60_000,
-      muteMs: 300_000,
-      text: () => '想让我回你的，要先送礼',
-    },
-    now: () => now,
-    sleep: (ms) => {
-      now += ms;
-      return Promise.resolve();
-    },
-  });
-  // All pushed before anything after the first is sent.
-  outbox.push({ kind: 'notice', text: '@甲 送礼' }); // already going out
-  outbox.push({ kind: 'notice', text: '@乙 送礼' });
-  now = 59_000;
-  outbox.push({ kind: 'notice', text: '@丙 送礼' });
-  outbox.push({ kind: 'notice', text: '@丁 送礼' });
-  outbox.push({ kind: 'reply', text: '回答' });
-  now = 359_000 - 1;
-  outbox.push({ kind: 'notice', text: '@戊 送礼' });
-  now = 359_000;
-  outbox.push({ kind: 'notice', text: '@己 送礼' });
-
-  await outbox.idle();
-
-  // 乙 and 丙 were waiting and 丁 was one too many; 戊 came while muted, 己 just after.
-  expect(sent).toEqual(['@甲 送礼', '回答', '想让我回你的，要先送礼', '@己 送礼']);
-});
-
-test("never sends a message with a forbidden word: it fails at once, and the next one doesn't wait for it", async () => {
+test("never sends a message with a forbidden word, and the next one doesn't wait for it", async () => {
   let now = 0;
   const sentAt: [string, number][] = [];
-  const failed: string[] = [];
   let words = ['编制'];
   const outbox = new Outbox({
     send: (text) => {
@@ -129,7 +86,7 @@ test("never sends a message with a forbidden word: it fails at once, and the nex
     },
   });
   outbox.push({ kind: 'reply', text: '一' });
-  outbox.push({ kind: 'reply', text: '我的编制在这', onFailed: () => failed.push('编制') });
+  outbox.push({ kind: 'reply', text: '我的编制在这' });
   outbox.push({ kind: 'reply', text: '二' });
   await outbox.idle();
 
@@ -137,7 +94,6 @@ test("never sends a message with a forbidden word: it fails at once, and the nex
     ['一', 0],
     ['二', 10_000],
   ]);
-  expect(failed).toEqual(['编制']);
 
   // The list is read each time.
   words = [];

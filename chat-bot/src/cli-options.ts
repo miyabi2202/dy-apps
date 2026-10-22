@@ -10,7 +10,7 @@ export const USAGE =
   `Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port ${DEFAULT_PORT}]\n` +
   '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
-  '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--cost 0 | --test] [--queue 20]\n' +
+  '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
   '       [--auto-reply-interval 60] [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]\n' +
   '       [--malice-watch] [--asr-port 8758] [--no-lyrics-search] [--no-mcp] [--mcp-port 0]';
@@ -32,8 +32,6 @@ export interface CliOptions {
   asr: boolean;
   transcriptMs: number;
   screenshot: boolean;
-  /** Diamonds per @mention; 0 (free) unless `--cost` says otherwise. */
-  cost: number;
   maxPending: number;
   sendIntervalMs: number;
   dataDir: string;
@@ -97,9 +95,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       },
       // Off by default: most streams don't need Claude to see the video (lessons with a board do).
       screenshot: { type: 'boolean' },
-      cost: { type: 'string' },
-      // Test mode: the same as --cost 0 (the default now).
-      test: { type: 'boolean', default: false },
       queue: { type: 'string', default: '20' },
       'send-interval': { type: 'string', default: '10' },
       data: { type: 'string', default: join(packageDir, 'data') },
@@ -134,9 +129,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
   const mcpPort = values['mcp-port'] === '0' ? 0 : parsePort(values['mcp-port']);
   if (!isRoomId(roomId) || port === null || mcpPort === null || !botName) return null;
   const given: Partial<Settings> = {
-    ...(values.test
-      ? { mentionCost: 0 }
-      : values.cost !== undefined && { mentionCost: Number(values.cost) }),
     ...(values['auto-reply-threshold'] !== undefined && {
       autoReplyThreshold: Number(values['auto-reply-threshold']),
     }),
@@ -151,7 +143,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     ...(values.screenshot !== undefined && { screenshots: values.screenshot }),
     ...(values['max-parts'] !== undefined && { maxReplyParts: Number(values['max-parts']) }),
   };
-  // A setting given as something that isn't a number, 0 or more (`--cost abc`), is a mistake: say
+  // A setting given as something that isn't a number, 0 or more (`--max-parts abc`), is a mistake: say
   // so, rather than write it into the room's room_config.json for good.
   const badNumber = Object.values(given).some(
     (value) => typeof value === 'number' && !(Number.isFinite(value) && value >= 0),
@@ -174,7 +166,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     asr: values.asr,
     transcriptMs: Number(values['transcript-minutes']) * 60_000,
     screenshot: settings.screenshots,
-    cost: settings.mentionCost,
     maxPending: Number(values.queue),
     sendIntervalMs: Number(values['send-interval']) * 1000,
     dataDir: values.data,

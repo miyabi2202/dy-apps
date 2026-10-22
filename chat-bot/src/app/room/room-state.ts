@@ -240,7 +240,6 @@ export function screenshotCommand(room: Pick<RoomState, 'screenshots'>): Command
   return {
     name: '截图',
     adminOnly: true,
-    price: 0,
     run(args) {
       if (args !== '0' && args !== '1') return failed('要写 0（关闭）或 1（打开），用法：/截图 1');
       room.screenshots = args === '1';

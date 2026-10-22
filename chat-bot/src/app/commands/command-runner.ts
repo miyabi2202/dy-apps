@@ -1,28 +1,13 @@
 import type { CommandCall } from '../../core/commands/command';
 import { errorMessage } from '../../core/errors';
-import type { Heard } from '../../core/prompts/prompt';
 import { DOUYIN_CHAT_LIMIT, replyMessages } from '../../core/replies/reply';
 import type { IncomingChat } from '../../core/chat/room-events';
-import type { Charge } from './billing';
 import type { Command, CommandResult } from './command';
 import type { Mention } from '../replies/mention-answerer';
 import type { Outbox } from '../replies/outbox';
 import { Pending } from '../pending';
-import type { AdditionalCommand, Log } from '../ports';
+import type { Log } from '../ports';
 import type { RoomState } from '../room/room-state';
-
-/** What it takes to charge for a mention, or for a command. */
-export interface ChargeRequest {
-  chat: IncomingChat;
-  question: string;
-  admin: boolean;
-  /** The command being run, at its price. */
-  command?: Command;
-  /** For what the bot would say to the asker unprompted, rather than an @. */
-  unprompted?: Heard;
-  /** The room's own command, at its price. */
-  additional?: AdditionalCommand;
-}
 
 export interface CommandRunnerOptions {
   /** What a mention starting with `/` can run. */
@@ -32,12 +17,8 @@ export interface CommandRunnerOptions {
   /** The chat before a command's own prompt goes with it to the answerer. */
   room: Pick<RoomState, 'recentChat' | 'replyLimits'>;
   log: Log;
-  /** Takes a command's price from the asker (ChatBot.charge): not ok when they can't pay. */
-  charge: (request: ChargeRequest) => Charge;
   /** Hands a command's own prompt to the answerer, like a mention. */
   ask: (mention: Mention) => void;
-  /** Gives the price of a command back. */
-  refund: (mention: Pick<Mention, 'asker' | 'userId' | 'paid'>) => void;
   isAdmin: (userId: string | undefined) => boolean;
   /** Douyin's chat length limit, for the bot's own messages. */
   maxReplyLength?: number;
@@ -47,7 +28,7 @@ export interface CommandRunnerOptions {
 }
 
 /**
- * Runs the commands a mention can give (`/修改收费 …`), once they're paid for, and tells the
+ * Runs the commands a mention can give (`/截图 1`…), and tells the
  * asker how each went in a system message. Admin-only commands, and commands nobody has, are
  * ignored from anyone but an admin, who's told what there is. A command with its own prompt is
  * handed to the answerer like a mention. Also says things to an asker, `@asker text`.
@@ -69,26 +50,21 @@ export class CommandRunner {
   }
 
   /**
-   * Runs the command `call` of `chat`'s mention if the asker may use it (`admin`), once they've paid
-   * for it; a call to one they may not use is ignored, or, when they have commands, answered with
-   * those.
+   * Runs the command `call` of `chat`'s mention if the asker may use it (`admin`); a call to one
+   * they may not use is ignored, or, when they have commands, answered with those.
    */
-  run(chat: IncomingChat, question: string, call: CommandCall, admin: boolean): void {
-    const pending = this.start(chat, question, call, admin);
+  run(chat: IncomingChat, call: CommandCall, admin: boolean): void {
+    const pending = this.start(chat, call, admin);
     if (pending) this.work.track(pending);
   }
 
   /**
    * Someone asked, in so many words (typed, or said on the stream), for what the command `name`
    * does: it runs as if they'd typed it, except that an admin-only one from anyone but an admin is
-   * answered that they may not. What the mention cost is given back first, and the command takes
-   * its own price as typed. False when there's no such command, so Claude's own reply goes out.
+   * answered that they may not. False when there's no such command, so Claude's own reply goes
+   * out.
    */
-  request(
-    mention: Pick<Mention, 'asker' | 'userId' | 'paid'>,
-    name: string,
-    args: string,
-  ): boolean {
+  request(mention: Pick<Mention, 'asker' | 'userId'>, name: string, args: string): boolean {
     const { asker, userId } = mention;
     const command = this.commands.get(name);
     if (!command) return false;
@@ -96,22 +72,21 @@ export class CommandRunner {
     const admin = this.options.isAdmin(userId);
     log.info('command requested', { asker, userId, name, args, admin });
     if (command.adminOnly && !admin) {
-      this.say(asker, 'system', `你无权调用「${name}」指令，只有主播和${adminNames}才可以`);
+      this.say(asker, `你无权调用「${name}」指令，只有主播和${adminNames}才可以`);
       return true;
     }
-    this.options.refund(mention);
     const question = `/${name}${args ? ` ${args}` : ''}`;
     const ts = (this.options.now ?? Date.now)();
     const chat: IncomingChat = { ts, userId, nickname: asker, content: question, mentions: [] };
-    this.run(chat, question, { name, args }, admin);
+    this.run(chat, { name, args }, admin);
     return true;
   }
 
   /** Queues `@asker text` to be sent, split like an answer when it's long. */
-  say(asker: string, kind: 'system' | 'notice', text: string): void {
+  say(asker: string, text: string): void {
     const { outbox, room } = this.options;
     for (const message of replyMessages(asker, text, room.replyLimits(this.maxLength))) {
-      outbox.push({ kind, text: message });
+      outbox.push({ kind: 'system', text: message });
     }
   }
 
@@ -120,11 +95,10 @@ export class CommandRunner {
    */
   private start(
     chat: IncomingChat,
-    question: string,
     { name, args }: CommandCall,
     admin: boolean,
   ): Promise<void> | undefined {
-    const { log, charge, refund, ask, room } = this.options;
+    const { log, ask, room } = this.options;
     const { nickname: asker, userId } = chat;
     const command = this.commands.get(name);
     if (!command || (command.adminOnly && !admin)) {
@@ -132,18 +106,15 @@ export class CommandRunner {
       log.info('no such command for them', { asker, userId, name, admin });
       if (usable.length) {
         const names = usable.map((c) => c.name).join('、');
-        this.say(asker, 'system', `没有指令「${name}」，可用的有：${names}`);
+        this.say(asker, `没有指令「${name}」，可用的有：${names}`);
       }
       return;
     }
-    const charged = charge({ chat, question, admin, command });
-    if (!charged.ok) return undefined;
     if (command.prompt) {
-      log.info('command', { asker, userId, name, args, paid: charged.paid });
+      log.info('command', { asker, userId, name, args });
       ask({
         asker,
         userId,
-        paid: charged.paid,
         question: args,
         history: room.recentChat(),
         template: command.prompt(),
@@ -162,9 +133,8 @@ export class CommandRunner {
       return { ok: false, reply: `指令「${name}」出错了，没有完成` };
     };
     const finish = (result: CommandResult) => {
-      log.info('command', { asker, userId, name, args, ...result, paid: charged.paid });
-      if (!result.ok && userId) refund({ asker, userId, paid: charged.paid });
-      if (result.reply) this.say(asker, 'system', result.reply);
+      log.info('command', { asker, userId, name, args, ...result });
+      if (result.reply) this.say(asker, result.reply);
     };
     let result: CommandResult | Promise<CommandResult>;
     try {
@@ -172,7 +142,7 @@ export class CommandRunner {
     } catch (err) {
       result = failed(err);
     }
-    // A command that answers at once is done at once, so its refund and reply keep their order.
+    // A command that answers at once is done at once, so its replies keep their order.
     if (!(result instanceof Promise)) {
       finish(result);
       return undefined;

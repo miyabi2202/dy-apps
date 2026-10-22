@@ -15,7 +15,6 @@ import {
 } from '../../core/replies/mention-answer';
 import type { UnpromptedReply } from '../../core/replies/reply-pick';
 import type { ChatLine } from '../../core/chat/room-events';
-import type { Billing } from '../commands/billing';
 import { done, failed, type Command, type PromptOptions } from '../commands/command';
 import type { EventBus } from '../event-bus';
 import type { Outbox } from './outbox';
@@ -23,15 +22,11 @@ import { Pending } from '../pending';
 import type { AskModel, BotTools, Log, UserTalk } from '../ports';
 import type { RoomState } from '../room/room-state';
 
-/**
- * A question for Claude, paid for by `userId` unless they're an admin or it's free; a command's
- * own prompt may come with its PromptOptions.
- */
+/** A question for Claude; a command's own prompt may come with its PromptOptions. */
 export interface Mention extends PromptOptions {
   asker: string;
-  /** Who paid for it, and how much, to give back if it can't be answered. */
+  /** Who asked: their talk record, and whom the answer tells `answered`. */
   userId?: string;
-  paid: number;
   question: string;
   /** The chat as it was when they asked, not what came after. */
   history: ChatLine[];
@@ -42,7 +37,7 @@ export interface Mention extends PromptOptions {
   /** Not an @: the bot heard the asker talk to or about it, in the chat or on the stream. */
   unprompted?: Heard;
   /**
-   * Called, after the refund, when Claude said nothing: an @ that a room command's trigger took
+   * Called when Claude said nothing: an @ that a room command's trigger took
    * («虾虾会生气吗» for 会唱xxx吗) is answered as usual then.
    */
   ifEmpty?: () => void;
@@ -56,17 +51,6 @@ function badgesOf({ userId, history }: Pick<Mention, 'userId' | 'history'>): rea
   return [...history].reverse().find((line) => line.userId === userId)?.badges ?? [];
 }
 
-/** Gives `mention`'s price back to whoever paid it, if anything was paid. */
-export function refundMention(
-  billing: Pick<Billing, 'refund'> | undefined,
-  log: Log,
-  { asker, userId, paid }: Pick<Mention, 'asker' | 'userId' | 'paid'>,
-): void {
-  if (!userId || !paid) return;
-  billing?.refund(userId, paid);
-  log.info('refunded', { asker, diamonds: paid });
-}
-
 export interface MentionAnswererOptions {
   ask: AskModel;
   /** Where replies go to be sent, spaced out. */
@@ -76,9 +60,6 @@ export interface MentionAnswererOptions {
   log: Log;
   /** The prompt (see buildPrompt for what it can fill in), read each time so edits apply at once. */
   promptTemplate: () => string;
-  /** Gives back what a mention cost when it can't be answered, and tells the prompt the asker's
-   * balance. */
-  billing?: Pick<Billing, 'refund' | 'balance'>;
   /** Each viewer's past exchanges with the bot: answers are added, and `{{userHistory}}` is
    * the asker's. */
   userTalk?: UserTalk;
@@ -112,9 +93,7 @@ const TOOLS_TIMEOUT_MS = 300_000;
 /**
  * Answers mentions: the question and the chat before it go to Claude, and the answer joins the
  * outbox to be sent to the room, split into numbered messages when it's long. Claude answers
- * one mention at a time, in order, without waiting for earlier answers to go out. A mention
- * that can't be answered (Claude failed, or said nothing, or Douyin refused the message) is
- * refunded.
+ * one mention at a time, in order, without waiting for earlier answers to go out.
  */
 export class MentionAnswerer {
   private readonly pending: Mention[] = [];
@@ -134,7 +113,6 @@ export class MentionAnswerer {
       {
         name: '最大回复条数',
         adminOnly: true,
-        price: 0,
         run: (args) => {
           if (!/^\d+$/.test(args) || Number(args) < 1 || Number(args) > 10)
             return failed('条数要写成 1 到 10 的整数，用法：/最大回复条数 3');
@@ -189,33 +167,21 @@ export class MentionAnswerer {
     }
   }
 
-  private refund(mention: Mention): void {
-    refundMention(this.options.billing, this.options.log, mention);
-  }
-
-  /** Sends `text` to the asker as a reply, like an answer; refunded if it can't go out. */
+  /** Sends `text` to the asker as a reply, like an answer. */
   private sendFixed(mention: Mention, text: string): void {
     const { outbox, log, userTalk, bus } = this.options;
     const limits = this.options.room.replyLimits(this.maxLength);
     const messages = replyMessages(mention.asker, text, limits);
     if (!messages.length) {
       log.warn('a fixed reply is empty', { asker: mention.asker });
-      this.refund(mention);
       return;
     }
-    let refunded = false;
-    const onFailed = () => {
-      if (refunded) return;
-      refunded = true;
-      this.refund(mention);
-    };
     const { userId } = mention;
     messages.forEach((message, i) => {
       const last = i === messages.length - 1;
       outbox.push({
         kind: 'reply',
         text: message,
-        onFailed,
         onSent: last && userId !== undefined ? () => bus?.emit('answered', { userId }) : undefined,
       });
     });
@@ -250,7 +216,6 @@ export class MentionAnswerer {
         singleLength: singleBudget(mention.asker, limits),
         maxLength: answerBudget(mention.asker, limits),
         userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
-        askerBalance: mention.userId ? this.options.billing?.balance(mention.userId) : undefined,
         askerBadges: badgesOf(mention),
         unprompted: mention.unprompted,
       });
@@ -311,17 +276,9 @@ export class MentionAnswerer {
         // The usual prompt may say nothing when nothing needs saying (a 「谢谢」 that ends it).
         if (usual) log.info('claude skipped', { asker: mention.asker, question: mention.question });
         else log.warn('claude gave an empty answer', { asker: mention.asker });
-        this.refund(mention);
         mention.ifEmpty?.();
         return;
       }
-      // One refund however many of the parts fail.
-      let refunded = false;
-      const onFailed = () => {
-        if (refunded) return;
-        refunded = true;
-        this.refund(mention);
-      };
       // Each is told answered once the last message to them is sent, so their minute to answer
       // back doesn't run out while it waits to go out.
       const answered = (userId: string | undefined) =>
@@ -331,12 +288,11 @@ export class MentionAnswerer {
         outbox.push({
           kind: 'reply',
           text,
-          onFailed,
           onSent: last ? answered(mention.userId) : undefined,
         });
       });
       for (const { text, userId } of toOthers) {
-        outbox.push({ kind: 'reply', text, onFailed, onSent: answered(userId) });
+        outbox.push({ kind: 'reply', text, onSent: answered(userId) });
       }
       if (others.length)
         log.info('at others', { asker: mention.asker, to: others.map((o) => o.to) });
@@ -351,7 +307,6 @@ export class MentionAnswerer {
         question: mention.question,
         error: errorMessage(err),
       });
-      this.refund(mention);
     } finally {
       session?.close();
     }

@@ -1,8 +1,7 @@
-import { Billing } from '../../../src/app/commands/billing';
 import { MentionAnswerer, type Mention } from '../../../src/app/replies/mention-answerer';
 import type { BotTools, Question, ToolContext, ToolSession } from '../../../src/app/ports';
 import { fakeRoom } from '../../support/fake-room';
-import { NOW, fakeOutbox, memoryWallet, silentLog } from '../../support/fakes';
+import { NOW, fakeOutbox, silentLog } from '../../support/fakes';
 
 /** An answerer with a fake tools server; `answer` is what Claude says, `use` the tools it called meanwhile. */
 function setup(
@@ -10,7 +9,6 @@ function setup(
     answer?: string;
     use?: string[];
     fail?: boolean;
-    wallet?: ReturnType<typeof memoryWallet>;
   } = {},
 ) {
   const { outbox, sent } = fakeOutbox();
@@ -43,11 +41,10 @@ function setup(
     room: fakeRoom({ now: () => NOW }),
     log: silentLog,
     promptTemplate: () => '{{question}}',
-    billing: options.wallet && new Billing({ wallet: options.wallet }),
     tools,
   });
   const ask = async (mention: Partial<Mention> = {}) => {
-    answerer.ask({ asker: '阿明', paid: 0, question: '在吗', history: [], ...mention });
+    answerer.ask({ asker: '阿明', question: '在吗', history: [], ...mention });
     await answerer.idle();
     await outbox.idle();
   };
@@ -74,17 +71,15 @@ test('a command with its own prompt gets no tools', async () => {
   expect(events).toEqual([]);
 });
 
-test('the session is closed when answering fails, and the mention refunded to the viewer', async () => {
+test('the session is closed when answering fails, and opened with a 私密 viewer as given', async () => {
   // A 私密 room: every viewer is 111111, so the bot keys them by 111111-<nickname>-<level>.
   const userId = '111111-苦***-31';
-  const wallet = memoryWallet({ [userId]: { nickname: '苦***', gifted: 1, spent: 1 } });
-  const { ask, opened, events, sent } = setup({ fail: true, wallet });
-  await ask({ asker: '苦***', userId, paid: 1, question: '这是什么歌' });
+  const { ask, opened, events, sent } = setup({ fail: true });
+  await ask({ asker: '苦***', userId, question: '这是什么歌' });
 
   expect(opened).toEqual([{ asker: '苦***', userId, question: '这是什么歌' }]);
   expect(events).toEqual(['open', 'close']);
   expect(sent).toEqual([]);
-  expect(wallet.balance(userId)).toBe(1);
 });
 
 test("a command_request for what Claude already did with a tool is ignored, and Claude's message is sent", async () => {
@@ -113,7 +108,7 @@ test("a command_request for what Claude already did with a tool is ignored, and 
       return true;
     },
   });
-  answerer.ask({ asker: '阿明', paid: 0, question: '什么歌', history: [] });
+  answerer.ask({ asker: '阿明', question: '什么歌', history: [] });
   await answerer.idle();
   await outbox.idle();
 
@@ -144,7 +139,7 @@ test('without tool use the command is run as before', async () => {
       return true;
     },
   });
-  answerer.ask({ asker: '阿明', paid: 0, question: '什么歌', history: [] });
+  answerer.ask({ asker: '阿明', question: '什么歌', history: [] });
   await answerer.idle();
 
   expect(requested).toEqual(['识歌']);

@@ -23,12 +23,10 @@ const INDEX = {
     when: '在问主播会不会唱',
     trigger: '会唱|能唱',
     prompt: 'can-sing/prompt.md',
-    price: 0,
   },
   plain: { name: '别的', when: '在问别的', prompt: 'plain/prompt.md' },
   'no-prompt': { name: '缺东西', when: '在问' },
   outside: { name: '越界', when: '在问', prompt: '../prompt.md' },
-  'bad-price': { name: '价', when: '在问', prompt: 'p.md', price: -1 },
 };
 
 test('reads the index: the commands by id, each checked', () => {
@@ -40,14 +38,12 @@ test('reads the index: the commands by id, each checked', () => {
       when: '在问主播会不会唱',
       trigger: /会唱|能唱/,
       prompt: 'can-sing/prompt.md',
-      price: 0,
     },
     { id: 'plain', name: '别的', when: '在问别的', trigger: null, prompt: 'plain/prompt.md' },
   ]);
   expect(errors).toEqual([
     'no-prompt: needs a prompt, a fixedReply or a run',
     'outside: prompt must be inside the folder: ../prompt.md',
-    'bad-price: price must be whole diamonds, 0 or more',
   ]);
   expect(
     parseCommandIndex({ x: { name: 'x', when: 'y', prompt: 'p.md', trigger: '(' } }).errors,
@@ -79,11 +75,8 @@ test("loads the room's commands, each prompt with the room's files it names fill
   const log = fakeLog();
 
   const commands = loadAdditionalCommands(room, { log });
-  expect(commands.map(({ id, price }) => [id, price])).toEqual([
-    ['can-sing', 0],
-    ['plain', undefined],
-  ]);
-  expect(log.warn).toHaveBeenCalledTimes(3);
+  expect(commands.map(({ id }) => id)).toEqual(['can-sing', 'plain']);
+  expect(log.warn).toHaveBeenCalledTimes(2);
   // Other {{key}}s are left for the prompt's own; nothing outside the room's folder is read.
   expect(commands[0]!.prompt()).toBe('歌单：晴天，{{asker}}，（读取失败），（读取失败）');
   expect(commands[1]!.prompt()).toBe('没有文件');
@@ -303,7 +296,6 @@ function withShared(index: object) {
       when: '在问会不会唱，叫她{{streamerNames}}',
       trigger: '({{streamerNames}})会唱',
       prompt: 'prompt.md',
-      price: 0,
       mentions: 'artifacts/songs.txt',
     }),
   );
@@ -321,20 +313,20 @@ function withShared(index: object) {
 test("a command with a base is the shared one's fields under the room's, with the shared prompt unless the room has its own", () => {
   const { room, commandsDir } = withShared({
     'can-sing': { base: 'can-sing' },
-    pricey: { base: 'can-sing', price: 2, prompt: 'pricey.md' },
+    own: { base: 'can-sing', adminOnly: true, prompt: 'own.md' },
     missing: { base: 'nope' },
     sneaky: { base: '../x' },
   });
-  writeFileSync(join(room, 'additional_commands', 'pricey.md'), '自己的');
+  writeFileSync(join(room, 'additional_commands', 'own.md'), '自己的');
   const log = fakeLog();
   const commands = loadAdditionalCommands(room, {
     log,
     commandsDir,
     streamerNames: () => ['茜茜'],
   });
-  expect(commands.map(({ id, price }) => [id, price])).toEqual([
-    ['can-sing', 0],
-    ['pricey', 2],
+  expect(commands.map(({ id, adminOnly }) => [id, adminOnly])).toEqual([
+    ['can-sing', undefined],
+    ['own', true],
   ]);
   expect(commands[0]).toMatchObject({ when: '在问会不会唱，叫她茜茜', trigger: /(主播|茜茜)会唱/ });
   // No notes: the optional file is just left out.
@@ -362,8 +354,8 @@ test('the live commands are built again when index.json, a shared command or the
   expect(commands()[0]!.trigger).toEqual(/(主播|虾虾)会唱/);
 
   const index = join(room, 'additional_commands', 'index.json');
-  writeFileSync(index, JSON.stringify({ 'can-sing': { base: 'can-sing', price: 3 } }));
-  expect(commands()[0]!.price).toBe(3);
+  writeFileSync(index, JSON.stringify({ 'can-sing': { base: 'can-sing', adminOnly: true } }));
+  expect(commands()[0]!.adminOnly).toBe(true);
 
   const shared = join(commandsDir, 'can-sing', 'command.json');
   writeFileSync(shared, JSON.stringify({ name: '新的', when: 'w', prompt: 'prompt.md' }));

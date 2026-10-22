@@ -4,31 +4,18 @@ import { forbiddenIn } from '../../core/prompts/forbidden';
 import { Pending } from '../pending';
 
 /** What a message is, most urgent first: the order waiting messages go out in. */
-const KINDS = ['reply', 'system', 'notice', 'talk'] as const;
+const KINDS = ['reply', 'system', 'talk'] as const;
 
 /** One message waiting to go out. */
 export interface OutgoingMessage {
   text: string;
   /**
-   * An answer to a question, a system message like "已处理修改收费请求", a notice like "balance
-   * too low", or something the bot says unprompted: in that order when several wait.
+   * An answer to a question, a system message like "已处理截图请求", or something the bot says
+   * unprompted: in that order when several wait.
    */
   kind: (typeof KINDS)[number];
-  /** Called when room-feed couldn't send it, e.g. to refund the question it answers. */
-  onFailed?: () => void;
   /** Called once it's sent. */
   onSent?: () => void;
-}
-
-/** When notices come too fast, one message to the whole room instead. */
-export interface NoticeFlood {
-  /** More notices than this within `windowMs` is a flood. */
-  max: number;
-  windowMs: number;
-  /** After a flood, notices are dropped for this long. */
-  muteMs: number;
-  /** What the room is told instead, without an @. */
-  text: () => string;
 }
 
 export interface OutboxOptions {
@@ -36,11 +23,9 @@ export interface OutboxOptions {
   log: Log;
   /** Told of each message room-feed sent, e.g. to remember what the bot has said. */
   onSent?: (message: OutgoingMessage) => void;
-  /** Without it, every notice is sent. */
-  noticeFlood?: NoticeFlood;
   /**
-   * Words never to send, read each time: a message with one is not sent, and fails (its
-   * `onFailed` is called) as if sending had, since Douyin would hold it back anyway.
+   * Words never to send, read each time: a message with one is not sent, since Douyin would hold
+   * it back anyway.
    */
   forbiddenWords?: () => readonly string[];
   /** At least this long between two messages, so the account doesn't look like a spammer. */
@@ -52,23 +37,18 @@ export interface OutboxOptions {
 /**
  * Every message the bot says goes through here: queued, then sent one at a time, at least
  * `intervalMs` apart. Each kind waits in its own queue, in order, and a waiting reply always goes
- * before a waiting system message, which goes before a waiting notice. Whoever made the message
- * doesn't wait for it to go out. When notices flood in (`noticeFlood`), the waiting ones are
- * dropped, the room is told once for all, and new ones are dropped for a while.
+ * before a waiting system message, which goes before what it says unprompted. Whoever made the
+ * message doesn't wait for it to go out.
  */
 export class Outbox {
   private readonly queues = {
     reply: [] as OutgoingMessage[],
     system: [] as OutgoingMessage[],
-    notice: [] as OutgoingMessage[],
     talk: [] as OutgoingMessage[],
   };
   private sending = false;
   private readonly work = new Pending();
   private lastSentAt = -Infinity;
-  /** When each notice of the last `noticeFlood.windowMs` was pushed. */
-  private noticedAt: number[] = [];
-  private noticesMutedUntil = -Infinity;
   private readonly intervalMs: number;
   private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
@@ -80,7 +60,6 @@ export class Outbox {
   }
 
   push(message: OutgoingMessage): void {
-    if (message.kind === 'notice' && this.flooded(message)) return;
     this.queues[message.kind].push(message);
     this.options.log.debug('queued to send', { ...message, waiting: this.waiting() });
     this.drain();
@@ -89,27 +68,6 @@ export class Outbox {
   /** Resolves once everything queued has been sent (or has failed). */
   idle(): Promise<void> {
     return this.work.idle();
-  }
-
-  /** Whether `notice` is dropped: notices are muted, or it's one too many and mutes them. */
-  private flooded(notice: OutgoingMessage): boolean {
-    const flood = this.options.noticeFlood;
-    if (!flood) return false;
-    const now = this.now();
-    if (now < this.noticesMutedUntil) {
-      this.options.log.debug('notice dropped, notices muted', { text: notice.text });
-      return true;
-    }
-    this.noticedAt = this.noticedAt.filter((at) => now - at < flood.windowMs);
-    this.noticedAt.push(now);
-    if (this.noticedAt.length <= flood.max) return false;
-    const dropped = this.queues.notice.length + 1;
-    this.queues.notice = [];
-    this.noticedAt = [];
-    this.noticesMutedUntil = now + flood.muteMs;
-    this.options.log.info('too many notices, telling the room once', { dropped });
-    this.push({ kind: 'system', text: flood.text() });
-    return true;
   }
 
   private drain(): void {
@@ -144,12 +102,11 @@ export class Outbox {
 
   /** Sends `message`; false when it wasn't even tried (it has a forbidden word). */
   private async sendOne(message: OutgoingMessage): Promise<boolean> {
-    const { text, kind, onFailed } = message;
+    const { text, kind } = message;
     const { send, log } = this.options;
     const forbidden = forbiddenIn(text, this.options.forbiddenWords?.() ?? []);
     if (forbidden.length) {
       log.warn(`could not send ${kind}: it has forbidden words`, { text, forbidden });
-      onFailed?.();
       return false;
     }
     try {
@@ -163,7 +120,6 @@ export class Outbox {
         text,
         error: errorMessage(err),
       });
-      onFailed?.();
     }
     return true;
   }

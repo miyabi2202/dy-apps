@@ -96,7 +96,6 @@ export class MaliceWatch extends ModelFeature<Suspect, MaliceAnswer> {
       {
         name: '识别恶意言论',
         adminOnly: true,
-        price: 0,
         run: (args) => {
           if (args !== '0' && args !== '1') {
             return failed('要写 0（关闭）或 1（打开），用法：/识别恶意言论 1');

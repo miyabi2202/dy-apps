@@ -122,7 +122,6 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
       {
         name: '自动识歌',
         adminOnly: true,
-        price: 0,
         run: (args) => {
           if (args !== '0' && args !== '1') {
             return failed('要写 0（关闭）或 1（打开），用法：/自动识歌 1');

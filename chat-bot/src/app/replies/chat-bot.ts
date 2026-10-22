@@ -1,40 +1,30 @@
 import { appliesTo, type Viewer } from '../../core/commands/additional-command';
 import { parseCommand } from '../../core/commands/command';
-import type { ChatLine, Gift, IncomingChat } from '../../core/chat/room-events';
+import type { ChatLine, IncomingChat } from '../../core/chat/room-events';
 import type { Heard } from '../../core/prompts/prompt';
 import { singingNow } from '../../core/songs/transcript';
-import type { Billing, Charge } from '../commands/billing';
 import type { Command } from '../commands/command';
-import { CommandRunner, type ChargeRequest } from '../commands/command-runner';
+import { CommandRunner } from '../commands/command-runner';
 import type { EventBus } from '../event-bus';
-import {
-  refundMention,
-  type Mention,
-  type MentionAnswerer,
-  type UnpromptedReply,
-} from './mention-answerer';
+import type { Mention, MentionAnswerer, UnpromptedReply } from './mention-answerer';
 import type { Outbox } from './outbox';
 import type { AdditionalCommand, Admins, Log } from '../ports';
 import type { RoomFeed } from '../room/room-feed';
 import type { RoomState } from '../room/room-state';
-import { UnpaidMentions } from './unpaid-mentions';
 
 export interface ChatBotOptions {
   /** The thing that listens to the room, to start and stop. */
   feed: Pick<RoomFeed, 'start' | 'stop'>;
-  /** Where the mentions and gifts come from. */
+  /** Where the mentions come from. */
   bus: Pick<EventBus, 'on'>;
-  /** Answers the questions the bot has been paid for. */
+  /** Answers the questions. */
   answerer: Pick<MentionAnswerer, 'ask' | 'idle'>;
   /** The chat before a question goes with it to the answerer. */
   room: Pick<RoomState, 'recentChat' | 'replyLimits' | 'recentTranscript'>;
   /** Where notices and command replies go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
   log: Log;
-  /** Charges for mentions from what viewers gift. Without it, mentions are free. */
-  billing?: Billing;
-  /** User ids of the admins: their mentions and commands are free, and only they can run the
-   * admin-only commands. */
+  /** User ids of the admins: only they can run the admin-only commands. */
   admins?: Admins;
   /** The room's streamer once known, whose fan club a command's `fansLevel` counts. */
   streamer?: () => { uid: string } | null;
@@ -50,34 +40,23 @@ export interface ChatBotOptions {
   maxReplyLength?: number;
   /** Who may run admin-only commands, as viewers know them: 「只有主播和…才可以」. */
   adminNames?: string;
-  /** A mention its asker couldn't pay for is answered if they send a gift within this long. */
-  waitForGiftMs?: number;
   now?: () => number;
 }
 
 /**
- * Decides what each @mention of the bot is: a question, paid for by the asker and handed to the
- * answerer, or, with a `/` first, one of `commands` (`/修改收费 …`), paid for like a question but
- * at the command's own price, which the CommandRunner runs. With billing, a viewer who
- * can't pay gets a fixed notice, put in the outbox straight away rather than waiting behind the
- * questions for Claude, and their mention (the last one) waits: a gift from them within
- * `waitForGiftMs` (5 minutes) pays for it and has it answered at once (see UnpaidMentions).
+ * Decides what each @mention of the bot is: a question, handed to the answerer, or, with a `/`
+ * first, one of `commands` (`/截图 1`…), which the CommandRunner runs.
  */
 export class ChatBot {
   private readonly runner: CommandRunner;
-  /** Each viewer's last mention they couldn't pay for. */
-  private readonly unpaid: UnpaidMentions;
 
   constructor(private readonly options: ChatBotOptions) {
-    this.unpaid = new UnpaidMentions({ now: options.now, waitMs: options.waitForGiftMs });
     this.runner = new CommandRunner({
       commands: options.commands ?? [],
       outbox: options.outbox,
       room: options.room,
       log: options.log,
-      charge: (request) => this.charge(request),
       ask: (mention) => this.ask(mention),
-      refund: (mention) => this.refund(mention),
       isAdmin: (userId) => this.isAdmin(userId),
       maxReplyLength: options.maxReplyLength,
       adminNames: options.adminNames,
@@ -87,7 +66,6 @@ export class ChatBot {
 
   start(): void {
     this.options.bus.on('mention', ({ chat, question }) => this.onMention(chat, question));
-    this.options.bus.on('gift', (gift) => this.onGift(gift));
     this.options.feed.start();
   }
 
@@ -102,8 +80,8 @@ export class ChatBot {
   }
 
   /**
-   * Runs the command the mention gives, or charges the asker and hands the question on: to the
-   * room's own command whose trigger it matches, at that command's price, when there is one.
+   * Runs the command the mention gives, or hands the question on: to the room's own command whose
+   * trigger it matches, when there is one.
    */
   private onMention(chat: IncomingChat, question: string): void {
     const { log } = this.options;
@@ -112,7 +90,7 @@ export class ChatBot {
     const admin = this.isAdmin(userId);
     const call = parseCommand(question);
     if (call) {
-      this.runner.run(chat, question, call, admin);
+      this.runner.run(chat, call, admin);
       return;
     }
     // One that runs a command of the bot's isn't taken by its trigger: run with no answer to fall
@@ -133,7 +111,7 @@ export class ChatBot {
   }
 
   /**
-   * Charges for a mention and hands it on, with the room's own command `own` if there is one;
+   * Hands a mention on, with the room's own command `own` if there is one;
    * when that command's answer is empty (it wasn't really for it), asked again as usual.
    */
   private askMention(
@@ -143,12 +121,9 @@ export class ChatBot {
     own?: AdditionalCommand,
   ): void {
     const { nickname: asker, userId } = chat;
-    const charge = this.charge({ chat, question, admin, additional: own });
-    if (!charge.ok) return;
     this.ask({
       asker,
       userId,
-      paid: charge.paid,
       question,
       history: this.options.room.recentChat(),
       ...(own && this.commandPrompt(own, asker)),
@@ -165,39 +140,20 @@ export class ChatBot {
     });
   }
 
-  /** Answers the giver's unpaid mention, now that they may be able to pay for it. */
-  private onGift({ userId }: Gift): void {
-    const unpaid = this.unpaid.claim(userId);
-    if (!unpaid) return;
-    this.options.log.info('answering after a gift', { asker: unpaid.chat.nickname, userId });
-    const { chat, question, unprompted, command } = unpaid;
-    if (unprompted) {
-      const { nickname } = chat;
-      this.replyUnprompted({
-        nickname,
-        userId,
-        question,
-        heard: unprompted,
-        ...(command && { command }),
-      });
-    } else this.onMention(chat, question);
-  }
-
   /**
    * Someone asked, in so many words, for what a command does (Claude found it in their mention, or
    * in what they said to the bot, the streamer on the stream too): it runs as if they'd typed it,
    * but an admin-only one from anyone else is answered that they may not (see
    * CommandRunner.request). One of the room's own commands (主播会唱xxx吗) is asked again with its own
-   * prompt, already paid for. False when there's no such command, so Claude's own reply goes out.
+   * prompt. False when there's no such command, so Claude's own reply goes out.
    */
   requestCommand(mention: Mention, name: string, args: string): boolean {
     const { asker, userId } = mention;
-    // One of the room's own: answered with its prompt instead, already paid for.
+    // One of the room's own: answered with its prompt instead.
     const own = this.additionalCommand(name);
     if (own && !this.appliesTo(own, this.viewerFrom(userId, mention.history, 'chat'))) {
-      // Claude took it for the command, but it isn't for them: nothing is said, and the @ is refunded.
+      // Claude took it for the command, but it isn't for them: nothing is said.
       this.skipped(own, asker, userId);
-      this.refund(mention);
       return true;
     }
     if (own?.adminOnly && !this.isAdmin(userId)) {
@@ -206,20 +162,12 @@ export class ChatBot {
       return false;
     }
     if (own?.run !== undefined) {
-      // The @ costs nothing more: the command takes its own price, as typed.
-      this.refund(mention);
       this.runFor(own, { ts: this.now(), userId, nickname: asker, mentions: [] });
       return true;
     }
     if (own) {
       this.options.log.info('additional command requested', { asker, userId, command: own.id });
-      // The @ was paid for at an @'s price; a cheaper command gives the difference back.
-      let { paid } = mention;
-      if (own.price !== undefined && own.price < paid) {
-        this.refund({ asker, userId, paid: paid - own.price });
-        paid = own.price;
-      }
-      this.ask({ ...mention, paid, ...this.commandPrompt(own, asker) });
+      this.ask({ ...mention, ...this.commandPrompt(own, asker) });
       return true;
     }
     return this.runner.request(mention, name, args);
@@ -227,8 +175,7 @@ export class ChatBot {
 
   /**
    * Answers what someone said to or about the bot without an @ (auto-reply picked it), like a
-   * mention: they pay for it (nothing for the streamer or an admin), and one who can't is told
-   * so, in other words, and answered once they send a gift.
+   * mention.
    */
   replyUnprompted({ nickname, userId, question, heard, command }: UnpromptedReply): void {
     const ts = (this.options.now ?? Date.now)();
@@ -248,18 +195,9 @@ export class ChatBot {
       this.runFor(own, chat);
       return;
     }
-    const charge = this.charge({
-      chat,
-      question,
-      admin: this.isAdmin(userId),
-      unprompted: heard,
-      additional: own,
-    });
-    if (!charge.ok) return;
     this.ask({
       asker: nickname,
       userId,
-      paid: charge.paid,
       question,
       history: this.options.room.recentChat(),
       unprompted: heard,
@@ -269,8 +207,8 @@ export class ChatBot {
 
   /**
    * Runs the command of the bot's that the room's own command `own` runs (its `runWhileSinging`
-   * while the streamer is singing, else its `run`), as if `chat`'s sender had typed it: at its
-   * own price, an admin-only one only for an admin.
+   * while the streamer is singing, else its `run`), as if `chat`'s sender had typed it: an
+   * admin-only one only for an admin.
    */
   private runFor(own: AdditionalCommand, chat: Omit<IncomingChat, 'content'>): void {
     const { room, log } = this.options;
@@ -279,12 +217,7 @@ export class ChatBot {
     if (name === undefined) return;
     const question = `/${name}`;
     log.info('additional command runs', { id: own.id, asker: chat.nickname, run: name, singing });
-    this.runner.run(
-      { ...chat, content: question },
-      question,
-      { name, args: '' },
-      this.isAdmin(chat.userId),
-    );
+    this.runner.run({ ...chat, content: question }, { name, args: '' }, this.isAdmin(chat.userId));
   }
 
   private now(): number {
@@ -354,56 +287,8 @@ export class ChatBot {
     return userId !== undefined && !!this.options.admins?.has(userId);
   }
 
-  /** Hands a mention to the answerer, giving the price back if it was dropped. */
+  /** Hands a mention to the answerer. */
   private ask(mention: Mention): void {
-    if (!this.options.answerer.ask(mention)) this.refund(mention);
-  }
-
-  private refund(mention: Pick<Mention, 'asker' | 'userId' | 'paid'>): void {
-    refundMention(this.options.billing, this.options.log, mention);
-  }
-
-  /**
-   * Takes the price of a mention, or of `command`, from the asker, nothing from an admin; when
-   * they can't pay, queues a notice, keeps the mention (`question`, or what the bot would say to
-   * them `unprompted`, with the room's own command `additional`, at its price) for when they send
-   * a gift, and says so.
-   */
-  private charge({
-    chat,
-    question,
-    admin,
-    command,
-    unprompted,
-    additional,
-  }: ChargeRequest): Charge {
-    const { nickname: asker, userId } = chat;
-    const { billing, log } = this.options;
-    if (admin || !billing) return { ok: true, paid: 0 };
-    const price = command?.price ?? additional?.price ?? billing.cost;
-    const charge = billing.charge(userId, asker, price);
-    if (charge.ok) return charge;
-    if (userId) {
-      this.unpaid.keep(userId, {
-        chat,
-        question,
-        ...(unprompted && { unprompted }),
-        ...(additional && { command: additional.id }),
-      });
-    }
-    log.info('balance too low', {
-      asker,
-      userId,
-      balance: billing.balance(userId),
-      command: command?.name,
-    });
-    const priced = command ?? additional;
-    const notice = billing.lowBalanceNotice(
-      userId,
-      priced && { name: priced.name, price },
-      !!unprompted,
-    );
-    if (charge.notify) this.runner.say(asker, 'notice', notice);
-    return charge;
+    this.options.answerer.ask(mention);
   }
 }

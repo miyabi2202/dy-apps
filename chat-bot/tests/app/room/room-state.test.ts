@@ -99,23 +99,20 @@ test('lists the settings the features gave, each as it is now, and none when non
   const room = fakeRoom();
   expect(room.promptInput().settings).toBeUndefined();
 
-  let cost = 2;
-  room.addSettings(() => ({ mentionCost: cost }));
-  room.addSettings(() => ({ thanksThreshold: 100 }));
+  let threshold = 100;
+  room.addSettings(() => ({ thanksThreshold: threshold }));
   expect(room.prompt('{{settings}}', { singleLength: 40, maxLength: 40 })).toBe(
     [
       '直播间现在的设置（机器人管理员可以用指令修改）：',
-      '- 每次 @ 你：2 钻，用观众给主播送过的礼物抵（不会另外扣观众的钱）',
       '- 截图：开（你能看到直播画面）',
       '- 自动谢礼：5 分钟内送礼超过 100 钻的观众会收到感谢',
     ].join('\n'),
   );
 
-  cost = 0;
+  threshold = 200;
   room.screenshots = false;
   expect(room.promptInput().settings).toEqual({
-    mentionCost: 0,
-    thanksThreshold: 100,
+    thanksThreshold: 200,
     screenshots: false,
   });
 });

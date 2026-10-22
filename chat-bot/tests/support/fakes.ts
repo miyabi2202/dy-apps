@@ -2,7 +2,6 @@ import { EventBus } from '../../src/app/event-bus';
 import { Outbox } from '../../src/app/replies/outbox';
 import type { Log, RoomEvents } from '../../src/app/ports';
 import type { Gift, IncomingChat } from '../../src/core/chat/room-events';
-import { Wallet, type Account } from '../../src/core/viewers/wallet';
 
 export const BOT = { nickname: '小助手', userId: 'bot-1' };
 export const NOW = Date.UTC(2026, 9, 16, 8, 0, 0);
@@ -25,11 +24,6 @@ export function chat(
 /** A gift of `count` of something worth `diamondCount` diamonds each. */
 export function gift(nickname: string, count: number, diamondCount: number): Gift {
   return { userId: `u-${nickname}`, nickname, name: '玫瑰', count, diamonds: count * diamondCount };
-}
-
-/** A wallet kept in memory, starting from `accounts`. */
-export function memoryWallet(accounts: Record<string, Account> = {}) {
-  return new Wallet({ load: () => ({ accounts: structuredClone(accounts) }), save: () => {} });
 }
 
 /** A real bus, as the room's features get it. */

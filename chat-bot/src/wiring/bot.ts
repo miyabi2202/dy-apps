@@ -14,7 +14,6 @@ import {
   ASK_SOLVE,
   AUTO_REPLY,
   AUTO_SONG_ID,
-  BILLING,
   BOT,
   BOT_CONFIG,
   BUS,
@@ -50,7 +49,6 @@ export function registerBot(container: Container): void {
         room: c.resolve(ROOM),
         log: c.resolve(LOG),
         promptTemplate: mentionTemplate,
-        billing: c.resolve(BILLING),
         userTalk: c.resolve(USER_TALK),
         maxPending: options.maxPending,
         maxReplyLength: options.maxReplyLength,
@@ -71,7 +69,6 @@ export function registerBot(container: Container): void {
       const ask = c.resolve(ASK_SOLVE);
       const transcriber = c.resolve(TRANSCRIBER);
       return [
-        ...c.resolve(BILLING).commands(),
         ...c.resolve(AUTO_REPLY).commands(),
         ...c.resolve(ANSWERER).commands(),
         ...c.resolve(THANKER).commands(),
@@ -93,7 +90,7 @@ export function registerBot(container: Container): void {
         ...(transcriber ? [musicCommand(() => transcriber.identifyMusic(), c.resolve(LOG))] : []),
       ];
     })
-    // Decides what a mention is (a question, or a command) and charges for it.
+    // Decides what a mention is (a question, or a command).
     .register(
       BOT,
       (c) =>
@@ -104,7 +101,6 @@ export function registerBot(container: Container): void {
           room: c.resolve(ROOM),
           outbox: c.resolve(OUTBOX),
           log: c.resolve(LOG),
-          billing: c.resolve(BILLING),
           admins: c.resolve(ADMINS),
           streamer: () => c.resolve(ADMINS).current(),
           adminNames: c.resolve(BOT_CONFIG).adminNames,

@@ -8,7 +8,6 @@ import type { RoomConfig, RoomFiles, roomConfigFile } from '../adapters/files/ro
 import type { BotConfig } from '../adapters/files/config-file';
 import type { AutoReply } from '../app/replies/auto-reply';
 import type { AutoSongId } from '../app/songs/auto-song-id';
-import type { Billing } from '../app/commands/billing';
 import type { ChatBot } from '../app/replies/chat-bot';
 import type { Command } from '../app/commands/command';
 import type { EventBus } from '../app/event-bus';
@@ -41,7 +40,6 @@ import type { CliOptions } from '../cli-options';
 import type { ChatHistory } from '../core/chat/chat-history';
 import type { RecentGifts } from '../core/chat/recent-gifts';
 import type { Transcript } from '../core/songs/transcript';
-import type { Wallet, WalletStorage } from '../core/viewers/wallet';
 import type { PromptName } from '../adapters/files/room-files';
 import type { App } from './app';
 import { token } from './container';
@@ -62,7 +60,6 @@ export const ROOM_API =
   token<Pick<RoomFeedApi, 'sendChat' | 'streamUrl' | 'streamer' | 'screenshot'>>('roomApi');
 export const ROOM_EVENTS = token<RoomEvents>('roomEvents');
 export const SPAWN_WORKER = token<SpawnWorker>('spawnWorker');
-export const WALLET_STORAGE = token<WalletStorage>('walletStorage');
 /** `claude -p` for this room. */
 export const CLAUDE_CLI = token<AskModel>('claudeCli');
 /** `codex exec` with the room's usual settings, which `over` changes. */
@@ -97,8 +94,6 @@ export const BUS = token<EventBus>('bus');
 export const HISTORY = token<ChatHistory>('history');
 export const GIFTS = token<RecentGifts>('gifts');
 export const TRANSCRIPT = token<Transcript>('transcript');
-export const WALLET = token<Wallet>('wallet');
-export const BILLING = token<Billing>('billing');
 export const RECORD = token<RoomRecord>('record');
 export const SINGING = token<Pick<RoomRecord, 'add'>>('singing');
 export const BOT_TALK = token<BotTalk>('botTalk');

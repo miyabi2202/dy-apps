@@ -257,7 +257,6 @@ export class AutoReply {
       {
         name: '自动回复阈值',
         adminOnly: true,
-        price: 0,
         run: (args) => {
           if (!/^\d+(\.\d+)?$/.test(args))
             return failed('阈值要写成 0 到 1 之间的小数，1 表示关闭，用法：/自动回复阈值 0.6');
@@ -269,7 +268,6 @@ export class AutoReply {
       {
         name: '自动回复间隔',
         adminOnly: true,
-        price: 0,
         run: (args) => {
           if (!/^\d+$/.test(args))
             return failed('间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20');

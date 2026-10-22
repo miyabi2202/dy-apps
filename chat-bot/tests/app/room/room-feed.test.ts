@@ -1,24 +1,13 @@
 import { ChatLog } from '../../../src/adapters/files/chat-log-files';
-import { Billing } from '../../../src/app/commands/billing';
 import { RoomFeed, whenRoomFeedGone } from '../../../src/app/room/room-feed';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import type { ChatLine, Gift } from '../../../src/core/chat/room-events';
-import {
-  BOT,
-  NOW,
-  chat,
-  fakeBus,
-  fakeEvents,
-  gift,
-  memoryWallet,
-  silentLog,
-} from '../../support/fakes';
+import { BOT, NOW, chat, fakeBus, fakeEvents, gift, silentLog } from '../../support/fakes';
 
 function setup(
   options: {
     historySize?: number;
     chatLog?: ChatLog;
-    wallet?: ReturnType<typeof memoryWallet>;
   } = {},
 ) {
   const { events, say, give } = fakeEvents();
@@ -31,7 +20,6 @@ function setup(
     history,
     log: silentLog,
     record: options.chatLog,
-    billing: options.wallet && new Billing({ wallet: options.wallet }),
   });
   const mentions: { asker: string; question: string; history: ChatLine[] }[] = [];
   const gifts: Gift[] = [];
@@ -97,13 +85,11 @@ test('records chat and gifts', () => {
   );
 });
 
-test('credits gifts to their givers, and passes on those worth diamonds', () => {
-  const wallet = memoryWallet();
-  const { give, gifts } = setup({ wallet });
+test('passes on the gifts worth diamonds', () => {
+  const { give, gifts } = setup();
   give(gift('阿明', 3, 1));
   give(gift('阿明', 1, 0));
 
-  expect(wallet.balance('u-阿明')).toBe(3);
   expect(gifts).toEqual([gift('阿明', 3, 1)]);
 });
 

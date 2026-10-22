@@ -65,7 +65,7 @@ export function loadAdditionalCommands(
     streamerNames: streamerNames(),
   });
   for (const error of errors) log.warn('skipping an additional command', { error });
-  return commands.map(({ id, name, when, trigger, prompt: file, price, mentions, ...rest }) => {
+  return commands.map(({ id, name, when, trigger, prompt: file, mentions, ...rest }) => {
     const { base, sharedPrompt, ...flags } = rest;
     const path =
       file === undefined
@@ -94,14 +94,13 @@ export function loadAdditionalCommands(
           }
         }
       : undefined;
-    log.info('additional command', { id, name, base, price, mentions, ...flags });
+    log.info('additional command', { id, name, base, mentions, ...flags });
     return {
       id,
       name,
       when,
       trigger,
       prompt,
-      ...(price !== undefined && { price }),
       ...(mentioned && { mentioned }),
       ...flags,
     };

@@ -1,7 +1,6 @@
 import type { ChatHistory } from '../../core/chat/chat-history';
 import { chatRecord, giftRecord } from '../../core/chat/chat-record';
 import { isFromBot, questionFor, type BotIdentity } from '../../core/chat/mention';
-import type { Billing } from '../commands/billing';
 import type { EventBus } from '../event-bus';
 import type { Log, RoomEvents, RoomRecord } from '../ports';
 
@@ -38,21 +37,18 @@ export interface RoomFeedOptions {
   log: Log;
   /** Where the room's chat and gifts are recorded for Claude to read. */
   record?: RoomRecord;
-  /** Credits what viewers gift, to pay for mentions with. Without it, gifts count for nothing. */
-  billing?: Pick<Billing, 'credit' | 'balance'>;
 }
 
 /**
- * Listens to the room: records each chat and gift, keeps the chat in the history, credits gifts
- * to their givers, and tells the bus of each @mention of the bot (with the question, the text
- * after the @), each chat from someone else and each gift worth diamonds. What to do with them is
+ * Listens to the room: records each chat and gift, keeps the chat in the history, and tells the
+ * bus of each @mention of the bot (with the question, the text after the @), each chat from someone else and each gift worth diamonds. What to do with them is
  * up to whoever subscribed.
  */
 export class RoomFeed {
   constructor(private readonly options: RoomFeedOptions) {}
 
   start(): void {
-    const { events, bus, bot, history, log, record, billing } = this.options;
+    const { events, bus, bot, history, log, record } = this.options;
     events.onStatus((status, detail) => log.info(`room-feed ${status}`, detail ? { detail } : {}));
     events.onChat((chat) => {
       log.debug('chat', { ...chat });
@@ -65,8 +61,7 @@ export class RoomFeed {
     events.onGift((gift) => {
       record?.add(giftRecord(gift));
       if (gift.diamonds <= 0) return;
-      billing?.credit(gift);
-      log.info('gift', { ...gift, balance: billing?.balance(gift.userId) });
+      log.info('gift', gift);
       bus.emit('gift', gift);
     });
     events.connect();

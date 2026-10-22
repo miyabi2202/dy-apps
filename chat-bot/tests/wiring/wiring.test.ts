@@ -7,7 +7,6 @@ import { parseCliOptions } from '../../src/cli-options';
 import { buildContainer } from '../../src/wiring';
 import {
   APP,
-  BILLING,
   AUTO_SONG_ID,
   BOT,
   CLAUDE_CLI,
@@ -23,8 +22,8 @@ import {
   ROOM_EVENTS,
   SONG_ID,
   SPAWN_WORKER,
+  THANKER,
   TRANSCRIBER,
-  WALLET_STORAGE,
 } from '../../src/wiring/tokens';
 import { chat, fakeEvents } from '../support/fakes';
 
@@ -91,7 +90,6 @@ function build(args: string[] = [], env: { JEV_API_KEY?: string } = { JEV_API_KE
     }))
     .register(ROOM_EVENTS, () => ({ ...events, connect: () => void connected++ }))
     .register(SPAWN_WORKER, () => spawnWorker)
-    .register(WALLET_STORAGE, () => ({ load: () => ({ accounts: {} }), save: () => {} }))
     .register(CLAUDE_CLI, () => claude)
     .register(CODEX_CLI, () => (over) => {
       codexMade.push(over);
@@ -132,7 +130,6 @@ function build(args: string[] = [], env: { JEV_API_KEY?: string } = { JEV_API_KE
 }
 
 const ALL_COMMANDS = [
-  '修改收费',
   '自动回复阈值',
   '自动回复间隔',
   '最大回复条数',
@@ -266,7 +263,6 @@ test('answers a mention with the room, the settings the features gave and the pe
   const prompt = bot.prompts[0]!;
   expect(prompt).toContain('小红 @ 了你：你好');
   // Every feature's part of the settings, even those that are off.
-  expect(prompt).toContain('- 每次 @ 你：免费');
   expect(prompt).toContain('- 自动回复：关闭');
   expect(prompt).toContain('- 自动谢礼：关闭');
   expect(prompt).toContain('- 自动识歌：关闭');
@@ -280,34 +276,43 @@ test('a command asked for in words runs through the bot, which the answerer reac
     JSON.stringify({
       message: '好的',
       others: [],
-      command_request: '修改收费',
-      command_args: '2',
+      command_request: '自动谢礼',
+      command_args: '100',
     }),
   );
-  bot.say(mention('雅', '7001', '@小助手 以后每次收 2 钻'));
+  bot.say(mention('雅', '7001', '@小助手 以后 100 钻以下的礼物不用谢了'));
   await bot.container.resolve(BOT).idle();
   await bot.container.resolve(OUTBOX).idle();
   app.stop();
 
-  expect(bot.sent).toEqual(['@雅 已处理修改收费请求']);
+  expect(bot.sent).toEqual(['@雅 已处理自动谢礼请求']);
   const config = readFileSync(join(bot.dir, 'data', '123', 'room_config.json'), 'utf8');
-  expect(JSON.parse(config)).toMatchObject({ mentionCost: 2 });
+  expect(JSON.parse(config)).toMatchObject({ thanksThreshold: 100 });
 });
 
 test("starts filling in the room's room_config.json: an option seeds a missing setting, and what the file has wins", () => {
-  const first = build(['--no-asr', '--cost', '2']);
+  const first = build(['--no-asr', '--thanks-threshold', '200']);
   first.container.resolve(APP);
   const path = join(first.dir, 'data', '123', 'room_config.json');
   expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({
     private: false,
     aliases: [],
-    mentionCost: 2,
+    thanksThreshold: 200,
     autoReplyThreshold: 1,
   });
 
   // The next start, with another option: the file's value stays, with a warning.
   const options = parseCliOptions(
-    ['--room', '123', '--bot-name', '小助手', '--data', join(first.dir, 'data'), '--cost', '9'],
+    [
+      '--room',
+      '123',
+      '--bot-name',
+      '小助手',
+      '--data',
+      join(first.dir, 'data'),
+      '--thanks-threshold',
+      '900',
+    ],
     PACKAGE_DIR,
   )!;
   const warned: string[] = [];
@@ -318,9 +323,9 @@ test("starts filling in the room's room_config.json: an option seeds a missing s
     env: {},
   });
   container.register(DOWNLOADS, () => () => {});
-  container.resolve(BILLING);
-  expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ mentionCost: 2 });
-  expect(container.resolve(BILLING).cost).toBe(2);
+  container.resolve(THANKER);
+  expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ thanksThreshold: 200 });
+  expect(container.resolve(THANKER).threshold).toBe(200);
   expect(warned).toContain('setting from room_config, ignoring option');
 });
 

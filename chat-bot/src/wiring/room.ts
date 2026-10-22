@@ -16,7 +16,6 @@ import {
   saveStreamer,
 } from '../adapters/files/room-files';
 import { botTalkFile, userTalkFiles } from '../adapters/files/room-talk-files';
-import { Billing } from '../app/commands/billing';
 import { EventBus } from '../app/event-bus';
 import { Outbox } from '../app/replies/outbox';
 import { RoomFeed } from '../app/room/room-feed';
@@ -25,12 +24,10 @@ import { StreamerAdmin } from '../app/commands/streamer-admin';
 import { ChatHistory } from '../core/chat/chat-history';
 import { RecentGifts } from '../core/chat/recent-gifts';
 import { Transcript } from '../core/songs/transcript';
-import { Wallet } from '../core/viewers/wallet';
 import type { Container } from './container';
 import {
   ADDITIONAL_COMMANDS,
   ADMINS,
-  BILLING,
   BOT_CONFIG,
   BOT_TALK,
   BUS,
@@ -57,8 +54,6 @@ import {
   SETTINGS,
   TRANSCRIPT,
   USER_TALK,
-  WALLET,
-  WALLET_STORAGE,
 } from './tokens';
 
 /**
@@ -133,21 +128,6 @@ export function registerRoom(container: Container): void {
     // The last few minutes' gifts, among the chat in every prompt (so 「谢一下这个礼物」 knows which).
     .register(GIFTS, () => new RecentGifts())
     .register(TRANSCRIPT, () => new Transcript())
-    // Balances outlast a restart: they're cleared on start only when last saved over a day ago.
-    .register(WALLET, (c) => {
-      const wallet = new Wallet(c.resolve(WALLET_STORAGE));
-      wallet.clearIfOlderThan(24 * 60 * 60_000);
-      return wallet;
-    })
-    .register(BILLING, (c) => {
-      const billing = new Billing({
-        wallet: c.resolve(WALLET),
-        cost: c.resolve(OPTIONS).cost,
-        settings: c.resolve(SETTINGS),
-      });
-      c.resolve(ROOM).addSettings(() => billing.settings());
-      return billing;
-    })
     // What the bot said, overall and to each viewer, so it doesn't repeat itself.
     .register(BOT_TALK, (c) => {
       const roomConfig = c.resolve(ROOM_CONFIG);
@@ -251,7 +231,6 @@ export function registerRoom(container: Container): void {
     })
     // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
     .register(OUTBOX, (c) => {
-      const billing = c.resolve(BILLING);
       const botTalk = c.resolve(BOT_TALK);
       return new Outbox({
         send: c.resolve(ROOM_API).sendChat,
@@ -259,18 +238,9 @@ export function registerRoom(container: Container): void {
         intervalMs: c.resolve(OPTIONS).sendIntervalMs,
         forbiddenWords: c.resolve(FORBIDDEN_WORDS),
         onSent: ({ text }) => botTalk.add(text),
-        // More than 3 「要先给主播送礼」 in a minute looks like spam: the room is told once,
-        // without an @, and no more for 5 minutes (those who gift are still answered).
-        noticeFlood: {
-          max: 3,
-          windowMs: 60_000,
-          muteMs: 5 * 60_000,
-          text: () =>
-            `想让我回你的，要先给主播送礼：每次${billing.cost}钻，从你送的里扣（不另外扣钱），送了马上回你`,
-        },
       });
     })
-    // Listens to the room: records chat and gifts, credits gifts, and tells the bus of mentions,
+    // Listens to the room: records chat and gifts, and tells the bus of mentions,
     // chats and gifts.
     .register(
       FEED,
@@ -282,7 +252,6 @@ export function registerRoom(container: Container): void {
           history: c.resolve(HISTORY),
           log: c.resolve(LOG),
           record: c.resolve(RECORD),
-          billing: c.resolve(BILLING),
         }),
     );
 }

@@ -10,7 +10,6 @@ import { roomFeedEvents } from '../adapters/room-feed/room-feed-events';
 import { RoomFeedApi } from '../adapters/room-feed/room-feed-api';
 import { jev } from '../adapters/models/jev';
 import { readDownloads, runDownloads } from '../adapters/files/room-downloads';
-import { jsonFileStorage } from '../adapters/files/wallet-file';
 import type { Container } from './container';
 import {
   CHAT_DIR,
@@ -28,7 +27,6 @@ import {
   ROOM_EVENTS,
   ROOM_FILES,
   SPAWN_WORKER,
-  WALLET_STORAGE,
 } from './tokens';
 
 /**
@@ -49,7 +47,6 @@ export function registerAdapters(container: Container): void {
     // The speech service, started by hand before the bot, keeps its models loaded across restarts
     // of the bot: connect to it.
     .register(SPAWN_WORKER, (c) => connectWorker({ port: c.resolve(OPTIONS).asrPort }))
-    .register(WALLET_STORAGE, (c) => jsonFileStorage(join(c.resolve(ROOM_DIR), 'wallet.json')))
     .register(CLAUDE_CLI, (c) => {
       const options = c.resolve(OPTIONS);
       // An empty working directory, so Claude Code picks up no project's CLAUDE.md or settings.

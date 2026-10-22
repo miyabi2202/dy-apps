@@ -19,8 +19,8 @@ export interface AdditionalCommandEntry {
   /** What it says, as it is, to whoever it's chosen for, with no model asked. */
   fixedReply?: string;
   /**
-   * One of the bot's commands (commands.md) it runs instead, as if the asker had typed it, at
-   * that command's price: 识别背景音乐.
+   * One of the bot's commands (commands.md) it runs instead, as if the asker had typed it:
+   * 识别背景音乐.
    */
   run?: string;
   /** The command it runs instead of `run` while the streamer is singing (see singingNow): 识歌. */
@@ -29,8 +29,6 @@ export interface AdditionalCommandEntry {
   only?: UserCondition[];
   /** It doesn't apply to viewers matching any of these. */
   except?: UserCondition[];
-  /** Diamonds an answer costs a viewer (0 free; admins never pay); what an @ costs when not set. */
-  price?: number;
   /**
    * A file in the room's folder, one phrase a line (a song list's titles, say): a chat containing
    * one is taken as for this command, like one matching its trigger.
@@ -56,11 +54,11 @@ export interface IndexOptions {
 
 /**
  * The commands in `index.json` (already parsed): an object of `"<id>": { "base"?, "name", "when",
- * "prompt"?, "fixedReply"?, "run"?, "runWhileSinging"?, "trigger"?, "price"?, "mentions"?,
+ * "prompt"?, "fixedReply"?, "run"?, "runWhileSinging"?, "trigger"?, "mentions"?,
  * "adminOnly"?, "atOthers"?, "only"?, "except"? }`, at least one of `prompt`, `fixedReply` and
  * `run` (`runWhileSinging` only with a `run`), `run` and `runWhileSinging` names of the bot's
- * commands without the slash, `trigger` a regular expression, `price`
- * whole diamonds, `mentions` a file in the room's folder, `adminOnly` and `atOthers` true or
+ * commands without the slash, `trigger` a regular expression,
+ * `mentions` a file in the room's folder, `adminOnly` and `atOthers` true or
  * false, `only` and `except` lists of UserCondition. A command with a `base` starts from that
  * shared command's fields, and any the room writes replace them. `{{streamerNames}}` in `when`
  * and `trigger` is what viewers call the streamer (see streamerNamesIn).
@@ -132,8 +130,7 @@ function toEntry(
   streamerNames: readonly string[],
 ): AdditionalCommandEntry | string {
   if (!/^[\w-]+$/.test(id)) return 'the id may have only letters, digits, _ and -';
-  const { name, prompt, fixedReply, run, runWhileSinging, price, mentions, adminOnly, atOthers } =
-    fields;
+  const { name, prompt, fixedReply, run, runWhileSinging, mentions, adminOnly, atOthers } = fields;
   const when =
     typeof fields.when === 'string' ? streamerNamesIn(fields.when, streamerNames) : fields.when;
   const trigger =
@@ -165,9 +162,6 @@ function toEntry(
       return `trigger is not a regular expression: ${trigger}`;
     }
   }
-  if (price !== undefined && !(Number.isInteger(price) && (price as number) >= 0)) {
-    return 'price must be whole diamonds, 0 or more';
-  }
   if (mentions !== undefined && !(typeof mentions === 'string' && isInside(mentions))) {
     return 'mentions must be a file inside the room folder';
   }
@@ -193,7 +187,6 @@ function toEntry(
       runWhileSinging: (runWhileSinging as string).trim().replace(/^\//, ''),
     }),
     ...filters,
-    ...(price !== undefined && { price: price as number }),
     ...(mentions !== undefined && { mentions: mentions }),
     ...(adminOnly === true && { adminOnly }),
     ...(atOthers === true && { atOthers }),

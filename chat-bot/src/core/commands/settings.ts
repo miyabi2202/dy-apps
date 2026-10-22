@@ -3,8 +3,6 @@
  * same names), read hot: editing the file changes the running bot at once.
  */
 export interface Settings {
-  /** Diamonds one @ costs; 0 free (`/修改收费`, `--cost`). */
-  mentionCost: number;
   /** How likely something must be about the bot for it to reply unprompted; 1 or more never (`/自动回复阈值`). */
   autoReplyThreshold: number;
   /** Seconds it keeps quiet after talking unprompted; 0 doesn't wait (`/自动回复间隔`). */
@@ -23,7 +21,6 @@ export interface Settings {
 
 /** Each setting's value when neither room_config.json nor the command line says. */
 export const SETTING_DEFAULTS: Readonly<Settings> = {
-  mentionCost: 0,
   autoReplyThreshold: 1,
   autoReplyIntervalSeconds: 60,
   thanksThreshold: 99999,

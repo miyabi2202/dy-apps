@@ -1,12 +1,11 @@
 import { SETTING_DEFAULTS } from '../../../src/core/commands/settings';
-import { Billing } from '../../../src/app/commands/billing';
 import type { EventBus } from '../../../src/app/event-bus';
 import { MentionAnswerer, type Mention } from '../../../src/app/replies/mention-answerer';
 import type { SettingsPart } from '../../../src/app/room/room-state';
 import type { UserTalk } from '../../../src/app/ports';
 import { Transcript } from '../../../src/core/songs/transcript';
 import { fakeRoom } from '../../support/fake-room';
-import { NOW, fakeBus, fakeOutbox, memoryWallet, silentLog } from '../../support/fakes';
+import { NOW, fakeBus, fakeOutbox, silentLog } from '../../support/fakes';
 
 const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{singleLength}})';
 
@@ -17,7 +16,6 @@ interface SetupOptions {
   template?: string;
   transcript?: Transcript;
   screenshot?: () => Promise<Uint8Array>;
-  wallet?: ReturnType<typeof memoryWallet>;
   ask?: () => Promise<string>;
   chatDir?: string;
   persona?: string;
@@ -53,7 +51,6 @@ function setup(options: SetupOptions = {}) {
     room,
     log: silentLog,
     promptTemplate: () => options.template ?? TEMPLATE,
-    billing: options.wallet && new Billing({ wallet: options.wallet }),
     userTalk: options.userTalk,
     bus: options.bus,
     maxReplyLength: options.maxReplyLength,
@@ -64,7 +61,6 @@ function setup(options: SetupOptions = {}) {
     ask: async (mention: Partial<Mention> = {}) => {
       const queued = answerer.ask({
         asker: '阿明',
-        paid: 0,
         question: '在吗',
         history: [],
         ...mention,
@@ -156,15 +152,13 @@ test('points Claude at the record folder, and tells it who it plays', async () =
   expect(prompts).toEqual(['/data/chat/1|你的人设是数学老师']);
 });
 
-test("tells Claude the room settings, the asker's balance and the commands", async () => {
+test('tells Claude the room settings and the commands', async () => {
   const settings = {
-    mentionCost: 2,
     autoReplyThreshold: 1,
     thanksThreshold: 100,
   };
   const { ask, prompts } = setup({
     template: '{{settings}}\n---\n{{commands}}',
-    wallet: memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 10, spent: 3 } }),
     settings: () => settings,
     commands: () => '## The commands\n\n/识歌',
   });
@@ -176,11 +170,9 @@ test("tells Claude the room settings, the asker's balance and the commands", asy
   expect(prompts).toEqual([
     [
       '直播间现在的设置（机器人管理员可以用指令修改）：',
-      '- 每次 @ 你：2 钻，用观众给主播送过的礼物抵（不会另外扣观众的钱）',
       '- 截图：关（你看不到直播画面）',
       '- 自动回复：关闭',
       '- 自动谢礼：5 分钟内送礼超过 100 钻的观众会收到感谢',
-      '- 阿明 送的礼物还剩：7 钻可用',
       '---',
       '## The commands\n\n/识歌',
     ].join('\n'),
@@ -190,25 +182,13 @@ test("tells Claude the room settings, the asker's balance and the commands", asy
   ]);
 });
 
-test('gives the diamond back when the mention cannot be answered', async () => {
-  const wallet = memoryWallet({ 'u-阿明': { nickname: '阿明', gifted: 1, spent: 1 } });
-  const { ask, sent } = setup({
-    wallet,
-    ask: () => Promise.reject(new Error('claude timed out')),
-  });
-  await ask({ userId: 'u-阿明', paid: 1 });
-
-  expect(sent).toEqual([]);
-  expect(wallet.balance('u-阿明')).toBe(1);
-});
-
 test('drops what waits beyond the limit, answering the rest in order', async () => {
   const finish: ((answer: string) => void)[] = [];
   const { answerer, sent } = setup({
     maxPending: 1,
     ask: () => new Promise((resolve) => finish.push(resolve)),
   });
-  const mention = (asker: string): Mention => ({ asker, paid: 0, question: '在吗', history: [] });
+  const mention = (asker: string): Mention => ({ asker, question: '在吗', history: [] });
 
   // The first is with Claude at once, the second waits, the third doesn't fit.
   expect(answerer.ask(mention('甲'))).toBe(true);
@@ -326,9 +306,9 @@ test("the reply @s the whole nickname when it fits, and only a shortened @ goes 
     log: silentLog,
     promptTemplate: () => TEMPLATE,
   });
-  answerer.ask({ asker, paid: 0, question: '怎么办', history: [] });
+  answerer.ask({ asker, question: '怎么办', history: [] });
   await answerer.idle();
-  answerer.ask({ asker, paid: 0, question: '怎么办', history: [] });
+  answerer.ask({ asker, question: '怎么办', history: [] });
   await answerer.idle();
   await outbox.idle();
   expect(sent[0]).toBe(`@${asker} 先换首顺手的唱`);
@@ -363,7 +343,7 @@ test('/最大回复条数 sets how many messages an answer may take, kept in the
   expect(await run('2')).toEqual({ ok: true, reply: '已处理最大回复条数请求' });
   expect(stored).toEqual({ maxReplyParts: 2 });
 
-  answerer.ask({ asker: '阿明', paid: 0, question: '讲讲', history: [] });
+  answerer.ask({ asker: '阿明', question: '讲讲', history: [] });
   await answerer.idle();
   await outbox.idle();
   expect(sent).toHaveLength(2);

@@ -49,8 +49,6 @@ export interface RoomPromptInput {
  * gives its own part (see RoomState.addSettings), and the prompt lists the parts there are.
  */
 export interface RoomSettings {
-  /** Diamonds one @ costs; 0 free. */
-  mentionCost?: number;
   /** Whether prompts get a screenshot of the live video. */
   screenshots: boolean;
   /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
@@ -82,8 +80,6 @@ export interface PromptDetails {
   userHistory?: string;
   /** The asker's own recent messages in the chat, one a line. */
   userChat?: string;
-  /** The asker's diamonds left to pay for @s with. */
-  askerBalance?: number;
   /** The badges shown by the asker's name (a 直播间会员's `V` or `V年`), when known. */
   askerBadges?: readonly string[];
   /** The asker didn't @ the bot: the bot heard them say something to or about it, in the chat or
@@ -94,19 +90,14 @@ export interface PromptDetails {
 /** The room plus what's particular to one prompt. */
 export type PromptInput = RoomPromptInput & PromptDetails;
 
-/** `settings` as lines for the prompt, with `asker`'s balance when known. */
-function settingsText(settings: RoomSettings, asker: string, askerBalance?: number): string {
-  const { mentionCost, screenshots, autoReplyThreshold, autoReplyIntervalMs } = settings;
+/** `settings` as lines for the prompt. */
+function settingsText(settings: RoomSettings): string {
+  const { screenshots, autoReplyThreshold, autoReplyIntervalMs } = settings;
   const { thanksThreshold, autoSongId } = settings;
   const interval =
     autoReplyIntervalMs === undefined ? '' : `，两次之间至少隔 ${autoReplyIntervalMs / 1000} 秒`;
   return [
     '直播间现在的设置（机器人管理员可以用指令修改）：',
-    ...(mentionCost === undefined
-      ? []
-      : [
-          `- 每次 @ 你：${mentionCost > 0 ? `${mentionCost} 钻，用观众给主播送过的礼物抵（不会另外扣观众的钱）` : '免费'}`,
-        ]),
     `- 截图：${screenshots ? '开（你能看到直播画面）' : '关（你看不到直播画面）'}`,
     ...(autoReplyThreshold === undefined
       ? []
@@ -121,9 +112,6 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
     ...(autoSongId === undefined
       ? []
       : [`- 自动识歌：${autoSongId ? '开（主播唱歌时，你会自己认出是什么歌并说出来）' : '关闭'}`]),
-    ...(asker && askerBalance !== undefined
-      ? [`- ${asker} 送的礼物还剩：${askerBalance} 钻可用`]
-      : []),
   ].join('\n');
 }
 
@@ -142,14 +130,14 @@ function settingsText(settings: RoomSettings, asker: string, askerBalance?: numb
  * without one), `{{commonKnowledge}}` Douyin's own common knowledge (灯牌…), likewise, `{{intro}}`
  * what the bot says about itself, likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
- * none), `{{askerBadges}}` the badges by their name (`V年`; `（无）` when none or not known), `{{settings}}` the room's settings (and the asker's balance) as a list, and
+ * none), `{{askerBadges}}` the badges by their name (`V年`; `（无）` when none or not known), `{{settings}}` the room's settings as a list, and
  * `{{commands}}` the commands viewers can run (both empty when not given), and `{{forbiddenWords}}` a
  * line saying which words never to use (empty without any).
  */
 export function buildPrompt(template: string, input: PromptInput): string {
   const { history, transcript, singleLength, maxLength, now, chatDir, persona } = input;
   const { asker = '', question = '', botName, context, botTalk, userHistory, userChat } = input;
-  const { settings, commands, askerBalance, unprompted, intro, wording } = input;
+  const { settings, commands, unprompted, intro, wording } = input;
   const said = question || wording('asked-nothing');
   const values: Record<string, string> = {
     history: historyText(history, input.gifts ?? []),
@@ -195,7 +183,7 @@ export function buildPrompt(template: string, input: PromptInput): string {
     userHistory: retimeLines(userHistory?.trim() ?? '', input.timeZone) || '（暂无）',
     userChat: userChat?.trim() || '（暂无）',
     askerBadges: input.askerBadges?.length ? input.askerBadges.join('、') : '（无）',
-    settings: settings ? settingsText(settings, asker, askerBalance) : '',
+    settings: settings ? settingsText(settings) : '',
     commands: commands?.trim() ?? '',
     forbiddenWords: input.forbiddenWords?.length
       ? wording('forbidden-words', { words: input.forbiddenWords.join('、') })

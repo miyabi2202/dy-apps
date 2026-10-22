@@ -1,6 +1,5 @@
 import { fillRoomConfig, roomConfigFile } from '../../../src/adapters/files/room-files';
 import { AutoReply } from '../../../src/app/replies/auto-reply';
-import { Billing } from '../../../src/app/commands/billing';
 import { AutoSongId } from '../../../src/app/songs/auto-song-id';
 import { MaliceWatch } from '../../../src/app/replies/malice-watch';
 import type { Log, SettingsStore } from '../../../src/app/ports';
@@ -8,7 +7,6 @@ import { OutOfCreditError } from '../../../src/core/errors';
 import { parseCliOptions } from '../../../src/cli-options';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import { fakeRoom } from '../../support/fake-room';
-import { memoryWallet } from '../../support/fakes';
 
 /** A room_config.json in memory, and everything written to it. */
 function memoryFile(text: string) {
@@ -36,7 +34,7 @@ const fileOf = (text: string) => JSON.parse(text) as Record<string, unknown>;
 
 test('fills in the fields a room_config.json lacks with their defaults, and keeps all the others as they are', () => {
   const file = memoryFile(
-    '{\n  "private": true,\n  "on_sing": { "message": "加油", "probability": 0.5 },\n  "streamer": { "nickname": "雅", "uid": "7" },\n  "mentionCost": 3\n}\n',
+    '{\n  "private": true,\n  "on_sing": { "message": "加油", "probability": 0.5 },\n  "streamer": { "nickname": "雅", "uid": "7" },\n  "maxReplyParts": 3\n}\n',
   );
   const { log } = recordingLog();
   fillRoomConfig('room_config.json', {}, { log, ...file });
@@ -45,7 +43,6 @@ test('fills in the fields a room_config.json lacks with their defaults, and keep
     private: true,
     on_sing: { message: '加油', probability: 0.5 },
     streamer: { nickname: '雅', uid: '7' },
-    mentionCost: 3,
     aliases: [],
     streamerNames: [],
     atTrimStart: [],
@@ -56,7 +53,7 @@ test('fills in the fields a room_config.json lacks with their defaults, and keep
     autoSongId: false,
     maliceWatch: false,
     screenshots: false,
-    maxReplyParts: 5,
+    maxReplyParts: 3,
   });
   // Stable formatting: 2 spaces, a trailing newline, the existing fields first.
   expect(file.state.text.endsWith('}\n')).toBe(true);
@@ -72,13 +69,13 @@ test('an option given at start fills in a missing field, but what the file has w
   const { log, messages } = recordingLog();
   fillRoomConfig(
     'room_config.json',
-    { autoReplyThreshold: 0.66, thanksThreshold: 500, mentionCost: 2, screenshots: true },
+    { autoReplyThreshold: 0.66, thanksThreshold: 500, maxReplyParts: 2, screenshots: true },
     { log, ...file },
   );
 
   expect(fileOf(file.state.text)).toMatchObject({
     // Not in the file: the option fills it in, else the default.
-    mentionCost: 2,
+    maxReplyParts: 2,
     screenshots: true,
     autoSongId: false,
     // In the file: kept.
@@ -113,23 +110,36 @@ function setup(text = '{}') {
 
 test('a setting changed by hand takes effect at once, and one changed by a command is written to the file', () => {
   const { file, store } = setup();
-  const billing = new Billing({ wallet: memoryWallet(), settings: store });
-  expect(billing.cost).toBe(0);
+  const autoReply = new AutoReply({
+    outbox: { push: () => {} },
+    threshold: 1,
+    room: fakeRoom({ settings: store }),
+    log: { debug() {}, info() {}, warn() {}, error() {} },
+    picker: () => Promise.resolve('{}'),
+    pickTemplate: () => '',
+    reply: () => {},
+    streamer: () => null,
+    settings: store,
+  });
+  expect(autoReply.quietMs).toBe(60_000);
 
   // By hand.
-  file.state.text = file.state.text.replace('"mentionCost": 0', '"mentionCost": 5');
-  expect(billing.cost).toBe(5);
+  file.state.text = file.state.text.replace(
+    '"autoReplyIntervalSeconds": 60',
+    '"autoReplyIntervalSeconds": 5',
+  );
+  expect(autoReply.quietMs).toBe(5_000);
 
   // By command: the file has it, and so does the next read.
-  const command = billing.commands().find((c) => c.name === '修改收费');
-  expect(command?.run?.('2')).toEqual({ ok: true, reply: '已处理修改收费请求' });
-  expect(fileOf(file.state.text).mentionCost).toBe(2);
-  expect(billing.cost).toBe(2);
+  const command = autoReply.commands().find((c) => c.name === '自动回复间隔');
+  expect(command?.run?.('20')).toEqual({ ok: true, reply: '已处理自动回复间隔请求' });
+  expect(fileOf(file.state.text).autoReplyIntervalSeconds).toBe(20);
+  expect(autoReply.quietMs).toBe(20_000);
   expect(command?.run?.('很多')).toEqual({
     ok: false,
-    reply: '收费要写成钻石数，用法：/修改收费 2',
+    reply: '间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20',
   });
-  expect(fileOf(file.state.text).mentionCost).toBe(2);
+  expect(fileOf(file.state.text).autoReplyIntervalSeconds).toBe(20);
 });
 
 test('writing a setting does not make the file reload: one read after it, and no write by the read', () => {
@@ -267,10 +277,11 @@ test('the command line says which settings it gave, and the rest stay the room�
 
   expect(parse().given).toEqual({});
   expect(parse().autoReplyThreshold).toBe(1);
-  expect(
-    parse('--auto-reply-threshold', '0.66', '--cost', '2', '--screenshot', '--auto-song-id').given,
-  ).toEqual({ autoReplyThreshold: 0.66, mentionCost: 2, screenshots: true, autoSongId: true });
-  expect(parse('--test').given).toEqual({ mentionCost: 0 });
+  expect(parse('--auto-reply-threshold', '0.66', '--screenshot', '--auto-song-id').given).toEqual({
+    autoReplyThreshold: 0.66,
+    screenshots: true,
+    autoSongId: true,
+  });
   expect(parse('--no-screenshot', '--auto-reply-interval', '0').given).toEqual({
     screenshots: false,
     autoReplyIntervalSeconds: 0,
@@ -279,26 +290,26 @@ test('the command line says which settings it gave, and the rest stay the room�
 
 test('a bad value in room_config.json keeps that one field as it was, not the whole file', () => {
   const file = memoryFile(
-    '{ "private": true, "aliases": [{ "name": "Fairy", "heardAs": [] }], "mentionCost": 5 }\n',
+    '{ "private": true, "aliases": [{ "name": "Fairy", "heardAs": [] }], "thanksThreshold": 500 }\n',
   );
   const { log, messages } = recordingLog();
   const config = roomConfigFile('room_config.json', { log, ...file });
   expect(config.get()).toMatchObject({
     private: true,
     aliases: [{ name: 'Fairy', heardAs: [] }],
-    mentionCost: 5,
+    thanksThreshold: 500,
   });
 
   // A hand edit with a string where a number goes: 私密 stays on, the rest stays read.
   file.state.text =
-    '{ "private": true, "aliases": [{ "name": "Fairy", "heardAs": [] }, { "name": "菲瑞" }], "mentionCost": "6", "autoSongId": true }\n';
+    '{ "private": true, "aliases": [{ "name": "Fairy", "heardAs": [] }, { "name": "菲瑞" }], "thanksThreshold": "600", "autoSongId": true }\n';
   expect(config.get()).toMatchObject({
     private: true,
     aliases: [
       { name: 'Fairy', heardAs: [] },
       { name: '菲瑞', heardAs: [] },
     ],
-    mentionCost: 5,
+    thanksThreshold: 500,
     autoSongId: true,
   });
   expect(messages('room_config.json has bad values, keeping their last ones')).toHaveLength(1);
@@ -307,16 +318,18 @@ test('a bad value in room_config.json keeps that one field as it was, not the wh
 test('a command changing a setting while room_config.json is not JSON leaves the file alone', () => {
   const file = memoryFile('{ "private": false,\n');
   const { log, messages } = recordingLog();
-  roomConfigFile('room_config.json', { log, ...file }).update({ mentionCost: 3 });
+  roomConfigFile('room_config.json', { log, ...file }).update({ thanksThreshold: 3 });
   expect(file.state.writes).toBe(0);
   expect(messages('could not change room_config.json')).toHaveLength(1);
 });
 
 test('a setting given on the command line that is not a number, 0 or more, is refused', () => {
   const args = ['--room', '416362684969', '--bot-name', '默认关闭'];
-  expect(parseCliOptions([...args, '--cost', 'abc'], '/pkg')).toBeNull();
+  expect(parseCliOptions([...args, '--thanks-threshold', 'abc'], '/pkg')).toBeNull();
   expect(parseCliOptions([...args, '--auto-reply-threshold=-1'], '/pkg')).toBeNull();
-  expect(parseCliOptions([...args, '--cost', '2'], '/pkg')?.given).toEqual({ mentionCost: 2 });
+  expect(parseCliOptions([...args, '--thanks-threshold', '2'], '/pkg')?.given).toEqual({
+    thanksThreshold: 2,
+  });
 });
 
 test('room_config.json says where the streamer is: Beijing time when it does not, a bad zone kept as it was', () => {
