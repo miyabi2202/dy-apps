@@ -1,6 +1,6 @@
 import 云裳羽衣曲 from './fixtures/云裳羽衣曲.json';
 import 南屏晚钟 from './fixtures/南屏晚钟.json';
-import FIRESTARTER from './fixtures/FIRESTARTER.json';
+import FIRESTARTER from './fixtures/firestarter.json';
 import 晴天 from './fixtures/晴天.json';
 import 雨爱 from './fixtures/雨爱.json';
 
@@ -25,13 +25,13 @@ export function recordedFetch(
   recording: Recording,
   onCall?: (query: string) => void,
 ): typeof fetch {
-  return (async (url: string) => {
+  return ((url: string) => {
     const { searchParams } = new URL(url);
     const query = searchParams.get('s') ?? '';
     onCall?.(query);
     const body = (searchParams.get('type') === '1' ? recording.titles : recording.responses)[query];
-    return body === undefined
-      ? new Response('', { status: 500 })
-      : new Response(JSON.stringify(body));
+    return Promise.resolve(
+      body === undefined ? new Response('', { status: 500 }) : new Response(JSON.stringify(body)),
+    );
   }) as unknown as typeof fetch;
 }

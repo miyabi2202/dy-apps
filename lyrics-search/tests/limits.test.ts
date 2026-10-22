@@ -4,7 +4,10 @@ describe('minGap', () => {
   it('spaces requests asked for at once, and does not wait after a long pause', async () => {
     let clock = 1000;
     const slept: number[] = [];
-    const sleep = async (ms: number) => void slept.push(ms);
+    const sleep = (ms: number) => {
+      slept.push(ms);
+      return Promise.resolve();
+    };
     const limit = minGap(100, () => clock, sleep);
 
     await Promise.all([limit(), limit(), limit()]);

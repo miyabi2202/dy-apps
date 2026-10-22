@@ -2,9 +2,11 @@ import { neteaseClient } from '../src/netease';
 
 function fakeFetch(body: unknown, status = 200) {
   const calls: { url: URL; init: RequestInit }[] = [];
-  const fetchFn = (async (url: string, init: RequestInit) => {
+  const fetchFn = ((url: string, init: RequestInit) => {
     calls.push({ url: new URL(url), init });
-    return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
+    return Promise.resolve(
+      new Response(typeof body === 'string' ? body : JSON.stringify(body), { status }),
+    );
   }) as unknown as typeof fetch;
   return { fetchFn, calls };
 }
@@ -74,13 +76,16 @@ describe('neteaseClient.searchLyrics', () => {
 
   it('waits for the rate limit before each request', async () => {
     const order: string[] = [];
-    const fetchFn = (async () => {
+    const fetchFn = (() => {
       order.push('fetch');
-      return new Response(JSON.stringify({ code: 200 }));
+      return Promise.resolve(new Response(JSON.stringify({ code: 200 })));
     }) as unknown as typeof fetch;
     await neteaseClient({
       fetch: fetchFn,
-      limit: async () => void order.push('limit'),
+      limit: () => {
+        order.push('limit');
+        return Promise.resolve();
+      },
     }).searchLyrics('x');
     expect(order).toEqual(['limit', 'fetch']);
   });

@@ -12,14 +12,14 @@ export function fold(text: string): string {
 export function cleanLine(line: string): string {
   return line
     .replace(/[^\p{L}\p{N}\p{M}\s']/gu, ' ')
-    .replace(/(?<=[^\x00-\x7f])\s+|\s+(?=[^\x00-\x7f])/gu, '')
+    .replace(/(?<=[^\p{ASCII}])\s+|\s+(?=[^\p{ASCII}])/gu, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-const BRACKETED = /[（(\[【「《].*?[）)\]】」》]/g;
+const BRACKETED = /[（([【「《].*?[）)\]】」》]/g;
 const WAVED = /[～~].*?[～~]/g;
-const UNCLOSED = /[（(\[【].*$/;
+const UNCLOSED = /[（([【].*$/;
 const DASHED = /\s*[-–—].*$/;
 const VERSION =
   /(深情|女声|男声|独唱|合唱|翻唱|伴奏|吉他|钢琴|完整|正式|抖音|dj|加速|降调|升调|live)*版$/i;

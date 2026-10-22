@@ -140,7 +140,7 @@ base: fairy
 
 ## 覆盖共用的提示词
 
-`chat-bot/` 下的提示词（`song-id.md`、`gift-thanks.md`、`song-intro.md`、`solve.md`、`reply-pick.md`、`malice.md`）是所有直播间共用的。在直播间文件夹里放一个同名文件，`-` 换成 `_`（比如 `song_id.md`），就只覆盖这个直播间的。`prompt.md` 不能覆盖。
+`chat-bot/` 下的提示词（`song-id.md`、`gift-thanks.md`、`song-intro.md`、`solve.md`、`reply-pick.md`、`malice.md`）是所有直播间共用的。在直播间文件夹里放一个同名文件，`-` 换成 `_`（比如 `song_id.md`），就只覆盖这个直播间的。`prompt.md` 不能覆盖。其中 `song-id.md`（`song_id.md`）现在只在歌词搜索（网易云）认不准、改让 Codex 找时才用。
 
 ## additional_commands：直播间自己的指令
 

@@ -82,7 +82,7 @@ export async function handleRpc(
         })),
       });
     case 'tools/call': {
-      const name = String(params.name ?? '');
+      const name = typeof params.name === 'string' ? params.name : '';
       const tool = tools.find((candidate) => candidate.name === name);
       if (!tool) return reply(id, textResult({ text: `没有这个工具：${name}`, isError: true }));
       let result = session.memo.get(name);
