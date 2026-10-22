@@ -86,6 +86,14 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 这首不要向直播间提问，也不要抛话头让大家回答：照下面说一件具体的事，或者什么都不发。
 
+## song-no-lyrics
+
+这会儿没听到主播在唱，认不了歌词。在放录音的话可以发 /识别背景音乐 试试。
+
+## song-too-early
+
+才听到几句（「{{heard}}」），歌词还不够认，等多唱几句再问我。
+
 ## song-last
 
 你 {{minutes}} 分钟前已经说过这首是《{{title}}》{{artist}}。这次认出来的如果还是这首（哪怕版本、写法不一样），很可能主播还在唱同一首：title 和 artist 照常填，message 留空字符串，不要再说；只有上次说错了、需要更正时才写 message，并说明是更正。

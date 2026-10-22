@@ -1,4 +1,5 @@
 import {
+  currentSong,
   isHandled,
   parseStatusLine,
   singingSong,
@@ -47,4 +48,30 @@ test('reads the worker status lines, and nothing else', () => {
   expect(parseStatusLine('{"text": "你好"}')).toBeNull();
   expect(parseStatusLine('loading models')).toBeNull();
   expect(parseStatusLine('{not json')).toBeNull();
+});
+
+test('a song also ends at a shorter pause the streamer talks in, but not at a guest talking or a word', () => {
+  const at = (end: number, text: string, speech = 0.05, host?: boolean): TranscriptLine => ({
+    start: (end - 3) * 1000,
+    end: end * 1000,
+    text,
+    speech,
+    ...(host !== undefined && { host }),
+  });
+  const sang = [at(0, '一曲终了'), at(8, '余音绕梁')];
+  const next = [at(30, '下一首开始'), at(38, '继续唱')];
+  const song = (between: TranscriptLine[]) =>
+    currentSong([...sang, ...between, ...next]).map((l) => l.text);
+  // 22 s with two lines of talk between: a new song.
+  expect(song([at(14, '谢谢大家', 0.8), at(20, '下一首送给你们', 0.8)])).toEqual([
+    '下一首开始',
+    '继续唱',
+  ]);
+  // One word over the backing track, or a guest talking: the same song.
+  expect(song([at(20, '嗯', 0.8)])).toHaveLength(5);
+  expect(song([at(14, '你好', 0.8, false), at(20, '我来了', 0.8, false)])).toHaveLength(6);
+  // Talk, but the singing goes on within 15 s: the same song.
+  expect(
+    currentSong([...sang, at(12, '谢谢', 0.8), at(14, '哈哈', 0.8), at(20, '接着唱')]),
+  ).toHaveLength(5);
 });

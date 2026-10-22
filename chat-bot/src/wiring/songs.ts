@@ -1,4 +1,4 @@
-import { AutoSongId } from '../app/auto-song-id';
+import { AutoSongId, SONG_CHARS } from '../app/auto-song-id';
 import { OnSing } from '../app/on-sing';
 import { SongId } from '../app/song-id';
 import { SongIntro } from '../app/song-intro';
@@ -50,6 +50,12 @@ export function registerSongs(container: Container): void {
         }),
         log: c.resolve(LOG),
         onTold: (song) => void songIntro.introduce(song),
+        // Too little sung to go on: said so, without asking Codex (see wording.md).
+        early: {
+          minChars: SONG_CHARS,
+          noLyrics: () => c.resolve(ROOM).wording('song-no-lyrics'),
+          tooEarly: (heard) => c.resolve(ROOM).wording('song-too-early', { heard }),
+        },
       });
     })
     // And the streamer singing has the song named, when /自动识歌 (or --auto-song-id) turns it on.

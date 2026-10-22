@@ -1,7 +1,7 @@
 import { errorMessage } from '../core/errors';
 import { DOUYIN_CHAT_LIMIT, plainMessages } from '../core/reply';
 import type { SongAnswer } from '../core/song-answer';
-import { isHandled, isSung, singingSong, type TranscriptLine } from '../core/transcript';
+import { isHandled, singingSong, sungChars, type TranscriptLine } from '../core/transcript';
 import { done, failed, type Command } from './command';
 import { ModelFeature } from './model-feature';
 import type { Outbox } from './outbox';
@@ -30,15 +30,25 @@ export interface AutoSongIdOptions {
   repeatMs?: number;
 }
 
-/** Sung lines a song needs before it's named, for enough lyrics to go on. */
-const SONG_LINES = 5;
+/**
+ * Sung characters a song needs before it's named, for enough lyrics to go on: speech recognition
+ * cuts singing into short pieces (「如果」「爱你」), so lines say little about how much was heard.
+ */
+export const SONG_CHARS = 40;
+/** After an answer it isn't sure of, the same song is tried again once its lyrics are this many times as long… */
+const RETRY_GROWTH = 2;
+/** …this many times at most. */
+const MAX_RETRIES = 2;
 
 /**
  * Names the song the streamer is singing without anyone asking, like `/识歌`, and says it in the
- * room: once the streamer is singing (see singingNow) and the song has SONG_LINES sung lines, and
- * again every `againMs` while they go on singing, as one song runs into the next. Only a song the
- * model names for sure is said, and not one named (by it or by `/识歌`) within `repeatMs`; when
- * it finds that one still being sung, it looks again after `sameAgainMs` instead.
+ * room: once the streamer is singing (see singingNow) and the song (see currentSong) has
+ * SONG_CHARS sung characters, and again every `againMs` while they go on singing, as one song runs
+ * into the next. Only a song the model names for sure is said, and not one named (by it or by
+ * `/识歌`) within `repeatMs`; when it finds that one still being sung, it looks again after
+ * `sameAgainMs` instead. When it isn't sure, it asks again about the same song once its lyrics are
+ * RETRY_GROWTH times as long, MAX_RETRIES times at most; a song that ended meanwhile isn't asked
+ * about again, the new one is.
  */
 export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null> {
   private readonly onSetting: ReturnType<typeof setting<'autoSongId'>>;
@@ -46,6 +56,10 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
   private triedAt = -Infinity;
   /** How long after `triedAt` it tries again while the streamer sings on. */
   private waitMs: number | undefined;
+  /** The lyrics it last asked about (sung characters), and how many times that song was asked again. */
+  private asked = { chars: 0, retries: 0 };
+  /** Whether the last answer wasn't sure, so the same song may be asked about again. */
+  private unsure = false;
   private busy = false;
   private readonly work = new Pending();
 
@@ -68,12 +82,23 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
     if (!this.on || this.busy) return;
     const { room, againMs = 180_000 } = this.options;
     const song = singingSong(room.recentTranscript(), line);
-    if (!song || song.lines.filter(isSung).length < SONG_LINES) return;
-    // Again only once a new song started (after a pause), or after `againMs` of singing on.
-    if (isHandled(song, this.triedAt, line.end, this.waitMs ?? againMs)) return;
+    if (!song) return;
+    const chars = sungChars(song.lines);
+    if (chars < SONG_CHARS) return;
+    // The same song, not sure of it yet, with twice the lyrics to go on.
+    const retry =
+      song.start <= this.triedAt &&
+      this.unsure &&
+      this.asked.retries < MAX_RETRIES &&
+      chars >= this.asked.chars * RETRY_GROWTH;
+    // Otherwise again only once a new song started, or after `againMs` of singing on.
+    if (!retry && isHandled(song, this.triedAt, line.end, this.waitMs ?? againMs)) return;
+    this.asked = { chars, retries: retry ? this.asked.retries + 1 : 0 };
     this.triedAt = line.end;
     this.busy = true;
-    this.work.track(this.nameSong(song.lines).finally(() => (this.busy = false)));
+    this.work.track(
+      this.nameSong(song.lines, retry ? 'retry' : 'auto').finally(() => (this.busy = false)),
+    );
   }
 
   /** Resolves once the song being named has been told to the room, or has failed. */
@@ -122,10 +147,15 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
     );
   }
 
-  private nameSong(song: TranscriptLine[]): Promise<void> {
+  private nameSong(song: TranscriptLine[], why: 'auto' | 'retry'): Promise<void> {
     this.waitMs = undefined;
+    this.unsure = false;
+    this.why = why;
     return this.run(song);
   }
+
+  /** Why it's asking now, for the log. */
+  private why: 'auto' | 'retry' = 'auto';
 
   protected buildPrompt(song: TranscriptLine[]): string {
     const { songId, room, maxLength = DOUYIN_CHAT_LIMIT, repeatMs = 60 * 60_000 } = this.options;
@@ -139,8 +169,8 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
   }
 
   /** The song it named, or null when the answer isn't one (logged by SongId). */
-  protected async ask(_song: TranscriptLine[], prompt: string): Promise<SongAnswer | null> {
-    return (await this.options.songId.name({ prompt })).answer;
+  protected async ask(song: TranscriptLine[], prompt: string): Promise<SongAnswer | null> {
+    return (await this.options.songId.name({ prompt }, { why: this.why, lines: song })).answer;
   }
 
   protected deliver(_song: TranscriptLine[], answer: SongAnswer | null): void {
@@ -155,6 +185,7 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
     } = this.options;
     // Only a song it's sure of is said: a guess (「听着像…不太确定」) isn't.
     if (!answer?.title || !answer.sure) {
+      this.unsure = true;
       log.info('auto song id found nothing sure', { title: answer?.title });
       return;
     }

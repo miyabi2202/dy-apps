@@ -44,22 +44,49 @@ export function isSung(line: TranscriptLine): boolean {
   return line.speech !== undefined && line.speech < SUNG_BELOW_SPEECH;
 }
 
+/** Where one song ends and the next begins, see currentSong. */
+export interface SongBreaks {
+  /** A pause longer than this between two sung lines (from the end of one to the end of the next). */
+  pauseMs?: number;
+  /** A shorter pause, longer than this, in which the streamer said at least `talkLines` lines. */
+  talkPauseMs?: number;
+  talkLines?: number;
+}
+
 /**
- * What was said and sung since the current song started: a pause of more than `gapMs` between
- * two sung lines ends a song, so everything before the last such pause belongs to an earlier one.
- * All of `lines` when nothing was sung.
+ * What was said and sung since the current song started: a song ends at a pause of more than
+ * `pauseMs` between two sung lines, or of more than `talkPauseMs` in which the streamer talked
+ * (`talkLines` lines or more, a guest's not counted), so everything before the last such pause
+ * belongs to an earlier one. On 88 songs named in a row in three rooms, a pause of a minute alone
+ * ran 15 pairs of songs together; with the talk too, 5 (sung straight on, no pause or talk), and
+ * split 5 songs in two (talk over the backing track) against 4. All of `lines` when nothing was
+ * sung.
  */
-export function currentSong(lines: readonly TranscriptLine[], gapMs = 60_000): TranscriptLine[] {
-  const sung = lines.filter(isSung);
-  let start = sung[0]?.start;
-  for (let i = sung.length - 1; i > 0; i--) {
-    const [before, after] = [sung[i - 1], sung[i]];
-    if (before && after && after.start - before.end > gapMs) {
-      start = after.start;
-      break;
+export function currentSong(
+  lines: readonly TranscriptLine[],
+  { pauseMs = 60_000, talkPauseMs = 15_000, talkLines = 2 }: SongBreaks = {},
+): TranscriptLine[] {
+  let start: number | undefined;
+  let lastSung: number | undefined;
+  let talk = 0;
+  for (const line of lines) {
+    if (!isSung(line)) {
+      if (!isGuest(line)) talk++;
+      continue;
     }
+    const pause = lastSung === undefined ? Infinity : line.end - lastSung;
+    if (pause > pauseMs || (pause > talkPauseMs && talk >= talkLines)) start = line.start;
+    lastSung = line.end;
+    talk = 0;
   }
   return start === undefined ? [...lines] : lines.filter((line) => line.start >= start);
+}
+
+/** How much was sung in `lines`: the characters of their sung lines, without spaces or punctuation. */
+export function sungChars(lines: readonly TranscriptLine[]): number {
+  return lines
+    .filter(isSung)
+    .reduce((n, line) => n + line.text.replace(/[\s\p{P}]/gu, '').length, 0);
 }
 
 /**

@@ -1,7 +1,7 @@
 import { parseSongAnswer, SONG_ANSWER_SCHEMA, type SongAnswer } from '../core/song-answer';
 import { askJson } from './ask-json';
 import type { Command } from './command';
-import { currentSong } from '../core/transcript';
+import { currentSong, isSung, sungChars, type TranscriptLine } from '../core/transcript';
 import type { AskModel, Log, Question } from './ports';
 
 export interface SongIdOptions {
@@ -13,7 +13,16 @@ export interface SongIdOptions {
   now?: () => number;
   /** Told each song named to the room, after its message, to say more about it. */
   onTold?: (song: SongAnswer) => void;
+  /**
+   * What `/识歌` answers, with no model asked, when the song so far has under `minChars` sung
+   * characters: `noLyrics` when nothing was sung, `tooEarly` (with `{{heard}}`, the latest lines)
+   * otherwise.
+   */
+  early?: { minChars: number; noLyrics: () => string; tooEarly: (heard: string) => string };
 }
+
+/** Why the model is asked: `/识歌`, or /自动识歌 on its own or asking again. */
+export type SongIdWhy = 'command' | 'auto' | 'retry';
 
 /**
  * Names the song being sung, for `/识歌` and /自动识歌: Codex searches for the lyrics of the
@@ -24,6 +33,8 @@ export class SongId {
   private readonly named = new Map<string, number>();
   /** The last song it told the room, and when. */
   private last: { song: SongAnswer; at: number } | undefined;
+  /** The song `/识歌` last picked from the transcript, for its prompt. */
+  private picked: TranscriptLine[] = [];
 
   constructor(private readonly options: SongIdOptions) {}
 
@@ -33,9 +44,24 @@ export class SongId {
 
   /**
    * Asks Codex to name the song, for an answer in SONG_ANSWER_SCHEMA's shape, logged; null when
-   * the answer isn't that shape, with the text it was.
+   * the answer isn't that shape, with the text it was. What it's asked about (`lines`, the song
+   * so far) is logged first, `song id asked`: why, how many sung lines and characters, and the
+   * first and last of them.
    */
-  async name(question: Question): Promise<{ answer: SongAnswer | null; text: string }> {
+  async name(
+    question: Question,
+    about?: { why: SongIdWhy; lines: readonly TranscriptLine[] },
+  ): Promise<{ answer: SongAnswer | null; text: string }> {
+    if (about) {
+      const sung = about.lines.filter(isSung);
+      this.options.log.info('song id asked', {
+        why: about.why,
+        lines: sung.length,
+        chars: sungChars(about.lines),
+        first: sung[0]?.text,
+        last: sung.at(-1)?.text,
+      });
+    }
     const { value: answer, text } = await askJson(
       this.options.codex,
       question,
@@ -78,15 +104,30 @@ export class SongId {
         adminOnly: false,
         prompt: () => this.prompt(),
         // Only the song being sung now, not the one before it.
-        pickTranscript: (lines) => currentSong(lines),
+        pickTranscript: (lines) => (this.picked = currentSong(lines)),
         ask: (question) => this.identify(question),
       },
     ];
   }
 
-  /** `/识歌`'s answer: the message the model wrote, or its whole answer when that isn't JSON. */
+  /**
+   * `/识歌`'s answer: the message the model wrote, or its whole answer when that isn't JSON; with
+   * too little sung yet (see `early`), what that says, without asking.
+   */
   private async identify(question: Question): Promise<string> {
-    const { answer, text } = await this.name(question);
+    const { early, log } = this.options;
+    const chars = sungChars(this.picked);
+    if (early && chars < early.minChars) {
+      log.info('song id: too little sung yet', { chars });
+      if (!chars) return early.noLyrics();
+      const heard = this.picked
+        .filter(isSung)
+        .slice(-2)
+        .map((line) => line.text)
+        .join('」「');
+      return early.tooEarly(heard);
+    }
+    const { answer, text } = await this.name(question, { why: 'command', lines: this.picked });
     if (!answer) return text;
     this.told(answer);
     return answer.message;
