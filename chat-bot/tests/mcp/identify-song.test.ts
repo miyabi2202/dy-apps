@@ -84,16 +84,15 @@ test('names the song from the lyrics search without Codex, and does not start an
   expect(intros).toEqual([]);
 });
 
-test("only the streamer's singing is asked about: another voice's is left out", async () => {
+test("everything sung is asked about, whoever's voice; when most was another's, Claude is told", async () => {
   const { tool, searched } = setup({ lyrics: 'sure' });
-  await answer(tool);
-  expect(searched).toEqual([['刮风这天我试过握着你手', '但偏偏雨渐渐大到我看你不见']]);
-});
+  expect(await answer(tool)).not.toHaveProperty('othersSang');
+  expect(searched).toEqual([
+    ['刮风这天我试过握着你手', '但偏偏雨渐渐大到我看你不见', '连线在唱别的歌'],
+  ]);
 
-test('when only someone else sang, it hears no singing, without asking anyone', async () => {
-  const { tool, searched, asked } = setup({ lyrics: 'sure', streamerSang: false });
-  expect(await answer(tool)).toMatchObject({ found: false, note: '没听到' });
-  expect([...searched, ...asked]).toEqual([]);
+  const others = setup({ lyrics: 'sure', streamerSang: false });
+  expect(await answer(others.tool)).toMatchObject({ found: true, othersSang: true });
 });
 
 test('falls back to Codex, with the hint as the question', async () => {

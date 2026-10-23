@@ -1,7 +1,7 @@
 import type { Log } from '../app/ports';
 import type { RoomState } from '../app/room/room-state';
 import type { SongId } from '../app/songs/song-id';
-import { currentSong, isGuest } from '../core/songs/transcript';
+import { currentSong } from '../core/songs/transcript';
 import type { BotTool } from './rpc';
 
 export interface IdentifySongOptions {
@@ -29,7 +29,7 @@ export function identifySongTool({ songId, room, maxLength, log }: IdentifySongO
   return {
     name: 'identify_song',
     description:
-      '认主播现在唱的歌（按最近的歌词）。观众想知道现在唱的、放的是什么歌时调用：主播最近的话里有标（唱）的歌词、是主播自己在唱，用这个；放的是录音、伴奏、没人在唱，用 identify_bgm。hint 是观众给的提示（可空）。没给 artist 就只知道歌名，别自己猜原唱。message 是程序写好的一句，你可以不用。',
+      '认主播现在唱的歌（按最近的歌词）。观众想知道现在唱的、放的是什么歌时调用：主播最近的话里有标（唱）的歌词、是主播自己在唱，用这个；放的是录音、伴奏、没人在唱，用 identify_bgm。hint 是观众给的提示（可空）。没给 artist 就只知道歌名，别自己猜原唱。othersSang 为 true 时，这段歌词大多不像主播的声音（可能是连线在唱、在放录音，也可能只是认错了声音），说的时候带一句问问，别说成主播在唱。message 是程序写好的一句，你可以不用。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -46,8 +46,7 @@ export function identifySongTool({ songId, room, maxLength, log }: IdentifySongO
     ],
     async call(args, { asker, direct }) {
       const hint = typeof args.hint === 'string' ? args.hint : '';
-      // The streamer's song: someone else singing (连线, a recording) isn't asked about.
-      const lines = currentSong(room.recentTranscript().filter((line) => !isGuest(line)));
+      const lines = currentSong(room.recentTranscript());
       const prompt = room.prompt(songId.prompt(), {
         transcript: lines,
         asker,
@@ -73,7 +72,7 @@ export function identifySongTool({ songId, room, maxLength, log }: IdentifySongO
           }),
         };
       }
-      const { answer, by } = outcome;
+      const { answer, by, othersSang } = outcome;
       if (!answer?.title) {
         log.info('identify_song found nothing', { by });
         return {
@@ -94,6 +93,7 @@ export function identifySongTool({ songId, room, maxLength, log }: IdentifySongO
           sure: answer.sure,
           message: answer.message,
           by,
+          ...(othersSang && { othersSang }),
           lastTold,
         }),
       };

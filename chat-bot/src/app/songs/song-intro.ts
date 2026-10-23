@@ -6,7 +6,7 @@ import {
   SONG_INTRO_SCHEMA,
   type SongIntroAnswer,
 } from '../../core/songs/song-intro-answer';
-import { currentSong, isGuest } from '../../core/songs/transcript';
+import { currentSong, isGuestTalk } from '../../core/songs/transcript';
 import { askJson } from '../models/ask-json';
 import { ModelFeature } from '../models/model-feature';
 import type { Outbox } from '../replies/outbox';
@@ -66,7 +66,7 @@ export class SongIntro extends ModelFeature<Song, SongIntroAnswer> {
       .promptTemplate()
       .replace('{{hook}}', room.wording(this.hook ? 'song-hook' : 'song-no-hook'));
     return room.prompt(template, {
-      transcript: currentSong(room.recentTranscript().filter((line) => !isGuest(line))),
+      transcript: currentSong(room.recentTranscript().filter((line) => !isGuestTalk(line))),
       question: artist ? `《${title}》，原唱 ${artist}` : `《${title}》`,
       singleLength: maxLength,
       maxLength,

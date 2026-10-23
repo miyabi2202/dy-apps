@@ -2,7 +2,7 @@ import { normaliseTitle, type TitleCandidate } from '@dy-apps/lyrics-search';
 import { parseSongAnswer, SONG_ANSWER_SCHEMA, type SongAnswer } from '../../core/songs/song-answer';
 import { errorMessage } from '../../core/errors';
 import { askJson } from '../models/ask-json';
-import { isSung, sungChars, type TranscriptLine } from '../../core/songs/transcript';
+import { isSung, othersShare, sungChars, type TranscriptLine } from '../../core/songs/transcript';
 import type { AskModel, Log, Question, SearchLyrics } from '../ports';
 
 export interface SongIdOptions {
@@ -22,6 +22,12 @@ export interface SongIdOptions {
   found?: (song: { title: string; artist: string }) => string;
   /** The candidates the lyrics search found but wasn't sure of, as a note added to Codex's prompt. */
   hints?: (candidates: TitleCandidate[]) => string;
+  /**
+   * Added to the message of a song named when most of what was sung of it (by characters) was
+   * another voice's than the streamer's (see othersShare): a 连线, a recording, or the streamer
+   * as the voices took her for someone else.
+   */
+  othersNote?: () => string;
   /** Told each song named to the room, after its message, to say more about it. */
   onTold?: (song: SongAnswer) => void;
   /**
@@ -36,9 +42,19 @@ export interface SongIdOptions {
 export type SongIdWhy = 'command' | 'auto' | 'retry' | 'tool';
 
 /** What asking about the song came to: too little sung to go on, or the song named (or not). */
-export type SongIdOutcome =
-  | { kind: 'early'; text: string }
-  | { kind: 'named'; answer: SongAnswer | null; text: string; by: 'lyrics-search' | 'codex' };
+export type SongIdOutcome = { kind: 'early'; text: string } | ({ kind: 'named' } & Named);
+
+/** A song asked about: the answer (null when Codex's isn't SONG_ANSWER_SCHEMA's shape), who gave it, and whether others sang most of it. */
+export interface Named {
+  answer: SongAnswer | null;
+  text: string;
+  by: 'lyrics-search' | 'codex';
+  /** Most of what was sung was another voice's (see othersShare); the message then says so. */
+  othersSang: boolean;
+}
+
+/** Above this share of the sung characters being another voice's, the message says so. */
+const OTHERS_SANG = 0.5;
 
 /**
  * Names the song being sung, for `identify_song` (Claude's, or a typed `/识歌`) and /自动识歌: the lyrics search
@@ -67,16 +83,24 @@ export class SongId {
   async name(
     question: Question,
     about?: { why: SongIdWhy; lines: readonly TranscriptLine[] },
-  ): Promise<{ answer: SongAnswer | null; text: string; by: 'lyrics-search' | 'codex' }> {
-    const { log, lyrics, found, hints } = this.options;
+  ): Promise<Named> {
+    const { log, lyrics, found, hints, othersNote } = this.options;
     const now = this.options.now ?? Date.now;
     const start = now();
+    const share = about ? othersShare(about.lines) : 0;
+    const othersSang = share > OTHERS_SANG;
+    // The note goes after a message there is: an empty one (the same song as last time) stays empty.
+    const noted = (answer: SongAnswer): SongAnswer =>
+      othersSang && othersNote && answer.message
+        ? { ...answer, message: `${answer.message}${othersNote()}` }
+        : answer;
     if (about) {
       const sung = about.lines.filter(isSung);
       log.info('song id asked', {
         why: about.why,
         lines: sung.length,
         chars: sungChars(about.lines),
+        othersShare: Math.round(share * 100) / 100,
         first: sung[0]?.text,
         last: sung.at(-1)?.text,
       });
@@ -116,7 +140,8 @@ export class SongId {
             by: 'lyrics-search',
             ms: now() - start,
           });
-          return { answer, text: answer.message, by: 'lyrics-search' };
+          const told = noted(answer);
+          return { answer: told, text: told.message, by: 'lyrics-search', othersSang };
         }
         if (guess.candidates.length && hints) prompt += `\n\n${hints(guess.candidates)}`;
       } catch (err) {
@@ -129,7 +154,7 @@ export class SongId {
       { schema: SONG_ANSWER_SCHEMA, parse: parseSongAnswer, notJson: 'song id answer is not json' },
       log,
     );
-    if (!answer) return { answer, text, by: 'codex' };
+    if (!answer) return { answer, text, by: 'codex', othersSang };
     log.info('song identified', {
       title: answer.title,
       artist: answer.artist,
@@ -138,7 +163,7 @@ export class SongId {
       ms: now() - start,
       lyricsMs,
     });
-    return { answer, text, by: 'codex' };
+    return { answer: noted(answer), text, by: 'codex', othersSang };
   }
 
   /**

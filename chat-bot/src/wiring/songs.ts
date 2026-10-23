@@ -68,6 +68,7 @@ export function registerSongs(container: Container): void {
               )
               .join('、'),
           }),
+        othersNote: () => c.resolve(ROOM).wording('song-others'),
         onTold: (song) => void songIntro.introduce(song),
         // Too little sung to go on: said so, without asking Codex (see wording.md).
         early: {

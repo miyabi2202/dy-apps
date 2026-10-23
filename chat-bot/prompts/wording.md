@@ -106,6 +106,10 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 这首是{{artist}}《{{title}}》
 
+## song-others
+
+（不过这段听着大多不像主播的声音，是连线在唱，还是在放歌？）
+
 ## song-candidates
 
 按歌词在网易云搜到的候选（不一定对，只作参考，仍要自己核对歌词；翻唱常排在原唱前面）：{{candidates}}

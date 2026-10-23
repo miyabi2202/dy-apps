@@ -25,6 +25,7 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
           answer: answer ? { message: '', title: '', artist: '', sure: true, ...answer } : null,
           text: '',
           by: 'codex' as const,
+          othersSang: false,
         });
       },
       namedAt: (title) => named.get(title),

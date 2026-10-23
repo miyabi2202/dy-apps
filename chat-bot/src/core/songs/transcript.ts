@@ -33,6 +33,15 @@ export function isGuest(line: TranscriptLine): boolean {
 }
 
 /**
+ * Whether it's someone else talking: what song naming leaves out. Sung lines count whoever sang
+ * them, as the voices can't tell the streamer singing in another language or style from someone
+ * else (see othersShare).
+ */
+export function isGuestTalk(line: TranscriptLine): boolean {
+  return isGuest(line) && !isSung(line);
+}
+
+/**
  * Below this speech score a line is taken as sung. On a singing stream, sung lines scored at most
  * 0.12 and talk at least 0.36; the music score can't tell them apart, since talk over backing
  * music scores 0.6–0.7 on it too.
@@ -71,7 +80,7 @@ export function currentSong(
   let talk = 0;
   for (const line of lines) {
     if (!isSung(line)) {
-      if (!isGuest(line)) talk++;
+      if (!isGuestTalk(line)) talk++;
       continue;
     }
     const pause = lastSung === undefined ? Infinity : line.end - lastSung;
@@ -80,6 +89,15 @@ export function currentSong(
     talk = 0;
   }
   return start === undefined ? [...lines] : lines.filter((line) => line.start >= start);
+}
+
+/**
+ * How much of what was sung in `lines` another voice sang (see isGuest), 0–1 by characters; 0
+ * when nothing was sung.
+ */
+export function othersShare(lines: readonly TranscriptLine[]): number {
+  const sung = sungChars(lines);
+  return sung ? sungChars(lines.filter(isGuest)) / sung : 0;
 }
 
 /** How much was sung in `lines`: the characters of their sung lines, without spaces or punctuation. */
@@ -96,7 +114,9 @@ export function sungChars(lines: readonly TranscriptLine[]): number {
  * and then is taken for sung.
  */
 export function singingNow(lines: readonly TranscriptLine[], at: number): boolean {
-  const lately = lines.filter((line) => !isGuest(line) && at - line.end < 60_000 && line.end <= at);
+  const lately = lines.filter(
+    (line) => !isGuestTalk(line) && at - line.end < 60_000 && line.end <= at,
+  );
   const sung = lately.filter(isSung).length;
   return sung >= 3 && sung >= 0.7 * lately.length;
 }
@@ -118,8 +138,8 @@ export function singingSong(
   transcript: readonly TranscriptLine[],
   line: TranscriptLine,
 ): SungSong | null {
-  if (!isSung(line) || isGuest(line)) return null;
-  const lines = transcript.filter((l) => !isGuest(l));
+  if (!isSung(line)) return null;
+  const lines = transcript.filter((l) => !isGuestTalk(l));
   if (!singingNow(lines, line.end)) return null;
   const song = currentSong(lines);
   return { lines: song, start: song.find(isSung)?.start ?? line.start };

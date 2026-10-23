@@ -72,7 +72,68 @@ test('with too little sung yet, it says so without asking; with enough, it asks 
     why: 'command',
     lines: 2,
     chars: 24,
+    othersShare: 0,
     first: '刮风这天我试过握着你手',
     last: '但偏偏雨渐渐大到我看你不见',
   });
+});
+
+test("most of the song sung by another voice: it's still named, from all of it, and the message says so", async () => {
+  const sung = (s: number, text: string, host?: boolean) => ({
+    start: s * 1000,
+    end: s * 1000 + 4000,
+    text,
+    speech: 0.05,
+    ...(host !== undefined && { speaker: host ? 1 : 22, host }),
+  });
+  const searched: string[][] = [];
+  const songId = new SongId({
+    prompt: () => '',
+    codex: () =>
+      Promise.resolve(
+        JSON.stringify({
+          message: '这首是《带我走》',
+          title: '带我走',
+          artist: '杨丞琳',
+          sure: true,
+        }),
+      ),
+    lyrics: (lines) => {
+      searched.push(lines.map((line) => line.text));
+      return Promise.resolve({
+        title: '',
+        sure: false,
+        candidates: [],
+        why: 'test',
+        queries: [],
+        ms: 1,
+      });
+    },
+    othersNote: () => '（是别人在唱吗？）',
+    log: silentLog,
+  });
+  const named = (lines: ReturnType<typeof sung>[]) =>
+    songId.name({ prompt: '' }, { why: 'command', lines });
+
+  const mostlyOthers = [
+    sung(0, '这次你却说一起走', true),
+    sung(5, '像土壤抓紧花的迷惑', false),
+    sung(10, '像天空缠绵雨的汹涌在你的身后', false),
+  ];
+  await expect(named(mostlyOthers)).resolves.toMatchObject({
+    answer: { message: '这首是《带我走》（是别人在唱吗？）' },
+    othersSang: true,
+  });
+  expect(searched[0]).toEqual(mostlyOthers.map((line) => line.text));
+
+  // Mostly hers, or too short for a voiceprint (hers): as it was.
+  for (const lines of [
+    [sung(0, '像天空缠绵雨的汹涌在你的身后', true), sung(5, '这次你却说一起走', false)],
+    [sung(0, '像天空缠绵雨的汹涌在你的身后'), sung(5, '这次你却说一起走')],
+  ]) {
+    await expect(named(lines)).resolves.toMatchObject({
+      answer: { message: '这首是《带我走》' },
+      othersSang: false,
+    });
+  }
 });
