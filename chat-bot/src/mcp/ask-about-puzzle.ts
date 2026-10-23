@@ -18,7 +18,14 @@ export interface AskAboutPuzzleOptions {
   prompt: () => string;
   room: Pick<
     RoomState,
-    'prompt' | 'screenshot' | 'recentTranscript' | 'recentChat' | 'replyLimits' | 'now' | 'wording'
+    | 'prompt'
+    | 'screenshot'
+    | 'recentTranscript'
+    | 'recentChat'
+    | 'replyLimits'
+    | 'atNameOf'
+    | 'now'
+    | 'wording'
   >;
   /** Where the answer goes once Codex has it, as a reply to the asker. */
   outbox: Pick<Outbox, 'push'>;
@@ -55,7 +62,7 @@ export function askAboutPuzzleTool(
   ): Promise<void> {
     const limits = room.replyLimits(options.maxLength);
     const send = (text: string) => {
-      const messages = replyMessages(asker, text, limits);
+      const messages = replyMessages(room.atNameOf(userId, asker), text, limits);
       messages.forEach((message, i) => {
         const last = i === messages.length - 1;
         outbox.push({
@@ -121,13 +128,14 @@ export function askAboutPuzzleTool(
       // Always, as the puzzle is on the screen even while screenshots are off.
       const image = await room.screenshot(true);
       const limits = room.replyLimits(options.maxLength);
+      const at = room.atNameOf(userId, asker);
       const prompt = room.prompt(options.prompt(), {
         transcript: room.recentTranscript(),
         history: room.recentChat(),
         asker,
         question,
-        singleLength: singleBudget(asker, limits),
-        maxLength: answerBudget(asker, limits),
+        singleLength: singleBudget(at, limits),
+        maxLength: answerBudget(at, limits),
       });
       const { solveEffort: effort } = settings.get();
       work.track(solve(asker, userId, question, prompt, image, effort));

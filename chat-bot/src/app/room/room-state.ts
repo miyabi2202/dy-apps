@@ -59,6 +59,8 @@ export interface RoomStateOptions {
   aliases?: () => readonly Alias[];
   /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`), read each time. */
   atTrimStart?: () => readonly string[];
+  /** What to @ a viewer as instead of their nickname (`atNames`), by user id, read each time. */
+  atNames?: () => Readonly<Record<string, string>>;
   /** The time zone the room's times are shown in (room_config.json's `timeZone`), read each time. */
   timeZone?: () => string;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
@@ -113,6 +115,11 @@ export class RoomState {
   /** The room's 单推符号, taken off a nickname when the bot has to shorten its @ (see atName). */
   atTrimStart(): readonly string[] {
     return this.options.atTrimStart?.() ?? [];
+  }
+
+  /** The name the bot @s a viewer by: the room's `atNames` for them, or else their nickname. */
+  atNameOf(userId: string | undefined, nickname: string): string {
+    return (userId !== undefined && this.options.atNames?.()[userId]) || nickname;
   }
 
   /** The most messages anything the bot says is split into; `/最大回复条数` sets it. */

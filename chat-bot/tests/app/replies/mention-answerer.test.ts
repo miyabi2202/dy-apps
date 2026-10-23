@@ -315,6 +315,33 @@ test("the reply @s the whole nickname when it fits, and only a shortened @ goes 
   );
 });
 
+test("the reply @s a viewer by the room's atNames for them, by user id, whole or shortened; others by their nickname", async () => {
+  const asker = '⊹꙳𝝑阿拂（吃荷灵咪馊饭版）𝝔⋆₊';
+  const answers = [
+    '可以，以后叫你阿拂',
+    '先换首顺手的唱回回血，这首的调交给二号去研究，不开心的锅归伴奏不归茜茜呀',
+    '好',
+  ];
+  const { outbox, sent } = fakeOutbox();
+  const answerer = new MentionAnswerer({
+    ask: () => Promise.resolve(answers.shift()!),
+    outbox,
+    room: fakeRoom({ atNames: () => ({ '103094206072': '阿拂' }), now: () => NOW }),
+    log: silentLog,
+    promptTemplate: () => TEMPLATE,
+  });
+  for (const userId of ['103094206072', '103094206072', '7']) {
+    answerer.ask({ asker, userId, question: '只喊我阿拂', history: [] });
+    await answerer.idle();
+  }
+  await outbox.idle();
+  expect(sent).toEqual([
+    '@阿拂 可以，以后叫你阿拂',
+    '@阿拂 先换首顺手的唱回回血，这首的调交给二号去研究，不开心的锅归伴奏不归茜茜呀',
+    `@${asker} 好`,
+  ]);
+});
+
 test('the most messages an answer may take is kept in the room settings, and splits the answer', async () => {
   const stored: Record<string, unknown> = {};
   const settings = {

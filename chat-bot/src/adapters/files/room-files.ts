@@ -36,6 +36,8 @@ export interface RoomConfig extends Settings {
   streamerNames: string[];
   /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`): 单推符号. */
   atTrimStart: string[];
+  /** What the bot @s a viewer as instead of their nickname (`atNames`), by user id: `{ "103094206072": "阿拂" }`. */
+  atNames: Record<string, string>;
   /**
    * Where the streamer is (`timeZone`, an IANA name like `Asia/Shanghai`): every time the models
    * and the records show is in it. Beijing time when not known.
@@ -61,6 +63,7 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = {
   aliases: [],
   streamerNames: [],
   atTrimStart: [],
+  atNames: {},
   timeZone: DEFAULT_TIME_ZONE,
   tools: [],
   ...SETTING_DEFAULTS,
@@ -72,6 +75,7 @@ const ROOM_FIELDS = {
   aliases: [],
   streamerNames: [],
   atTrimStart: [],
+  atNames: {},
   timeZone: DEFAULT_TIME_ZONE,
   tools: [],
   ...SETTING_DEFAULTS,
@@ -163,6 +167,7 @@ export function roomConfigFile(
         config.streamerNames,
       ),
       atTrimStart: field('atTrimStart', () => prefixList(raw.atTrimStart), config.atTrimStart),
+      atNames: field('atNames', () => atNameMap(raw.atNames), config.atNames),
       timeZone: field('timeZone', () => timeZoneOf(raw.timeZone), config.timeZone),
       tools: field('tools', () => toolList(raw.tools), config.tools),
       ...settingsFrom(raw, config, problems),
@@ -288,6 +293,24 @@ function nameList(raw: unknown, name: string, example: string): string[] {
     throw new Error(`${name} must be a list of names, like ${example}`);
   }
   return raw.map((item) => item.trim()).filter(Boolean);
+}
+
+/** `atNames` as names by user id (none when absent), or an error saying what's wrong with it. */
+function atNameMap(raw: unknown): Record<string, string> {
+  if (raw === undefined) return {};
+  if (
+    typeof raw !== 'object' ||
+    raw === null ||
+    Array.isArray(raw) ||
+    !Object.values(raw).every((name) => typeof name === 'string')
+  ) {
+    throw new Error('atNames must be names by user id, like { "103094206072": "阿拂" }');
+  }
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, string>)
+      .map(([userId, name]): [string, string] => [userId.trim(), name.trim()])
+      .filter(([userId, name]) => userId && name),
+  );
 }
 
 /** `tools` as a list of tool names (none when absent), or an error saying what's wrong with it. */

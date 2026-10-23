@@ -185,6 +185,8 @@ export function registerRoom(container: Container): void {
         aliases: () => roomConfig().aliases,
         // 单推符号 taken off a nickname before the bot @s them.
         atTrimStart: () => roomConfig().atTrimStart,
+        // What to @ some viewers as instead of their nickname, by user id.
+        atNames: () => roomConfig().atNames,
         // Where the streamer is: every time in the prompts is in it (Beijing time when not known).
         timeZone: () => roomConfig().timeZone,
         // What prompts say around what they fill in, shared by every room.

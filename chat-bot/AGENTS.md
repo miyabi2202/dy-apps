@@ -67,7 +67,7 @@ How the bot tells viewers apart: set `"private": true` in the room's `data/<房�
 
 **Every feature must work in a 私密 room, at least in its basics.** When you add or change a feature:
 
-- Key viewers by the user id the adapter gives (never by `111111`, the raw nickname or the avatar), and don't assume ids are digits.
+- Key viewers by the user id the adapter gives (like `atNames` in `room_config.json`, what the bot @s a viewer as) (never by `111111`, the raw nickname or the avatar), and don't assume ids are digits.
 - Don't rely on a viewer's full nickname, avatar, `secUid` or fan club; with only `苦***`, the feature should still do its job (answer an @, thank a gift, remember their talk with the bot).
 - Add a test with 私密 viewers (id `111111`, a `X***` nickname, a wealth level) when the feature handles users.
 

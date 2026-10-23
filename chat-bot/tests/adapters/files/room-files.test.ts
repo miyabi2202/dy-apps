@@ -21,6 +21,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     aliases: [],
     streamerNames: [],
     atTrimStart: [],
+    atNames: {},
     timeZone: 'Asia/Shanghai',
     tools: [],
     ...SETTING_DEFAULTS,
@@ -32,6 +33,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     aliases: [],
     streamerNames: [],
     atTrimStart: [],
+    atNames: {},
     timeZone: 'Asia/Shanghai',
     tools: [],
     ...SETTING_DEFAULTS,
@@ -43,6 +45,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     aliases: [],
     streamerNames: [],
     atTrimStart: [],
+    atNames: {},
     timeZone: 'Asia/Shanghai',
     tools: [],
     ...SETTING_DEFAULTS,
@@ -56,6 +59,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     aliases: [],
     streamerNames: [],
     atTrimStart: [],
+    atNames: {},
     timeZone: 'Asia/Shanghai',
     tools: [],
     ...SETTING_DEFAULTS,
@@ -68,6 +72,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     aliases: [],
     streamerNames: [],
     atTrimStart: [],
+    atNames: {},
     timeZone: 'Asia/Shanghai',
     tools: [],
     ...SETTING_DEFAULTS,
@@ -100,6 +105,7 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
     aliases: [],
     streamerNames: [],
     atTrimStart: [],
+    atNames: {},
     timeZone: 'Asia/Shanghai',
     tools: [],
     ...SETTING_DEFAULTS,
@@ -195,6 +201,27 @@ test("room_config.json's aliases are the other names of the bot, read again as t
   expect(roomConfig().aliases).toEqual([]);
   writeFileSync(config, '{ "streamerNames": ["茜茜", " 茜颜 "] }');
   expect(roomConfig().streamerNames).toEqual(['茜茜', '茜颜']);
+});
+
+test("room_config.json's atNames are what to @ viewers as, by user id, read again as they change", () => {
+  const { config } = roomFiles(mkdtempSync(join(tmpdir(), 'room-files-')));
+  const warned: string[] = [];
+  const log = { ...noLog, warn: (message: string) => void warned.push(message) };
+  const file = roomConfigFile(config, { log });
+
+  writeFileSync(
+    config,
+    '{ "atNames": { "103094206072": " 阿拂 ", "111111-苦***-31": "苦苦", "7": "" } }',
+  );
+  const names = { '103094206072': '阿拂', '111111-苦***-31': '苦苦' };
+  expect(file.get().atNames).toEqual(names);
+  writeFileSync(config, '{ "atNames": [["103094206072", "阿拂"]] }');
+  expect(file.get().atNames).toEqual(names);
+  writeFileSync(config, '{ "atNames": { "103094206072": 1 } }');
+  expect(file.get().atNames).toEqual(names);
+  expect(warned).toEqual(Array(2).fill('room_config.json has bad values, keeping their last ones'));
+  writeFileSync(config, '{}');
+  expect(file.get().atNames).toEqual({});
 });
 
 describe('livePersona', () => {
