@@ -31,6 +31,7 @@ function setup(options: { lyrics?: 'sure' | 'unsure'; minChars?: number } = {}) 
       Promise.resolve({
         title: options.lyrics === 'sure' ? '晴天' : '',
         sure: options.lyrics === 'sure',
+        artist: options.lyrics === 'sure' ? '周杰伦' : undefined,
         candidates: [],
         why: 'test',
         queries: ['a', 'b'],
@@ -88,7 +89,7 @@ test('tells which song the room was last told, and how long ago', async () => {
   const { tool, tick } = setup({ lyrics: 'sure' });
   expect((await answer(tool)).lastTold).toBeUndefined();
   tick(3 * 60_000);
-  expect((await answer(tool)).lastTold).toEqual({ title: '晴天', artist: '', minutesAgo: 3 });
+  expect((await answer(tool)).lastTold).toEqual({ title: '晴天', artist: '周杰伦', minutesAgo: 3 });
 });
 
 test('/识歌 passes its text as the hint, says the program’s sentence, and starts the intro', async () => {

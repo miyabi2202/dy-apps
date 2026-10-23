@@ -19,6 +19,7 @@ function setup(titles: string[]) {
     lyrics: () =>
       Promise.resolve({
         title: titles.shift() ?? '',
+        artist: '周杰伦',
         sure: true,
         candidates: [],
         why: 'test',

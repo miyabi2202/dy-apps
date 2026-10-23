@@ -13,9 +13,9 @@ export interface SongIdOptions {
   log: Log;
   now?: () => number;
   /**
-   * NetEase's lyrics search, asked first: when it's sure of the title, the answer comes from it
-   * (`found`) and Codex isn't asked; when it isn't (or it fails), Codex is, with its candidates
-   * as hints (`hints`).
+   * NetEase's lyrics search, asked first: when it's sure of the title and a singer, the answer
+   * comes from it (`found`) and Codex isn't asked; when it isn't (or it fails, or names no
+   * singer), Codex is, with its candidates as hints (`hints`).
    */
   lyrics?: SearchLyrics;
   /** The message to send when the lyrics search named the song; `artist` is empty when no singer clearly leads. */
@@ -62,7 +62,7 @@ export class SongId {
    * Codex's isn't that shape, with the text it was. What it's asked about (`lines`, the song so
    * far) is logged first, `song id asked`: why, how many sung lines and characters, and the first
    * and last of them. Then the lyrics search (`lyrics search`, with how it went), and Codex only
-   * when that isn't sure of the title (or failed): `song identified` says which answered (`by`).
+   * when that isn't sure of the title, names no singer, or failed: `song identified` says which answered (`by`).
    */
   async name(
     question: Question,
@@ -99,8 +99,10 @@ export class SongId {
           queries: guess.queries.length,
           top: guess.candidates.map((c) => `${c.title} ${c.score}`),
         });
-        if (guess.sure && guess.title) {
-          const artist = guess.artist ?? '';
+        // Sure of the title but no singer clearly leads (闻到): Codex finds the singer, with the
+        // candidates as hints.
+        const artist = guess.artist ?? '';
+        if (guess.sure && guess.title && artist) {
           const answer: SongAnswer = {
             message: (found ?? defaultFound)({ title: guess.title, artist }),
             title: guess.title,

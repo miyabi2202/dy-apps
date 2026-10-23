@@ -51,7 +51,7 @@ export function registerSongs(container: Container): void {
           effort: 'medium',
         }),
         log: c.resolve(LOG),
-        // NetEase's lyrics search first: Codex only when it isn't sure of the title.
+        // NetEase's lyrics search first: Codex only when it isn't sure of the title or names no singer.
         lyrics: c.resolve(LYRICS_SEARCH) ?? undefined,
         found: ({ title, artist }) =>
           c.resolve(ROOM).wording('song-found', { title, artist: artist ? `${artist}的` : '' }),

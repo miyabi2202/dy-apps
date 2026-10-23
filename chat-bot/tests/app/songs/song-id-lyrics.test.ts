@@ -50,29 +50,32 @@ function setup(lyrics: SearchLyrics, early?: { minChars: number }) {
   return { songId, asked, logged };
 }
 
-test('answers from the lyrics search when it is sure, without asking Codex', async () => {
+test('answers from the lyrics search when it is sure of the title and singer, without asking Codex', async () => {
   const { songId, asked, logged } = setup(() =>
-    Promise.resolve(guess({ title: '晴天', sure: true })),
+    Promise.resolve(guess({ title: '雨爱', artist: '杨丞琳', sure: true })),
   );
   const outcome = await songId.identifyLines({ prompt: 'P' }, lines, 'tool');
   expect(outcome).toMatchObject({
     kind: 'named',
     by: 'lyrics-search',
-    answer: { title: '晴天', artist: '', sure: true, message: '找到了晴天' },
+    answer: { title: '雨爱', artist: '杨丞琳', sure: true, message: '找到了杨丞琳雨爱' },
   });
   expect(asked).toEqual([]);
   expect(logged.find(([m]) => m === 'song identified')?.[1]).toMatchObject({
     by: 'lyrics-search',
-    title: '晴天',
+    title: '雨爱',
   });
 });
 
-test('names the singer when the search found one', async () => {
-  const { songId } = setup(() =>
-    Promise.resolve(guess({ title: '雨爱', artist: '杨丞琳', sure: true })),
+test('asks Codex for the singer when the search is sure of the title but names none', async () => {
+  const { songId, asked } = setup(() =>
+    Promise.resolve(
+      guess({ title: '晴天', sure: true, candidates: [{ title: '晴天', score: 4, artists: [] }] }),
+    ),
   );
-  const outcome = await songId.identifyLines({ prompt: 'P' }, lines, 'command');
-  expect(outcome).toMatchObject({ answer: { artist: '杨丞琳', message: '找到了杨丞琳雨爱' } });
+  const outcome = await songId.identifyLines({ prompt: 'P' }, lines, 'auto');
+  expect(outcome).toMatchObject({ by: 'codex', answer: { title: '晴天', artist: '周杰伦' } });
+  expect(asked).toEqual(['P\n\n候选：晴天']);
 });
 
 test('asks Codex when it is not sure, with the candidates added to its prompt', async () => {
