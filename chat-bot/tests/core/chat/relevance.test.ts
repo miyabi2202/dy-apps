@@ -50,18 +50,20 @@ describe('scoring what the judge said', () => {
     candidate: true,
   });
   const fresh = [line('机器人你好', 'u1'), line('主播会唱晴天吗', 'u2'), line('今晚吃火锅', 'u3')];
-  const rules = { threshold: 0.6, topics: 1, triggered: () => false };
+  const rules = { threshold: 0.6, topics: ['can_sing'], matched: () => [] };
 
-  test('a line is about the bot, or for a room command, from the likeliest of its scores', () => {
-    const { about, toBot, best } = scoreRelevance(
+  test('a line is about the bot, or for a tool, from the likeliest of its scores', () => {
+    const { about, toBot, best, topics } = scoreRelevance(
       fresh,
       { q1: 0.9, q1t1: 0.1, q2: 0.2, q2t1: 0.8, q3: 0.1, q3t1: 0.3 },
       rules,
     );
     expect(about).toEqual([fresh[0], fresh[1]]);
-    // Only the first is about the bot itself; the second is for the command.
+    // Only the first is about the bot itself; the second is for the tool.
     expect(toBot).toEqual([fresh[0]]);
     expect(best).toEqual({ line: fresh[0], score: 0.9 });
+    expect(topics.get(fresh[1]!)).toEqual(['can_sing']);
+    expect(topics.has(fresh[0]!)).toBe(false);
   });
 
   test('a missing score is 0, and the earlier of equally likely lines is the best', () => {
@@ -71,21 +73,41 @@ describe('scoring what the judge said', () => {
     expect(best).toEqual({ line: fresh[1], score: 0.4 });
   });
 
-  test('a line matching a command trigger is about it whatever the judge said', () => {
-    const { about, toBot } = scoreRelevance(
+  test('a line matching a tool trigger is about it whatever the judge said', () => {
+    const { about, toBot, topics } = scoreRelevance(
       fresh,
       { q2: 0.1 },
-      {
-        ...rules,
-        triggered: (l) => l === fresh[1],
-      },
+      { ...rules, matched: (l) => (l === fresh[1] ? ['can_sing'] : []) },
     );
     expect(about).toEqual([fresh[1]]);
     expect(toBot).toEqual([]);
+    expect(topics.get(fresh[1]!)).toEqual(['can_sing']);
   });
 
-  test('only the bot question counts without room commands', () => {
-    const { about } = scoreRelevance(fresh, { q1t1: 0.9, q3: 0.7 }, { ...rules, topics: 0 });
+  test('only the bot question counts without tools listening', () => {
+    const { about } = scoreRelevance(fresh, { q1t1: 0.9, q3: 0.7 }, { ...rules, topics: [] });
     expect(about).toEqual([fresh[2]]);
+  });
+
+  test('a line scoring two topics has both, in the order asked, and one matched too is not doubled', () => {
+    const two = { ...rules, topics: ['can_sing', 'schedule'] };
+    const scored = scoreRelevance(
+      fresh,
+      { q2t1: 0.7, q2t2: 0.9, q3t2: 0.8, q1t1: 0.1 },
+      { ...two, matched: (l) => (l === fresh[2] ? ['can_sing', 'schedule'] : []) },
+    );
+    expect(scored.topics.get(fresh[1]!)).toEqual(['can_sing', 'schedule']);
+    expect(scored.topics.get(fresh[2]!)).toEqual(['schedule', 'can_sing']);
+    expect(scored.topics.has(fresh[0]!)).toBe(false);
+  });
+
+  test('lines the judge is surer of than the sure threshold about the bot are sure, a tool’s score is not', () => {
+    const scores = { q1: 0.95, q1t1: 0.1, q2: 0.2, q2t1: 0.99, q3: 0.9, q3t1: 0.3 };
+    const { about, sure } = scoreRelevance(fresh, scores, { ...rules, sureThreshold: 0.9 });
+    // Exactly at the threshold is not above it.
+    expect(sure).toEqual([fresh[0]]);
+    expect(about).toEqual([fresh[0], fresh[1], fresh[2]]);
+    // Without the option none is sure.
+    expect(scoreRelevance(fresh, scores, rules).sure).toEqual([]);
   });
 });

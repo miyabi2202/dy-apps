@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { Log } from '../../app/ports';
-import { isInside } from '../../core/commands/additional-command';
+import { isInside } from '../../core/tools/tool-definition';
 import { errorMessage } from '../../core/errors';
 
 /**
@@ -13,7 +13,7 @@ export interface Download {
   url: string;
   file: string;
   /**
-   * A script in the room's folder (`additional_commands/can-sing/songs-transformer.js`) that turns
+   * A script in the room's folder (`tools/can-sing/songs-transformer.js`) that turns
    * what was fetched into what's kept.
    */
   transformer?: string;

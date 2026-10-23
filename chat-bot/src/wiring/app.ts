@@ -1,4 +1,3 @@
-import { errorMessage } from '../core/errors';
 import { whenRoomFeedGone } from '../app/room/room-feed';
 import type { Container } from './container';
 import {
@@ -73,10 +72,8 @@ export function registerApp(container: Container): void {
           autoSongId: settings.autoSongId,
         });
         void transcriber?.run();
-        // Without it Claude has no tools (the server's `open` gives none), and answers as before.
-        await mcp?.start().catch((err: unknown) => {
-          log.warn('could not start the mcp server', { error: errorMessage(err) });
-        });
+        // A port that's taken is a reason not to start: Claude could not act on what's said in words.
+        await mcp.start();
         await transcriber?.ready();
         if (!stopping) {
           bot.start();
@@ -89,7 +86,7 @@ export function registerApp(container: Container): void {
         bot.stop();
         transcriber?.stop({ quitService: quitSpeech });
         autoReply.stop();
-        void mcp?.stop();
+        void mcp.stop();
       },
       onRoomFeedGone(handler) {
         whenRoomFeedGone(c.resolve(ROOM_EVENTS), handler);

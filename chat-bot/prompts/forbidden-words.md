@@ -4,6 +4,8 @@ Words the bot must never say in a room: Douyin quietly holds back a message with
 
 - 警
 - 编制
+- 发弹幕
+- 账号
 
 ## Other platforms
 
@@ -23,6 +25,8 @@ Words the bot must never say in a room: Douyin quietly holds back a message with
 - 拼多多
 - 闲鱼
 - 唯品会
+- 微信
+- QQ
 
 ## Countries
 

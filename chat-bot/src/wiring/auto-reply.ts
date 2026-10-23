@@ -3,7 +3,6 @@ import { GiftThanker } from '../app/replies/gift-thanker';
 import type { AskModel } from '../app/ports';
 import type { Container } from './container';
 import {
-  ADDITIONAL_COMMANDS,
   ADMINS,
   ASK_CLAUDE,
   ASK_CODEX,
@@ -18,6 +17,7 @@ import {
   ROOM,
   SETTINGS,
   THANKER,
+  TOOLS,
   USER_TALK,
 } from './tokens';
 
@@ -55,10 +55,17 @@ export function registerAutoReply(container: Container): void {
         // The bot is made after this, and asks for it only when there's someone to answer.
         reply: (target) => c.resolve(BOT).replyUnprompted(target),
         streamer: () => admins.current(),
-        additionalCommands: c.resolve(ADDITIONAL_COMMANDS),
+        // What the tools listen for; resolved when used: the tools are registered after this and a
+        // tool reaches the answerer, which needs the bot, which needs this.
+        topics: () =>
+          c
+            .resolve(TOOLS)()
+            .flatMap((tool) =>
+              tool.listen ? [{ name: tool.name, adminOnly: tool.adminOnly, ...tool.listen }] : [],
+            ),
       });
       room.addSettings(() => autoReply.settings());
-      // A chat matching a room command's trigger has auto-reply look now, not at its next check.
+      // A chat matching a tool's listen trigger has auto-reply look now, not at its next check.
       bus.on('chat', (chat) => autoReply.hear(chat));
       bus.on('heard', (line) => autoReply.hearSpeech(line));
       // What someone says next, after the bot answered them, goes straight to the picker for a

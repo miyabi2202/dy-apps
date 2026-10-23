@@ -8,39 +8,34 @@ import {
 } from '../../core/replies/reply';
 import {
   MENTION_ANSWER_SCHEMA,
-  MESSAGE_SCHEMA,
-  MESSAGES_SCHEMA,
   parseMentionAnswer,
   parseOthers,
 } from '../../core/replies/mention-answer';
 import type { UnpromptedReply } from '../../core/replies/reply-pick';
+import type { Viewer } from '../../core/tools/tool-definition';
 import type { ChatLine } from '../../core/chat/room-events';
-import { done, failed, type Command, type PromptOptions } from '../commands/command';
 import type { EventBus } from '../event-bus';
 import type { Outbox } from './outbox';
 import { Pending } from '../pending';
 import type { Admins, AskModel, BotTools, Log, UserTalk } from '../ports';
 import type { RoomState } from '../room/room-state';
 
-/** A question for Claude; a command's own prompt may come with its PromptOptions. */
-export interface Mention extends PromptOptions {
+/** A question for Claude, or a fixed reply to send as one. */
+export interface Mention {
   asker: string;
   /** Who asked: their talk record, and whom the answer tells `answered`. */
   userId?: string;
   question: string;
   /** The chat as it was when they asked, not what came after. */
   history: ChatLine[];
-  /** A command's own prompt template instead of the usual one. */
-  template?: string;
-  /** What a room command says as it is: sent to the asker without asking a model. */
+  /** What a fixed-reply tool says as it is: sent to the asker without asking a model. */
   fixedReply?: string;
   /** Not an @: the bot heard the asker talk to or about it, in the chat or on the stream. */
   unprompted?: Heard;
-  /**
-   * Called when Claude said nothing: an @ that a room command's trigger took
-   * («虾虾会生气吗» for 会唱xxx吗) is answered as usual then.
-   */
-  ifEmpty?: () => void;
+  /** The tools whose listen this line matched, named to Claude as a hint; it still decides. */
+  topics?: readonly string[];
+  /** Who asked, for a tool's `only` / `except` (their badges, fan club, wealth level). */
+  viewer?: Viewer;
 }
 
 export type { UnpromptedReply };
@@ -66,12 +61,6 @@ export interface MentionAnswererOptions {
   /** Douyin's chat length limit: the prompt asks for less, and longer replies are split to fit. */
   maxReplyLength?: number;
   /**
-   * Told when, answering with the usual prompt, Claude found the asker asking for a command in
-   * so many words (自动谢礼 for 「以后 100 钻以下的礼物不用谢了」): true when it took it from there (ran it, or
-   * said they may not), so Claude's own reply isn't sent.
-   */
-  onCommandRequest?: (mention: Mention, name: string, args: string) => boolean;
-  /**
    * Tells of each viewer it answered (`answered`), once the answer to them is sent: the asker, and
    * each of the others an answer @s who said something lately (found by nickname in the chat).
    */
@@ -80,9 +69,8 @@ export interface MentionAnswererOptions {
    * backlog nobody remembers asking. */
   maxPending?: number;
   /**
-   * The bot's own tools (identify_song…), which Claude may call while answering with the usual
-   * prompt; never for a command's own prompt. Each question gets its own session, closed when
-   * the answer is done.
+   * The bot's tools (src/mcp/), which Claude may call while answering; each question gets its own
+   * session, closed when the answer is done.
    */
   tools?: BotTools;
   /** Who the admins are: only their questions get the admin-only tools. */
@@ -93,9 +81,11 @@ export interface MentionAnswererOptions {
 const TOOLS_TIMEOUT_MS = 300_000;
 
 /**
- * Answers mentions: the question and the chat before it go to Claude, and the answer joins the
- * outbox to be sent to the room, split into numbered messages when it's long. Claude answers
- * one mention at a time, in order, without waiting for earlier answers to go out.
+ * Answers mentions: the question and the chat before it go to Claude, which may call the bot's
+ * tools first, and the answer joins the outbox to be sent to the room, split into numbered messages
+ * when it's long. Claude may answer the asker, say something to others instead (「跟杨叔打个招呼」),
+ * or say nothing. Claude answers one mention at a time, in order, without waiting for earlier
+ * answers to go out.
  */
 export class MentionAnswerer {
   private readonly pending: Mention[] = [];
@@ -107,24 +97,6 @@ export class MentionAnswerer {
   constructor(private readonly options: MentionAnswererOptions) {
     this.maxLength = options.maxReplyLength ?? DOUYIN_CHAT_LIMIT;
     this.maxPending = options.maxPending ?? 20;
-  }
-
-  /** `/最大回复条数 3`: what the bot says is split into at most that many messages (1 to 10). */
-  commands(): Command[] {
-    return [
-      {
-        name: '最大回复条数',
-        adminOnly: true,
-        run: (args) => {
-          if (!/^\d+$/.test(args) || Number(args) < 1 || Number(args) > 10)
-            return failed('条数要写成 1 到 10 的整数，用法：/最大回复条数 3');
-          const { room, log } = this.options;
-          room.maxReplyParts = Number(args);
-          log.info('reply parts', { maxParts: room.maxReplyParts });
-          return done('已处理最大回复条数请求');
-        },
-      },
-    ];
   }
 
   /**
@@ -195,23 +167,18 @@ export class MentionAnswerer {
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, room, log, promptTemplate, userTalk } = this.options;
     const limits = this.options.room.replyLimits(this.maxLength);
-    // The usual prompt answers in MENTION_ANSWER_SCHEMA; a command's own prompt, as it says,
-    // or in MESSAGE_SCHEMA (MESSAGES_SCHEMA when it may @ others too).
-    const usual = mention.template === undefined;
-    // Only the usual prompt's answer gets the tools: a command has its own way to do its job.
     const session =
-      (usual &&
-        this.options.tools?.open({
-          asker: mention.asker,
-          userId: mention.userId,
-          question: mention.question,
-          admin: mention.userId !== undefined && !!this.options.admins?.has(mention.userId),
-        })) ||
-      null;
+      this.options.tools?.open({
+        asker: mention.asker,
+        userId: mention.userId,
+        question: mention.question,
+        admin: mention.userId !== undefined && !!this.options.admins?.has(mention.userId),
+        viewer: mention.viewer,
+      }) ?? null;
     try {
       const transcript = room.recentTranscript();
-      const prompt = room.prompt(mention.template ?? promptTemplate(), {
-        transcript: mention.pickTranscript?.(transcript) ?? transcript,
+      const prompt = room.prompt(promptTemplate(), {
+        transcript,
         history: mention.history,
         asker: mention.asker,
         question: mention.question,
@@ -220,52 +187,30 @@ export class MentionAnswerer {
         userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
         askerBadges: badgesOf(mention),
         unprompted: mention.unprompted,
+        topics: mention.topics,
       });
       log.debug('prompt', { prompt });
-      const image = await room.screenshot(mention.alwaysScreenshot);
+      const image = await room.screenshot();
       const started = room.now();
-      const { tools, maxTurns } = mention;
-      const schema = usual
-        ? MENTION_ANSWER_SCHEMA
-        : mention.jsonMessage
-          ? mention.atOthers
-            ? MESSAGES_SCHEMA
-            : MESSAGE_SCHEMA
-          : null;
-      const raw = await (mention.ask ?? ask)({
+      const raw = await ask({
         prompt,
         image,
-        tools,
-        maxTurns,
-        ...(schema && { schema }),
+        schema: MENTION_ANSWER_SCHEMA,
         ...(session && { botTools: session.access, timeoutMs: TOOLS_TIMEOUT_MS }),
       });
-      const used = session?.used() ?? [];
+      const calls = session?.calls() ?? [];
       log.info('claude answered', {
         answer: raw,
         ms: room.now() - started,
         image: !!image,
-        ...(used.length && { tools: used }),
+        ...(mention.unprompted && { unprompted: mention.unprompted }),
+        ...(calls.length && { tools: calls }),
       });
-      const answer = schema ? parseMentionAnswer(raw).message : raw;
-      if (usual) {
-        const { command, args } = parseMentionAnswer(raw);
-        if (command && session?.replaces(command)) {
-          // Claude already did that job with its tool and wrote the reply: send it.
-          log.info('command request ignored, the tool did it', { command });
-        } else if (command && this.options.onCommandRequest?.(mention, command, args)) {
-          if (mention.userId) {
-            const { asker: nickname, question } = mention;
-            const asked = `（要调用指令 /${command}${args ? ` ${args}` : ''}）`;
-            userTalk?.add(mention.userId, { nickname, question, answer: asked });
-          }
-          return;
-        }
-      }
-      // Each of the others gets a message of their own, after the asker's. The usual prompt's
-      // answer may have them too (「跟杨叔打个招呼」), and then says nothing to the asker.
-      const others = usual || mention.atOthers ? parseOthers(raw) : [];
-      const messages = usual && others.length ? [] : replyMessages(mention.asker, answer, limits);
+      const answer = parseMentionAnswer(raw).message;
+      // Each of the others gets a message of their own, after the asker's. An answer may have
+      // them (「跟杨叔打个招呼」), and then says nothing to the asker.
+      const others = parseOthers(raw);
+      const messages = others.length ? [] : replyMessages(mention.asker, answer, limits);
       // The others are known by nickname only: whoever said something under it most lately.
       const chat = [...mention.history, ...room.recentChat()].reverse();
       const toOthers = others.flatMap(({ to, message }) =>
@@ -275,10 +220,8 @@ export class MentionAnswerer {
         })),
       );
       if (!messages.length && !toOthers.length) {
-        // The usual prompt may say nothing when nothing needs saying (a 「谢谢」 that ends it).
-        if (usual) log.info('claude skipped', { asker: mention.asker, question: mention.question });
-        else log.warn('claude gave an empty answer', { asker: mention.asker });
-        mention.ifEmpty?.();
+        // Claude may say nothing when nothing needs saying (a 「谢谢」 that ends it).
+        log.info('claude skipped', { asker: mention.asker, question: mention.question });
         return;
       }
       // Each is told answered once the last message to them is sent, so their minute to answer

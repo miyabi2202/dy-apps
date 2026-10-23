@@ -1,8 +1,11 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { once } from 'node:events';
+import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { CodexCliOptions } from '../../src/adapters/models/codex-cli';
 import type { AskModel, Log, Question, SpawnWorker } from '../../src/app/ports';
+import { loadToolDefinitions } from '../../src/adapters/files/tool-files';
 import { parseCliOptions } from '../../src/cli-options';
 import { buildContainer } from '../../src/wiring';
 import {
@@ -11,7 +14,6 @@ import {
   BOT,
   CLAUDE_CLI,
   CODEX_CLI,
-  COMMANDS,
   DOWNLOADS,
   JEV_CLIENT,
   LYRICS_SEARCH,
@@ -23,6 +25,7 @@ import {
   SONG_ID,
   SPAWN_WORKER,
   THANKER,
+  TOOLS,
   TRANSCRIBER,
 } from '../../src/wiring/tokens';
 import { chat, fakeEvents } from '../support/fakes';
@@ -33,15 +36,22 @@ const PACKAGE_DIR = join(__dirname, '..', '..');
  * The whole bot built by the container, with the outside world (room-feed, Claude, Codex, Jev, the
  * speech worker) swapped for fakes, for the options `args` and the environment `env`.
  */
-function build(args: string[] = [], env: { JEV_API_KEY?: string } = { JEV_API_KEY: 'key' }) {
+function build(
+  args: string[] = [],
+  env: { JEV_API_KEY?: string } = { JEV_API_KEY: 'key' },
+  /** Files to put in the room's folder (`data/123/`) first, by path in it. */
+  roomFiles: Record<string, string> = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), 'chat-bot-wiring-'));
+  for (const [path, text] of Object.entries(roomFiles)) {
+    mkdirSync(dirname(join(dir, 'data', '123', path)), { recursive: true });
+    writeFileSync(join(dir, 'data', '123', path), text);
+  }
   writeFileSync(join(dir, 'config.json'), JSON.stringify({ admins: ['7001'], adminNames: '雅' }));
   const options = parseCliOptions(
     [
       ...['--room', '123', '--bot-name', '小助手', '--bot-id', 'bot-1', '--send-interval', '0'],
       ...['--data', join(dir, 'data'), '--logs', dir, '--config', join(dir, 'config.json')],
-      // No real server on a real port, unless a test asks for it with --mcp.
-      '--no-mcp',
       ...args,
     ],
     PACKAGE_DIR,
@@ -125,10 +135,15 @@ function build(args: string[] = [], env: { JEV_API_KEY?: string } = { JEV_API_KE
     connected: () => connected,
     workerReady: () => ready(),
     answerWith: (answer: (question: Question) => string) => (claudeAnswer = answer),
-    commands: () => container.resolve(COMMANDS).map((command) => command.name),
+    /** The `/` names of the tools, in the order the tools are listed. */
+    commands: () =>
+      container
+        .resolve(TOOLS)()
+        .flatMap((tool) => (tool.commands ?? []).map((command) => command.name)),
   };
 }
 
+// What a `/` can run: the tools' own commands, in the order the help shows them.
 const ALL_COMMANDS = [
   '自动回复阈值',
   '自动回复间隔',
@@ -136,11 +151,10 @@ const ALL_COMMANDS = [
   '自动谢礼',
   '截图',
   '识歌',
+  '识别背景音乐',
   '解题',
-  '拼命解题',
   '自动识歌',
   '识别恶意言论',
-  '识别背景音乐',
 ];
 
 // Starting runs the auto-reply loop, which waits on a real timer that no one stops after the test.
@@ -165,7 +179,8 @@ test('by default it has every feature, each with its own command in the order th
   expect(bot.container.resolve(MALICE_WATCH)).not.toBeNull();
   expect(bot.container.resolve(TRANSCRIBER)).not.toBeNull();
   expect(bot.jevKeys).toEqual(['key']);
-  // Codex for the picker, the song id and malice watch, and gpt-6-astra for the two solve commands.
+  // Codex for the picker, the song id and malice watch, and gpt-6-astra for the puzzle tool: one
+  // for each effort the room can be set to.
   const models = bot.codexMade.map((over) => over.model);
   expect(models.filter((model) => model === undefined)).toHaveLength(3);
   expect(models.filter((model) => model === 'gpt-6-astra')).toHaveLength(2);
@@ -181,7 +196,7 @@ test("--codex '' leaves out /识歌, the auto-reply picker and everything that n
   expect(bot.container.resolve(SONG_ID)).toBeNull();
   expect(bot.container.resolve(AUTO_SONG_ID)).toBeNull();
   expect(bot.container.resolve(MALICE_WATCH)).toBeNull();
-  // Jev is never made, and Codex only for /解题 (always gpt-6-astra).
+  // Jev is never made, and Codex only for the puzzle tool (always gpt-6-astra, at either effort).
   expect(bot.jevKeys).toEqual([]);
   expect(bot.codexMade.map((over) => over.model)).toEqual(['gpt-6-astra', 'gpt-6-astra']);
   expect(bot.logged).toContainEqual([
@@ -190,7 +205,7 @@ test("--codex '' leaves out /识歌, the auto-reply picker and everything that n
   ]);
 });
 
-test('--no-asr has no transcriber, no /识别背景音乐 and no auto song id, and starts no worker', async () => {
+test('--no-asr has no transcriber, no /识歌, no /识别背景音乐 and no auto song id, and starts no worker', async () => {
   const bot = build(['--no-asr']);
   const app = bot.container.resolve(APP);
   await app.start();
@@ -198,8 +213,9 @@ test('--no-asr has no transcriber, no /识别背景音乐 and no auto song id, a
 
   expect(bot.container.resolve(TRANSCRIBER)).toBeNull();
   expect(bot.container.resolve(AUTO_SONG_ID)).toBeNull();
+  // The song tool needs the transcript, so it goes with the speech.
   expect(bot.commands()).toEqual(
-    ALL_COMMANDS.filter((name) => !['自动识歌', '识别背景音乐'].includes(name)),
+    ALL_COMMANDS.filter((name) => !['识歌', '识别背景音乐', '自动识歌'].includes(name)),
   );
   expect(bot.spawned).toEqual([]);
   expect(bot.connected()).toBe(1);
@@ -268,24 +284,24 @@ test('answers a mention with the room, the settings the features gave and the pe
   expect(prompt).toContain('- 自动识歌：关闭');
 });
 
-test('a command asked for in words runs through the bot, which the answerer reaches only when it answers', async () => {
+test('a typed command runs the tool: an admin changes the setting in room_config.json, anyone else is refused', async () => {
   const bot = build(['--no-asr', '--codex', '']);
   const app = bot.container.resolve(APP);
   await app.start();
-  bot.answerWith(() =>
-    JSON.stringify({
-      message: '好的',
-      others: [],
-      command_request: '自动谢礼',
-      command_args: '100',
-    }),
-  );
-  bot.say(mention('雅', '7001', '@小助手 以后 100 钻以下的礼物不用谢了'));
-  await bot.container.resolve(BOT).idle();
-  await bot.container.resolve(OUTBOX).idle();
+  const settle = async () => {
+    await bot.container.resolve(BOT).idle();
+    await bot.container.resolve(OUTBOX).idle();
+  };
+  bot.say(mention('雅', '7001', '@小助手 /自动谢礼 100'));
+  await settle();
+  bot.say(mention('小红', 'u-1', '@小助手 /自动谢礼 5'));
+  await settle();
   app.stop();
 
-  expect(bot.sent).toEqual(['@雅 已处理自动谢礼请求']);
+  expect(bot.sent).toEqual([
+    '@雅 已处理自动谢礼请求',
+    '@小红 你无权调用「自动谢礼」指令，只有主播和雅才可以',
+  ]);
   const config = readFileSync(join(bot.dir, 'data', '123', 'room_config.json'), 'utf8');
   expect(JSON.parse(config)).toMatchObject({ thanksThreshold: 100 });
 });
@@ -299,6 +315,7 @@ test("starts filling in the room's room_config.json: an option seeds a missing s
     aliases: [],
     thanksThreshold: 200,
     autoReplyThreshold: 1,
+    solveEffort: 'medium',
   });
 
   // The next start, with another option: the file's value stays, with a warning.
@@ -329,32 +346,121 @@ test("starts filling in the room's room_config.json: an option seeds a missing s
   expect(warned).toContain('setting from room_config, ignoring option');
 });
 
-test('the bot has its tools for Claude by default, and none without --mcp', () => {
-  const tools = (bot: ReturnType<typeof build>) =>
-    bot.container.resolve(MCP_SERVER)?.open({ asker: 'a', question: '' });
-  const withMcp = build(['--mcp']);
-  // Not started, so it hands out no session; what it offers is what it was built with.
-  expect(withMcp.container.resolve(MCP_SERVER)).not.toBeNull();
-  expect(tools(withMcp)).toBeNull();
-  expect(build().container.resolve(MCP_SERVER)).toBeNull();
-  // Without listening there is no song id to ask and no music to hear, but the threshold is still there.
-  expect(build(['--mcp', '--no-asr']).container.resolve(MCP_SERVER)).not.toBeNull();
-});
-
 test('the tools server starts with the bot, serves its tools (an admin the admin-only ones too), and stops with it', async () => {
-  const bot = build(['--mcp', '--mcp-port', '0']);
+  const bot = build(['--mcp-port', '0']);
   const app = bot.container.resolve(APP);
   const started = app.start();
   await Promise.resolve();
   bot.workerReady();
   await started;
-  const session = bot.container.resolve(MCP_SERVER)!.open({ asker: 'a', question: '' })!;
+  const session = bot.container.resolve(MCP_SERVER).open({ asker: 'a', question: '' })!;
   expect(session.access.tools).toEqual(['identify_song', 'identify_bgm']);
-  const admin = bot.container.resolve(MCP_SERVER)!.open({ asker: 'a', question: '', admin: true })!;
-  expect(admin.access.tools).toEqual(['identify_song', 'identify_bgm', 'set_thanks_threshold']);
+  const admin = bot.container.resolve(MCP_SERVER).open({ asker: 'a', question: '', admin: true })!;
+  expect(admin.access.tools).toEqual(
+    expect.arrayContaining(['set_thanks_threshold', 'identify_song', 'identify_bgm']),
+  );
   app.stop();
   await jest
     .requireActual<typeof import('node:timers/promises')>('node:timers/promises')
     .setImmediate();
-  expect(bot.container.resolve(MCP_SERVER)!.open({ asker: 'a', question: '' })).toBeNull();
+  expect(bot.container.resolve(MCP_SERVER).open({ asker: 'a', question: '' })).toBeNull();
+});
+
+test('a tools port that is taken stops the start', async () => {
+  const busy = createServer().listen(0, '127.0.0.1');
+  await once(busy, 'listening');
+  const { port } = busy.address() as AddressInfo;
+  const bot = build(['--mcp-port', String(port), '--no-asr', '--codex', '']);
+  try {
+    await expect(bot.container.resolve(APP).start()).rejects.toThrow(/EADDRINUSE/);
+  } finally {
+    busy.close();
+  }
+});
+
+test('without speech, Codex or Jev the tools server still has the admin-only settings, and nothing for anyone else', async () => {
+  const bot = build(['--mcp-port', '0', '--no-asr', '--codex', ''], {});
+  const app = bot.container.resolve(APP);
+  await app.start();
+  const server = bot.container.resolve(MCP_SERVER);
+  expect(server.open({ asker: 'a', question: '' })!.access.tools).toEqual([]);
+  expect(server.open({ asker: 'a', question: '', admin: true })!.access.tools).toEqual([
+    'set_auto_reply_threshold',
+    'set_auto_reply_interval',
+    'set_max_reply_parts',
+    'set_thanks_threshold',
+    'set_screenshots',
+    'ask_about_puzzle',
+  ]);
+  app.stop();
+});
+
+test('the tools a room switches on are built from src/mcp/tools, beside the built-in ones', () => {
+  const bot = build(
+    ['--no-asr', '--codex', ''],
+    {},
+    {
+      'room_config.json': JSON.stringify({ tools: ['can_sing', 'nope'], streamerNames: ['虾虾'] }),
+    },
+  );
+  const tools = bot.container.resolve(TOOLS)();
+  const names = tools.map((tool) => tool.name);
+  expect(names).toEqual(expect.arrayContaining(['set_thanks_threshold', 'can_sing']));
+  expect(names.indexOf('can_sing')).toBeGreaterThan(names.indexOf('ask_about_puzzle'));
+  expect(names).not.toContain('what_song');
+  expect(names).not.toContain('nope');
+  expect(bot.logged).toContainEqual([
+    'warn',
+    'room_config.json lists a tool there is no definition for',
+  ]);
+  // Typed commands are the built-in tools' alone.
+  expect(bot.commands()).not.toContain('can_sing');
+  const canSing = tools.find((tool) => tool.name === 'can_sing')!;
+  expect(canSing.description).toMatch(/^主播会唱xxx吗、有什么拿手的：/);
+  expect(canSing.description).toContain('虾虾');
+  expect(canSing.listen?.when).toBeDefined();
+});
+
+test('every tool with a / name is in the table of docs/commands.md, and the table names only tools there are', () => {
+  // Every feature on: Jev, Codex and speech, so every tool exists.
+  const bot = build();
+  const tools = bot.container.resolve(TOOLS)();
+  const built = tools.flatMap((tool) => (tool.commands ?? []).map((c) => [c.name, tool.name]));
+
+  const lines = readFileSync(join(PACKAGE_DIR, 'docs', 'commands.md'), 'utf8').split('\n');
+  const first = lines.findIndex((line) => line.startsWith('| `/'));
+  const rows: string[] = [];
+  for (let i = first; i < lines.length && lines[i]!.startsWith('|'); i++) rows.push(lines[i]!);
+  // The cells of a row, `\|` inside one kept (`/截图 <0\|1>`).
+  const documented = rows.map((row) => {
+    const [, command = '', tool = ''] = row.split(/(?<!\\)\|/).map((cell) => cell.trim());
+    return [/^`\/([^\s`]+)/.exec(command)?.[1], tool.replace(/`/g, '')];
+  });
+
+  expect(documented).toEqual(built);
+});
+
+test("every declarative tool in src/mcp/tools is in docs/commands.md's installable table, and the table names only tools there are", () => {
+  const warned: string[] = [];
+  const log: Log = {
+    debug() {},
+    info() {},
+    warn: (message) => void warned.push(message),
+    error() {},
+  };
+  const defined = loadToolDefinitions(join(PACKAGE_DIR, 'src', 'mcp', 'tools'), {
+    roomDir: mkdtempSync(join(tmpdir(), 'chat-bot-tools-')),
+    log,
+  });
+  // A bad tool.json in the repo fails the suite, not just a warning at start.
+  expect(warned).toEqual([]);
+
+  const lines = readFileSync(join(PACKAGE_DIR, 'docs', 'commands.md'), 'utf8').split('\n');
+  const heading = lines.findIndex((line) => line === '## Tools a room switches on');
+  const first = lines.findIndex((line, i) => i > heading && line.startsWith('| `'));
+  const rows: string[] = [];
+  for (let i = first; i < lines.length && lines[i]!.startsWith('|'); i++) rows.push(lines[i]!);
+  const documented = rows.map((row) => /^\| `([^`]+)`/.exec(row)?.[1]);
+
+  expect(documented.sort()).toEqual(defined.map(({ name }) => name).sort());
 });

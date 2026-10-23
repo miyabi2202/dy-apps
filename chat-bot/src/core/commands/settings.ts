@@ -1,3 +1,6 @@
+/** How hard Codex thinks about a puzzle: `high` takes up to 10 minutes instead of 6. */
+export type SolveEffort = 'medium' | 'high';
+
 /**
  * What admins can change while the bot runs, kept per room in `room_config.json` (one field each,
  * same names), read hot: editing the file changes the running bot at once.
@@ -17,6 +20,8 @@ export interface Settings {
   screenshots: boolean;
   /** The most messages one @'s answer is split into (`/最大回复条数`, `--max-parts`). */
   maxReplyParts: number;
+  /** How hard Codex thinks about a puzzle (`ask_about_puzzle`); nothing but the file sets it. */
+  solveEffort: SolveEffort;
 }
 
 /** Each setting's value when neither room_config.json nor the command line says. */
@@ -28,6 +33,12 @@ export const SETTING_DEFAULTS: Readonly<Settings> = {
   maliceWatch: false,
   screenshots: false,
   maxReplyParts: 5,
+  solveEffort: 'medium',
+};
+
+/** The values a setting that is a choice may take, by name; the other settings are a boolean or a count. */
+const SETTING_CHOICES: Partial<Record<keyof Settings, readonly string[]>> = {
+  solveEffort: ['medium', 'high'],
 };
 
 /** The settings' names, in the order room_config.json lists them. */
@@ -35,8 +46,9 @@ const SETTING_NAMES = Object.keys(SETTING_DEFAULTS) as (keyof Settings)[];
 
 /**
  * The settings in `raw` (a parsed room_config.json), each checked on its own: a missing one is its
- * default, and one of the wrong kind is `fallback`'s value for it (the last good settings), with
- * what's wrong with it in `problems`, so one bad value doesn't cost the others.
+ * default, and one of the wrong kind (a boolean, a count, or one of a choice's values) is
+ * `fallback`'s value for it (the last good settings), with what's wrong with it in `problems`, so
+ * one bad value doesn't cost the others.
  */
 export function settingsFrom(
   raw: Readonly<Record<string, unknown>>,
@@ -47,6 +59,16 @@ export function settingsFrom(
   for (const name of SETTING_NAMES) {
     const value = raw[name];
     if (value === undefined) continue;
+    const choices = SETTING_CHOICES[name];
+    if (choices) {
+      if (typeof value !== 'string' || !choices.includes(value)) {
+        problems.push(`${name} must be one of ${choices.join(', ')}`);
+        settings[name] = fallback[name];
+        continue;
+      }
+      settings[name] = value;
+      continue;
+    }
     const kind = typeof SETTING_DEFAULTS[name];
     if (kind === 'boolean' ? typeof value !== 'boolean' : !isCount(value)) {
       problems.push(

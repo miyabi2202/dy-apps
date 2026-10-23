@@ -2,8 +2,7 @@ import { normaliseTitle, type TitleCandidate } from '@dy-apps/lyrics-search';
 import { parseSongAnswer, SONG_ANSWER_SCHEMA, type SongAnswer } from '../../core/songs/song-answer';
 import { errorMessage } from '../../core/errors';
 import { askJson } from '../models/ask-json';
-import type { Command } from '../commands/command';
-import { currentSong, isSung, sungChars, type TranscriptLine } from '../../core/songs/transcript';
+import { isSung, sungChars, type TranscriptLine } from '../../core/songs/transcript';
 import type { AskModel, Log, Question, SearchLyrics } from '../ports';
 
 export interface SongIdOptions {
@@ -42,7 +41,7 @@ export type SongIdOutcome =
   | { kind: 'named'; answer: SongAnswer | null; text: string; by: 'lyrics-search' | 'codex' };
 
 /**
- * Names the song being sung, for `/识歌`, /自动识歌 and Claude's `identify_song`: the lyrics search
+ * Names the song being sung, for `identify_song` (Claude's, or a typed `/识歌`) and /自动识歌: the lyrics search
  * first, which is fast; when it isn't sure, Codex searches the web for the lyrics of the current
  * song, with the prompt, and answers in SONG_ANSWER_SCHEMA's shape.
  */
@@ -51,8 +50,6 @@ export class SongId {
   private readonly named = new Map<string, number>();
   /** The last song it told the room, and when. */
   private last: { song: SongAnswer; at: number } | undefined;
-  /** The song `/识歌` last picked from the transcript, for its prompt. */
-  private picked: TranscriptLine[] = [];
 
   constructor(private readonly options: SongIdOptions) {}
 
@@ -187,31 +184,6 @@ export class SongId {
     this.named.set(normaliseTitle(song.title), at);
     this.last = { song, at };
     if (introduce) this.options.onTold?.(song);
-  }
-
-  /** `/识歌`, for anyone. */
-  commands(): Command[] {
-    return [
-      {
-        name: '识歌',
-        adminOnly: false,
-        prompt: () => this.prompt(),
-        // Only the song being sung now, not the one before it.
-        pickTranscript: (lines) => (this.picked = currentSong(lines)),
-        ask: (question) => this.identify(question),
-      },
-    ];
-  }
-
-  /**
-   * `/识歌`'s answer: the message that named the song, or the model's whole answer when that isn't
-   * JSON; with too little sung yet (see `early`), what that says, without asking.
-   */
-  private async identify(question: Question): Promise<string> {
-    const outcome = await this.identifyLines(question, this.picked, 'command');
-    if (outcome.kind === 'early' || !outcome.answer) return outcome.text;
-    this.told(outcome.answer);
-    return outcome.answer.message;
   }
 }
 

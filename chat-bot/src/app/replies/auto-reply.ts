@@ -5,6 +5,7 @@ import {
   relevanceRequest,
   roomLines,
   scoreRelevance,
+  type ListenTopic,
   type RoomLine,
 } from '../../core/chat/relevance';
 import {
@@ -14,22 +15,15 @@ import {
   pickLines,
   pickPrompt,
   REPLY_PICK_SCHEMA,
+  targetOf,
   type UnpromptedReply,
 } from '../../core/replies/reply-pick';
 import type { IncomingChat } from '../../core/chat/room-events';
 import type { TranscriptLine } from '../../core/songs/transcript';
 import { askJson } from '../models/ask-json';
-import { done, failed, type Command } from '../commands/command';
 import type { Outbox } from './outbox';
 import { setting } from '../commands/setting';
-import type {
-  AdditionalCommand,
-  AskModel,
-  FindStreamer,
-  Judge,
-  Log,
-  SettingsStore,
-} from '../ports';
+import type { AskModel, FindStreamer, Judge, Log, SettingsStore } from '../ports';
 import type { RoomState } from '../room/room-state';
 
 export interface AutoReplyOptions {
@@ -59,14 +53,13 @@ export interface AutoReplyOptions {
   /** Who the streamer is, so what they said can be answered as theirs; null while unknown. */
   streamer: () => Awaited<ReturnType<FindStreamer>>;
   /**
-   * The room's own commands, as they are now (their files are read again as they change): what's
-   * said that one is for (asked of the judge, or matching its trigger) goes to the picker too,
-   * which may have it answered with that command.
+   * What the tools listen for (BotTool.listen), as they are now: Jev is asked each `when`, and a
+   * line matching a `trigger` or `mentioned` has auto-reply look now. Nothing more: the tools
+   * themselves are what Claude calls.
    */
-  additionalCommands?: () => readonly Pick<
-    AdditionalCommand,
-    'id' | 'when' | 'trigger' | 'mentioned'
-  >[];
+  topics?: () => readonly ListenTopic[];
+  /** Jev's score above which a line is answered at once, without the picker (SURE_ABOUT_BOT without it). */
+  sureThreshold?: number;
 }
 
 /**
@@ -76,6 +69,12 @@ export interface AutoReplyOptions {
 const FOLLOW_UP_MS = 60_000;
 /** The streamer, as the bot keeps track of whom it answered: on the stream or in the chat. */
 const STREAMER = '主播';
+
+/**
+ * Above this score for being about the bot, Jev is sure enough that asking Codex only adds the 9
+ * seconds it takes: the line is answered at once.
+ */
+export const SURE_ABOUT_BOT = 0.9;
 
 /** At most this many lines go to the picker, the newest. */
 const PICK_LINES = 40;
@@ -89,10 +88,11 @@ const OFF_FOR_NO_CREDIT = 10;
  * Joins in when people talk to or about the bot. Someone calling it by its nickname or an alias is
  * answered at once (see hear, hearSpeech). Every `checkMs` it asks the judge (Jev) whether
  * anything new, chat or what the streamer said (without the chat they read out), is about the
- * bot, or what one of the room's own commands is for (主播会唱xxx吗); when something is at least
- * `threshold` likely, or a chat matches a command's trigger, it has the picker choose whom to
- * answer, and with which command, each through `reply`. What someone the bot just answered says
- * goes to the picker without the judge.
+ * bot, or what one of the tools listens for (主播会唱xxx吗); when something is at least
+ * `threshold` likely, or a chat matches a tool's trigger, it has the picker choose whom to
+ * answer, each through `reply`, except what Jev is surer of than SURE_ABOUT_BOT is about the bot,
+ * which is answered at once. What someone the bot just answered says goes to the picker without
+ * the judge.
  */
 export class AutoReply {
   private readonly thresholdSetting: ReturnType<typeof setting<'autoReplyThreshold'>>;
@@ -162,15 +162,15 @@ export class AutoReply {
     this.wake();
   }
 
-  /** The room's own commands as they are now; none when it has none. */
-  private additionalCommands() {
-    return this.options.additionalCommands?.() ?? [];
+  /** What the tools listen for, as they are now; none when they listen for nothing. */
+  private topics() {
+    return this.options.topics?.() ?? [];
   }
 
   /**
    * A chat just came in. One calling the bot by its nickname or an alias, as written, is answered
-   * at once, without the judge or the picker (Claude may still say nothing). One matching a room
-   * command's trigger (主播会唱xxx吗) is surely for the bot, so it looks now instead of at the next
+   * at once, without the judge or the picker (Claude may still say nothing). One matching a tool's
+   * listen trigger (主播会唱xxx吗) is surely for the bot, so it looks now instead of at the next
    * check. The rest wait for it, so the room has time to answer.
    */
   hear({
@@ -186,7 +186,7 @@ export class AutoReply {
       this.callsBot(line, name, { nickname, userId, question: content, heard: 'chat' });
       return;
     }
-    if (!this.additionalCommands().some((command) => matchFor(command, content))) return;
+    if (!this.topics().some((topic) => matchFor(topic, content))) return;
     this.lookAtOnce(content);
   }
 
@@ -248,37 +248,6 @@ export class AutoReply {
     return { autoReplyThreshold: this.threshold, autoReplyIntervalMs: this.quietMs };
   }
 
-  /**
-   * `/自动回复阈值 0.6` sets the threshold (1 or more: never unprompted); `/自动回复间隔 20` how many
-   * seconds it keeps quiet after talking.
-   */
-  commands(): Command[] {
-    return [
-      {
-        name: '自动回复阈值',
-        adminOnly: true,
-        run: (args) => {
-          if (!/^\d+(\.\d+)?$/.test(args))
-            return failed('阈值要写成 0 到 1 之间的小数，1 表示关闭，用法：/自动回复阈值 0.6');
-          this.threshold = Number(args);
-          this.options.log.info('talk threshold', { threshold: this.threshold });
-          return done('已处理自动回复阈值请求');
-        },
-      },
-      {
-        name: '自动回复间隔',
-        adminOnly: true,
-        run: (args) => {
-          if (!/^\d+$/.test(args))
-            return failed('间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20');
-          this.quietMs = Number(args) * 1000;
-          this.options.log.info('talk interval', { quietMs: this.quietMs });
-          return done('已处理自动回复间隔请求');
-        },
-      },
-    ];
-  }
-
   /** Waits `ms`, or until woken: which of the two ended it. */
   private wait(ms: number): Promise<'elapsed' | 'woken'> {
     this.waiting = true;
@@ -322,7 +291,13 @@ export class AutoReply {
     // Jev failing doesn't lose the follow-ups, which never needed it (unless it ran out of money,
     // which turned auto-reply off).
     if (judged === null && (!following.length || this.threshold >= 1)) return;
-    const { about, toBot, best } = judged ?? { about: [], toBot: [], best: null };
+    const { about, toBot, sure, best, topicsOf } = judged ?? {
+      about: [],
+      toBot: [],
+      sure: [],
+      best: null,
+      topicsOf: new Map<string, readonly string[]>(),
+    };
     if (!about.length && !following.length) return;
     if (best) {
       log.info('about the bot', { who: best.line.who, text: best.line.text, score: best.score });
@@ -336,21 +311,23 @@ export class AutoReply {
       : about.some((line) => !toBot.includes(line))
         ? 'trigger'
         : 'judge';
+    const answered = this.answerSure(sure, topicsOf);
     const picked = await this.pickAndReply(
       since,
-      called,
+      new Set([...called, ...sure.map(({ line }) => lineKey(line))]),
       [...about, ...following],
-      [...toBot, ...following],
       why,
+      topicsOf,
     );
-    if (picked > 0) this.talkedAt = room.now();
+    if (answered + picked > 0) this.talkedAt = room.now();
   }
 
   /**
-   * Asks the judge whether each of `fresh` is about the bot or for one of the room's commands:
-   * those at least `threshold` likely either way, or matching a command's trigger (`about`); of
-   * them, those about the bot itself (`toBot`); and the likeliest (for the log). Null when the judge
-   * failed.
+   * Asks the judge whether each of `fresh` is about the bot or what one of the tools listens for:
+   * those at least `threshold` likely either way, or matching a tool's trigger (`about`); of
+   * them, those about the bot itself (`toBot`) and those it is sure about (`sure`); the likeliest
+   * (for the log); and, by lineKey, the tools each line is a topic of (`topicsOf`). Null when the
+   * judge failed.
    */
   private async judge(
     lines: readonly RoomLine[],
@@ -358,11 +335,15 @@ export class AutoReply {
   ): Promise<{
     about: RoomLine[];
     toBot: RoomLine[];
+    sure: { line: RoomLine; score: number }[];
     best: { line: RoomLine; score: number } | null;
+    topicsOf: Map<string, readonly string[]>;
   } | null> {
     const { judge, room, log } = this.options;
-    const additionalCommands = this.additionalCommands();
-    if (!judge || !fresh.length) return { about: [], toBot: [], best: null };
+    const topics = this.topics();
+    if (!judge || !fresh.length) {
+      return { about: [], toBot: [], sure: [], best: null, topicsOf: new Map() };
+    }
     const first = lines.indexOf(fresh[0]!);
     const { state, questions } = relevanceRequest(
       lines.slice(Math.max(0, first - 25), first),
@@ -370,7 +351,7 @@ export class AutoReply {
       room.botName,
       room.persona,
       room.wording,
-      additionalCommands.map(({ when }) => when),
+      topics.map(({ when }) => when),
       room.aliases(),
       room.timeZone(),
     );
@@ -382,15 +363,28 @@ export class AutoReply {
       else log.warn('could not judge', { error: errorMessage(err) });
       return null;
     }
-    const { about, toBot, best } = scoreRelevance(fresh, scores, {
+    const {
+      about,
+      toBot,
+      sure,
+      best,
+      topics: named,
+    } = scoreRelevance(fresh, scores, {
       threshold: this.threshold,
-      topics: additionalCommands.length,
-      triggered: (line) =>
-        line.userId !== undefined &&
-        additionalCommands.some((command) => matchFor(command, line.text)),
+      topics: topics.map(({ name }) => name),
+      matched: (line) =>
+        line.userId === undefined
+          ? []
+          : topics.filter((topic) => matchFor(topic, line.text) !== null).map(({ name }) => name),
+      sureThreshold: this.options.sureThreshold ?? SURE_ABOUT_BOT,
     });
     log.debug('judged', { lines: fresh.length, best: best.line.text, score: best.score });
-    return { about, toBot, best: about.length ? best : null };
+    // Sure lines are answered at once, unless they're below the room's own threshold (set above 0.9).
+    const certain = sure
+      .filter((line) => about.includes(line))
+      .map((line) => ({ line, score: scores[`q${fresh.indexOf(line) + 1}`] ?? 0 }));
+    const topicsOf = new Map([...named].map(([line, names]) => [lineKey(line), names]));
+    return { about, toBot, sure: certain, best: about.length ? best : null, topicsOf };
   }
 
   /** Whether `line` was said by someone within FOLLOW_UP_MS of the bot saying something to them. */
@@ -407,19 +401,41 @@ export class AutoReply {
   }
 
   /**
-   * Has the picker choose, of what was said since `since` (but `called`, answered already), what the bot should answer now (the
-   * room had time to react, so some may need no answer any more), and answers each through
-   * `reply`, as the chatter's or (said on the stream) the streamer's. A line is answered as usual
-   * (no command) only if it's in `chatty`, the judge found it about the bot or it follows up: one
-   * that came only for a room command (its `when`, its trigger) is answered with a command or not
-   * at all. How many it answered.
+   * Answers at once the `sure` lines the judge found about the bot, without the picker: one for
+   * each person (their latest, the most complete), as the chatter's or (said on the stream) the
+   * streamer's, which waits while the streamer is unknown. How many it answered.
+   */
+  private answerSure(
+    sure: readonly { line: RoomLine; score: number }[],
+    topicsOf: ReadonlyMap<string, readonly string[]>,
+  ): number {
+    const { log, reply } = this.options;
+    const streamer = this.options.streamer();
+    const targets = new Map<string, { line: RoomLine; score: number; target: UnpromptedReply }>();
+    for (const { line, score } of sure) {
+      const target = targetOf(line, streamer);
+      if (target) targets.set(target.userId, { line, score, target });
+    }
+    for (const { line, score, target } of targets.values()) {
+      log.info('sure about the bot', { who: line.who, text: line.text, score });
+      reply(withTopics(target, topicsOf.get(lineKey(line))));
+    }
+    return targets.size;
+  }
+
+  /**
+   * Has the picker choose, of what was said since `since` (but `answered`, answered already), what
+   * the bot should answer now (the room had time to react, so some may need no answer any more),
+   * and answers each through `reply`, as the chatter's or (said on the stream) the streamer's. A
+   * line is answered only if it's in `about`: the judge found it about the bot, or for one of the
+   * tools' topics, or it follows up. How many it answered.
    */
   private async pickAndReply(
     since: number,
-    called: ReadonlySet<string>,
+    answered: ReadonlySet<string>,
     about: readonly RoomLine[],
-    chatty: readonly RoomLine[],
     why: string,
+    topicsOf: ReadonlyMap<string, readonly string[]>,
   ): Promise<number> {
     const { room, log, picker, pickTemplate, reply } = this.options;
     const streamer = this.options.streamer();
@@ -427,20 +443,19 @@ export class AutoReply {
       -PICK_LINES,
     );
     const aboutKeys = new Set(about.map(lineKey));
-    const chattyKeys = new Set(chatty.map(lineKey));
     const { text, numbered } = pickLines(
       lines,
       (line) =>
         line.candidate &&
         line.ts > since &&
-        !called.has(lineKey(line)) &&
+        !answered.has(lineKey(line)) &&
         (line.userId !== undefined || (line.who === '主播' && streamer !== null)),
       new Set(lines.filter((line) => aboutKeys.has(lineKey(line)))),
       (line) =>
         line.userId === undefined
           ? []
-          : this.additionalCommands()
-              .map((command) => matchFor(command, line.text))
+          : this.topics()
+              .map((topic) => matchFor(topic, line.text))
               .filter((label): label is string => label !== null),
       room.timeZone(),
     );
@@ -450,7 +465,7 @@ export class AutoReply {
       botName: room.botName,
       persona: room.persona,
       botTalk: room.botTalk(),
-      commands: this.additionalCommands(),
+      topics: this.topics().map(({ name, when, adminOnly }) => ({ name, when, adminOnly })),
       aliases: room.aliases(),
     });
     let picks: ReplyPick[] | null;
@@ -475,28 +490,22 @@ export class AutoReply {
       picks: picks.map(({ line, confidence }) => ({ text: numbered[line - 1]?.text, confidence })),
     });
     // Only what it's sure enough of (the same threshold as the judge's), surest first, one each.
-    const additionalCommands = this.additionalCommands();
     const picked = chooseTargets(picks, numbered, {
       threshold: this.threshold,
       max: MAX_PICKS,
       streamer,
-      commandIds: new Set(additionalCommands.map(({ id }) => id)),
-      chatty: (line) => chattyKeys.has(lineKey(line)),
-      cameFor: (line) =>
-        additionalCommands.find((c) => line.userId !== undefined && matchFor(c, line.text) !== null)
-          ?.id,
+      allowed: (line) => aboutKeys.has(lineKey(line)),
       note: (message, meta) => log.debug(message, meta),
     });
     log.info('picked whom to answer', {
-      picked: picked.map(({ nickname, question, confidence, command }) => ({
+      picked: picked.map(({ nickname, question, confidence }) => ({
         nickname,
         question,
         confidence,
-        command,
       })),
     });
-    for (const { nickname, userId, question, heard, command } of picked) {
-      reply({ nickname, userId, question, heard, ...(command && { command }) });
+    for (const { nickname, userId, question, heard, line } of picked) {
+      reply(withTopics({ nickname, userId, question, heard }, topicsOf.get(lineKey(line))));
     }
     return picked.length;
   }
@@ -513,14 +522,20 @@ export class AutoReply {
 }
 
 /**
- * How `text` is for the room's `command`, for the picker: its id when it matches the trigger, and
- * which of its `mentions` it contains (`can-sing（提到了它资料里的「喂猪」）`); null when neither.
+ * How `text` is for the tool `topic` listens for, for the picker: its name when it matches the
+ * trigger, and which of its `mentions` it contains (`can_sing（提到了它资料里的「喂猪」）`); null
+ * when neither.
  */
 function matchFor(
-  { id, trigger, mentioned }: Pick<AdditionalCommand, 'id' | 'trigger' | 'mentioned'>,
+  { name, trigger, mentioned }: Pick<ListenTopic, 'name' | 'trigger' | 'mentioned'>,
   text: string,
 ): string | null {
   const phrase = mentioned?.(text) ?? null;
-  if (phrase) return `${id}（提到了它资料里的「${phrase}」）`;
-  return trigger?.test(text) ? id : null;
+  if (phrase) return `${name}（提到了它资料里的「${phrase}」）`;
+  return trigger?.test(text) ? name : null;
+}
+
+/** `target`, with the tools whose listen its line matched as a hint for Claude, when there are any. */
+function withTopics(target: UnpromptedReply, topics?: readonly string[]): UnpromptedReply {
+  return topics?.length ? { ...target, topics } : target;
 }

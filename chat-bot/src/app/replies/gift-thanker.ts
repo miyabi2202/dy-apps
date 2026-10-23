@@ -1,7 +1,6 @@
 import { errorMessage } from '../../core/errors';
 import { DOUYIN_CHAT_LIMIT, replyMessages, singleBudget } from '../../core/replies/reply';
 import type { Gift } from '../../core/chat/room-events';
-import { done, failed, type Command } from '../commands/command';
 import { ModelFeature } from '../models/model-feature';
 import type { Outbox } from './outbox';
 import { Pending } from '../pending';
@@ -106,21 +105,6 @@ export class GiftThanker extends ModelFeature<Thanks, string[]> {
   /** What `{{settings}}` says of it: the threshold. */
   settings(): { thanksThreshold: number } {
     return { thanksThreshold: this.threshold };
-  }
-
-  /** `/自动谢礼 100`: changes the threshold, until the bot stops. */
-  commands(): Command[] {
-    return [
-      {
-        name: '自动谢礼',
-        adminOnly: true,
-        run: (args) => {
-          if (!/^\d+$/.test(args)) return failed('阈值要写成钻石数，用法：/自动谢礼 100');
-          this.threshold = Number(args);
-          return done('已处理自动谢礼请求');
-        },
-      },
-    ];
   }
 
   /** Resolves once every thanks under way has been written (or failed). */

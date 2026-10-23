@@ -7,7 +7,6 @@ import {
 import { DOUYIN_CHAT_LIMIT } from '../../core/replies/reply';
 import type { IncomingChat } from '../../core/chat/room-events';
 import { askJson } from '../models/ask-json';
-import { done, failed, type Command } from '../commands/command';
 import { ModelFeature } from '../models/model-feature';
 import type { Outbox } from './outbox';
 import { Pending } from '../pending';
@@ -88,24 +87,6 @@ export class MaliceWatch extends ModelFeature<Suspect, MaliceAnswer> {
   /** Resolves once every chat heard so far has been checked. */
   idle(): Promise<void> {
     return this.work.idle();
-  }
-
-  /** `/识别恶意言论 1` turns it on, `/识别恶意言论 0` off. */
-  commands(): Command[] {
-    return [
-      {
-        name: '识别恶意言论',
-        adminOnly: true,
-        run: (args) => {
-          if (args !== '0' && args !== '1') {
-            return failed('要写 0（关闭）或 1（打开），用法：/识别恶意言论 1');
-          }
-          this.on = args === '1';
-          this.options.log.info('malice watch', { on: this.on });
-          return done('已处理识别恶意言论请求');
-        },
-      },
-    ];
   }
 
   private async check(chat: Heard): Promise<void> {

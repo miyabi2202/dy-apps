@@ -25,6 +25,20 @@ test('{{limitations}} is what the bot cannot do, to explain only when asked, and
   expect(buildPrompt('{{limitations}}', input)).toBe('');
 });
 
+test('{{asked}} says how the asker reached the bot, and names the tools a line matched as a hint', () => {
+  const asked = { ...input, asker: '阿明', question: '秒了' };
+  expect(buildPrompt('{{asked}}', asked)).toBe(
+    testWording('asked-mention', { asker: '阿明', said: '秒了' }),
+  );
+  const hinted = buildPrompt('{{asked}}', { ...asked, unprompted: 'chat', topics: ['too_easy'] });
+  expect(hinted).toBe(
+    `${testWording('asked-chat', { asker: '阿明', said: '秒了' })}\n${testWording('asked-topics', { tools: 'too_easy' })}`,
+  );
+  expect(buildPrompt('{{asked}}', { ...asked, unprompted: 'chat', topics: [] })).toBe(
+    testWording('asked-chat', { asker: '阿明', said: '秒了' }),
+  );
+});
+
 test('{{history}} shows the recent gifts among the chat, by time', () => {
   const prompt = buildPrompt('{{history}}', {
     history: [

@@ -72,10 +72,9 @@ test('an answer that is not JSON, and admins, count for nothing', async () => {
   expect(unsure.sent).toEqual([]);
 });
 
-test('/识别恶意言论 0 stops it', async () => {
+test('turned off, it stops', async () => {
   const { watch, say, sent } = setup({ 滚: 0.9 }, ['滚']);
-  const [command] = watch.commands();
-  expect(await command?.run?.('0')).toMatchObject({ reply: '已处理识别恶意言论请求' });
+  watch.on = false;
   await say(0, 'u-1', '甲', '滚');
   await say(1, 'u-1', '甲', '滚');
   expect(sent).toEqual([]);

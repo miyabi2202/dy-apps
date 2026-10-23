@@ -8,7 +8,7 @@ const tool: BotTool = {
   name: 'identify_song',
   description: '认歌',
   inputSchema: { type: 'object' },
-  command: '识歌',
+  commands: [{ name: '识歌', parse: () => ({ args: {} }), say: () => '' }],
   call: (_args, { asker }) => Promise.resolve({ text: `给 ${asker} 认了歌` }),
 };
 
@@ -16,7 +16,7 @@ const servers: BotMcpServer[] = [];
 async function started() {
   const logged: [string, object | undefined][] = [];
   const server = new BotMcpServer({
-    tools: [tool],
+    tools: () => [tool],
     log: { ...silentLog, info: (message, meta) => void logged.push([message, meta]) },
   });
   servers.push(server);
@@ -52,7 +52,7 @@ function raw(url: string, headers: Record<string, string>): Promise<number> {
 }
 
 test('is closed before it starts and after it stops', async () => {
-  const server = new BotMcpServer({ tools: [tool], log: silentLog });
+  const server = new BotMcpServer({ tools: () => [tool], log: silentLog });
   expect(server.open({ asker: 'a', question: '' })).toBeNull();
   await server.start();
   servers.push(server);
@@ -76,8 +76,9 @@ test('a tools/call round trip over loopback, logged, and the session knows what 
     result: { content: [{ type: 'text', text: '给 苦*** 认了歌' }] },
   });
   expect(session.used()).toEqual(['identify_song']);
-  expect(session.replaces('识歌')).toBe(true);
-  expect(session.replaces('识别背景音乐')).toBe(false);
+  expect(session.calls().map(({ tool, isError }) => ({ tool, isError }))).toEqual([
+    { tool: 'identify_song', isError: false },
+  ]);
   expect(logged.find(([m]) => m === 'mcp tool')?.[1]).toMatchObject({
     tool: 'identify_song',
     asker: '苦***',
@@ -141,7 +142,7 @@ test('a body that is not JSON is a 400, not a crash', async () => {
 
 test('a non-admin’s session leaves out the admin-only tools', async () => {
   const server = new BotMcpServer({
-    tools: [tool, { ...tool, name: 'set_threshold', command: '自动谢礼', adminOnly: true }],
+    tools: () => [tool, { ...tool, name: 'set_threshold', adminOnly: true }],
     log: silentLog,
   });
   servers.push(server);

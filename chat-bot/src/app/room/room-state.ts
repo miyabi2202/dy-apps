@@ -16,7 +16,6 @@ import {
   type Transcript,
   type TranscriptLine,
 } from '../../core/songs/transcript';
-import { done, failed, type Command } from '../commands/command';
 import type { BotTalk, Log, Screenshot, SettingsStore } from '../ports';
 import { setting } from '../commands/setting';
 
@@ -64,8 +63,6 @@ export interface RoomStateOptions {
   timeZone?: () => string;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
   botName: string;
-  /** The commands viewers can run, for `{{commands}}`, read each time so edits apply at once. */
-  commands?: () => string;
   /** Words the bot must never say, for `{{forbiddenWords}}`, read each time. */
   forbiddenWords?: () => readonly string[];
   log: Log;
@@ -171,7 +168,7 @@ export class RoomState {
 
   /** The room's part of a prompt (see buildPrompt), as it is now. */
   promptInput(): RoomPromptInput {
-    const { chatDir, context, intro, limitations, botTalk, commands } = this.options;
+    const { chatDir, context, intro, limitations, botTalk } = this.options;
     return {
       wording: this.wording,
       aliases: this.aliases(),
@@ -189,7 +186,6 @@ export class RoomState {
       limitations: limitations?.(),
       botTalk: botTalk?.recent(),
       settings: this.settings(),
-      commands: commands?.(),
       forbiddenWords: this.options.forbiddenWords?.(),
     };
   }
@@ -233,17 +229,4 @@ export class RoomState {
       return undefined;
     }
   }
-}
-
-/** `/截图 1` or `/截图 0`: turns screenshots on or off, until the bot stops. */
-export function screenshotCommand(room: Pick<RoomState, 'screenshots'>): Command {
-  return {
-    name: '截图',
-    adminOnly: true,
-    run(args) {
-      if (args !== '0' && args !== '1') return failed('要写 0（关闭）或 1（打开），用法：/截图 1');
-      room.screenshots = args === '1';
-      return done('已处理截图请求');
-    },
-  };
 }

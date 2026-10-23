@@ -9,18 +9,18 @@ import type { BotConfig } from '../adapters/files/config-file';
 import type { AutoReply } from '../app/replies/auto-reply';
 import type { AutoSongId } from '../app/songs/auto-song-id';
 import type { ChatBot } from '../app/replies/chat-bot';
-import type { Command } from '../app/commands/command';
 import type { EventBus } from '../app/event-bus';
 import type { GiftThanker } from '../app/replies/gift-thanker';
 import type { MaliceWatch } from '../app/replies/malice-watch';
+import type { BotTool } from '../mcp/rpc';
 import type { BotMcpServer } from '../mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { OnSing } from '../app/songs/on-sing';
 import type { Outbox } from '../app/replies/outbox';
 import type {
-  AdditionalCommand,
   AskModel,
   BotTalk,
+  DefinedTool,
   Judge,
   Log,
   RoomEvents,
@@ -37,6 +37,7 @@ import type { SongIntro } from '../app/songs/song-intro';
 import type { StreamerAdmin } from '../app/commands/streamer-admin';
 import type { Transcriber } from '../app/songs/transcriber';
 import type { CliOptions } from '../cli-options';
+import type { SolveEffort } from '../core/commands/settings';
 import type { ChatHistory } from '../core/chat/chat-history';
 import type { RecentGifts } from '../core/chat/recent-gifts';
 import type { Transcript } from '../core/songs/transcript';
@@ -74,8 +75,8 @@ export const DOWNLOADS = token<() => void>('downloads');
 // models.ts: the adapters, each use logged with its task.
 export const ASK_CLAUDE = token<(task: string) => AskModel>('askClaude');
 export const ASK_CODEX = token<(task: string, over: CodexCliOptions) => AskModel>('askCodex');
-export const ASK_SOLVE =
-  token<(task: string, effort: string, timeoutMs: number) => AskModel>('askSolve');
+/** Codex for `ask_about_puzzle`, at the effort the room is set to. */
+export const ASK_SOLVE = token<(effort: SolveEffort) => AskModel>('askSolve');
 /** Jev for `task`; undefined without a JEV_API_KEY or Codex, and with it every feature that needs it. */
 export const JUDGE = token<(task: string) => Judge | undefined>('judge');
 
@@ -98,7 +99,6 @@ export const RECORD = token<RoomRecord>('record');
 export const SINGING = token<Pick<RoomRecord, 'add'>>('singing');
 export const BOT_TALK = token<BotTalk>('botTalk');
 export const USER_TALK = token<UserTalk>('userTalk');
-export const ADDITIONAL_COMMANDS = token<() => AdditionalCommand[]>('additionalCommands');
 /** The prompt `name`, read on every use: the room's own file, else the shared one. */
 export const PROMPT = token<(name: PromptName) => () => string>('prompt');
 export const ROOM = token<RoomState>('room');
@@ -121,12 +121,15 @@ export const MALICE_WATCH = token<MaliceWatch | null>('maliceWatch');
 // transcriber.ts: null with --no-asr.
 export const TRANSCRIBER = token<Transcriber | null>('transcriber');
 
-// mcp.ts: the bot's tools for Claude; null with --no-mcp or when there are none.
-export const MCP_SERVER = token<BotMcpServer | null>('mcpServer');
+// mcp.ts: the bot's tools, and the server that gives them to Claude.
+/** The bot's tools as they are now, for Claude's sessions and for typed `/` commands alike. */
+export const TOOLS = token<() => BotTool[]>('tools');
+/** The declarative tools defined in src/mcp/tools/, as they are now; a room switches them on in its room_config.json. */
+export const TOOL_DEFINITIONS = token<() => DefinedTool[]>('toolDefinitions');
+export const MCP_SERVER = token<BotMcpServer>('mcpServer');
 
-// bot.ts: the mentions' answerer, the commands and the bot.
+// bot.ts: the mentions' answerer and the bot.
 export const ANSWERER = token<MentionAnswerer>('answerer');
-export const COMMANDS = token<Command[]>('commands');
 export const BOT = token<ChatBot>('bot');
 
 // app.ts: everything, started and stopped.

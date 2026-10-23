@@ -3,13 +3,11 @@ import { forbiddenWordsOf } from '../core/prompts/forbidden';
 import { join, resolve } from 'node:path';
 import { ChatLog, RecordFile } from '../adapters/files/chat-log-files';
 import { liveAdmins, readConfig } from '../adapters/files/config-file';
-import { liveAdditionalCommands } from '../adapters/files/additional-command-files';
 import {
   fillRoomConfig,
   roomConfigFile,
   livePersona,
   livePrompt,
-  liveSection,
   liveText,
   liveWording,
   roomFiles,
@@ -26,7 +24,6 @@ import { RecentGifts } from '../core/chat/recent-gifts';
 import { Transcript } from '../core/songs/transcript';
 import type { Container } from './container';
 import {
-  ADDITIONAL_COMMANDS,
   ADMINS,
   BOT_CONFIG,
   BOT_TALK,
@@ -38,7 +35,6 @@ import {
   LOG,
   OPTIONS,
   OUTBOX,
-  PACKAGE_DIR,
   PROMPTS_DIR,
   FORBIDDEN_WORDS,
   PROMPT,
@@ -137,18 +133,6 @@ export function registerRoom(container: Container): void {
       const roomConfig = c.resolve(ROOM_CONFIG);
       return userTalkFiles(c.resolve(ROOM_FILES).users, { timeZone: () => roomConfig().timeZone });
     })
-    // The room's own commands, listed in data/<房间号>/additional_commands/index.json (主播会唱xxx吗),
-    // each on its own or built on a shared one in chat-bot/prompts/commands/: answered when a
-    // mention asks for one, or auto-reply finds what someone said is for one. Read hot, like the
-    // persona: an edit to any of their files applies at once.
-    .register(ADDITIONAL_COMMANDS, (c) => {
-      const roomConfig = c.resolve(ROOM_CONFIG);
-      return liveAdditionalCommands(c.resolve(ROOM_DIR), {
-        log: c.resolve(LOG),
-        commandsDir: join(c.resolve(PROMPTS_DIR), 'commands'),
-        streamerNames: () => roomConfig().streamerNames,
-      });
-    })
     // Words Douyin holds back a message for: every prompt that writes chat is told them, and the
     // outbox won't send one with them. Read on every use, so an edit applies at once.
     .register(FORBIDDEN_WORDS, (c) => {
@@ -164,16 +148,10 @@ export function registerRoom(container: Container): void {
     // What the room looks like now, for every prompt. The bot plays the persona file room_config.json
     // names (one of the room's personas/, on its own or as changes to a shared persona in
     // chat-bot/prompts/personas/, see livePersona), read on every use like context.md. The prompts also get the settings admins
-    // can change (each feature gives its own part), and the list of commands from commands.md, so
-    // the bot can tell viewers what it can do.
+    // can change (each feature gives its own part), so the bot can tell viewers how it is set.
     .register(ROOM, (c) => {
       const options = c.resolve(OPTIONS);
       const files = c.resolve(ROOM_FILES);
-      const additionalCommands = c.resolve(ADDITIONAL_COMMANDS);
-      const commandsSection = liveSection(
-        join(c.resolve(PACKAGE_DIR), 'commands.md'),
-        'The commands',
-      );
       const gifts = c.resolve(GIFTS);
       const roomConfig = c.resolve(ROOM_CONFIG);
       const room = new RoomState({
@@ -211,19 +189,6 @@ export function registerRoom(container: Container): void {
         timeZone: () => roomConfig().timeZone,
         // What prompts say around what they fill in, shared by every room.
         wording: liveWording(join(c.resolve(PROMPTS_DIR), 'wording.md')),
-        // commands.md's list, and the room's own commands, which Claude asks for by name.
-        commands: () => {
-          const own = additionalCommands();
-          return own.length
-            ? [
-                commandsSection(),
-                '',
-                '### 这个直播间自己的指令（不用打 /：观众问到这类问题，就在 command_request 写指令名，command_args 留空，程序会用它专门的资料回答）',
-                '',
-                ...own.map(({ id, name, when }) => `- ${id}（${name}）：${when}`),
-              ].join('\n')
-            : commandsSection();
-        },
         log: c.resolve(LOG),
       });
       c.resolve(BUS).on('gift', (gift) => gifts.add(room.now(), gift));

@@ -10,15 +10,13 @@ data/<房间号>/
   context.md              直播间背景，每个提示词都会带上
   personas/<name>.md      这个直播间的人设，可以有好几个，room_config.json 的 persona 选一个（见「人设」）
   artifacts/              下载下来、或者手动放进来的资料（歌单之类）
-  additional_commands/    这个直播间自己的指令（见下）
-    index.json
-    <指令 id>/prompt.md   以及这个指令要用的别的文件（比如下载用的 transformer、共用指令读的 notes.md）
+  tools/<工具文件夹>/      这个直播间给某个工具的资料（can-sing/notes.md、can-sing/songs-transformer.js、schedule/hours.md，见「工具」）
   chat/  bot_logs.md  <用户 id>/talk.txt   机器人自己写的，别手改
 ```
 
 ## room_config.json
 
-机器人启动时会建这个文件，并把下面 `private`、`aliases`、`atTrimStart`、`timeZone` 和七个设置的字段都补全（缺的写默认值，`on_sing`、`download` 这些要你自己写的不补）。
+机器人启动时会建这个文件，并把下面 `private`、`aliases`、`atTrimStart`、`timeZone`、`tools` 和八个设置的字段都补全（缺的写默认值，`on_sing`、`download` 这些要你自己写的不补）。
 
 | 字段                       | 作用                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -27,9 +25,10 @@ data/<房间号>/
 | `download`                 | 进直播间时要下载的文件，见下                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `on_sing`                  | 主播开始唱一首歌时，按概率发一条固定的弹幕：`{ "message": "…", "probability": 0.67 }`                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `aliases`                  | 机器人在这个直播间的别名，比如 `[{ "name": "Fairy", "heardAs": ["ferry"] }, { "name": "菲瑞", "heardAs": [] }]`，见下                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `streamerNames`            | 观众怎么叫主播，比如 `["茜茜", "茜颜"]`：指令里的 `{{streamerNames}}` 换成它（见「共用的指令」）。默认 `[]`                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `streamerNames`            | 观众怎么叫主播，比如 `["茜茜", "茜颜"]`：工具说明和 guidance 里的 `{{streamerNames}}` 换成它。默认 `[]`                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `atTrimStart`              | 机器人 @ 人时，昵称太长、要缩成前 3 个字时，先从昵称开头去掉的字符串（单推符号），比如 `["⊹꙳𝝑"]`：`⊹꙳𝝑阿拂（吃荷灵咪馊饭版）𝝔⋆₊` 放得下就照原样 @，放不下就 @ 成 `@阿拂（`，而不是 `@⊹꙳𝝑`。可以写好几个，开头连着几个都会去掉，长的先去；去完什么都不剩就保留原昵称。默认 `[]`                                                                                                                                                                                                                                                                               |
 | `timeZone`                 | 主播所在地的时区（IANA 名字，比如 `Asia/Shanghai`、`Asia/Tokyo`、`America/New_York`），默认 `Asia/Shanghai`（北京时间）。提示词里的时间（`{{now}}`、`{{today}}`、弹幕和主播的话前面的时间、`{{botTalk}}` 和 `{{userHistory}}` 里的时间）都按它写，提示词也会说明是哪个时区。聊天记录、对话记录（`chat/*.txt`、`bot_logs.md`、`talk.txt`）也按它写，每行时间后面带上时区（`2026-10-21 08:47:38+08:00`），模型读文件时不用换算；以前写的没带时区的行是本机时间，提示词会告诉模型（`{{recordTimeZone}}`），放进提示词的也会先换算好；写错了会保留上一个有效的值 |
+| `tools`                    | 这个直播间打开的工具，比如 `["can_sing", "too_easy"]`（`docs/commands.md` 的「Tools a room switches on」表）；程序自带的工具（设置、识歌、解题……）不用写。改了立刻生效；写了没有的名字，日志警告 `room_config.json lists a tool there is no definition for`。默认 `[]`                                                                                                                                                                                                                                                                                       |
 | `autoReplyThreshold`       | 自动回复的阈值，`1` 以上关闭（`/自动回复阈值`）。默认 `1`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `autoReplyIntervalSeconds` | 自动回复说话之后安静多少秒（`/自动回复间隔`）。默认 `60`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `thanksThreshold`          | 5 分钟内送礼超过多少钻才谢（`/自动谢礼`）。默认 `99999`（关闭）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -37,9 +36,10 @@ data/<房间号>/
 | `maliceWatch`              | 是否识别恶意言论（`/识别恶意言论`）。默认 `false`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `screenshots`              | 是否给模型看直播画面截图（`/截图`）。默认 `false`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `persona`                  | 机器人在这个直播间演谁：直播间文件夹里的一个人设文件，比如 `"personas/fairy.md"`，见「人设」。不写就没有人设                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `solveEffort`              | 解题（`ask_about_puzzle`、`/解题`）让 Codex 想多久：`"medium"`（最多 6 分钟）或 `"high"`（最多 10 分钟）。没有指令，只能改文件，改了立刻生效。默认 `"medium"`                                                                                                                                                                                                                                                                                                                                                                                                |
 | `maxReplyParts`            | 回答一个 @ 最多拆成几条弹幕（`/最大回复条数`，1 到 10；`--max-parts`）。默认 `5`；机器人主动接话时总是一条                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
-后面七个是管理员能用指令改的设置：指令改了会写进这个文件，手动改文件也立刻生效，不用重启。机器人启动时会把缺的字段都补上默认值（别的字段原样保留）；启动参数（比如 `--auto-reply-threshold 0.66`）只在文件里还没有这个字段时才用来补，文件里已有的值优先，不一样时会在日志里警告 `setting from room_config, ignoring option`。
+`autoReplyThreshold` 起的八个设置里，七个是管理员能用指令改的：指令改了会写进这个文件，手动改文件也立刻生效，不用重启；`solveEffort` 没有指令，只能手动改文件，也立刻生效。机器人启动时会把缺的字段都补上默认值（别的字段原样保留）；启动参数（比如 `--auto-reply-threshold 0.66`）只在文件里还没有这个字段时才用来补，文件里已有的值优先，不一样时会在日志里警告 `setting from room_config, ignoring option`。
 
 ### aliases：机器人的别名
 
@@ -68,7 +68,7 @@ data/<房间号>/
   {
     "url": "https://gh2list.cn/api/public/natsuni",
     "file": "songs.txt",
-    "transformer": "additional_commands/can-sing/songs-transformer.js"
+    "transformer": "tools/can-sing/songs-transformer.js"
   }
 ]
 ```
@@ -141,82 +141,46 @@ base: fairy
 
 `chat-bot/` 下的提示词（`song-id.md`、`gift-thanks.md`、`song-intro.md`、`solve.md`、`reply-pick.md`、`malice.md`）是所有直播间共用的。在直播间文件夹里放一个同名文件，`-` 换成 `_`（比如 `song_id.md`），就只覆盖这个直播间的。`prompt.md` 不能覆盖。其中 `song-id.md`（`song_id.md`）现在只在歌词搜索（网易云）认不准、改让 Codex 找时才用。
 
-## additional_commands：直播间自己的指令
+## 工具：打开、配置、给它资料
 
-比如「主播会唱 xxx 吗」「主播什么时候播」。观众不用打 `/`，正常问就行，机器人自己判断这条是不是在问这个。
+比如「主播会唱 xxx 吗」「主播什么时候播」。观众不用打 `/`，正常问就行，机器人自己判断这条是不是在问这个。工具是仓库里定义的（`chat-bot/src/mcp/tools/<文件夹>/`：`tool.json` 写说明、规矩和什么话会让它去看，通常还有 `guidance.md` 写怎么回答；字段见 `docs/commands.md`），所有直播间共用。直播间只做三件事：打开哪些工具，给它们资料，需要时看日志。
 
-### index.json
+### 打开
 
-```json
-{
-  "can-sing": {
-    "name": "主播会唱xxx吗、有什么拿手的",
-    "when": "在问主播会不会唱某首歌，或者会唱哪些歌……",
-    "trigger": "会唱|会不会唱|唱不唱|能唱|唱过|会.{0,12}歌吗|歌单里有|有没有.{0,12}歌",
-    "prompt": "can-sing/prompt.md"
-  },
-  "schedule": { "...": "..." }
-}
-```
-
-| 字段              | 必填 | 作用                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ----------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 键（`can-sing`）  | ✓    | 指令 id：字母、数字、`_`、`-`                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `name`            | ✓    | 指令是干什么的，按观众的说法写；有人 @ 机器人时，Claude 在指令列表里看到的是它                                                                                                                                                                                                                                                                                                                                                                                      |
-| `when`            | ✓    | 什么时候用它。Jev 和 Codex 判断一条弹幕时只看这一句（见下），**怎么判断全靠它**                                                                                                                                                                                                                                                                                                                                                                                     |
-| `prompt`          | ✓    | 回答用的提示词，相对 `additional_commands/` 的路径。有 `fixedReply` 或 `run` 就可以不写，三者至少要有一个                                                                                                                                                                                                                                                                                                                                                           |
-| `fixedReply`      |      | 固定的回复。指令被选中（挑中、@、匹配 `trigger`）时，原样发给那个人（照常带 `@昵称`、超长照常拆开），**完全不调模型**（见下面「固定回复和用户过滤」）                                                                                                                                                                                                                                                                                                               |
-| `run`             |      | 改成执行机器人自己的一个指令（`commands.md` 里的，不带 /），就像那个人自己打了 `/识别背景音乐`：那个指令的回复发给他，不调这个指令的提示词。@ 不会被它的 `trigger` 拿走，要 Claude 认出来才执行。`prompt`、`fixedReply`、`run` 至少要有一个                                                                                                                                                                                                                         |
-| `runWhileSinging` |      | 主播正在唱歌时（最近一分钟里至少 3 句、七成是唱的，`singingNow`）改执行这个指令，比如 `识歌`；不唱时执行 `run`。要和 `run` 一起写。共用指令 `what-song`（「这是什么歌」）就是这样：唱歌时 `/识歌`，不唱时 `/识别背景音乐`                                                                                                                                                                                                                                           |
-| `only`            |      | 用户过滤：这个指令只对符合的观众生效（见下面「固定回复和用户过滤」）                                                                                                                                                                                                                                                                                                                                                                                                |
-| `except`          |      | 用户过滤：这个指令对符合的观众不生效                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `trigger`         |      | 正则表达式。弹幕匹配上就**马上**交给 Codex 判断（不等下一轮 20 秒的检查），哪怕 Jev 觉得不是                                                                                                                                                                                                                                                                                                                                                                        |
-| `mentions`        |      | 直播间文件夹里的一个文件：一行一个词，或者一份 `｜` 分列的表（歌单，`晴天｜周杰伦｜中文`），这时用每行第一列，没有 `｜` 的行（`会唱的歌（693 首）：` 这种标题）不算。括号里的另一个名字也算（`ヤキモチ（吃醋）` 算 `ヤキモチ` 和 `吃醋`），太短的不算（一个字的、不到三个字母的英文：`光`、`if`）。弹幕里出现其中一个，就和匹配 `trigger` 一样马上交给 Codex，还会告诉 Codex 提到的是哪个词（「提到了它资料里的「喂猪」」），它就知道这是歌单里的歌。每次用都重新读 |
-| `adminOnly`       |      | `true`：只有主播和管理员能用。别人 @ 机器人问到它，就照常回答；自动回复挑到别人的弹幕，就不回                                                                                                                                                                                                                                                                                                                                                                       |
-| `atOthers`        |      | `true`：回答除了回给提问的人，还能 @ 别人，每人单独一条（见下面「@ 别人」）                                                                                                                                                                                                                                                                                                                                                                                         |
-
-格式不对的指令会被跳过，日志里有 `skipping an additional command` 和原因。
-
-### 共用的指令（base）
-
-好几个直播间都有的指令（比如「主播会唱 xxx 吗」）放在 `chat-bot/prompts/commands/<name>/`：`command.json` 写字段（和 index.json 里的一样），`prompt` 是这个文件夹里的提示词。直播间的 index.json 只写一行：
+`room_config.json` 的 `tools`：
 
 ```json
-{
-  "can-sing": { "base": "can-sing" }
-}
+{ "tools": ["can_sing", "too_easy"] }
 ```
 
-- 直播间写了的字段（`when`、`trigger`……）换掉共用的；写了 `prompt`，就用直播间自己的提示词（相对 `additional_commands/`），不用共用的。
-- `base` 只能是 `commands/` 里的文件夹名；找不到是 `skipping an additional command`，原因写着 `there is no shared command "…"`。
-- 和直播间有关的不写进共用的文件：主播的叫法写 `room_config.json` 的 `streamerNames`，共用的 `when`、`trigger`、提示词用 `{{streamerNames}}`；只有这个直播间要的规矩写进直播间的补充文件，共用提示词用 `{{file?:…}}` 读（can-sing 读 `additional_commands/can-sing/notes.md`，比如「没说完就说歌单可以看主页置顶」）。
-- 改共用的文件，所有用它的直播间马上都变。
+可以打开的工具在 `docs/commands.md` 的「Tools a room switches on」表里（现在有 `can_sing`、`too_easy`、`wants_topic`、`schedule`）。程序自带的工具（改设置、识歌、解题）一直开着，不用写。改了立刻生效；写了没有定义的名字，日志里是 `room_config.json lists a tool there is no definition for`，那个名字被跳过。
 
-现在有的：
+### 资料
 
-- `can-sing`：主播会唱xxx吗、有什么拿手的、推荐几首。读 `artifacts/songs.txt`（也当 `mentions` 用）和 `additional_commands/can-sing/notes.md`（可以没有），见下面「例子：歌单」。
+工具回答要用的、因直播间而不同的东西，放在直播间自己的文件夹里：`tools/<工具文件夹>/`（文件夹名和仓库里的一样，名字里的 `_` 写成 `-`：`can_sing` 是 `tools/can-sing/`）或 `artifacts/`。工具的 `guidance.md` 用 `{{file:…}}`、`{{file?:…}}` 读它们。
 
-### 固定回复和用户过滤
+| 工具          | 读的资料                                                                                                       |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `can_sing`    | `artifacts/songs.txt`（歌单，也当它的 `mentions` 用，见「例子：歌单」）；`tools/can-sing/notes.md`（可以没有） |
+| `schedule`    | `tools/schedule/hours.md`：主播自己写的直播时间                                                                |
+| `too_easy`    | 不用                                                                                                           |
+| `wants_topic` | 不用                                                                                                           |
 
-`fixedReply` 的例子：不用模型，直接回一句话；会员（弹幕里带 `V` 或 `V年` 徽章的人）不回。
+- `tools/can-sing/notes.md` 写只有这个直播间要的规矩，一条一行，接在 can_sing 的说明后面给 Claude 读。比如咿咿的：「韩语歌的原唱写的是组合或歌手，组合里成员的 solo 写成「组合 成员」」；虾虾的：「没说完就不说一共几首，改说歌单可以看右下角网址；问的是主播本人时照常说一共几首」。
+- `tools/schedule/hours.md` 写直播时间和加场怎么通知，比如缇娅的：
 
-```json
-{
-  "welcome": {
-    "name": "新观众打招呼",
-    "when": "新来的观众在打招呼、问怎么玩",
-    "trigger": "^(你好|主播好)",
-    "fixedReply": "欢迎来到直播间！点关注不迷路～",
-    "except": [{ "badge": "V" }, { "badge": "V年" }]
-  },
-  "fans-only": {
-    "name": "灯牌福利",
-    "when": "在问灯牌福利",
-    "prompt": "fans-only/prompt.md",
-    "only": [{ "fansLevel": 10 }]
-  }
-}
-```
+  ```
+  主播的直播时间（她主页写的）：「ʚ 固定出没：早7-9，不定时加场群内通知~ ɞ」
+
+  - 固定是每天早上 7 点到 9 点播。
+  - 另外会不定时加场，加场在粉丝群里通知；可以顺口提一句进粉丝群就不会错过加场。
+  ```
+
+- 和直播间有关的话不写进仓库里的 `tool.json` 和 `guidance.md`：主播的叫法写 `room_config.json` 的 `streamerNames`（说明里用 `{{streamerNames}}`），其余写进这里的文件。
+
+### 用户过滤和固定回复
+
+一个工具的 `tool.json` 可以写 `only` 和 `except`，一个有 `fixedReply` 的工具（比如 `wants_topic`：不用模型，直接回「宝宝，要求主播讲别的需要开会员哦～」，会员不回）直接发这句话。它们写在仓库的 `tool.json` 里，直播间改不了；要换规矩得加一个新工具。
 
 **用户过滤**：`only` 和 `except` 都是条件的列表。观众符合列表里**任意一条**就算符合这个列表；一条条件里写了几个字段，要**全部**符合才算符合这一条。字段：
 
@@ -227,53 +191,45 @@ base: fairy
 | `payLevel`  | 整数（1 以上）：财富等级（room-feed 的 `user.payLevel`）不低于它                                                                               |
 | `admin`     | `true`：主播或机器人管理员（和 `adminOnly` 同一个判断）                                                                                        |
 
-`only` 写了，指令只对符合的人生效；`except` 写了，对符合的人不生效；两个都写要同时满足。不生效的时候，机器人对这条弹幕或 @ **什么都不做**：不调模型、不回复，日志里是 `skipped by user filter`（`id`、`asker`）。@ 匹配了多个指令的 `trigger` 时，用第一个对这个人生效的；都不生效就什么都不做。主播自己说的话（语音识别）没有徽章和等级，只有 `admin` 条件能匹配它。
+`only` 写了，工具只对符合的人生效；`except` 写了，对符合的人不生效；两个都写要同时满足。不生效的时候，工具回 Claude `skipped`，Claude 对这条什么都不发，日志里是 `skipped by user filter`（`name`、`asker`）。主播自己说的话（语音识别）没有徽章和等级，只有 `admin` 条件能匹配它。
 
 私密直播间里观众没有徽章和粉丝团，`badge`、`fansLevel` 条件永远不匹配（只写这两种的 `only` 在那里等于谁都不生效）；财富等级 room-feed 照发，`payLevel` 照常算；`admin` 和平时一样（那里认不出管理员，见 AGENTS.md「私密 (anonymous) rooms」）。
 
-写错的字段（不认识的字段、类型不对、空列表、空条件）会让这个指令无效，日志里 `skipping an additional command` 写明哪一条、什么问题，例如 `only condition 2 has an unknown field "level" (use badge, fansLevel, payLevel, admin)`。
+写错的字段（不认识的字段、类型不对、空列表、空条件）会让这个工具的定义无效，启动时日志里 `skipping a tool definition` 写明哪个文件夹、什么问题，例如 `only condition 2 has an unknown field "level" (use badge, fansLevel, payLevel, admin)`；这是仓库里的文件，测试会拦下。
 
-**固定回复**：不管是自动回复挑中、@ 匹配 `trigger`，还是 @ 时 Claude 认出指令，都直接发 `fixedReply`，不再用 `prompt`（两个都写时，`prompt` 只是摆设）。@ 被 `trigger` 拿走回了固定回复，就不会再按平常的方式回答一遍。@ 时 Claude 认出指令那条路，Claude 已经被问过一次，发的是 `fixedReply` 而不是 Claude 的话。
-
-### 一条弹幕是怎么用上指令的
+### 一条弹幕是怎么用上工具的
 
 **没 @ 机器人（自动回复）**，需要 `/自动回复阈值` 小于 1：
 
-1. 每 20 秒看一次新弹幕；匹配 `trigger`、或者提到 `mentions` 里的词的弹幕马上看。
-2. **Jev** 给每条打分：是不是在跟机器人说话，以及对每个指令问一句「这条是不是 <when>？」。有一项到阈值，或者匹配 `trigger`，就交给 Codex。
-3. **Codex**（`reply-pick.md`）看最近 40 行聊天、机器人最近说的话，和每个指令的一行 `- <id>：<when>`，决定回不回、用哪个指令。它**看不到**指令的 prompt.md 和歌单。
-   - 只因为某个指令（它的 `when` 或 `trigger`）才送来的弹幕，只能用指令回答；Codex 要是想照常回答它，程序会丢掉，因为 Jev 没觉得这是在跟机器人说话。比如「虾虾会吃醋吗」：歌单里没有《吃醋》，又不是在跟机器人说话，就不回。
-4. **Claude** 用指令的 `prompt.md` 回答，@ 提问的人。
+1. 每 20 秒看一次新弹幕；匹配某个工具 `listen.trigger`、或者提到它 `listen.mentions` 里的词的弹幕马上看。
+2. **Jev** 给每条打分：是不是在跟机器人说话，以及对每个工具问一句「这条是不是 <listen.when>？」。有一项到阈值，或者匹配 `trigger`，就往下走；**说到机器人的分数超过 0.9** 的，直接让 Claude 回，不经过 Codex。
+3. **Codex**（`reply-pick.md`）看最近 40 行聊天、机器人最近说的话，和工具在听什么（每个有 `listen` 的工具一行 `- <名字>：<when>`），只决定回不回、回谁。它**看不到**工具的 guidance 和歌单。
+   - 只因为某个工具的 `listen` 才送来的弹幕也可以回；Jev 没觉得是这条弹幕在跟机器人说话、也没对上任何工具的，Codex 挑了也会被程序丢掉。
+4. **Claude** 带着工具回答。对上了某个工具 `listen` 的弹幕，`{{asked}}` 里会多一句「程序提示」，说这条可能和哪个工具有关；只是提示，Claude 自己决定调不调。它调用的工具要是有 `guidance`，工具的结果就是 guidance（歌单也在里面），Claude 在**同一次**回答里照着用自己的话回；要是 `fixedReply`，程序直接发这句话（工具回 `sent`），Claude 自己什么都不发。比如「虾虾会吃醋吗」：Claude 调了 `can_sing`，guidance 说歌单里没有这首、看上去不是在问歌就当没调用过，Claude 就照常回答这个问题（要是不是在跟机器人说话，就什么都不发）。
 
 **@ 了机器人**：
 
-1. @ 的话匹配某个指令的 `trigger`（`adminOnly` 的只算主播和管理员），（并且对这个人生效，见上面的用户过滤）就直接用这个指令回答，不走下面两步。
-2. 否则 Claude 先用 `prompt.md` 回答，指令列表里有这个直播间的指令（`- <id>（<name>）：<when>`）。它认出是这类问题，就在 `command_request` 写指令 id。
-3. 程序换成这个指令的 `prompt.md` 再问一次 Claude，发这次的回答。
+1. `/名字` 开头的，直接调用对应的工具（见 `docs/commands.md`），不经过 Claude。这个直播间打开的工具没有 `/` 名字。
+2. 否则 Claude 带着工具回答，和上面第 4 步一样（不再有 `trigger` 的快捷方式：@ 匹配了 `trigger` 也由 Claude 决定调不调工具）。
 
-### 怎么写 when
+### 新工具要改仓库
 
-`when` 是 Jev 的问题，也是 Codex 判断要不要回的依据，所以：
+一个新的工具是 `chat-bot/src/mcp/tools/<文件夹>/` 里的 `tool.json`（和 `guidance.md`），见 `docs/commands.md` 的「Adding one」。`description` 和 `listen.when` 是 Claude、Jev 和 Codex 读到的，所以：先一句话说清楚问的是什么，再补上容易判断错的情况（比如 can_sing 的写了：观众常用昵称、外号叫主播；弹幕常有错别字；主播正在唱的就是被问的那首才算回答过；机器人刚回答过别的歌单问题，再问新的照常算）。`reply-pick.md` 只有通用的规则，和具体工具有关的都写在 `listen.when` 里。
 
-- 先一句话说清楚问的是什么，再补上容易判断错的情况。比如 can-sing 的 `when` 里写了：
-  - 观众常用昵称、外号叫主播，也常省略主语
-  - 弹幕常有错别字（「会唱写什么歌」就是「会唱些什么歌」）
-  - 主播正在唱的就是被问的那首，才算回答过；唱别的歌不算
-  - 机器人刚回答过别的歌单问题，再问新的照常算
-- 程序里的 `reply-pick.md` 只有通用的规则（问得清楚、没人回答过就回，别人回答过、重复了就不回），和具体指令有关的都写在 `when` 里。
+### 占位符
 
-### prompt.md 里能用的占位符
+`guidance.md` 里只有 `{{file:<路径>}}`、`{{file?:<路径>}}` 和 `{{streamerNames}}`：谁问的、问了什么、聊天、主播的话、时间，Claude 已经从 `prompt.md` 里有了，guidance 里不用再写。下面是提示词（`prompt.md`、`song-id.md` 等，直播间可以覆盖其中几个）里能用的占位符，前两个只用在 guidance 里读直播间的文件：
 
 | 占位符                               | 换成                                                                                                                                                                                              |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `{{file:<路径>}}`                    | 直播间文件夹里那个文件的内容，比如 `{{file:artifacts/songs.txt}}`。读不到就是「（读取失败）」                                                                                                     |
-| `{{file?:<路径>}}`                   | 和上面一样，但这个直播间没有这个文件时是空的，也不警告：共用指令的提示词用它读直播间自己的补充（`{{file?:additional_commands/can-sing/notes.md}}`）                                               |
+| `{{file?:<路径>}}`                   | 和上面一样，但这个直播间没有这个文件时是空的，也不警告：工具的 guidance 用它读直播间自己的补充（`{{file?:tools/can-sing/notes.md}}`）                                                             |
 | `{{asker}}` `{{question}}`           | 谁问的、问了什么                                                                                                                                                                                  |
-| `{{asked}}`                          | 一句话说谁 @ 了机器人、说了什么（没 @、是机器人主动接话时，说是在弹幕或直播里说到了它）                                                                                                           |
+| `{{asked}}`                          | 一句话说谁 @ 了机器人、说了什么（没 @、是机器人主动接话时，说是在弹幕或直播里说到了它；对上了某个工具的 `listen` 时，再加一句提示是哪个工具）                                                     |
 | `{{askerBadges}}`                    | 提问的人名字旁边的徽章（直播间会员是 `V`、`V年`），几个就用「、」隔开；没有或者不知道时是 `（无）`                                                                                                |
 | `{{botName}}` `{{persona}}`          | 机器人的昵称、人设（拼好的，见「人设」）                                                                                                                                                          |
 | `{{context}}`                        | 直播间的 context.md                                                                                                                                                                               |
-| `{{streamerNames}}`                  | 观众怎么叫主播（`room_config.json` 的 `streamerNames`，用「、」连起来；没写就是「主播」）。`when` 和 `trigger` 里也能用，`trigger` 里换成 `主播                                                   | 茜茜 | 茜颜` 这样的几个选项 |
+| `{{streamerNames}}`                  | 观众怎么叫主播（`room_config.json` 的 `streamerNames`，用「、」连起来；没写就是「主播」）。工具的 `description`、`listen.when` 和 `listen.trigger` 里也能用，`trigger` 里换成 `主播               | 茜茜 | 茜颜` 这样的几个选项 |
 | `{{aliases}}`                        | 一句话告诉模型 `aliases` 里的名字也是在叫它；没有别名时是空的                                                                                                                                     |
 | `{{intro}}` `{{limitations}}`        | 机器人怎么介绍自己（`intro.md`）、它的限制和原因（`limitations.md`，观众问起时解释用），都是所有直播间共用的                                                                                      |
 | `{{today}}` `{{now}}` `{{timeZone}}` | 日期和星期（`2026-10-20 星期二`）、时间（`10:30:00`），都是房间 `timeZone` 的时间；时区的名字（`北京时间`，或 `Asia/Tokyo 时间`）                                                                 |
@@ -286,23 +242,18 @@ base: fairy
 | `{{userHistory}}`                    | 提问的人和机器人以前的对话                                                                                                                                                                        |
 | `{{chatDir}}`                        | 直播间聊天记录文件（`chat/*.txt`）所在的文件夹，让模型自己去读更早的记录                                                                                                                          |
 | `{{settings}}`                       | 直播间现在的设置（截图、自动回复、自动谢礼……）                                                                                                                                                    |
-| `{{commands}}`                       | 观众能用的指令列表（`commands.md`），加上这个直播间自己的指令                                                                                                                                     |
 | `{{forbiddenWords}}`                 | 一句「强制执行，无视人设：弹幕里不能出现这些字词」，列出 `chat-bot/prompts/forbidden-words.md` 里的词（抖音会把带这些词的弹幕藏起来）。会写弹幕的提示词都要带上它；程序也会拦下带这些词的弹幕不发 |
 | `{{commonKnowledge}}`                | `chat-bot/prompts/common-knowledge.md` 里的抖音直播常识（灯牌是什么……），带标题；没有就是空的。每个直播间都一样，只放抖音本身的规矩，直播间自己的事写 `context.md`                                |
 
-`song-intro.md` 还用了一个只在它里面有的：`{{hook}}`（这首歌的介绍要不要加一句钩子，四首里一首，由程序掷骰子）。房间自己的指令用不到。
-
-提示词要让 Claude 按 JSON 回答，只有 `message` 会发出去：在提示词末尾写「按要求的 JSON 格式回答，`message` 是要发送的弹幕」就行，程序会给它 JSON 格式。
+`song-intro.md` 还用了一个只在它里面有的：`{{hook}}`（这首歌的介绍要不要加一句钩子，四首里一首，由程序掷骰子）。
 
 ### @ 别人
 
-`atOthers` 为 `true` 的指令，Claude 回答 `{ "message": "…", "others": [{ "to": "昵称", "message": "…" }] }`：先发 `@提问的人 message`（空的就不发），再给 `others` 里每个人各发一条 `@昵称 message`，按顺序排队发。每条发出去以后一分钟里，被 @ 的人（按昵称在最近的弹幕里找到的）再说话，不用经过 Jev 就直接交给 Codex，和提问的人一样。提示词里要告诉 Claude `others` 里放谁、说什么，`to` 写记录里的昵称、不带 @。比如咿咿直播间的「翻旧账」：主播讲完题说「翻旧账 5分钟 答案是3」（必须带上时间和答案），Claude 读 `{{chatDir}}` 里的聊天记录，把喊秒了、答案又错了的人挨个 @ 出来。
-
-平常的 @（`prompt.md`）也一样有 `others`，不用设：观众说「跟杨叔打个招呼」，就只 @ 杨叔，不 @ 说这话的人，也不回他。
+平常的 @（`prompt.md`）里 Claude 回答 `{ "message": "…", "others": [{ "to": "昵称", "message": "…" }] }`：观众说「跟杨叔打个招呼」，`others` 里写杨叔，就只给他发一条 `@杨叔 …`，不 @ 说这话的人，也不回他（`others` 有人时 `message` 不发）。每条发出去以后一分钟里，被 @ 的人（按昵称在最近的弹幕里找到的）再说话，不用经过 Jev 就直接交给 Codex，和提问的人一样。
 
 ### 例子：歌单
 
-直播间用共用的 `can-sing`（`{ "can-sing": { "base": "can-sing" } }`），把歌单放在 `artifacts/songs.txt`，一行一首，`｜` 分列。每一份前面一行标题，写清是哪份、几首、每行有哪几列，提示词照标题读，不用为这个直播间改提示词：
+直播间打开 `can_sing`（`"tools": ["can_sing"]`），把歌单放在 `artifacts/songs.txt`，一行一首，`｜` 分列。每一份前面一行标题，写清是哪份、几首、每行有哪几列，提示词照标题读，不用为这个直播间改提示词：
 
 ```
 会唱的歌（702 首），每行：歌名、原唱、语言，有的后面还有风格（主播歌单上分的类）；风格里标了「热门必点」的是主播的拿手歌：
@@ -317,22 +268,24 @@ Love Story｜Taylor Swift｜英语
 
 - 标题里别用 `｜`：有 `｜` 的行会被当成一首歌。
 - 原唱不知道的就空着（`晴｜｜中文`），提示词会让模型只按它确定的去对歌手。
-- 有下载地址的直播间，`room_config.json` 的 `download` 每次进直播间下载歌单，`additional_commands/can-sing/songs-transformer.js` 把它变成上面的样子（标题也由它写）。没有下载地址的，就直接把 `songs.txt` 放进 `artifacts/`。
+- 有下载地址的直播间，`room_config.json` 的 `download` 每次进直播间下载歌单，`tools/can-sing/songs-transformer.js` 把它变成上面的样子（标题也由它写）。没有下载地址的，就直接把 `songs.txt` 放进 `artifacts/`。
 - 歌名不用另外列一份：`mentions` 直接读 `songs.txt` 的第一列，「虾虾会喂猪吗」也知道《喂猪》是歌单里的歌。
 
 ## 改了要不要重启
 
-| 文件                                                                                                                                                                                                                                                                                                                                   | 改了马上生效？   |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `context.md`、`personas/` 里的人设文件、`chat-bot/prompts/personas/` 里的共用人设、`room_config.json` 的 `persona`、`additional_commands/` 里的 `index.json` 和各个 `prompt.md`、`chat-bot/prompts/commands/` 里的共用指令、`room_config.json` 的 `streamerNames`、`artifacts/` 里的文件、`room_config.json` 的 `private` 和 `on_sing` | ✓ 每次用都重新读 |
-| `room_config.json` 的 `download`                                                                                                                                                                                                                                                                                                       | ✗ 只在启动时读   |
+| 文件                                                                                                                                                                                                                                                                                                                                          | 改了马上生效？   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `context.md`、`personas/` 里的人设文件、`chat-bot/prompts/personas/` 里的共用人设、`room_config.json` 的 `persona`、`room_config.json` 的 `tools`、`tools/` 里的资料、`chat-bot/src/mcp/tools/` 里的 `tool.json` 和 `guidance.md`、`room_config.json` 的 `streamerNames`、`artifacts/` 里的文件、`room_config.json` 的 `private` 和 `on_sing` | ✓ 每次用都重新读 |
+| `room_config.json` 的 `download`                                                                                                                                                                                                                                                                                                              | ✗ 只在启动时读   |
 
 ## 看日志确认
 
 在 `logs/chat-bot.log`（或机器人的输出）里：
 
-- `additional command {"id": …}`：启动时加载了哪些指令
-- `looking now`：一条弹幕匹配了 `trigger`，马上去看了（只在 `logs/chat-bot.log` 里，机器人输出里没有）
-- `picked whom to answer`：Codex 挑了谁、用哪个指令（`command`）
-- `additional command requested`：@ 机器人时 Claude 要用哪个指令
+- `tool definition {"name": …}`：启动时（和改了 `tool.json` 之后）加载了哪些工具；`room config` 里有打开的 `tools`
+- `looking now`：一条弹幕匹配了某个工具的 `listen.trigger` 或 `mentions`，马上去看了（只在 `logs/chat-bot.log` 里，机器人输出里没有）
+- `picked whom to answer`：Codex 挑了谁
+- `sure about the bot`：Jev 很确定是在跟机器人说话，没经过 Codex 直接回的
+- `mcp tool {"tool": "can_sing"}`：Claude 调用了这个工具
+- `tool guidance`、`fixed reply`、`skipped by user filter`：工具把 guidance 交给了 Claude、发了固定回复、因为用户过滤没动
 - `downloaded` / `download failed`：进直播间时的下载

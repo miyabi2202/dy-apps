@@ -6,15 +6,16 @@ function setup() {
     name: 'identify_song',
     description: '认歌',
     inputSchema: { type: 'object', properties: {} },
-    command: '识歌',
     call: (args, { asker, userId }) => {
       calls.push({ args, asker, userId });
       return Promise.resolve({ text: `第 ${calls.length} 次` });
     },
   };
+  let now = 1000;
   const session = newSession(
     { asker: '苦***', userId: '111111-苦***-31', question: '这是什么歌' },
     [tool],
+    () => (now += 250),
   );
   const rpc = (message: object) =>
     handleRpc({ jsonrpc: '2.0', ...message }, session) as Promise<{
@@ -55,6 +56,7 @@ test('a call runs the tool with the question’s context, once: a repeat gets th
   expect((await call(4)).result?.content).toEqual([{ type: 'text', text: '第 1 次' }]);
   expect(calls).toEqual([{ args: { hint: '嗯' }, asker: '苦***', userId: '111111-苦***-31' }]);
   expect(session.used).toEqual(['identify_song']);
+  expect(session.calls).toEqual([{ tool: 'identify_song', ms: 250, isError: false }]);
 });
 
 test('an unknown tool is an error result Claude can read; an unknown method is -32601', async () => {

@@ -73,28 +73,19 @@ function setup(
   return { autoReply, sent, judged, chat, say, later };
 }
 
-test('asks Jev nothing at a threshold of 1 or more, until /自动回复阈值 lowers it', async () => {
+test('asks Jev nothing at a threshold of 1 or more, until it is lowered', async () => {
   const rounds = [
     () => chat('小红', '机器人在吗'),
     () => {
-      expect(run('自动回复阈值', '0.6')).toEqual({ ok: true, reply: '已处理自动回复阈值请求' });
+      autoReply.threshold = 0.6;
       chat('小红', '机器人在吗在吗');
     },
   ];
   const { autoReply, judged, chat } = setup(rounds, { threshold: 1 });
-  const run = (name: string, args: string) =>
-    autoReply
-      .commands()
-      .find((command) => command.name === name)
-      ?.run?.(args);
   await autoReply.run();
 
   // Only what was said after it was turned on.
   expect(judged).toEqual(['(1) 00:00:40 [小红] 机器人在吗在吗']);
-  expect(run('自动回复阈值', '一半')).toEqual({
-    ok: false,
-    reply: '阈值要写成 0 到 1 之间的小数，1 表示关闭，用法：/自动回复阈值 0.6',
-  });
   expect(autoReply.threshold).toBe(0.6);
 });
 
@@ -212,12 +203,12 @@ test('keeps quiet for a minute only after it answered someone, not when the pick
   expect(ran.judged).toEqual(['(1) 00:00:20 [小红] 机器人你好', '(1) 00:00:40 [阿明] 机器人在吗']);
 });
 
-test('/自动回复间隔 0 answers the next one without waiting', async () => {
+test('with no quiet time it answers the next one without waiting', async () => {
   const replies: UnpromptedReply[] = [];
   const ran = setup(
     [
       () => {
-        expect(run('自动回复间隔', '0')).toEqual({ ok: true, reply: '已处理自动回复间隔请求' });
+        ran.autoReply.quietMs = 0;
         ran.chat('阿明', '机器人在吗', 'u-阿明');
       },
       () => ran.chat('小蓝', '机器人你几岁', 'u-小蓝'),
@@ -227,18 +218,9 @@ test('/自动回复间隔 0 answers the next one without waiting', async () => {
       reply: (target) => void replies.push(target),
     },
   );
-  const run = (name: string, args: string) =>
-    ran.autoReply
-      .commands()
-      .find((command) => command.name === name)
-      ?.run?.(args);
   await ran.autoReply.run();
 
   expect(replies.map((r) => r.nickname)).toEqual(['阿明', '小蓝']);
-  expect(run('自动回复间隔', '半分钟')).toEqual({
-    ok: false,
-    reply: '间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20',
-  });
 });
 
 test('a follow-up still goes to the picker when Jev fails on the rest', async () => {
@@ -343,7 +325,7 @@ test('answers at most 3 at once, the surest first', async () => {
   expect(replies.map((r) => r.nickname)).toEqual(['戊', '丁', '丙']);
 });
 
-test("what one of the room's own commands is for goes to the picker, which may answer it with that command, and only with one", async () => {
+test("a line for a tool's listen topic goes to the picker, which is told the topics, and the pick carries the tool as a hint", async () => {
   const questions: Record<string, string>[] = [];
   const picks: string[] = [];
   const replies: UnpromptedReply[] = [];
@@ -357,7 +339,7 @@ test("what one of the room's own commands is for goes to the picker, which may a
       },
     ],
     {
-      // Jev finds the first is for the command; the second only matches its trigger.
+      // Jev finds the first is for the tool; the second only matches its trigger.
       judge: (_, asked) => {
         questions.push(asked);
         return Promise.resolve({
@@ -370,19 +352,20 @@ test("what one of the room's own commands is for goes to the picker, which may a
         return Promise.resolve(
           JSON.stringify({
             picks: [
-              { line: 1, confidence: 0.8, command: 'can-sing' },
-              { line: 2, confidence: 0.9, command: 'can-sing' },
-              { line: 3, confidence: 0.7, command: 'no-such' },
-              { line: 4, confidence: 0.95, command: '' },
+              { line: 1, confidence: 0.8 },
+              { line: 2, confidence: 0.9 },
+              { line: 3, confidence: 0.7 },
+              { line: 4, confidence: 0.95 },
             ],
           }),
         );
       },
-      pickTemplate: () => '{{lines}}\n{{commands}}',
+      pickTemplate: () => '{{lines}}\n{{topics}}',
       reply: (target) => void replies.push(target),
       streamer: () => null,
-      additionalCommands: () => [
-        { id: 'can-sing', when: '在问主播会不会唱某首歌', trigger: /会唱|虾虾会.+吗/ },
+      topics: () => [
+        { name: 'can_sing', when: '在问主播会不会唱某首歌', trigger: /会唱|虾虾会.+吗/ },
+        { name: 'only_admin', when: '主播要叫它做事', adminOnly: true },
       ],
     },
   );
@@ -392,35 +375,22 @@ test("what one of the room's own commands is for goes to the picker, which may a
   expect(picks[0]).toContain('(1)★ 00:00:20 [阿明] 虾虾唱一首晴天吧');
   expect(picks[0]).toContain('(2)★ 00:00:20 [小红] 会唱孤勇者吗');
   expect(picks[0]).toContain('(3)  00:00:20 [小蓝] 今晚吃火锅');
-  expect(picks[0]).toContain('- can-sing：在问主播会不会唱某首歌');
-  expect(replies).toEqual([
-    // 小绿 only matched the trigger and was picked to be answered as usual: it goes to the command
-    // it came for. Not 小蓝 (picked with a command the room doesn't have): not about the bot.
-    {
-      nickname: '小绿',
-      userId: 'u-小绿',
-      question: '虾虾会吃醋吗',
-      heard: 'chat',
-      command: 'can-sing',
-    },
-    {
-      nickname: '小红',
-      userId: 'u-小红',
-      question: '会唱孤勇者吗',
-      heard: 'chat',
-      command: 'can-sing',
-    },
-    {
-      nickname: '阿明',
-      userId: 'u-阿明',
-      question: '虾虾唱一首晴天吧',
-      heard: 'chat',
-      command: 'can-sing',
-    },
-  ]);
+  expect(picks[0]).toContain('- can_sing：在问主播会不会唱某首歌');
+  expect(picks[0]).toContain('- only_admin：主播要叫它做事（只有主播和管理员）');
+  // Not 小蓝, whom neither Jev nor a trigger found anything in: the picker's pick of it is dropped.
+  expect(replies.map((r) => r.nickname)).toEqual(['小绿', '小红', '阿明']);
+  expect(replies[0]).toEqual({
+    nickname: '小绿',
+    userId: 'u-小绿',
+    question: '虾虾会吃醋吗',
+    heard: 'chat',
+    topics: ['can_sing'],
+  });
+  // 小红 matched the trigger, 阿明 was found by Jev: both carry the tool.
+  expect(replies.map((r) => r.topics)).toEqual([['can_sing'], ['can_sing'], ['can_sing']]);
 });
 
-test("a chat matching a room command's trigger is looked at at once, not at the next check", async () => {
+test("a chat matching a tool's listen trigger is looked at at once, not at the next check", async () => {
   let now = 1000;
   const history = new ChatHistory(100);
   const transcript = new Transcript(Infinity, () => now);
@@ -434,8 +404,8 @@ test("a chat matching a room command's trigger is looked at at once, not at the 
       Promise.resolve(
         JSON.stringify({
           picks: [
-            { line: 1, confidence: 0.1, command: '' },
-            { line: 2, confidence: 0.9, command: 'can-sing' },
+            { line: 1, confidence: 0.1 },
+            { line: 2, confidence: 0.9 },
           ],
         }),
       ),
@@ -446,7 +416,7 @@ test("a chat matching a room command's trigger is looked at at once, not at the 
     log: silentLog,
     // The next check never comes by itself.
     sleep: () => new Promise(() => {}),
-    additionalCommands: () => [{ id: 'can-sing', when: '在问主播会不会唱某首歌', trigger: /会唱/ }],
+    topics: () => [{ name: 'can_sing', when: '在问主播会不会唱某首歌', trigger: /会唱/ }],
   });
   const running = autoReply.run();
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -461,13 +431,13 @@ test("a chat matching a room command's trigger is looked at at once, not at the 
   history.add({ ts: 3000, userId: 'u-小红', nickname: '小红', content: '主播会唱晴天吗' });
   autoReply.hear({ ts: 3000, userId: 'u-小红', nickname: '小红', content: '主播会唱晴天吗' });
   await settle();
-  expect(replies.map((r) => [r.question, r.command])).toEqual([['主播会唱晴天吗', 'can-sing']]);
+  expect(replies.map((r) => r.question)).toEqual(['主播会唱晴天吗']);
 
   autoReply.stop();
   await running;
 });
 
-test("a chat mentioning one of a room command's phrases is looked at at once, and the picker is told which", async () => {
+test("a chat mentioning one of a tool's phrases is looked at at once, and the picker is told which", async () => {
   let now = 1000;
   const history = new ChatHistory(100);
   const transcript = new Transcript(Infinity, () => now);
@@ -480,9 +450,7 @@ test("a chat mentioning one of a room command's phrases is looked at at once, an
     threshold: 0.6,
     picker: ({ prompt }) => {
       prompts.push(prompt);
-      return Promise.resolve(
-        JSON.stringify({ picks: [{ line: 1, confidence: 0.9, command: 'can-sing' }] }),
-      );
+      return Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));
     },
     pickTemplate: () => '{{lines}}',
     reply: (target) => void replies.push(target),
@@ -490,11 +458,10 @@ test("a chat mentioning one of a room command's phrases is looked at at once, an
     room: fakeRoom({ history, transcript, now: () => now }),
     log: silentLog,
     sleep: () => new Promise(() => {}),
-    additionalCommands: () => [
+    topics: () => [
       {
-        id: 'can-sing',
+        name: 'can_sing',
         when: '在问主播会不会唱某首歌',
-        trigger: null,
         mentioned: (t: string) => (t.includes('喂猪') ? '喂猪' : null),
       },
     ],
@@ -505,8 +472,8 @@ test("a chat mentioning one of a room command's phrases is looked at at once, an
   autoReply.hear({ ts: 2000, userId: 'u-雅', nickname: '雅', content: '虾虾会喂猪吗' });
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  expect(prompts[0]).toContain('虾虾会喂猪吗  → can-sing（提到了它资料里的「喂猪」）');
-  expect(replies.map((r) => r.command)).toEqual(['can-sing']);
+  expect(prompts[0]).toContain('虾虾会喂猪吗  → can_sing（提到了它资料里的「喂猪」）');
+  expect(replies.map((r) => r.nickname)).toEqual(['雅']);
   autoReply.stop();
   await running;
 });
@@ -518,14 +485,14 @@ test('what is said while it picks whom to answer is looked at in the next check'
     quietMs: 0,
     picker: () => {
       // 小红 says something while the picker thinks about 阿明.
-      if (picked++ === 0) ran.later(5000, () => ran.chat('小红', '机器人翻旧账', 'u-小红'));
+      if (picked++ === 0) ran.later(5000, () => ran.chat('小红', '机器人再说一句', 'u-小红'));
       return Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));
     },
     reply: (target) => void replies.push(target),
   });
   await ran.autoReply.run();
 
-  expect(replies.map((r) => r.question)).toEqual(['机器人在吗', '机器人翻旧账']);
+  expect(replies.map((r) => r.question)).toEqual(['机器人在吗', '机器人再说一句']);
 });
 
 /**
@@ -687,7 +654,7 @@ test('a name call does not start the quiet time: what else was said is picked fr
         ran.call('阿明', '机器人在吗', 'u-阿明');
       },
     ],
-    { picks: [{ line: 1, confidence: 0.9, command: '' }] },
+    { picks: [{ line: 1, confidence: 0.9 }] },
     { quietMs: 60_000, judge: judgeByWord([]) },
   );
   await ran.autoReply.run();
@@ -697,4 +664,137 @@ test('a name call does not start the quiet time: what else was said is picked fr
   expect(ran.asked[0]!.prompt).toContain(
     '     00:00:20 [小红] Fairy 你好\n(1)★ 00:00:20 [阿明] 机器人在吗',
   );
+});
+
+/** Scores a line with 确定 in it 0.95, one with 机器人 0.8, anything else 0.1, or all `score` when given. */
+const judgeSure =
+  (score?: number): Judge =>
+  (state, questions) => {
+    const fresh = state.split('新内容：\n')[1]!.split('\n');
+    const by = (text: string) =>
+      score ?? (text.includes('确定') ? 0.95 : text.includes('机器人') ? 0.8 : 0.1);
+    return Promise.resolve(
+      Object.fromEntries(Object.keys(questions).map((key, i) => [key, by(fresh[i]!)])),
+    );
+  };
+
+test('a line Jev is sure about (over 0.9) is answered at once, without the picker, which sees only the rest', async () => {
+  const events: string[] = [];
+  const prompts: string[] = [];
+  const logged: [string, object | undefined][] = [];
+  const { autoReply, chat } = setup(
+    [
+      () => {
+        chat('甲', '机器人确定在吗', 'u-甲');
+        chat('乙', '机器人你几岁', 'u-乙');
+      },
+    ],
+    {
+      judge: judgeSure(),
+      picker: ({ prompt }) => {
+        events.push('picker');
+        prompts.push(prompt);
+        return Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));
+      },
+      pickTemplate: () => '{{lines}}',
+      reply: ({ nickname }) => void events.push(`reply ${nickname}`),
+      log: { ...silentLog, info: (message, meta) => void logged.push([message, meta]) },
+    },
+  );
+  await autoReply.run();
+
+  expect(events).toEqual(['reply 甲', 'picker', 'reply 乙']);
+  // 甲 is context to the picker, not a line it may pick.
+  expect(prompts[0]).toContain('(1)★ 00:00:20 [乙] 机器人你几岁');
+  expect(prompts[0]).toContain('     00:00:20 [甲] 机器人确定在吗');
+  expect(logged.find(([message]) => message === 'sure about the bot')?.[1]).toEqual({
+    who: '甲',
+    text: '机器人确定在吗',
+    score: 0.95,
+  });
+});
+
+test('a sure line that also scored a topic carries the tool as a hint', async () => {
+  const replies: UnpromptedReply[] = [];
+  const { autoReply, chat } = setup([() => chat('甲', '机器人确定会唱歌吗', 'u-甲')], {
+    judge: (_, asked) =>
+      Promise.resolve(
+        Object.fromEntries(Object.keys(asked).map((key) => [key, key === 'q1' ? 0.95 : 0.8])),
+      ),
+    topics: () => [{ name: 'can_sing', when: '在问主播会不会唱某首歌' }],
+    reply: (target) => void replies.push(target),
+  });
+  await autoReply.run();
+
+  expect(replies).toEqual([
+    {
+      nickname: '甲',
+      userId: 'u-甲',
+      question: '机器人确定会唱歌吗',
+      heard: 'chat',
+      topics: ['can_sing'],
+    },
+  ]);
+});
+
+test('exactly 0.9 is not sure: the picker is asked, and what it picks is answered', async () => {
+  const events: string[] = [];
+  const { autoReply, chat } = setup([() => chat('甲', '机器人在吗', 'u-甲')], {
+    judge: judgeSure(0.9),
+    picker: () => {
+      events.push('picker');
+      return Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));
+    },
+    reply: ({ nickname }) => void events.push(`reply ${nickname}`),
+  });
+  await autoReply.run();
+
+  expect(events).toEqual(['picker', 'reply 甲']);
+});
+
+test('answering a sure line starts the quiet time, even when the picker has nothing to look at', async () => {
+  const judged: string[] = [];
+  const replies: UnpromptedReply[] = [];
+  const ran = setup(
+    [
+      () => ran.chat('甲', '机器人确定在吗', 'u-甲'),
+      () => ran.chat('乙', '机器人确定你几岁', 'u-乙'),
+    ],
+    {
+      judge: (state, questions) => {
+        judged.push(state.split('新内容：\n')[1]!);
+        return judgeSure()(state, questions);
+      },
+      picker: () => Promise.reject(new Error('the picker should not be asked')),
+      reply: (target) => void replies.push(target),
+    },
+  );
+  await ran.autoReply.run();
+
+  expect(replies.map((r) => r.nickname)).toEqual(['甲']);
+  // 乙 was said within a minute of the answer, so it waits: the second check never asks Jev.
+  expect(judged).toHaveLength(1);
+});
+
+test('a sure line from the streamer is answered as theirs, and waits while the streamer is unknown', async () => {
+  const replies: UnpromptedReply[] = [];
+  const ran = setup([() => ran.say('机器人确定你好')], {
+    judge: judgeSure(),
+    picker: () => Promise.reject(new Error('the picker should not be asked')),
+    reply: (target) => void replies.push(target),
+    streamer: () => ({ uid: 'host', nickname: '雅' }),
+  });
+  await ran.autoReply.run();
+  expect(replies).toEqual([
+    { nickname: '雅', userId: 'host', question: '机器人确定你好', heard: 'speech' },
+  ]);
+
+  const unknown: UnpromptedReply[] = [];
+  const waiting = setup([() => waiting.say('机器人确定你好')], {
+    judge: judgeSure(),
+    picker: () => Promise.resolve(JSON.stringify({ picks: [] })),
+    reply: (target) => void unknown.push(target),
+  });
+  await waiting.autoReply.run();
+  expect(unknown).toEqual([]);
 });

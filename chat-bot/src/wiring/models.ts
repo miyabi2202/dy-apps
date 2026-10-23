@@ -1,4 +1,5 @@
 import { timedAsk, timedJudge } from '../app/models/timed-models';
+import type { SolveEffort } from '../core/commands/settings';
 import type { Container } from './container';
 import { zoomServer } from './adapters';
 import {
@@ -29,13 +30,16 @@ export function registerModels(container: Container): void {
       const [codex, log] = [c.resolve(CODEX_CLI), c.resolve(LOG)];
       return (task, over) => timedAsk({ model: 'codex', task }, codex(over), log);
     })
-    // /解题 and /拼命解题: Codex's gpt-6-astra, which on figure puzzles was faster and more often
-    // right than Claude Opus or Fable, even with their zoom tool; /拼命解题 thinks harder.
+    // ask_about_puzzle: Codex's gpt-6-astra, which on figure puzzles was faster and more often
+    // right than Claude Opus or Fable, even with their zoom tool. Both efforts are made up front;
+    // `high` (the room's solveEffort) thinks harder and gets 10 minutes instead of 6.
     .register(ASK_SOLVE, (c) => {
       const codex = c.resolve(ASK_CODEX);
       const zoom = zoomServer(c.resolve(PACKAGE_DIR));
-      return (task, effort, timeoutMs) =>
-        codex(task, { model: 'gpt-6-astra', effort, webSearch: false, timeoutMs, zoom });
+      const asking = (effort: SolveEffort, timeoutMs: number) =>
+        codex('puzzle', { model: 'gpt-6-astra', effort, webSearch: false, timeoutMs, zoom });
+      const models = { medium: asking('medium', 360_000), high: asking('high', 600_000) };
+      return (effort) => models[effort];
     })
     // Jev, logged per use like the models above. Auto-reply and malice watch need Jev (with
     // JEV_API_KEY from chat-bot/.env) and Codex both; without either, the bot only talks when @ed.

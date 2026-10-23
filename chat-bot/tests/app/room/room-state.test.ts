@@ -1,6 +1,5 @@
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import { Transcript } from '../../../src/core/songs/transcript';
-import { screenshotCommand } from '../../../src/app/room/room-state';
 import { fakeRoom } from '../../support/fake-room';
 import { testWording } from '../../support/wording';
 
@@ -49,7 +48,7 @@ test('gives every prompt the room as it is now: chat, recent speech, persona, co
   expect(room.promptInput()).toMatchObject({ persona: '小狗', context: '主播今天生日' });
 });
 
-test('screenshots go to Claude only while on, and admins switch them with /截图', async () => {
+test('screenshots go to Claude only while on', async () => {
   const frame = new Uint8Array([0xff, 0xd8]);
   let taken = 0;
   const room = fakeRoom({
@@ -59,22 +58,14 @@ test('screenshots go to Claude only while on, and admins switch them with /截�
     },
     screenshotsOn: false,
   });
-  const command = screenshotCommand(room);
-  if (!command.run) throw new Error('/截图 runs code');
-
   expect(await room.screenshot()).toBeUndefined();
-  expect(command.run('1')).toEqual({ ok: true, reply: '已处理截图请求' });
+  room.screenshots = true;
   expect(await room.screenshot()).toBe(frame);
-  expect(command.run('2')).toEqual({
-    ok: false,
-    reply: '要写 0（关闭）或 1（打开），用法：/截图 1',
-  });
-  expect(command.run('0')).toEqual({ ok: true, reply: '已处理截图请求' });
+  room.screenshots = false;
   expect(await room.screenshot()).toBeUndefined();
-  // room-feed isn't even asked while screenshots are off, unless a command always wants one.
+  // room-feed isn't even asked while screenshots are off, unless a puzzle always wants one.
   expect(taken).toBe(1);
   expect(await room.screenshot(true)).toBe(frame);
-  expect(command.adminOnly).toBe(true);
 });
 
 test('fills a prompt with the room, what is particular to it, and parts of the room it replaces', () => {

@@ -1,7 +1,7 @@
 import { SongId } from '../../../src/app/songs/song-id';
 import { silentLog } from '../../support/fakes';
 
-test('asks for the song as JSON, sends its message, and sends an answer that is not JSON as it is', async () => {
+test('asks for the song as JSON, and keeps an answer that is not JSON as the text', async () => {
   const schemas: (object | undefined)[] = [];
   const answers = [
     JSON.stringify({ message: '这首是中島美嘉的《ALWAYS》', title: 'ALWAYS', artist: '中島美嘉' }),
@@ -15,15 +15,21 @@ test('asks for the song as JSON, sends its message, and sends an answer that is 
     },
     log: silentLog,
   });
-  const [identify] = songId.commands();
-  if (!identify?.prompt) throw new Error('/识歌 should have its own prompt');
+  const identify = () => songId.identifyLines({ prompt: '' }, [], 'command');
 
-  await expect(identify.ask?.({ prompt: '' })).resolves.toBe('这首是中島美嘉的《ALWAYS》');
-  await expect(identify.ask?.({ prompt: '' })).resolves.toBe('弹幕：没认出来');
+  await expect(identify()).resolves.toMatchObject({
+    kind: 'named',
+    answer: { message: '这首是中島美嘉的《ALWAYS》' },
+  });
+  await expect(identify()).resolves.toMatchObject({
+    kind: 'named',
+    answer: null,
+    text: '弹幕：没认出来',
+  });
   expect(schemas[0]).toMatchObject({ required: ['message', 'title', 'artist', 'sure'] });
 });
 
-test('with too little sung yet, /识歌 says so without asking; with enough, it asks and logs what about', async () => {
+test('with too little sung yet, it says so without asking; with enough, it asks and logs what about', async () => {
   const sung = (s: number, text: string) => ({
     start: s * 1000,
     end: s * 1000 + 4000,
@@ -47,11 +53,9 @@ test('with too little sung yet, /识歌 says so without asking; with enough, it 
       tooEarly: (heard) => `才听到「${heard}」`,
     },
   });
-  const [identify] = songId.commands();
-  if (!identify?.prompt) throw new Error('/识歌 should have its own prompt');
-  const ask = (lines: ReturnType<typeof sung>[]) => {
-    identify.pickTranscript?.(lines);
-    return identify.ask?.({ prompt: '' });
+  const ask = async (lines: ReturnType<typeof sung>[]) => {
+    const outcome = await songId.identifyLines({ prompt: '' }, lines, 'command');
+    return outcome.kind === 'early' ? outcome.text : outcome.answer?.message;
   };
 
   await expect(ask([{ ...sung(0, '下一首唱什么'), speech: 0.8 }])).resolves.toBe('没听到在唱');
@@ -71,21 +75,4 @@ test('with too little sung yet, /识歌 says so without asking; with enough, it 
     first: '刮风这天我试过握着你手',
     last: '但偏偏雨渐渐大到我看你不见',
   });
-});
-
-test('gives the prompt only the song being sung now, not the one before a pause', () => {
-  const at = (s: number, text: string) => ({
-    start: s * 1000,
-    end: s * 1000 + 4000,
-    text,
-    speech: 0.05,
-  });
-  const songId = new SongId({
-    prompt: () => '',
-    codex: () => Promise.resolve(''),
-    log: silentLog,
-  });
-  const [identify] = songId.commands();
-  if (!identify?.prompt) throw new Error('/识歌 should have its own prompt');
-  expect(identify.pickTranscript?.([at(0, 'a'), at(120, 'b')]).map((l) => l.text)).toEqual(['b']);
 });

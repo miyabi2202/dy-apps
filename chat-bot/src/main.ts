@@ -8,6 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createLogger } from './adapters/winston-logger';
 import { parseCliOptions, USAGE } from './cli-options';
+import { errorMessage } from './core/errors';
 import { APP, buildContainer } from './wiring';
 
 const packageDir = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -22,9 +23,9 @@ if (!options) {
 
 const log = createLogger(resolve(options.logsDir));
 const app = buildContainer({ options, packageDir, log, env: process.env }).resolve(APP);
-const shutdown = (options?: { quitSpeech?: boolean }) => {
+const shutdown = ({ code = 0, ...options }: { quitSpeech?: boolean; code?: number } = {}) => {
   app.stop(options);
-  log.on('finish', () => process.exit(0));
+  log.on('finish', () => process.exit(code));
   log.end();
 };
 process.on('SIGINT', () => shutdown());
@@ -35,4 +36,9 @@ app.onRoomFeedGone((detail) => {
   log.warn('room-feed is gone, stopping', detail ? { detail } : {});
   shutdown({ quitSpeech: true });
 });
-await app.start();
+try {
+  await app.start();
+} catch (err) {
+  log.error('could not start', { error: errorMessage(err) });
+  shutdown({ code: 1 });
+}

@@ -24,7 +24,7 @@ function setup(
       const session: ToolSession = {
         access: { url: 'http://127.0.0.1:1/mcp', token: 't', tools: ['identify_song'] },
         used: () => [...used],
-        replaces: (command) => used.includes('identify_song') && command === '识歌',
+        calls: () => [],
         close: () => void events.push('close'),
       };
       return session;
@@ -65,14 +65,6 @@ test('the usual prompt gets a tools session, with a longer limit, closed once an
   expect(events).toEqual(['open', 'close']);
 });
 
-test('a command with its own prompt gets no tools', async () => {
-  const { ask, questions, events } = setup({ answer: '答案' });
-  await ask({ template: '{{question}}' });
-  expect(questions[0]?.botTools).toBeUndefined();
-  expect(questions[0]?.timeoutMs).toBeUndefined();
-  expect(events).toEqual([]);
-});
-
 test('the session is closed when answering fails, and opened with a 私密 viewer as given', async () => {
   // A 私密 room: every viewer is 111111, so the bot keys them by 111111-<nickname>-<level>.
   const userId = '111111-苦***-31';
@@ -92,66 +84,42 @@ test('the session is told whether the asker is an admin', async () => {
   expect(opened.map(({ admin }) => admin)).toEqual([true, false, false]);
 });
 
-test("a command_request for what Claude already did with a tool is ignored, and Claude's message is sent", async () => {
-  let requested = 0;
-  const { outbox, sent } = fakeOutbox();
-  const tools: BotTools = {
-    open: () => ({
-      access: { url: 'u', token: 't', tools: ['identify_song'] },
-      used: () => ['identify_song'],
-      replaces: (command) => command === '识歌',
-      close: () => {},
-    }),
-  };
+test('claude answered logs the tools Claude called with their times, and an unprompted answer as such', async () => {
+  const logged: [string, object | undefined][] = [];
+  const { outbox } = fakeOutbox();
+  const calls = [{ tool: 'identify_song', ms: 820, isError: false }];
   const answerer = new MentionAnswerer({
-    ask: () =>
-      Promise.resolve(
-        JSON.stringify({ message: '是《晴天》哦', command_request: '识歌', command_args: '' }),
-      ),
+    ask: () => Promise.resolve(JSON.stringify({ message: '是《晴天》哦' })),
     outbox,
     room: fakeRoom({ now: () => NOW }),
-    log: silentLog,
-    promptTemplate: () => '{{question}}',
-    tools,
-    onCommandRequest: () => {
-      requested++;
-      return true;
-    },
-  });
-  answerer.ask({ asker: '阿明', question: '什么歌', history: [] });
-  await answerer.idle();
-  await outbox.idle();
-
-  expect(requested).toBe(0);
-  expect(sent).toEqual(['@阿明 是《晴天》哦']);
-});
-
-test('without tool use the command is run as before', async () => {
-  let requested: string[] = [];
-  const { outbox, sent } = fakeOutbox();
-  const answerer = new MentionAnswerer({
-    ask: () =>
-      Promise.resolve(JSON.stringify({ message: '', command_request: '识歌', command_args: '' })),
-    outbox,
-    room: fakeRoom({ now: () => NOW }),
-    log: silentLog,
+    log: { ...silentLog, info: (message, meta) => void logged.push([message, meta]) },
     promptTemplate: () => '{{question}}',
     tools: {
       open: () => ({
         access: { url: 'u', token: 't', tools: ['identify_song'] },
-        used: () => [],
-        replaces: () => false,
+        used: () => ['identify_song'],
+        calls: () => calls,
         close: () => {},
       }),
     },
-    onCommandRequest: (_mention, name) => {
-      requested = [...requested, name];
-      return true;
-    },
   });
-  answerer.ask({ asker: '阿明', question: '什么歌', history: [] });
+  answerer.ask({ asker: '阿明', question: '什么歌', history: [], unprompted: 'chat' });
   await answerer.idle();
 
-  expect(requested).toEqual(['识歌']);
-  expect(sent).toEqual([]);
+  expect(logged.find(([message]) => message === 'claude answered')?.[1]).toMatchObject({
+    unprompted: 'chat',
+    tools: calls,
+  });
+});
+
+test('the session is opened knowing who the asker is', async () => {
+  const { ask, opened } = setup();
+  const viewer = { admin: false, badges: ['V年'], payLevel: 31 };
+  await ask({ unprompted: 'speech', viewer });
+
+  expect(opened).toEqual([
+    { asker: '阿明', userId: undefined, question: '在吗', admin: false, viewer },
+  ]);
+  expect(opened[0]).not.toHaveProperty('heard');
+  expect(opened[0]).not.toHaveProperty('exclude');
 });

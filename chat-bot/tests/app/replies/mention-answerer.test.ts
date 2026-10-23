@@ -23,7 +23,6 @@ interface SetupOptions {
   bus?: Pick<EventBus, 'emit'>;
   botTalk?: string;
   settings?: () => SettingsPart;
-  commands?: () => string;
 }
 
 function setup(options: SetupOptions = {}) {
@@ -36,7 +35,6 @@ function setup(options: SetupOptions = {}) {
     persona: () => options.persona ?? '',
     chatDir: options.chatDir,
     botTalk: options.botTalk === undefined ? undefined : { recent: () => options.botTalk ?? '' },
-    commands: options.commands,
     screenshotsOn: !!options.screenshot,
     now: () => NOW,
   });
@@ -151,15 +149,14 @@ test('points Claude at the record folder, and tells it who it plays', async () =
   expect(prompts).toEqual(['/data/chat/1|你的人设是数学老师']);
 });
 
-test('tells Claude the room settings and the commands', async () => {
+test('tells Claude the room settings', async () => {
   const settings = {
     autoReplyThreshold: 1,
     thanksThreshold: 100,
   };
   const { ask, prompts } = setup({
-    template: '{{settings}}\n---\n{{commands}}',
+    template: '{{settings}}',
     settings: () => settings,
-    commands: () => '## The commands\n\n/识歌',
   });
   await ask({ userId: 'u-阿明' });
   settings.autoReplyThreshold = 0.6;
@@ -172,11 +169,9 @@ test('tells Claude the room settings and the commands', async () => {
       '- 截图：关（你看不到直播画面）',
       '- 自动回复：关闭',
       '- 自动谢礼：5 分钟内送礼超过 100 钻的观众会收到感谢',
-      '---',
-      '## The commands\n\n/识歌',
     ].join('\n'),
     expect.stringContaining(
-      '- 自动回复：开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 0.6）\n- 自动谢礼：关闭\n',
+      '- 自动回复：开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 0.6）\n- 自动谢礼：关闭',
     ),
   ]);
 });
@@ -236,7 +231,7 @@ test('an answer that @s others sends each their own message, and counts those in
   bus.on('answered', ({ userId }) => void answered.push(userId));
   const { ask, sent } = setup({
     answer: JSON.stringify({
-      message: '翻完了',
+      message: '',
       others: [
         { to: '白生漓', message: '报了 5，答案是 3' },
         { to: '路过的', message: '你也错了' },
@@ -247,24 +242,28 @@ test('an answer that @s others sends each their own message, and counts those in
   await ask({
     userId: 'u-雅',
     asker: '雅',
-    template: '翻旧账',
-    jsonMessage: true,
-    atOthers: true,
     history: [{ ts: NOW, nickname: '白生漓', userId: 'u-白', content: '秒了，5' }],
   });
 
-  expect(sent).toEqual(['@雅 翻完了', '@白生漓 报了 5，答案是 3', '@路过的 你也错了']);
-  // In the order they went out; 路过的 said nothing lately, so there's no one to follow up.
-  expect(answered).toEqual(['u-雅', 'u-白']);
+  expect(sent).toEqual(['@白生漓 报了 5，答案是 3', '@路过的 你也错了']);
+  // 路过的 said nothing lately, so there's no one to follow up.
+  expect(answered).toEqual(['u-白']);
 });
 
-test("the usual prompt's answer may @ someone else instead of the asker", async () => {
+test('a line a tool listens for reaches Claude with a hint naming the tool', async () => {
+  const { ask, prompts } = setup({ template: '{{asked}}' });
+  await ask({ unprompted: 'chat', topics: ['can_sing', 'schedule'] });
+  await ask({ unprompted: 'chat' });
+
+  expect(prompts[0]).toContain('这条可能和 can_sing、schedule 有关');
+  expect(prompts[1]).not.toContain('程序提示');
+});
+
+test('an answer may @ someone else instead of the asker', async () => {
   const { ask, sent } = setup({
     answer: JSON.stringify({
       message: '招呼打好啦',
       others: [{ to: '🍄老杨', message: '杨叔早上好，谢谢山药' }],
-      command_request: '',
-      command_args: '',
     }),
   });
   await ask({ userId: 'u-红', asker: '红枫不会', question: '来跟我杨叔打个招呼' });
@@ -272,7 +271,7 @@ test("the usual prompt's answer may @ someone else instead of the asker", async 
   expect(sent).toEqual(['@🍄老杨 杨叔早上好，谢谢山药']);
 });
 
-test("a command's prompt sees the badges by the asker's name, from their latest chat line", async () => {
+test("the prompt sees the badges by the asker's name, from their latest chat line", async () => {
   const { ask, prompts } = setup({ template: '{{askerBadges}}' });
   await ask({
     userId: 'u-阿明',
@@ -316,30 +315,22 @@ test("the reply @s the whole nickname when it fits, and only a shortened @ goes 
   );
 });
 
-test('/最大回复条数 sets how many messages an answer may take, kept in the room settings', async () => {
+test('the most messages an answer may take is kept in the room settings, and splits the answer', async () => {
   const stored: Record<string, unknown> = {};
   const settings = {
     get: () => ({ ...SETTING_DEFAULTS, ...stored }),
     set: (patch: object) => void Object.assign(stored, patch),
   };
   const { outbox, sent } = fakeOutbox();
+  const room = fakeRoom({ now: () => NOW, settings });
   const answerer = new MentionAnswerer({
     ask: () => Promise.resolve('一二三四五六七八九十。'.repeat(20)),
     outbox,
-    room: fakeRoom({ now: () => NOW, settings }),
+    room,
     log: silentLog,
     promptTemplate: () => TEMPLATE,
   });
-  const [command] = answerer.commands();
-  const run = (args: string) =>
-    command && 'run' in command && command.run ? command.run(args) : undefined;
-
-  expect(await run('0')).toEqual({
-    ok: false,
-    reply: '条数要写成 1 到 10 的整数，用法：/最大回复条数 3',
-  });
-  expect(await run('两')).toMatchObject({ ok: false });
-  expect(await run('2')).toEqual({ ok: true, reply: '已处理最大回复条数请求' });
+  room.maxReplyParts = 2;
   expect(stored).toEqual({ maxReplyParts: 2 });
 
   answerer.ask({ asker: '阿明', question: '讲讲', history: [] });
@@ -347,4 +338,13 @@ test('/最大回复条数 sets how many messages an answer may take, kept in the
   await outbox.idle();
   expect(sent).toHaveLength(2);
   expect(sent[0]).toMatch(/^@阿明 \(1\/2\) /);
+});
+
+test('a long fixed reply is split like any reply, and no model is asked', async () => {
+  const { ask, prompts, sent } = setup();
+  await ask({ fixedReply: '字'.repeat(80) });
+
+  expect(prompts).toEqual([]);
+  expect(sent.length).toBeGreaterThan(1);
+  expect(sent[0]).toMatch(/^@阿明 \(1\/\d\) /);
 });

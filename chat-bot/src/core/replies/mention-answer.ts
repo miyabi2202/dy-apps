@@ -4,15 +4,11 @@ import { parseJsonObject } from './json-answer';
 export interface MentionAnswer {
   /** The reply to send. */
   message: string;
-  /** A command they asked for in so many words (`自动谢礼`), without the slash; empty for none. */
-  command: string;
-  /** What goes after the command, as its usage says; empty for none. */
-  args: string;
 }
 
 /**
- * Just the reply, for a command's own prompt that answers in JSON: so what Claude says while it
- * works, or the sources Claude Code lists after a web search, aren't sent with it.
+ * Just the reply, for `ask_about_puzzle`'s answer: so what the model says while it works, or the
+ * sources it lists after a web search, aren't sent with it.
  */
 export const MESSAGE_SCHEMA = {
   type: 'object',
@@ -36,24 +32,13 @@ const OTHERS = {
   },
 } as const;
 
-/** MESSAGE_SCHEMA, and messages to others, each sent as its own `@to message`. */
-export const MESSAGES_SCHEMA = {
-  type: 'object',
-  properties: {
-    message: { type: 'string', description: '回给提问的人的话，不用回就是空字符串' },
-    others: OTHERS,
-  },
-  required: ['message', 'others'],
-  additionalProperties: false,
-} as const;
-
-/** One message to someone other than the asker, from MESSAGES_SCHEMA's `others`. */
+/** One message to someone other than the asker, from MENTION_ANSWER_SCHEMA's `others`. */
 export interface OtherMessage {
   to: string;
   message: string;
 }
 
-/** MESSAGES_SCHEMA's `others` in `text`, those with a name and something to say; [] for none. */
+/** MENTION_ANSWER_SCHEMA's `others` in `text`, those with a name and something to say; [] for none. */
 export function parseOthers(text: string): OtherMessage[] {
   const others = parseJsonObject(text)?.others;
   if (!Array.isArray(others)) return [];
@@ -67,25 +52,16 @@ export function parseOthers(text: string): OtherMessage[] {
 }
 
 /**
- * The JSON Schema MentionAnswer follows (strict: every field required, no others), with
- * MESSAGES_SCHEMA's `others` for when they ask the bot to say something to someone else.
+ * The JSON Schema MentionAnswer follows (strict: every field required, no others), with `others`
+ * for when they ask the bot to say something to someone else.
  */
 export const MENTION_ANSWER_SCHEMA = {
   type: 'object',
   properties: {
     message: { type: 'string', description: '回给提问的人的话，不用回就是空字符串' },
     others: OTHERS,
-    command_request: {
-      type: 'string',
-      description:
-        '对方要你做的事对应的指令名（不带 /），比如 自动谢礼；不是在要求调用指令就是空字符串',
-    },
-    command_args: {
-      type: 'string',
-      description: '指令后面要跟的内容，按指令说明的用法写，比如 100；没有就是空字符串',
-    },
   },
-  required: ['message', 'others', 'command_request', 'command_args'],
+  required: ['message', 'others'],
   additionalProperties: false,
 } as const;
 
@@ -94,13 +70,6 @@ export const MENTION_ANSWER_SCHEMA = {
  * taken as the message itself.
  */
 export function parseMentionAnswer(text: string): MentionAnswer {
-  const answer = parseJsonObject(text);
-  if (!answer) return { message: text, command: '', args: '' };
-  const { message, command_request: command, command_args: args } = answer;
-  if (typeof message !== 'string') return { message: text, command: '', args: '' };
-  return {
-    message,
-    command: typeof command === 'string' ? command.trim().replace(/^\//, '') : '',
-    args: typeof args === 'string' ? args.trim() : '',
-  };
+  const message = parseJsonObject(text)?.message;
+  return { message: typeof message === 'string' ? message : text };
 }

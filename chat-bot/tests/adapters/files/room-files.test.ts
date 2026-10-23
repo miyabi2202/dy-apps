@@ -5,26 +5,10 @@ import { join } from 'node:path';
 import {
   livePersona,
   livePrompt,
-  liveSection,
   roomConfigFile,
   roomFiles,
   saveStreamer,
 } from '../../../src/adapters/files/room-files';
-
-test('reads one section of a Markdown file, as it is now', () => {
-  const file = join(mkdtempSync(join(tmpdir(), 'room-files-')), 'commands.md');
-  const commands = liveSection(file, 'The commands');
-  expect(commands()).toBe('');
-
-  writeFileSync(
-    file,
-    '# Commands\n\nIntro\n\n## The commands\n\n/识歌\n\n### /识歌\n\nNames it\n\n## How\n\nInternals\n',
-  );
-  expect(commands()).toBe('## The commands\n\n/识歌\n\n### /识歌\n\nNames it');
-
-  writeFileSync(file, '## The commands\n\n/回复\n');
-  expect(commands()).toBe('## The commands\n\n/回复');
-});
 
 test('room_config.json starts not private, and is read again as it changes', () => {
   const { config } = roomFiles(mkdtempSync(join(tmpdir(), 'room-files-')));
@@ -38,6 +22,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
+    tools: [],
     ...SETTING_DEFAULTS,
   });
 
@@ -48,6 +33,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
+    tools: [],
     ...SETTING_DEFAULTS,
   });
 
@@ -58,6 +44,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
+    tools: [],
     ...SETTING_DEFAULTS,
   });
   expect(log.warn).toHaveBeenCalled();
@@ -70,6 +57,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
+    tools: [],
     ...SETTING_DEFAULTS,
   });
 
@@ -81,8 +69,21 @@ test('room_config.json starts not private, and is read again as it changes', () 
     streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
+    tools: [],
     ...SETTING_DEFAULTS,
   });
+
+  writeFileSync(config, '{ "tools": ["can_sing"] }');
+  expect(roomConfig().tools).toEqual(['can_sing']);
+
+  // A bad list keeps the last good one, with a warning.
+  log.warn.mockClear();
+  for (const bad of ['"can_sing"', '["Can-Sing"]']) {
+    writeFileSync(config, `{ "tools": ${bad} }`);
+    expect(roomConfig().tools).toEqual(['can_sing']);
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    log.warn.mockClear();
+  }
 });
 
 test('writes the streamer into room_config.json, keeping the rest', () => {
@@ -100,6 +101,7 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
     streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
+    tools: [],
     ...SETTING_DEFAULTS,
   });
 

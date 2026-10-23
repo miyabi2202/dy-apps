@@ -90,3 +90,31 @@ test('tells which song the room was last told, and how long ago', async () => {
   tick(3 * 60_000);
   expect((await answer(tool)).lastTold).toEqual({ title: '晴天', artist: '', minutesAgo: 3 });
 });
+
+test('/识歌 passes its text as the hint, says the program’s sentence, and starts the intro', async () => {
+  const { tool, intros } = setup({ lyrics: 'sure' });
+  const [command] = tool.commands!;
+  expect(command!.name).toBe('识歌');
+  expect(command!.parse('日文的')).toEqual({ args: { hint: '日文的' } });
+  expect(command!.parse('')).toEqual({ args: {} });
+
+  const result = await tool.call({}, { ...context, direct: true });
+  expect(JSON.parse(result.text)).toMatchObject({ found: true, message: '这首是《晴天》' });
+  expect(command!.say(result, {})).toBe('这首是《晴天》');
+  expect(intros).toEqual(['晴天']);
+});
+
+test('what /识歌 says when too little is sung is the early wording', async () => {
+  const { tool } = setup({ lyrics: 'sure', minChars: 500 });
+  const result = await tool.call({}, { ...context, direct: true });
+  expect(tool.commands![0]!.say(result, {})).toBe('太早');
+});
+
+test('listens for 「这是什么歌」 in its forms, and not for asking what the streamer can sing', () => {
+  const { listen } = setup().tool;
+  expect(listen?.when.startsWith('在问现在正在唱的')).toBe(true);
+  for (const said of ['这是什么歌', 'bgm是什么', '求歌名'])
+    expect(listen?.trigger?.test(said)).toBe(true);
+  // The trigger's look-behinds keep 「会唱什么歌」 and 「点什么歌」 out.
+  for (const said of ['会唱什么歌', '点什么歌']) expect(listen?.trigger?.test(said)).toBe(false);
+});

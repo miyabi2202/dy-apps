@@ -7,7 +7,6 @@ import {
   sungChars,
   type TranscriptLine,
 } from '../../core/songs/transcript';
-import { done, failed, type Command } from '../commands/command';
 import { ModelFeature } from '../models/model-feature';
 import type { Outbox } from '../replies/outbox';
 import { Pending } from '../pending';
@@ -114,24 +113,6 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
   /** What `{{settings}}` says of it: whether it's on. */
   settings(): { autoSongId: boolean } {
     return { autoSongId: this.on };
-  }
-
-  /** `/自动识歌 1` turns it on, `/自动识歌 0` off. */
-  commands(): Command[] {
-    return [
-      {
-        name: '自动识歌',
-        adminOnly: true,
-        run: (args) => {
-          if (args !== '0' && args !== '1') {
-            return failed('要写 0（关闭）或 1（打开），用法：/自动识歌 1');
-          }
-          this.on = args === '1';
-          this.options.log.info('auto song id', { on: this.on });
-          return done('已处理自动识歌请求');
-        },
-      },
-    ];
   }
 
   /** What nobody asked, and the song it last told the room when that was within `repeatMs`. */

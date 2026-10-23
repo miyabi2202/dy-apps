@@ -32,7 +32,7 @@ export interface RoomConfig extends Settings {
    * recognition may write it besides.
    */
   aliases: Alias[];
-  /** What viewers call the streamer (`streamerNames`), for the room's commands' `{{streamerNames}}`. */
+  /** What viewers call the streamer (`streamerNames`), for a tool's `{{streamerNames}}`. */
   streamerNames: string[];
   /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`): 单推符号. */
   atTrimStart: string[];
@@ -41,6 +41,8 @@ export interface RoomConfig extends Settings {
    * and the records show is in it. Beijing time when not known.
    */
   timeZone: string;
+  /** The declarative tools switched on here (`tools`), by name: `["can_sing", "too_easy"]`; the built-in tools need no listing. */
+  tools: string[];
   /**
    * The file in the room's folder (`persona`, like `personas/fairy.md`) that says who the bot
    * plays there, see livePersona; none when the bot has no persona there.
@@ -60,6 +62,7 @@ const DEFAULT_ROOM_CONFIG: RoomConfig = {
   streamerNames: [],
   atTrimStart: [],
   timeZone: DEFAULT_TIME_ZONE,
+  tools: [],
   ...SETTING_DEFAULTS,
 };
 
@@ -70,6 +73,7 @@ const ROOM_FIELDS = {
   streamerNames: [],
   atTrimStart: [],
   timeZone: DEFAULT_TIME_ZONE,
+  tools: [],
   ...SETTING_DEFAULTS,
 };
 
@@ -160,6 +164,7 @@ export function roomConfigFile(
       ),
       atTrimStart: field('atTrimStart', () => prefixList(raw.atTrimStart), config.atTrimStart),
       timeZone: field('timeZone', () => timeZoneOf(raw.timeZone), config.timeZone),
+      tools: field('tools', () => toolList(raw.tools), config.tools),
       ...settingsFrom(raw, config, problems),
     };
     if (problems.length)
@@ -283,6 +288,16 @@ function nameList(raw: unknown, name: string, example: string): string[] {
     throw new Error(`${name} must be a list of names, like ${example}`);
   }
   return raw.map((item) => item.trim()).filter(Boolean);
+}
+
+/** `tools` as a list of tool names (none when absent), or an error saying what's wrong with it. */
+function toolList(raw: unknown): string[] {
+  if (raw === undefined) return [];
+  const names = nameList(raw, 'tools', '["can_sing", "too_easy"]');
+  if (!names.every((name) => /^[a-z][a-z0-9_]*$/.test(name))) {
+    throw new Error('tools must be a list of tool names, like ["can_sing", "too_easy"]');
+  }
+  return names;
 }
 
 /** `persona` as a path inside the room's folder, or an error saying what's wrong with it. */
@@ -438,21 +453,6 @@ export function livePersona({
       });
     }
     return composed.text;
-  };
-}
-
-/**
- * The `## heading` section of a Markdown file, heading included, read each time it's called like
- * liveText; empty when the file or the section is missing.
- */
-export function liveSection(path: string, heading: string): () => string {
-  const read = liveText(path);
-  return () => {
-    const text = `\n${read()}`;
-    const start = text.indexOf(`\n## ${heading}\n`);
-    if (start < 0) return '';
-    const end = text.indexOf('\n## ', start + 1);
-    return text.slice(start, end < 0 ? undefined : end).trim();
   };
 }
 

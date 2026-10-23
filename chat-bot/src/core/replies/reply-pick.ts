@@ -10,8 +10,6 @@ export interface Pick {
   line: number;
   /** 0–1: how sure the bot should answer it now. */
   confidence: number;
-  /** The room's own command to answer it with (its id, can-sing); empty for the usual answer. */
-  command: string;
 }
 
 /** The JSON Schema the picker answers in (strict: every field required, no others). */
@@ -28,12 +26,8 @@ export const REPLY_PICK_SCHEMA = {
             type: 'number',
             description: '0 到 1，有多确定机器人现在应该回复这一条',
           },
-          command: {
-            type: 'string',
-            description: '用哪个指令回答（指令名，比如 can-sing）；照常回答就是空字符串',
-          },
         },
-        required: ['line', 'confidence', 'command'],
+        required: ['line', 'confidence'],
         additionalProperties: false,
       },
       description: '每一条带编号的都打一个分',
@@ -47,23 +41,19 @@ export const REPLY_PICK_SCHEMA = {
 export function parseReplyPick(text: string): Pick[] | null {
   const picks = parseJsonObject(text)?.picks;
   if (!Array.isArray(picks)) return null;
-  const valid = (p: unknown): p is Omit<Pick, 'command'> & { command?: unknown } =>
+  const valid = (p: unknown): p is Pick =>
     typeof p === 'object' &&
     p !== null &&
     Number.isInteger((p as Pick).line) &&
     typeof (p as Pick).confidence === 'number';
   if (!picks.every(valid)) return null;
-  return picks.map(({ line, confidence, command }) => ({
-    line,
-    confidence,
-    command: typeof command === 'string' ? command.trim() : '',
-  }));
+  return picks.map(({ line, confidence }) => ({ line, confidence }));
 }
 
 /**
  * `lines` for the picker's prompt, oldest first: each that may be answered (`pickable`) numbered
  * from 1, `about` ones (what the judge found about the bot) starred, the rest as context. A numbered
- * line `matches` a room command's trigger for ends `→ <id>`.
+ * line `matches` a tool's listen for (its trigger or phrases) ends `→ <name>`.
  */
 export function pickLines(
   lines: readonly RoomLine[],
@@ -88,7 +78,8 @@ export function pickLines(
 
 /**
  * The picker's prompt's `{{key}}`s: the lines, the bot's name and persona, what it said lately, and
- * `{{commands}}`, what the room's own commands answer, without an @ too (empty for none).
+ * `{{topics}}`, what the tools listen for, so it knows what the bot may be asked about without an @
+ * (empty for none).
  */
 export function pickPrompt(
   template: string,
@@ -98,21 +89,24 @@ export function pickPrompt(
     botName: string;
     persona: string;
     botTalk: string;
-    commands?: readonly { id: string; when: string }[];
+    topics?: readonly { name: string; when: string; adminOnly?: boolean }[];
     /** The room's other names for the bot. */
     aliases?: readonly string[];
   },
 ): string {
-  const { commands = [], aliases = [], ...rest } = values;
+  const { topics = [], aliases = [], ...rest } = values;
   const all: Record<string, string> = {
     ...rest,
-    commands: commands.length
+    topics: topics.length
       ? [
-          wording('pick-commands-head'),
+          wording('pick-topics-head'),
           '',
-          ...commands.map(({ id, when }) => `- ${id}：${when}`),
+          ...topics.map(
+            ({ name, when, adminOnly }) =>
+              `- ${name}：${when}${adminOnly ? '（只有主播和管理员）' : ''}`,
+          ),
           '',
-          wording('pick-commands-tail'),
+          wording('pick-topics-tail'),
         ].join('\n')
       : '',
     persona: values.persona ? `它的人设：${values.persona}。` : '',
@@ -131,8 +125,8 @@ export interface UnpromptedReply {
   question: string;
   /** In the chat, or (the streamer) on the stream. */
   heard: Heard;
-  /** The room's own command to answer it with (AdditionalCommand's id); the usual prompt without. */
-  command?: string;
+  /** The tools whose listen the line matched (Jev's score, a trigger or a phrase): a hint for Claude. */
+  topics?: readonly string[];
 }
 
 /** What `chooseTargets` needs to know about the room. */
@@ -143,63 +137,61 @@ export interface TargetRules {
   max: number;
   /** The streamer, so what they said on the stream is answered as theirs; null while unknown. */
   streamer: { uid: string; nickname: string } | null;
-  /** The ids of the room's own commands. */
-  commandIds: ReadonlySet<string>;
-  /** Whether `line` may be answered as usual: the judge found it about the bot, or it follows up. */
-  chatty: (line: RoomLine) => boolean;
-  /** The id of the room command `line` came for (its trigger, its mentions), if any. */
-  cameFor: (line: RoomLine) => string | undefined;
-  /** Told why a pick was dropped or sent to a command, for the log. */
+  /**
+   * Whether `line` may be answered: the judge found it about the bot, or what one of the tools listens
+   * for, or it follows up on what the bot said.
+   */
+  allowed: (line: RoomLine) => boolean;
+  /** Told why a pick was dropped, for the log. */
   note: (message: string, meta: object) => void;
+}
+
+/**
+ * Who `line` is answered as: its chatter, or, for what the streamer said (no user id), the
+ * `streamer` on the stream; null for a line from the stream while the streamer is unknown.
+ */
+export function targetOf(
+  line: RoomLine,
+  streamer: TargetRules['streamer'],
+): UnpromptedReply | null {
+  if (line.userId) {
+    return { nickname: line.who, userId: line.userId, question: line.text, heard: 'chat' };
+  }
+  return (
+    streamer && {
+      nickname: streamer.nickname,
+      userId: streamer.uid,
+      question: line.text,
+      heard: 'speech',
+    }
+  );
 }
 
 /**
  * Whom to answer, of the `picks` the picker made of the `numbered` lines: only what it's sure
  * enough of, surest first, one answer for each person (the first, so the surest), at most
- * `max`, as the chatter's or (said on the stream) the streamer's. A command the room doesn't have
- * is answered as usual. A line that came only for a room command (its trigger or mentions) and
- * was picked to be answered as usual goes to that command instead, which knows its data and sends
- * nothing when it isn't for it; one that isn't about the bot and has no command is dropped.
+ * `max`, as the chatter's or (said on the stream) the streamer's. A pick of a line that isn't
+ * `allowed` (the picker was asked about it only as context) is dropped.
  */
 export function chooseTargets(
   picks: readonly Pick[],
   numbered: readonly RoomLine[],
-  { threshold, max, streamer, commandIds, chatty, cameFor, note }: TargetRules,
-): (UnpromptedReply & { confidence: number })[] {
-  const targets = new Map<string, UnpromptedReply & { confidence: number }>();
+  { threshold, max, streamer, allowed, note }: TargetRules,
+): (UnpromptedReply & { confidence: number; line: RoomLine })[] {
+  const targets = new Map<string, UnpromptedReply & { confidence: number; line: RoomLine }>();
   const sure = picks
     .filter(({ confidence }) => confidence >= threshold)
     .sort((a, b) => b.confidence - a.confidence);
-  for (const { line: n, confidence, command } of sure) {
+  for (const { line: n, confidence } of sure) {
     const line = numbered[n - 1];
     if (!line) continue;
-    let withCommand: { command?: string } = commandIds.has(command) ? { command } : {};
-    if (!withCommand.command && !chatty(line)) {
-      const matched = cameFor(line);
-      if (!matched) {
-        note('pick dropped: not about the bot, and no command', { text: line.text });
-        continue;
-      }
-      note('pick handed to the command it came for', { text: line.text, command: matched });
-      withCommand = { command: matched };
+    if (!allowed(line)) {
+      note('pick dropped: not about the bot', { text: line.text });
+      continue;
     }
-    const target: UnpromptedReply | null = line.userId
-      ? {
-          nickname: line.who,
-          userId: line.userId,
-          question: line.text,
-          heard: 'chat',
-          ...withCommand,
-        }
-      : streamer && {
-          nickname: streamer.nickname,
-          userId: streamer.uid,
-          question: line.text,
-          heard: 'speech',
-          ...withCommand,
-        };
+    const target = targetOf(line, streamer);
     if (target && !targets.has(target.userId))
-      targets.set(target.userId, { ...target, confidence });
+      targets.set(target.userId, { ...target, confidence, line });
   }
   return [...targets.values()].slice(0, max);
 }

@@ -3,10 +3,11 @@
  * CLI, files and processes; tests pass fakes.
  */
 import type { SongGuess } from '@dy-apps/lyrics-search';
-import type { AdditionalCommandEntry } from '../core/commands/additional-command';
 import type { ChatRecord } from '../core/chat/chat-record';
 import type { Gift, IncomingChat } from '../core/chat/room-events';
+import type { ToolListen } from '../core/chat/relevance';
 import type { Settings } from '../core/commands/settings';
+import type { ToolDefinition, Viewer } from '../core/tools/tool-definition';
 import type { Exchange } from '../core/chat/talk-record';
 
 /** The room's settings, kept in its room_config.json: read each time (so a hand edit counts), and written when something changes one. */
@@ -110,6 +111,17 @@ export interface ToolContext {
   question: string;
   /** Whether the asker is an admin (or the streamer): only then are admin-only tools offered. */
   admin?: boolean;
+  /** Typed as a `/` command, with no model: the tool may then speak for itself (the song intro follows /识歌). */
+  direct?: boolean;
+  /** Who the asker is (badges, fan club, wealth level), for a tool's `only` / `except`. */
+  viewer?: Viewer;
+}
+
+/** One tool call Claude made while answering, for the log. */
+export interface ToolCall {
+  tool: string;
+  ms: number;
+  isError: boolean;
 }
 
 /** One question's tools, open until `close()`. */
@@ -117,12 +129,12 @@ export interface ToolSession {
   access: ToolAccess;
   /** The tools Claude called so far, in order. */
   used(): string[];
-  /** Whether Claude already called the tool doing what the bot command `command` does. */
-  replaces(command: string): boolean;
+  /** What each tool Claude called took, in order. */
+  calls(): ToolCall[];
   close(): void;
 }
 
-/** The bot's tools for Claude (an MCP server, src/mcp/): a session for one question, or null when there are none. */
+/** The bot's tools for Claude (an MCP server, src/mcp/): a session for one question, or null while the server isn't running. */
 export interface BotTools {
   open(context: ToolContext): ToolSession | null;
 }
@@ -173,18 +185,12 @@ export type SpawnWorker = (handlers: {
 }) => Worker;
 
 /**
- * A room's own command, from its `additional_commands/index.json` (see AdditionalCommandEntry):
- * asked for in so many words, or picked for what someone said without an @, it's answered with
- * its own prompt, like a mention.
+ * A declarative tool as the bot has it (see loadToolDefinitions): its definition with the guidance
+ * read on each call, the room's files filled in, and `listen.mentions` as a function of the text.
  */
-export type AdditionalCommand = Omit<AdditionalCommandEntry, 'prompt' | 'mentions'> & {
-  /** The prompt, its song list filled in, read each time so edits apply at once. */
-  prompt: () => string;
-  /**
-   * Which of the command's `mentions` phrases (a song list's titles, say) `text` contains, read as
-   * they are now; null for none, or when it has none.
-   */
-  mentioned?: (text: string) => string | null;
+export type DefinedTool = Omit<ToolDefinition, 'guidance' | 'listen'> & {
+  guidance?: () => string;
+  listen?: ToolListen;
 };
 
 /** What the bot says when the streamer starts a song (a cheer, say). */

@@ -2,38 +2,26 @@ import { resolve } from 'node:path';
 import { livePrompt } from '../adapters/files/room-files';
 import { ChatBot } from '../app/replies/chat-bot';
 import { MentionAnswerer } from '../app/replies/mention-answerer';
-import { musicCommand } from '../app/commands/music-command';
-import { screenshotCommand } from '../app/room/room-state';
-import { solveCommand } from '../app/commands/solve-command';
 import type { Container } from './container';
 import {
-  ADDITIONAL_COMMANDS,
   ADMINS,
   ANSWERER,
   ASK_CLAUDE,
-  ASK_SOLVE,
-  AUTO_REPLY,
-  AUTO_SONG_ID,
   BOT,
   BOT_CONFIG,
   BUS,
-  COMMANDS,
   FEED,
   LOG,
-  MALICE_WATCH,
   MCP_SERVER,
   OPTIONS,
   OUTBOX,
   PROMPTS_DIR,
-  PROMPT,
   ROOM,
-  SONG_ID,
-  THANKER,
-  TRANSCRIBER,
+  TOOLS,
   USER_TALK,
 } from './tokens';
 
-/** The mentions' answerer (Claude, one question at a time), the commands, and the ChatBot. */
+/** The mentions' answerer (Claude, one question at a time) and the ChatBot. */
 export function registerBot(container: Container): void {
   container
     .register(ANSWERER, (c) => {
@@ -53,45 +41,13 @@ export function registerBot(container: Container): void {
         maxPending: options.maxPending,
         maxReplyLength: options.maxReplyLength,
         bus: c.resolve(BUS),
-        // Its tools resolve the song id and the transcriber, not the answerer: no cycle.
-        tools: c.resolve(MCP_SERVER) ?? undefined,
+        // Its tools reach the answerer only when one is used (a fixed reply goes through it), not
+        // while they are made: no cycle.
+        tools: c.resolve(MCP_SERVER),
         admins: c.resolve(ADMINS),
-        // 「以后 100 钻以下的礼物不用谢了」 and the like: run the command if they may. The bot is made after
-        // this, and asked only when an answer has come.
-        onCommandRequest: (mention, name, args) =>
-          c.resolve(BOT).requestCommand(mention, name, args),
       });
     })
-    // What a mention starting with `/` can run: each feature offers its own, in the order the help
-    // list shows them (see commands.md).
-    .register(COMMANDS, (c) => {
-      const room = c.resolve(ROOM);
-      const prompt = c.resolve(PROMPT);
-      const ask = c.resolve(ASK_SOLVE);
-      const transcriber = c.resolve(TRANSCRIBER);
-      return [
-        ...c.resolve(AUTO_REPLY).commands(),
-        ...c.resolve(ANSWERER).commands(),
-        ...c.resolve(THANKER).commands(),
-        screenshotCommand(room),
-        ...(c.resolve(SONG_ID)?.commands() ?? []),
-        solveCommand({
-          name: '解题',
-          prompt: prompt('solve'),
-          ask: ask('solve', 'medium', 360_000),
-        }),
-        solveCommand({
-          name: '拼命解题',
-          prompt: prompt('solve'),
-          ask: ask('solve-hard', 'high', 600_000),
-        }),
-        ...(c.resolve(AUTO_SONG_ID)?.commands() ?? []),
-        ...(c.resolve(MALICE_WATCH)?.commands() ?? []),
-        // Only when listening to the stream.
-        ...(transcriber ? [musicCommand(() => transcriber.identifyMusic(), c.resolve(LOG))] : []),
-      ];
-    })
-    // Decides what a mention is (a question, or a command).
+    // Decides what a mention is (a question, or a tool's `/` command).
     .register(
       BOT,
       (c) =>
@@ -103,10 +59,8 @@ export function registerBot(container: Container): void {
           outbox: c.resolve(OUTBOX),
           log: c.resolve(LOG),
           admins: c.resolve(ADMINS),
-          streamer: () => c.resolve(ADMINS).current(),
           adminNames: c.resolve(BOT_CONFIG).adminNames,
-          additionalCommands: c.resolve(ADDITIONAL_COMMANDS),
-          commands: c.resolve(COMMANDS),
+          tools: c.resolve(TOOLS),
           maxReplyLength: c.resolve(OPTIONS).maxReplyLength,
         }),
     );

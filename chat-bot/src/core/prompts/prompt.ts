@@ -38,8 +38,6 @@ export interface RoomPromptInput {
   botTalk?: string;
   /** How the bot is set up in the room right now. */
   settings?: RoomSettings;
-  /** The commands viewers can run, as described for them (commands.md's list). */
-  commands?: string;
   /** Words the bot must never say, since Douyin holds back a message with one (forbidden-words.md). */
   forbiddenWords?: readonly string[];
 }
@@ -85,6 +83,8 @@ export interface PromptDetails {
   /** The asker didn't @ the bot: the bot heard them say something to or about it, in the chat or
    * (the streamer) on the stream, and answers unprompted. */
   unprompted?: Heard;
+  /** The tools whose listen the line matched, named to the model as a hint (see `{{asked}}`). */
+  topics?: readonly string[];
 }
 
 /** The room plus what's particular to one prompt. */
@@ -121,7 +121,7 @@ function settingsText(settings: RoomSettings): string {
  * one `HH:MM:SS 内容` line per sentence the streamer said (`HH:MM:SS （唱）内容` when sung, and
  * `（连线）` before it when someone they're linked up with said it), `{{asker}}` and `{{question}}` the
  * mention's sender and text, `{{asked}}` the two as a line saying they @ed the bot (or, when
- * `unprompted`, that it heard them talk to or about it), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
+ * `unprompted`, that it heard them talk to or about it, and, for a line that matched a tool's listen, a line naming the tool as a hint), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
  * most the answer may use over several, `{{now}}` the time, `{{today}}` the date and weekday
  * (`2026-10-20 星期二`), both in the room's time zone, `{{timeZone}}` that zone's name (北京时间), `{{recordTimeZone}}` the machine's
  * (which record lines written before, without an offset, are in), `{{chatDir}}` the folder of chat
@@ -131,13 +131,13 @@ function settingsText(settings: RoomSettings): string {
  * what the bot says about itself, likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
  * none), `{{askerBadges}}` the badges by their name (`V年`; `（无）` when none or not known), `{{settings}}` the room's settings as a list, and
- * `{{commands}}` the commands viewers can run (both empty when not given), and `{{forbiddenWords}}` a
- * line saying which words never to use (empty without any).
+ * (empty when not given), and `{{forbiddenWords}}` a line saying which words never to use (empty
+ * without any).
  */
 export function buildPrompt(template: string, input: PromptInput): string {
   const { history, transcript, singleLength, maxLength, now, chatDir, persona } = input;
   const { asker = '', question = '', botName, context, botTalk, userHistory, userChat } = input;
-  const { settings, commands, unprompted, intro, wording } = input;
+  const { settings, unprompted, topics, intro, wording } = input;
   const said = question || wording('asked-nothing');
   const values: Record<string, string> = {
     history: historyText(history, input.gifts ?? []),
@@ -150,14 +150,15 @@ export function buildPrompt(template: string, input: PromptInput): string {
         .join('\n') || '（暂无）',
     asker,
     question: said,
-    asked: wording(
-      unprompted === 'speech'
-        ? 'asked-speech'
-        : unprompted === 'chat'
-          ? 'asked-chat'
-          : 'asked-mention',
-      { asker, said },
-    ),
+    asked:
+      wording(
+        unprompted === 'speech'
+          ? 'asked-speech'
+          : unprompted === 'chat'
+            ? 'asked-chat'
+            : 'asked-mention',
+        { asker, said },
+      ) + (topics?.length ? `\n${wording('asked-topics', { tools: topics.join('、') })}` : ''),
     singleLength: String(singleLength),
     maxLength: String(maxLength),
     now: clock(now, input.timeZone),
@@ -184,7 +185,6 @@ export function buildPrompt(template: string, input: PromptInput): string {
     userChat: userChat?.trim() || '（暂无）',
     askerBadges: input.askerBadges?.length ? input.askerBadges.join('、') : '（无）',
     settings: settings ? settingsText(settings) : '',
-    commands: commands?.trim() ?? '',
     forbiddenWords: input.forbiddenWords?.length
       ? wording('forbidden-words', { words: input.forbiddenWords.join('、') })
       : '',

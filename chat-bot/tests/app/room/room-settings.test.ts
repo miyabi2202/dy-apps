@@ -3,6 +3,7 @@ import { AutoReply } from '../../../src/app/replies/auto-reply';
 import { AutoSongId } from '../../../src/app/songs/auto-song-id';
 import { MaliceWatch } from '../../../src/app/replies/malice-watch';
 import type { Log, SettingsStore } from '../../../src/app/ports';
+import { SETTING_DEFAULTS, settingsFrom } from '../../../src/core/commands/settings';
 import { OutOfCreditError } from '../../../src/core/errors';
 import { parseCliOptions } from '../../../src/cli-options';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
@@ -47,6 +48,7 @@ test('fills in the fields a room_config.json lacks with their defaults, and keep
     streamerNames: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
+    tools: [],
     autoReplyThreshold: 1,
     autoReplyIntervalSeconds: 60,
     thanksThreshold: 99999,
@@ -54,6 +56,7 @@ test('fills in the fields a room_config.json lacks with their defaults, and keep
     maliceWatch: false,
     screenshots: false,
     maxReplyParts: 3,
+    solveEffort: 'medium',
   });
   // Stable formatting: 2 spaces, a trailing newline, the existing fields first.
   expect(file.state.text.endsWith('}\n')).toBe(true);
@@ -108,7 +111,7 @@ function setup(text = '{}') {
   return { file, config, store, ...recorded };
 }
 
-test('a setting changed by hand takes effect at once, and one changed by a command is written to the file', () => {
+test('a setting changed by hand takes effect at once, and one a feature changes is written to the file', () => {
   const { file, store } = setup();
   const autoReply = new AutoReply({
     outbox: { push: () => {} },
@@ -130,16 +133,10 @@ test('a setting changed by hand takes effect at once, and one changed by a comma
   );
   expect(autoReply.quietMs).toBe(5_000);
 
-  // By command: the file has it, and so does the next read.
-  const command = autoReply.commands().find((c) => c.name === '自动回复间隔');
-  expect(command?.run?.('20')).toEqual({ ok: true, reply: '已处理自动回复间隔请求' });
+  // By the feature (a tool does this): the file has it, and so does the next read.
+  autoReply.quietMs = 20_000;
   expect(fileOf(file.state.text).autoReplyIntervalSeconds).toBe(20);
   expect(autoReply.quietMs).toBe(20_000);
-  expect(command?.run?.('很多')).toEqual({
-    ok: false,
-    reply: '间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20',
-  });
-  expect(fileOf(file.state.text).autoReplyIntervalSeconds).toBe(20);
 });
 
 test('writing a setting does not make the file reload: one read after it, and no write by the read', () => {
@@ -169,6 +166,17 @@ test('keeps what else the file has, unknown fields and the streamer included, wh
   });
 });
 
+test('solveEffort is medium or high, anything else keeps the last good one', () => {
+  const problems: string[] = [];
+  expect(settingsFrom({}).solveEffort).toBe('medium');
+  expect(settingsFrom({ solveEffort: 'high' }).solveEffort).toBe('high');
+  const last = { ...SETTING_DEFAULTS, solveEffort: 'high' } as const;
+  for (const solveEffort of ['max', 1, true]) {
+    expect(settingsFrom({ solveEffort }, last, problems).solveEffort).toBe('high');
+  }
+  expect(problems).toEqual(Array(3).fill('solveEffort must be one of medium, high'));
+});
+
 test('a value of the wrong kind keeps the last good settings and is not written', () => {
   const { file, store, messages } = setup();
   file.state.text = file.state.text.replace('"autoSongId": false', '"autoSongId": "yes"');
@@ -190,14 +198,8 @@ test('auto-reply, the thanker, auto song id, malice watch and the screenshots ke
     streamer: () => null,
     settings: store,
   });
-  const run = (
-    commands: { name: string; run?: (args: string) => unknown }[],
-    name: string,
-    args: string,
-  ) => commands.find((c) => c.name === name)?.run?.(args);
-
-  run(autoReply.commands(), '自动回复阈值', '0.7');
-  run(autoReply.commands(), '自动回复间隔', '20');
+  autoReply.threshold = 0.7;
+  autoReply.quietMs = 20_000;
   expect(fileOf(file.state.text)).toMatchObject({
     autoReplyThreshold: 0.7,
     autoReplyIntervalSeconds: 20,
@@ -217,7 +219,7 @@ test('auto-reply, the thanker, auto song id, malice watch and the screenshots ke
     log: { debug() {}, info() {}, warn() {}, error() {} },
     settings: store,
   });
-  run(auto.commands(), '自动识歌', '1');
+  auto.on = true;
   expect(auto.on).toBe(true);
   expect(fileOf(file.state.text).autoSongId).toBe(true);
 
@@ -230,7 +232,7 @@ test('auto-reply, the thanker, auto song id, malice watch and the screenshots ke
     log: { debug() {}, info() {}, warn() {}, error() {} },
     settings: store,
   });
-  run(watch.commands(), '识别恶意言论', '1');
+  watch.on = true;
   expect(fileOf(file.state.text).maliceWatch).toBe(true);
 
   room.screenshots = true;

@@ -85,14 +85,12 @@ test('names it again every 3 minutes of singing on, but never says the same song
   );
 });
 
-test('/自动识歌 turns it on and off; off, it names nothing', async () => {
+test('switched on, it names the song; off, it names nothing', async () => {
   const { auto, line, prompts } = setup([{ message: '这首是《晴天》', title: '晴天' }], false);
   for (let t = 0; t < 60; t += 10) await line(t, `一句长长的歌词${t}`);
   expect(prompts).toEqual([]);
 
-  const run = (args: string) => auto.commands()[0]?.run?.(args);
-  expect(run('开')).toEqual({ ok: false, reply: '要写 0（关闭）或 1（打开），用法：/自动识歌 1' });
-  expect(run('1')).toEqual({ ok: true, reply: '已处理自动识歌请求' });
+  auto.on = true;
   await line(60, '一句长长的歌词60');
   expect(prompts).toHaveLength(1);
 });

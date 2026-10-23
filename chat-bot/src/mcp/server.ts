@@ -10,7 +10,8 @@ import type { BotTools, Log, ToolAccess, ToolContext, ToolSession } from '../app
 import { handleRpc, newSession, type BotTool, type RpcMessage, type Session } from './rpc';
 
 export interface BotMcpServerOptions {
-  tools: readonly BotTool[];
+  /** The bot's tools as they are now: a room's own change with its files, so each session reads them again. */
+  tools: () => readonly BotTool[];
   log: Log;
   /** 0 (the default) lets the OS pick a free one, so it never clashes with room-feed, the speech service or another bot. */
   port?: number;
@@ -54,16 +55,49 @@ export class BotMcpServer implements BotTools {
   private server: Server | undefined;
   private port = 0;
   private readonly sessions = new Map<string, Session>();
-  private readonly tools: readonly BotTool[];
+  /** The start in progress, which a stop waits for so a server that is still opening isn't left running. */
+  private starting: Promise<void> | undefined;
 
-  constructor(private readonly options: BotMcpServerOptions) {
-    // Each call logged with who it was for and how long it took.
-    this.tools = options.tools.map((tool) => ({
+  constructor(private readonly options: BotMcpServerOptions) {}
+
+  start(): Promise<void> {
+    this.starting = this.listen();
+    return this.starting;
+  }
+
+  private async listen(): Promise<void> {
+    const server = (this.options.createServer ?? createHttpServer)((request, response) => {
+      void this.handle(request, response);
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(this.options.port ?? 0, '127.0.0.1', () => resolve());
+    });
+    this.port = (server.address() as AddressInfo).port;
+    this.server = server;
+    this.options.log.info('mcp server listening', { port: this.port });
+  }
+
+  async stop(): Promise<void> {
+    await this.starting?.catch(() => {});
+    const server = this.server;
+    this.server = undefined;
+    this.sessions.clear();
+    if (!server) return;
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+      server.closeAllConnections();
+    });
+  }
+
+  /** Each call logged with who it was for and how long it took. */
+  private logged(tool: BotTool): BotTool {
+    return {
       ...tool,
       call: async (args: Record<string, unknown>, context: ToolContext) => {
         const start = Date.now();
         const log = (isError: boolean) =>
-          options.log.info('mcp tool', {
+          this.options.log.info('mcp tool', {
             tool: tool.name,
             asker: context.asker,
             userId: context.userId,
@@ -79,38 +113,17 @@ export class BotMcpServer implements BotTools {
           throw err;
         }
       },
-    }));
-  }
-
-  async start(): Promise<void> {
-    const server = (this.options.createServer ?? createHttpServer)((request, response) => {
-      void this.handle(request, response);
-    });
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject);
-      server.listen(this.options.port ?? 0, '127.0.0.1', () => resolve());
-    });
-    this.port = (server.address() as AddressInfo).port;
-    this.server = server;
-    this.options.log.info('mcp server listening', { port: this.port });
-  }
-
-  async stop(): Promise<void> {
-    const server = this.server;
-    this.server = undefined;
-    this.sessions.clear();
-    if (!server) return;
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-      server.closeAllConnections();
-    });
+    };
   }
 
   /** A session for one question, or null while the server isn't running. */
   open(context: ToolContext): ToolSession | null {
     if (!this.server) return null;
     const token = (this.options.newToken ?? (() => randomBytes(24).toString('base64url')))();
-    const session = newSession(context, this.tools);
+    const session = newSession(
+      context,
+      this.options.tools().map((tool) => this.logged(tool)),
+    );
     this.sessions.set(token, session);
     const access: ToolAccess = {
       url: `http://127.0.0.1:${this.port}/mcp`,
@@ -120,10 +133,7 @@ export class BotMcpServer implements BotTools {
     return {
       access,
       used: () => [...session.used],
-      replaces: (command) =>
-        session.used.some(
-          (name) => session.tools.find((tool) => tool.name === name)?.command === command,
-        ),
+      calls: () => [...session.calls],
       close: () => void this.sessions.delete(token),
     };
   }

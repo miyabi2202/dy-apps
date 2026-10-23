@@ -15,12 +15,12 @@ test('reads the download list, skipping entries that could land outside artifact
       { url: 'ftp://example.com/c', file: 'c.json' },
       { url: 'https://example.com/d' },
       { url: 'https://example.com/e', file: 'e.txt', transformer: '../x.js' },
-      { url: 'https://example.com/f', file: 'f.txt', transformer: 'additional_commands/f/f.js' },
+      { url: 'https://example.com/f', file: 'f.txt', transformer: 'tools/f/f.js' },
     ],
   });
   expect(readDownloads('room_config.json', { log, read: () => config })).toEqual([
     { url: 'https://example.com/a', file: 'a.json' },
-    { url: 'https://example.com/f', file: 'f.txt', transformer: 'additional_commands/f/f.js' },
+    { url: 'https://example.com/f', file: 'f.txt', transformer: 'tools/f/f.js' },
   ]);
   expect(log.warn).toHaveBeenCalledTimes(4);
   expect(readDownloads('room_config.json', { log, read: () => '{ "private": true }' })).toEqual([]);
