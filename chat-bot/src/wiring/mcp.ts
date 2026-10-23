@@ -6,6 +6,7 @@ import { identifyBgmTool } from '../mcp/identify-bgm';
 import { identifySongTool } from '../mcp/identify-song';
 import { BotMcpServer } from '../mcp/server';
 import { numberTool, onOffTool } from '../mcp/setting-tools';
+import { setAtNameTool } from '../mcp/set-at-name';
 import { setThanksThresholdTool } from '../mcp/set-thanks-threshold';
 import type { Container } from './container';
 import {
@@ -24,6 +25,7 @@ import {
   PROMPT,
   ROOM,
   ROOM_CONFIG,
+  ROOM_CONFIG_FILE,
   ROOM_DIR,
   SETTINGS,
   SONG_ID,
@@ -103,6 +105,15 @@ export function registerMcp(container: Container): void {
           log,
         }),
         setThanksThresholdTool(c.resolve(THANKER), log),
+        // What the bot @s someone as: their own for anyone, anyone's for an admin.
+        setAtNameTool({
+          atNames: {
+            get: () => c.resolve(ROOM_CONFIG)().atNames,
+            set: (atNames) => c.resolve(ROOM_CONFIG_FILE).update({ atNames }),
+          },
+          room,
+          log,
+        }),
         onOffTool({
           name: 'set_screenshots',
           command: '截图',

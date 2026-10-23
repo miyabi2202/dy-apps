@@ -10,6 +10,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/截图 
 | `/自动回复间隔 <秒>`   | `set_auto_reply_interval`  | How long it keeps quiet after joining in                                                       | yes         | 60          |
 | `/最大回复条数 <1–10>` | `set_max_reply_parts`      | How many messages one @'s answer may take                                                      | yes         | 5           |
 | `/自动谢礼 <钻>`       | `set_thanks_threshold`     | Thank viewers who give more than this in 5 minutes                                             | yes         | 99999 (off) |
+| `/叫我 [名字]`         | `set_at_name`              | What the bot @s the asker as (an admin, in words, anyone)                                      | no          | nickname    |
 | `/截图 <0\|1>`         | `set_screenshots`          | Send Claude the live video or not                                                              | yes         | 0           |
 | `/识歌 [提示]`         | `identify_song`            | Name the song the streamer sings, from its lyrics                                              | no          | –           |
 | `/识别背景音乐`        | `identify_bgm`             | Name the recording playing, from its sound                                                     | no          | –           |
@@ -69,6 +70,18 @@ The most messages anything the bot says is split into, `@昵称 (1/3) …` (`(1/
 
 @默认关闭 /最大回复条数 十
 → 条数要写成 1 到 10 的整数，用法：/最大回复条数 3
+```
+
+### /叫我
+
+What the bot @s the asker as from now on, instead of their nickname (or its first 3 characters when the message is long): `/叫我 阿拂` @s them as `@阿拂`. Without a name it goes back to the nickname. It's kept by user id in the room's `room_config.json`, `atNames` (see [room-setup.md](room-setup.md)), which can be edited by hand too. Anyone may change their own; in words (「以后叫我阿拂」, 「把阿拂（吃荷灵咪馊饭版）那个叫成小拂」), Claude calls `set_at_name`, and an admin or the streamer may name someone else (`who`), found among those who chatted lately by nickname, by nickname without the room's `atTrimStart`, or by their current @ name; when more than one matches, the tool says so and Claude asks which. A name said on the stream comes through speech recognition: Claude fills in the arguments, and the tool's description asks it to fix homophone typos (啊拂 → 阿拂) from the chat's nicknames and the context. At most 12 characters. The log has `at name set {by, userId, nickname, before, after}`.
+
+```text
+@默认关闭 /叫我 阿拂
+→ @⊹꙳𝝑阿拂（吃荷灵咪馊饭版）𝝔⋆₊ 好，以后 @阿拂
+
+@默认关闭 /叫我
+→ @阿拂 好，以后按昵称 @
 ```
 
 ### /自动谢礼

@@ -149,6 +149,7 @@ const ALL_COMMANDS = [
   '自动回复间隔',
   '最大回复条数',
   '自动谢礼',
+  '叫我',
   '截图',
   '识歌',
   '识别背景音乐',
@@ -354,7 +355,7 @@ test('the tools server starts with the bot, serves its tools (an admin the admin
   bot.workerReady();
   await started;
   const session = bot.container.resolve(MCP_SERVER).open({ asker: 'a', question: '' })!;
-  expect(session.access.tools).toEqual(['identify_song', 'identify_bgm']);
+  expect(session.access.tools).toEqual(['set_at_name', 'identify_song', 'identify_bgm']);
   const admin = bot.container.resolve(MCP_SERVER).open({ asker: 'a', question: '', admin: true })!;
   expect(admin.access.tools).toEqual(
     expect.arrayContaining(['set_thanks_threshold', 'identify_song', 'identify_bgm']),
@@ -383,12 +384,13 @@ test('without speech, Codex or Jev the tools server still has the admin-only set
   const app = bot.container.resolve(APP);
   await app.start();
   const server = bot.container.resolve(MCP_SERVER);
-  expect(server.open({ asker: 'a', question: '' })!.access.tools).toEqual([]);
+  expect(server.open({ asker: 'a', question: '' })!.access.tools).toEqual(['set_at_name']);
   expect(server.open({ asker: 'a', question: '', admin: true })!.access.tools).toEqual([
     'set_auto_reply_threshold',
     'set_auto_reply_interval',
     'set_max_reply_parts',
     'set_thanks_threshold',
+    'set_at_name',
     'set_screenshots',
     'ask_about_puzzle',
   ]);
