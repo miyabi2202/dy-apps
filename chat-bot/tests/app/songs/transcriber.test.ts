@@ -114,10 +114,10 @@ test('keeps what the worker hears, giving the same worker a fresh stream URL whe
       host: false,
     },
   ]);
-  // A guest's singing is the streamer's in the chat record, and kept as theirs with the sung lines.
+  // Another voice's singing is theirs in the chat record too, as in the sung lines.
   expect(written).toBe(
     '2026-10-16 08:00:00+00:00 [连线](speech) 从 url-1 听到\n' +
-      '2026-10-16 08:00:00+00:00 [主播](sing) 从 url-2 听到\n',
+      '2026-10-16 08:00:00+00:00 [连线](sing) 从 url-2 听到\n',
   );
   expect(sung).toEqual(['连线 sing 声3']);
 });

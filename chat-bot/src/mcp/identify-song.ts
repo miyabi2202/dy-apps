@@ -1,7 +1,7 @@
 import type { Log } from '../app/ports';
 import type { RoomState } from '../app/room/room-state';
 import type { SongId } from '../app/songs/song-id';
-import { currentSong } from '../core/songs/transcript';
+import { currentSong, isGuest } from '../core/songs/transcript';
 import type { BotTool } from './rpc';
 
 export interface IdentifySongOptions {
@@ -46,7 +46,8 @@ export function identifySongTool({ songId, room, maxLength, log }: IdentifySongO
     ],
     async call(args, { asker, direct }) {
       const hint = typeof args.hint === 'string' ? args.hint : '';
-      const lines = currentSong(room.recentTranscript());
+      // The streamer's song: someone else singing (连线, a recording) isn't asked about.
+      const lines = currentSong(room.recentTranscript().filter((line) => !isGuest(line)));
       const prompt = room.prompt(songId.prompt(), {
         transcript: lines,
         asker,

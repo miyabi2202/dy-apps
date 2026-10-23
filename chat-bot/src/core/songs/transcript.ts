@@ -24,12 +24,12 @@ export interface TranscriptLine {
 }
 
 /**
- * Whether someone the streamer is linked up with (连线) said it, as far as voices tell. A sung line
- * is the streamer's here whatever its voice: who sang isn't acted on yet, only kept (see
- * singingRecord).
+ * Whether someone other than the streamer said or sang it (连线, or a recording's singer), as far
+ * as voices tell: sung lines are told apart among the voices heard singing, the streamer's being
+ * the one heard most. A line too short for a voiceprint is the streamer's.
  */
 export function isGuest(line: TranscriptLine): boolean {
-  return line.host === false && !isSung(line);
+  return line.host === false;
 }
 
 /**

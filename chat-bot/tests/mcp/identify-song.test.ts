@@ -6,7 +6,9 @@ import { silentLog } from '../support/fakes';
 
 const context = { asker: '苦***', userId: '111111-苦***-31', question: '这是什么歌' };
 
-function setup(options: { lyrics?: 'sure' | 'unsure'; minChars?: number } = {}) {
+function setup(
+  options: { lyrics?: 'sure' | 'unsure'; minChars?: number; streamerSang?: boolean } = {},
+) {
   let now = 100_000;
   const transcript = new Transcript(Infinity, () => now);
   for (const [i, text] of ['刮风这天我试过握着你手', '但偏偏雨渐渐大到我看你不见'].entries()) {
@@ -15,9 +17,20 @@ function setup(options: { lyrics?: 'sure' | 'unsure'; minChars?: number } = {}) 
       end: now - 16_000 + i * 5000,
       text,
       speech: 0.05,
+      ...(options.streamerSang === false && { speaker: 5, host: false }),
     });
   }
+  // Someone else singing along, after her.
+  transcript.add({
+    start: now - 8000,
+    end: now - 5000,
+    text: '连线在唱别的歌',
+    speech: 0.05,
+    speaker: 7,
+    host: false,
+  });
   const intros: string[] = [];
+  const searched: string[][] = [];
   const asked: string[] = [];
   const songId = new SongId({
     prompt: () => '问：{{question}}',
@@ -27,8 +40,9 @@ function setup(options: { lyrics?: 'sure' | 'unsure'; minChars?: number } = {}) 
         JSON.stringify({ message: 'm', title: '晴天', artist: '周杰伦', sure: true }),
       );
     },
-    lyrics: () =>
-      Promise.resolve({
+    lyrics: (lines) => {
+      searched.push(lines.map((line) => line.text));
+      return Promise.resolve({
         title: options.lyrics === 'sure' ? '晴天' : '',
         sure: options.lyrics === 'sure',
         artist: options.lyrics === 'sure' ? '周杰伦' : undefined,
@@ -36,7 +50,8 @@ function setup(options: { lyrics?: 'sure' | 'unsure'; minChars?: number } = {}) 
         why: 'test',
         queries: ['a', 'b'],
         ms: 300,
-      }),
+      });
+    },
     found: ({ title }) => `这首是《${title}》`,
     early: { minChars: options.minChars ?? 5, noLyrics: () => '没听到', tooEarly: () => '太早' },
     onTold: (song) => void intros.push(song.title),
@@ -49,7 +64,7 @@ function setup(options: { lyrics?: 'sure' | 'unsure'; minChars?: number } = {}) 
     maxLength: 49,
     log: silentLog,
   });
-  return { tool, songId, intros, asked, tick: (ms: number) => (now += ms) };
+  return { tool, songId, intros, asked, searched, tick: (ms: number) => (now += ms) };
 }
 
 const answer = async (tool: ReturnType<typeof setup>['tool'], args = {}) =>
@@ -67,6 +82,18 @@ test('names the song from the lyrics search without Codex, and does not start an
   // Remembered as told (so /自动识歌 stays quiet), but Claude's reply is the intro.
   expect(songId.namedAt('晴天')).toBeDefined();
   expect(intros).toEqual([]);
+});
+
+test("only the streamer's singing is asked about: another voice's is left out", async () => {
+  const { tool, searched } = setup({ lyrics: 'sure' });
+  await answer(tool);
+  expect(searched).toEqual([['刮风这天我试过握着你手', '但偏偏雨渐渐大到我看你不见']]);
+});
+
+test('when only someone else sang, it hears no singing, without asking anyone', async () => {
+  const { tool, searched, asked } = setup({ lyrics: 'sure', streamerSang: false });
+  expect(await answer(tool)).toMatchObject({ found: false, note: '没听到' });
+  expect([...searched, ...asked]).toEqual([]);
 });
 
 test('falls back to Codex, with the hint as the question', async () => {

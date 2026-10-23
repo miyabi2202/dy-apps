@@ -24,7 +24,7 @@ export interface TranscriberOptions {
   record?: RoomRecord;
   /**
    * Where each sung line is also recorded, as whose the speech service took it for (see
-   * singingRecord): kept for looking at, read by nothing; everywhere else it's the streamer's.
+   * singingRecord): kept for looking at, with each voice's number and closeness.
    */
   singing?: Pick<RoomRecord, 'add'>;
   log: Log;
