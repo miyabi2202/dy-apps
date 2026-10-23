@@ -93,3 +93,9 @@ test('one song in four, by the dice, is asked to end with a hook; the rest ask n
   expect(asked[1]!.prompt).toContain('这首不要向直播间提问');
   expect(log.info).toHaveBeenCalledWith('song intro', { title: '安静', hook: true, messages: [] });
 });
+
+test('says nothing about a song another voice sang most of', async () => {
+  const { intro, asked, pushed } = setUp(JSON.stringify({ messages: ['今晚轮到虾虾唱给他听了'] }));
+  await intro.introduce({ title: '自愈', artist: '穆哲熙', othersSang: true });
+  expect([...asked, ...pushed]).toEqual([]);
+});

@@ -70,7 +70,11 @@ test('answers from the lyrics search when it is sure of the title and singer, wi
 test('asks Codex for the singer when the search is sure of the title but names none', async () => {
   const { songId, asked } = setup(() =>
     Promise.resolve(
-      guess({ title: '晴天', sure: true, candidates: [{ title: '晴天', score: 4, artists: [] }] }),
+      guess({
+        title: '晴天',
+        sure: true,
+        candidates: [{ title: '晴天', score: 4, artists: [], originals: [], covers: [] }],
+      }),
     ),
   );
   const outcome = await songId.identifyLines({ prompt: 'P' }, lines, 'auto');
@@ -83,8 +87,8 @@ test('asks Codex when it is not sure, with the candidates added to its prompt', 
     Promise.resolve(
       guess({
         candidates: [
-          { title: '晴天', score: 1.2, artists: [] },
-          { title: '七里香', score: 1, artists: [] },
+          { title: '晴天', score: 1.2, artists: [], originals: [], covers: [] },
+          { title: '七里香', score: 1, artists: [], originals: [], covers: [] },
         ],
       }),
     ),

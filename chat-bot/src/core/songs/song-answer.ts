@@ -8,6 +8,8 @@ export interface SongAnswer {
   artist: string;
   /** Whether it checked the lyrics and is sure; false for a guess (「听着像…不太确定」). */
   sure: boolean;
+  /** Most of what was sung of it was another voice's than the streamer's (see othersShare); set by the program, not the model. */
+  othersSang?: boolean;
 }
 
 /** The JSON Schema SongAnswer follows (strict: every field required, no others). */

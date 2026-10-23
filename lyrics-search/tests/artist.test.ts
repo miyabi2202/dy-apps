@@ -1,4 +1,4 @@
-import { pickArtist } from '../src/artist';
+import { markedSingers, pickArtist, pickOriginal } from '../src/artist';
 import { parseLyricsResponse } from '../src/netease';
 import { normaliseTitle } from '../src/normalise';
 import { vote } from '../src/vote';
@@ -65,5 +65,54 @@ describe('pickArtist', () => {
 
   it('names nobody when there are no hits', () => {
     expect(pickArtist({ lyricHits: [] })).toEqual({ share: 0 });
+  });
+});
+
+describe("NetEase's original and cover marks", () => {
+  const hit = (artists: string[], cover?: boolean, id?: number) => ({
+    title: '遇萤',
+    artists,
+    pop: 0,
+    ...(cover !== undefined && { cover }),
+    ...(id !== undefined && { id }),
+  });
+
+  it('names the singer most versions marked original credit, once a version counts once', () => {
+    const hits = [
+      hit(['CRITTY'], false, 1),
+      hit(['CRITTY'], false, 1),
+      hit(['CRITTY', '橙光音乐'], false, 2),
+      hit(['CRITTY'], false, 3),
+      hit(['执素兮'], false, 4),
+      hit(['只有影子'], true, 5),
+    ];
+    expect(pickOriginal('遇萤', hits)).toEqual({ artist: 'CRITTY', share: 0.75, versions: 3 });
+  });
+
+  it("counts a cover's link to its original, and names no one from a lone or contested mark", () => {
+    const linked = {
+      ...hit(['一夜冷月'], true),
+      coverOf: { title: '遇萤（剧情版）', artists: ['CRITTY'] },
+    };
+    expect(pickOriginal('遇萤', [hit(['CRITTY'], false, 1), linked]).artist).toBe('CRITTY');
+    expect(pickOriginal('遇萤', [hit(['CRITTY'], false, 1)]).artist).toBeUndefined();
+    expect(
+      pickOriginal('遇萤', [hit(['A'], false, 1), hit(['A'], false, 2), hit(['B'], false, 3)])
+        .artist,
+    ).toBeUndefined();
+    expect(pickOriginal('遇萤', [hit(['只有影子'], true, 1), hit(['只有影子'], true, 2)])).toEqual({
+      share: 0,
+      versions: 0,
+    });
+  });
+
+  it('lists the originals, with the ones covers link to, and the covers', () => {
+    const linked = { ...hit(['一夜冷月'], true), coverOf: { title: '遇萤', artists: ['CRITTY'] } };
+    expect(
+      markedSingers([hit(['CRITTY'], false), hit(['只有影子'], true), hit(['某人']), linked]),
+    ).toEqual({
+      originals: ['CRITTY'],
+      covers: ['只有影子', '一夜冷月'],
+    });
   });
 });

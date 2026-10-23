@@ -1,0 +1,698 @@
+{
+  "lines": [
+    "若千年的光阴轮回里是否只为寻觅着你恍若所有月明圆缺或是阴晴都只为了你",
+    "尘缘似一场花雨眉目缱绻中枯寂指尖的瞬息拾得你一颗泪滴",
+    "若忘川的涟漪随我心是否只为不忘记你恍若所有思绪怜惜或是悲戚都只为了你"
+  ],
+  "responses": {
+    "若千年的光阴轮回里是否只为寻觅着你恍若所": {
+      "code": 200,
+      "result": {
+        "songs": [
+          {
+            "name": "遇萤",
+            "id": 37782740,
+            "ar": [
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 100,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 423849091,
+            "ar": [
+              {
+                "name": "执素兮"
+              }
+            ],
+            "pop": 90,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 1906968692,
+            "ar": [
+              {
+                "name": "李蚊香"
+              }
+            ],
+            "pop": 90,
+            "originCoverType": 2
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲（纯歌版）",
+            "id": 427606844,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 80,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 501840083,
+            "ar": [
+              {
+                "name": "只有影子"
+              }
+            ],
+            "pop": 80,
+            "originCoverType": 2
+          },
+          {
+            "name": "遇萤（剧情版）",
+            "id": 35848447,
+            "ar": [
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 75,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲（剧情版）",
+            "id": 427606845,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 40,
+            "originCoverType": 0
+          },
+          {
+            "name": "遇萤  (男声版)Vocal：宗顺康",
+            "id": 452778816,
+            "ar": [
+              {
+                "name": "KenZong"
+              }
+            ],
+            "pop": 25,
+            "originCoverType": 2
+          },
+          {
+            "name": "【伴奏】遇萤-橙光《遇龙》主题曲",
+            "id": 427606846,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 25,
+            "originCoverType": 0
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲",
+            "id": 513584993,
+            "ar": [
+              {
+                "name": "橙光音乐"
+              },
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 25,
+            "originCoverType": 2
+          }
+        ]
+      }
+    },
+    "若忘川的涟漪随我心是否只为不忘记你恍若所": {
+      "code": 200,
+      "result": {
+        "songs": [
+          {
+            "name": "遇萤",
+            "id": 37782740,
+            "ar": [
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 100,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 423849091,
+            "ar": [
+              {
+                "name": "执素兮"
+              }
+            ],
+            "pop": 90,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 1906968692,
+            "ar": [
+              {
+                "name": "李蚊香"
+              }
+            ],
+            "pop": 90,
+            "originCoverType": 2
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲（纯歌版）",
+            "id": 427606844,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 80,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 501840083,
+            "ar": [
+              {
+                "name": "只有影子"
+              }
+            ],
+            "pop": 80,
+            "originCoverType": 2
+          },
+          {
+            "name": "遇萤（剧情版）",
+            "id": 35848447,
+            "ar": [
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 75,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲（剧情版）",
+            "id": 427606845,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 40,
+            "originCoverType": 0
+          },
+          {
+            "name": "遇萤  (男声版)Vocal：宗顺康",
+            "id": 452778816,
+            "ar": [
+              {
+                "name": "KenZong"
+              }
+            ],
+            "pop": 25,
+            "originCoverType": 2
+          },
+          {
+            "name": "【伴奏】遇萤-橙光《遇龙》主题曲",
+            "id": 427606846,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 25,
+            "originCoverType": 0
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲",
+            "id": 513584993,
+            "ar": [
+              {
+                "name": "橙光音乐"
+              },
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 25,
+            "originCoverType": 2
+          }
+        ]
+      }
+    },
+    "尘缘似一场花雨眉目缱绻中枯寂指尖的瞬息拾": {
+      "code": 200,
+      "result": {
+        "songs": [
+          {
+            "name": "遇萤",
+            "id": 37782740,
+            "ar": [
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 100,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 423849091,
+            "ar": [
+              {
+                "name": "执素兮"
+              }
+            ],
+            "pop": 90,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 1906968692,
+            "ar": [
+              {
+                "name": "李蚊香"
+              }
+            ],
+            "pop": 90,
+            "originCoverType": 2
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲（纯歌版）",
+            "id": 427606844,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 80,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 501840083,
+            "ar": [
+              {
+                "name": "只有影子"
+              }
+            ],
+            "pop": 80,
+            "originCoverType": 2
+          },
+          {
+            "name": "遇萤（剧情版）",
+            "id": 35848447,
+            "ar": [
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 75,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲（剧情版）",
+            "id": 427606845,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 40,
+            "originCoverType": 0
+          },
+          {
+            "name": "遇萤  (男声版)Vocal：宗顺康",
+            "id": 452778816,
+            "ar": [
+              {
+                "name": "KenZong"
+              }
+            ],
+            "pop": 25,
+            "originCoverType": 2
+          },
+          {
+            "name": "【伴奏】遇萤-橙光《遇龙》主题曲",
+            "id": 427606846,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 25,
+            "originCoverType": 0
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲",
+            "id": 513584993,
+            "ar": [
+              {
+                "name": "橙光音乐"
+              },
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 25,
+            "originCoverType": 2
+          }
+        ]
+      }
+    }
+  },
+  "titles": {
+    "遇萤": {
+      "code": 200,
+      "result": {
+        "songs": [
+          {
+            "name": "遇萤",
+            "id": 37782740,
+            "ar": [
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 100,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 1906968692,
+            "ar": [
+              {
+                "name": "李蚊香"
+              }
+            ],
+            "pop": 90,
+            "originCoverType": 2
+          },
+          {
+            "name": "遇萤",
+            "id": 423849091,
+            "ar": [
+              {
+                "name": "执素兮"
+              }
+            ],
+            "pop": 90,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤（剧情版）",
+            "id": 35848447,
+            "ar": [
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 75,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 501840083,
+            "ar": [
+              {
+                "name": "只有影子"
+              }
+            ],
+            "pop": 80,
+            "originCoverType": 2
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲（纯歌版）",
+            "id": 427606844,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 80,
+            "originCoverType": 1
+          },
+          {
+            "name": "轮回之境",
+            "id": 32957014,
+            "ar": [
+              {
+                "name": "CRITTY"
+              }
+            ],
+            "pop": 100,
+            "originCoverType": 1
+          },
+          {
+            "name": "遇萤",
+            "id": 1895136348,
+            "ar": [
+              {
+                "name": "南风ZJN"
+              }
+            ],
+            "pop": 10,
+            "originCoverType": 2
+          },
+          {
+            "name": "遇萤（钢琴版）",
+            "id": 2001918384,
+            "ar": [
+              {
+                "name": "不夜星丶"
+              }
+            ],
+            "pop": 25,
+            "originCoverType": 2
+          },
+          {
+            "name": "遇萤-橙光《遇龙》主题曲（剧情版）",
+            "id": 427606845,
+            "ar": [
+              {
+                "name": "CRITTY"
+              },
+              {
+                "name": "橙光音乐"
+              }
+            ],
+            "pop": 40,
+            "originCoverType": 0
+          },
+          {
+            "name": "遇萤",
+            "id": 3393339653,
+            "ar": [
+              {
+                "name": "慕然"
+              }
+            ],
+            "pop": 10,
+            "originCoverType": 3
+          },
+          {
+            "name": "遇萤（男版）",
+            "id": 2045226830,
+            "ar": [
+              {
+                "name": "一夜冷月"
+              }
+            ],
+            "pop": 10,
+            "originCoverType": 2,
+            "originSongSimpleData": {
+              "name": "遇萤（剧情版）",
+              "artists": [
+                {
+                  "name": "CRITTY"
+                }
+              ]
+            }
+          },
+          {
+            "name": "遇萤",
+            "id": 3319961512,
+            "ar": [
+              {
+                "name": "绫月汐"
+              }
+            ],
+            "pop": 10,
+            "originCoverType": 2,
+            "originSongSimpleData": {
+              "name": "遇萤",
+              "artists": [
+                {
+                  "name": "CRITTY"
+                }
+              ]
+            }
+          },
+          {
+            "name": "遇萤 (语录版)",
+            "id": 3396739092,
+            "ar": [
+              {
+                "name": "慕然"
+              }
+            ],
+            "pop": 10,
+            "originCoverType": 0
+          },
+          {
+            "name": "遇萤",
+            "id": 3436846335,
+            "ar": [
+              {
+                "name": "九渊"
+              }
+            ],
+            "pop": 10,
+            "originCoverType": 2,
+            "originSongSimpleData": {
+              "name": "遇萤",
+              "artists": [
+                {
+                  "name": "CRITTY"
+                }
+              ]
+            }
+          },
+          {
+            "name": "遇萤（钢琴）.wav",
+            "id": 2126306957,
+            "ar": [
+              {
+                "name": "顾佳纯"
+              }
+            ],
+            "pop": 10,
+            "originCoverType": 2,
+            "originSongSimpleData": {
+              "name": "遇萤",
+              "artists": [
+                {
+                  "name": "执素兮"
+                }
+              ]
+            }
+          },
+          {
+            "name": "遇萤",
+            "id": 1910128963,
+            "ar": [
+              {
+                "name": "流萤的流萤"
+              }
+            ],
+            "pop": 10,
+            "originCoverType": 2,
+            "originSongSimpleData": {
+              "name": "遇萤",
+              "artists": [
+                {
+                  "name": "CRITTY"
+                }
+              ]
+            }
+          },
+          {
+            "name": "遇萤",
+            "id": 1897992643,
+            "ar": [
+              {
+                "name": "醉珂"
+              }
+            ],
+            "pop": 10,
+            "originCoverType": 2,
+            "originSongSimpleData": {
+              "name": "遇萤（剧情版）",
+              "artists": [
+                {
+                  "name": "CRITTY"
+                }
+              ]
+            }
+          },
+          {
+            "name": "遇萤",
+            "id": 2661201738,
+            "ar": [
+              {
+                "name": "虞墨"
+              }
+            ],
+            "pop": 10,
+            "originCoverType": 2,
+            "originSongSimpleData": {
+              "name": "遇萤",
+              "artists": [
+                {
+                  "name": "执素兮"
+                }
+              ]
+            }
+          },
+          {
+            "name": "遇萤",
+            "id": 2133039433,
+            "ar": [
+              {
+                "name": "野生世嗣Ssi"
+              },
+              {
+                "name": "若见音社"
+              }
+            ],
+            "pop": 5,
+            "originCoverType": 2,
+            "originSongSimpleData": {
+              "name": "遇萤",
+              "artists": [
+                {
+                  "name": "CRITTY"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

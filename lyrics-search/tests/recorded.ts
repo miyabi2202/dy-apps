@@ -3,6 +3,7 @@ import 南屏晚钟 from './fixtures/南屏晚钟.json';
 import FIRESTARTER from './fixtures/firestarter.json';
 import 晴天 from './fixtures/晴天.json';
 import 雨爱 from './fixtures/雨爱.json';
+import 遇萤 from './fixtures/遇萤.json';
 
 /** Real NetEase responses, one per song: its lines, and the raw response for each query. */
 export interface Recording {
@@ -12,7 +13,14 @@ export interface Recording {
   titles: Record<string, unknown>;
 }
 
-const RECORDINGS: Record<string, Recording> = { FIRESTARTER, 云裳羽衣曲, 南屏晚钟, 晴天, 雨爱 };
+const RECORDINGS: Record<string, Recording> = {
+  FIRESTARTER,
+  云裳羽衣曲,
+  南屏晚钟,
+  晴天,
+  雨爱,
+  遇萤,
+};
 
 export function recorded(name: string): Recording {
   const recording = RECORDINGS[name];

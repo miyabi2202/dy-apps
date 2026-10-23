@@ -121,7 +121,7 @@ test("most of the song sung by another voice: it's still named, from all of it, 
     sung(10, '像天空缠绵雨的汹涌在你的身后', false),
   ];
   await expect(named(mostlyOthers)).resolves.toMatchObject({
-    answer: { message: '这首是《带我走》（是别人在唱吗？）' },
+    answer: { message: '这首是《带我走》（是别人在唱吗？）', othersSang: true },
     othersSang: true,
   });
   expect(searched[0]).toEqual(mostlyOthers.map((line) => line.text));

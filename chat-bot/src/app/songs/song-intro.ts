@@ -30,7 +30,7 @@ export interface SongIntroOptions {
 }
 
 /** The song named. */
-type Song = Pick<SongAnswer, 'title' | 'artist'>;
+type Song = Pick<SongAnswer, 'title' | 'artist' | 'othersSang'>;
 
 /** At most this many of Claude's turns, searching for the song. */
 const MAX_TURNS = 8;
@@ -45,8 +45,17 @@ export class SongIntro extends ModelFeature<Song, SongIntroAnswer> {
     super(options.log);
   }
 
+  /**
+   * Nothing for a song another voice sang most of (a 连线, a recording, or the streamer taken for
+   * someone else): what it would say is about the streamer singing it.
+   */
   introduce(song: Song): Promise<void> {
-    return song.title ? this.run(song) : Promise.resolve();
+    if (!song.title) return Promise.resolve();
+    if (song.othersSang) {
+      this.options.log.info('no song intro, others sang', { title: song.title });
+      return Promise.resolve();
+    }
+    return this.run(song);
   }
 
   /** Whether the intro being made now was asked for a hook (for the log). */

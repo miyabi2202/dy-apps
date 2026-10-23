@@ -55,6 +55,36 @@ describe('neteaseClient.searchLyrics', () => {
     ]);
   });
 
+  it("reads NetEase's original and cover marks, and the original a cover links to", async () => {
+    const { fetchFn } = fakeFetch({
+      code: 200,
+      result: {
+        songs: [
+          { name: '遇萤', ar: [{ name: 'CRITTY' }], pop: 50, originCoverType: 1 },
+          {
+            name: '遇萤（男版）',
+            ar: [{ name: '一夜冷月' }],
+            pop: 5,
+            originCoverType: 2,
+            originSongSimpleData: { name: '遇萤（剧情版）', artists: [{ name: 'CRITTY' }] },
+          },
+          { name: '遇萤', ar: [{ name: '某人' }], pop: 0, originCoverType: 0 },
+        ],
+      },
+    });
+    expect(await neteaseClient({ fetch: fetchFn }).searchLyrics('x')).toEqual([
+      { title: '遇萤', artists: ['CRITTY'], pop: 50, cover: false },
+      {
+        title: '遇萤（男版）',
+        artists: ['一夜冷月'],
+        pop: 5,
+        cover: true,
+        coverOf: { title: '遇萤（剧情版）', artists: ['CRITTY'] },
+      },
+      { title: '遇萤', artists: ['某人'], pop: 0 },
+    ]);
+  });
+
   it('answers no hits when the response has no songs', async () => {
     const { fetchFn } = fakeFetch({ code: 200, result: {} });
     expect(await neteaseClient({ fetch: fetchFn }).searchLyrics('x')).toEqual([]);

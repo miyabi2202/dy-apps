@@ -89,10 +89,15 @@ export class SongId {
     const start = now();
     const share = about ? othersShare(about.lines) : 0;
     const othersSang = share > OTHERS_SANG;
-    // The note goes after a message there is: an empty one (the same song as last time) stays empty.
+    // Marked for the intro; the note goes after a message there is: an empty one (the same song as
+    // last time) stays empty.
     const noted = (answer: SongAnswer): SongAnswer =>
-      othersSang && othersNote && answer.message
-        ? { ...answer, message: `${answer.message}${othersNote()}` }
+      othersSang
+        ? {
+            ...answer,
+            othersSang,
+            ...(othersNote && answer.message && { message: `${answer.message}${othersNote()}` }),
+          }
         : answer;
     if (about) {
       const sung = about.lines.filter(isSung);
@@ -119,6 +124,7 @@ export class SongId {
           sure: guess.sure,
           title: guess.title,
           artist: guess.artist,
+          artistBy: guess.artistBy,
           artistShare: guess.artistShare,
           queries: guess.queries.length,
           top: guess.candidates.map((c) => `${c.title} ${c.score}`),

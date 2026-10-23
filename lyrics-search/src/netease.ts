@@ -11,7 +11,14 @@ interface NeteaseSong {
   id?: number;
   ar?: { name?: string }[] | null;
   pop?: number | null;
+  /** 1 an original, 2 a cover; 0 and the rest unknown. */
+  originCoverType?: number | null;
+  /** On a cover, the song it covers, when NetEase links one. */
+  originSongSimpleData?: { name?: string; artists?: { name?: string }[] | null } | null;
 }
+
+const names = (artists: { name?: string }[] | null | undefined): string[] =>
+  (artists ?? []).flatMap((a) => (a.name ? [a.name] : []));
 
 /** The songs of a search response; a failed one (`code` not 200) throws. */
 export function parseLyricsResponse(body: unknown): Hit[] {
@@ -22,9 +29,17 @@ export function parseLyricsResponse(body: unknown): Hit[] {
       ? [
           {
             title: song.name,
-            artists: (song.ar ?? []).flatMap((a) => (a.name ? [a.name] : [])),
+            artists: names(song.ar),
             pop: song.pop ?? 0,
             ...(song.id === undefined ? {} : { id: song.id }),
+            ...(song.originCoverType === 1 && { cover: false }),
+            ...(song.originCoverType === 2 && { cover: true }),
+            ...(song.originSongSimpleData?.name && {
+              coverOf: {
+                title: song.originSongSimpleData.name,
+                artists: names(song.originSongSimpleData.artists),
+              },
+            }),
           },
         ]
       : [],

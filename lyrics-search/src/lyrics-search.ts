@@ -1,4 +1,4 @@
-import { rankSingers, pickArtist } from './artist';
+import { markedSingers, pickArtist, pickOriginal, rankSingers } from './artist';
 import { CircuitBreaker, minGap } from './limits';
 import { neteaseClient } from './netease';
 import { displayTitle, normaliseTitle } from './normalise';
@@ -86,6 +86,7 @@ export class LyricsSearch {
         artists: rankSingers(hits)
           .slice(0, 3)
           .map((s) => s.artist),
+        ...markedSingers(hits),
       };
     });
     const winner = ranked[0];
@@ -103,7 +104,16 @@ export class LyricsSearch {
       const titleHits = (await this.client.searchTitle(guess.title).catch(() => [])).filter(
         (hit) => normaliseTitle(hit.title) === winner[0],
       );
-      const { artist, share } = pickArtist({ lyricHits, titleHits }, this.artistShare);
+      // NetEase's own marks first: a cover can lead the hits as often as not. Only on the versions
+      // whose lyrics matched: the title search also finds other songs by the same name (忘了).
+      const original = pickOriginal(winner[0], lyricHits);
+      const { artist, share } = original.artist
+        ? { artist: original.artist, share: original.share }
+        : pickArtist({ lyricHits, titleHits }, this.artistShare);
+      if (artist) guess.artistBy = original.artist ? 'marks' : 'share';
+      // The title search finds versions the lyrics search missed, with their marks: for the hints.
+      const [first] = candidates;
+      if (first) candidates[0] = { ...first, ...markedSingers([...lyricHits, ...titleHits]) };
       if (artist) guess.artist = artist;
       guess.artistShare = share;
     }

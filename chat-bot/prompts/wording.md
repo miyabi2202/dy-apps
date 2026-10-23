@@ -112,7 +112,7 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 ## song-candidates
 
-按歌词在网易云搜到的候选（不一定对，只作参考，仍要自己核对歌词；翻唱常排在原唱前面）：{{candidates}}
+按歌词在网易云搜到的候选（不一定对，只作参考，仍要自己核对歌词）：{{candidates}}。「原唱」「翻唱」是网易云自己的标注，大多可信：标了原唱的先按它核对，别把标了翻唱的人当成原唱；你查到的原唱和标的不一样时，比一比哪个版本发行得早再定。没标的不知道是原唱还是翻唱，网易云的搜索结果里翻唱常排在原唱前面。
 
 ## puzzle-failed
 

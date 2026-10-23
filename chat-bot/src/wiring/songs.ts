@@ -1,6 +1,7 @@
 import { AutoSongId, SONG_CHARS } from '../app/songs/auto-song-id';
 import { OnSing } from '../app/songs/on-sing';
 import { SongId } from '../app/songs/song-id';
+import { candidateHints } from '../core/songs/song-candidates';
 import { SongIntro } from '../app/songs/song-intro';
 import type { Container } from './container';
 import {
@@ -56,18 +57,7 @@ export function registerSongs(container: Container): void {
         found: ({ title, artist }) =>
           c.resolve(ROOM).wording('song-found', { title, artist: artist ? `${artist}的` : '' }),
         hints: (candidates) =>
-          c.resolve(ROOM).wording('song-candidates', {
-            candidates: candidates
-              .map(
-                (candidate) =>
-                  `《${candidate.title}》${
-                    candidate.artists.length
-                      ? `（${candidate.artists.slice(0, 2).join('、')}）`
-                      : ''
-                  }`,
-              )
-              .join('、'),
-          }),
+          c.resolve(ROOM).wording('song-candidates', { candidates: candidateHints(candidates) }),
         othersNote: () => c.resolve(ROOM).wording('song-others'),
         onTold: (song) => void songIntro.introduce(song),
         // Too little sung to go on: said so, without asking Codex (see wording.md).

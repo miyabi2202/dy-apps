@@ -26,6 +26,16 @@ describe('LyricsSearch.identify', () => {
     });
   });
 
+  it("names the original from NetEase's marks when the hits don't name one, and marks the candidates", async () => {
+    const song = recorded('遇萤');
+    const search = new LyricsSearch({ fetch: recordedFetch(song), limit: noLimit });
+    const guess = await search.identify(song.lines);
+    // Covers outnumber it: by share alone no one is named, and Codex named 只有影子, a cover.
+    expect(guess).toMatchObject({ title: '遇萤', sure: true, artist: 'CRITTY', artistBy: 'marks' });
+    expect(guess.candidates[0]!.originals[0]).toBe('CRITTY');
+    expect(guess.candidates[0]!.covers).toContain('只有影子');
+  });
+
   it('is unsure, with candidates, when the lines do not agree', async () => {
     const song = recorded('晴天');
     // Only the first two lines are searched, and the answers of two different songs.
