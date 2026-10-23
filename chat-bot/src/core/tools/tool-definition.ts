@@ -1,7 +1,11 @@
 /** What a tool listens for in the room without an @, as tool.json writes it. */
 export interface ListenDefinition {
-  /** The sentence Jev judges each new line by: 在嫌主播讲的题太简单…. */
-  when: string;
+  /**
+   * The sentence Jev judges each new line by: 在嫌主播讲的题太简单…. Without it the tool listens
+   * for its `trigger` alone: a chat matching it is answered at once, and Jev and the picker never
+   * hear of the tool.
+   */
+  when?: string;
   /** What's said that's surely for it: auto-reply looks at once; null for none. */
   trigger: RegExp | null;
   /** A file in the room's folder of phrases (a song list's titles) that make auto-reply look at once too. */
@@ -59,7 +63,8 @@ const isText = (value: unknown): value is string => typeof value === 'string' &&
 /**
  * `json` (a parsed tool.json) as a ToolDefinition, or what's wrong with it. It holds `name`,
  * `description`, one of `guidance` and `fixedReply`, and optionally `adminOnly`, `only`, `except`
- * and `listen { when, trigger?, mentions? }`; a field it doesn't know is an error, since a typo
+ * and `listen { when?, trigger?, mentions? }` (a `trigger` alone, without `when`, is a tool that
+ * listens for nothing else); a field it doesn't know is an error, since a typo
  * in the repo should fail loudly. `{{streamerNames}}` in `description`, `listen.when` and
  * `listen.trigger` is what viewers call the streamer (see streamerNamesIn).
  */
@@ -123,7 +128,9 @@ function parseListen(listen: unknown, streamerNames: readonly string[]): ListenD
     return `listen has an unknown field "${unknown}" (use ${LISTEN_FIELDS.join(', ')})`;
   }
   const { when, trigger, mentions } = listen;
-  if (!isText(when)) return 'listen.when must be a non-empty string';
+  if (when !== undefined && !isText(when)) return 'listen.when must be a non-empty string';
+  if (when === undefined && trigger === undefined) return 'listen needs a when, or a trigger alone';
+  if (when === undefined && mentions !== undefined) return 'listen.mentions needs a when';
   let pattern: RegExp | null = null;
   if (trigger !== undefined) {
     try {
@@ -137,7 +144,7 @@ function parseListen(listen: unknown, streamerNames: readonly string[]): ListenD
     return 'listen.mentions must be a file inside the room folder';
   }
   return {
-    when: streamerNamesIn(when, streamerNames),
+    ...(when !== undefined && { when: streamerNamesIn(when, streamerNames) }),
     trigger: pattern,
     ...(mentions !== undefined && { mentions }),
   };

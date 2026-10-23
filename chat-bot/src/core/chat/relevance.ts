@@ -18,8 +18,11 @@ export interface RoomLine {
 
 /** What a tool listens for in the room without an @ (see BotTool.listen): Jev's question, and what makes auto-reply look at once. */
 export interface ToolListen {
-  /** The sentence Jev judges each new line by: 在问主播会不会唱某首歌…. */
-  when: string;
+  /**
+   * The sentence Jev judges each new line by: 在问主播会不会唱某首歌…. Without it, only a chat
+   * matching `trigger` is for the tool, and it's answered at once, without Jev or the picker.
+   */
+  when?: string;
   /** What's said that's surely for it: auto-reply looks at once. */
   trigger?: RegExp;
   /** Which of its phrases `text` contains (a song list's title), as they are now; null for none. */

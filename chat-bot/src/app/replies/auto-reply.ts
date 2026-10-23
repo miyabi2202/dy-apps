@@ -167,11 +167,17 @@ export class AutoReply {
     return this.options.topics?.() ?? [];
   }
 
+  /** The topics Jev is asked about and the picker told of: those with a `when`. */
+  private judgedTopics(): (ListenTopic & { when: string })[] {
+    return this.topics().filter((topic): topic is ListenTopic & { when: string } => !!topic.when);
+  }
+
   /**
    * A chat just came in. One calling the bot by its nickname or an alias, as written, is answered
    * at once, without the judge or the picker (Claude may still say nothing). One matching a tool's
    * listen trigger (主播会唱xxx吗) is surely for the bot, so it looks now instead of at the next
-   * check. The rest wait for it, so the room has time to answer.
+   * check; one matching the trigger of a tool that listens for nothing else (no `when`) is
+   * answered at once, like a name. The rest wait for it, so the room has time to answer.
    */
   hear({
     ts,
@@ -184,6 +190,15 @@ export class AutoReply {
     const name = line?.candidate ? matchChat(content, this.options.room.callNames()) : undefined;
     if (line && name !== undefined) {
       this.callsBot(line, name, { nickname, userId, question: content, heard: 'chat' });
+      return;
+    }
+    const triggered = this.topics()
+      .filter((topic) => !topic.when && topic.trigger?.test(content))
+      .map((topic) => topic.name);
+    if (line?.candidate && triggered.length) {
+      this.called.set(lineKey(line), line.ts);
+      this.options.log.info('trigger matched', { tools: triggered, who: line.who, text: content });
+      this.options.reply({ nickname, userId, question: content, heard: 'chat', topics: triggered });
       return;
     }
     if (!this.topics().some((topic) => matchFor(topic, content))) return;
@@ -340,7 +355,7 @@ export class AutoReply {
     topicsOf: Map<string, readonly string[]>;
   } | null> {
     const { judge, room, log } = this.options;
-    const topics = this.topics();
+    const topics = this.judgedTopics();
     if (!judge || !fresh.length) {
       return { about: [], toBot: [], sure: [], best: null, topicsOf: new Map() };
     }
@@ -454,7 +469,7 @@ export class AutoReply {
       (line) =>
         line.userId === undefined
           ? []
-          : this.topics()
+          : this.judgedTopics()
               .map((topic) => matchFor(topic, line.text))
               .filter((label): label is string => label !== null),
       room.timeZone(),
@@ -465,7 +480,7 @@ export class AutoReply {
       botName: room.botName,
       persona: room.persona,
       botTalk: room.botTalk(),
-      topics: this.topics().map(({ name, when, adminOnly }) => ({ name, when, adminOnly })),
+      topics: this.judgedTopics().map(({ name, when, adminOnly }) => ({ name, when, adminOnly })),
       aliases: room.aliases(),
     });
     let picks: ReplyPick[] | null;

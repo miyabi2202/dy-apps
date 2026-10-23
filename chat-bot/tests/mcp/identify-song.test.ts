@@ -113,7 +113,7 @@ test('what /识歌 says when too little is sung is the early wording', async () 
 
 test('listens for 「这是什么歌」 in its forms, and not for asking what the streamer can sing', () => {
   const { listen } = setup().tool;
-  expect(listen?.when.startsWith('在问现在正在唱的')).toBe(true);
+  expect(listen?.when?.startsWith('在问现在正在唱的')).toBe(true);
   for (const said of ['这是什么歌', 'bgm是什么', '求歌名'])
     expect(listen?.trigger?.test(said)).toBe(true);
   // The trigger's look-behinds keep 「会唱什么歌」 and 「点什么歌」 out.

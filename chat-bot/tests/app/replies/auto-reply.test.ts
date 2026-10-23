@@ -798,3 +798,37 @@ test('a sure line from the streamer is answered as theirs, and waits while the s
   await waiting.autoReply.run();
   expect(unknown).toEqual([]);
 });
+
+test('a chat matching the trigger of a tool with no when is answered at once, with the tool as a hint; Jev and the picker never hear of the tool', async () => {
+  const meme = { name: 'wuwa_meme', trigger: /[Bb]on voyage/ };
+  const ran = aliasSetup(
+    [
+      () => {
+        ran.call('苦***', 'Bon voyage～', '111111-苦***-31');
+        expect(ran.replies).toEqual([
+          {
+            nickname: '苦***',
+            userId: '111111-苦***-31',
+            question: 'Bon voyage～',
+            heard: 'chat',
+            topics: ['wuwa_meme'],
+          },
+        ]);
+        ran.call('阿明', '一路顺风', 'u-阿明');
+      },
+    ],
+    { picks: [{ line: 1, confidence: 0.9 }] },
+    {
+      topics: () => [meme, { name: 'can_sing', when: '在问主播会不会唱某首歌', trigger: /会唱/ }],
+      pickTemplate: () => '{{lines}}|{{topics}}',
+    },
+  );
+  await ran.autoReply.run();
+
+  // The check leaves the answered line out; what else was said is judged without the tool's topic.
+  expect(ran.judged).toEqual(['(1) 00:00:20 [阿明] 一路顺风']);
+  expect(ran.asked.map((q) => q.prompt).join()).not.toContain('wuwa_meme');
+  expect(ran.names('trigger matched')).toEqual([
+    { tools: ['wuwa_meme'], who: '苦***', text: 'Bon voyage～' },
+  ]);
+});

@@ -205,6 +205,7 @@ base: fairy
 2. **Jev** 给每条打分：是不是在跟机器人说话，以及对每个工具问一句「这条是不是 <listen.when>？」。有一项到阈值，或者匹配 `trigger`，就往下走；**说到机器人的分数超过 0.9** 的，直接让 Claude 回，不经过 Codex。
 3. **Codex**（`reply-pick.md`）看最近 40 行聊天、机器人最近说的话，和工具在听什么（每个有 `listen` 的工具一行 `- <名字>：<when>`），只决定回不回、回谁。它**看不到**工具的 guidance 和歌单。
    - 只因为某个工具的 `listen` 才送来的弹幕也可以回；Jev 没觉得是这条弹幕在跟机器人说话、也没对上任何工具的，Codex 挑了也会被程序丢掉。
+   - `listen` 只写了 `trigger`、没写 `when` 的工具（比如 `wuwa_meme`）不走 2、3 步：弹幕一匹配 `trigger` 就像叫了机器人名字一样马上交给 Claude（带这个工具的提示），Jev 和 Codex 都不知道这个工具；不受自动回复间隔限制，只看弹幕，不看主播说的话。
 4. **Claude** 带着工具回答。对上了某个工具 `listen` 的弹幕，`{{asked}}` 里会多一句「程序提示」，说这条可能和哪个工具有关；只是提示，Claude 自己决定调不调。它调用的工具要是有 `guidance`，工具的结果就是 guidance（歌单也在里面），Claude 在**同一次**回答里照着用自己的话回；要是 `fixedReply`，程序直接发这句话（工具回 `sent`），Claude 自己什么都不发。比如「虾虾会吃醋吗」：Claude 调了 `can_sing`，guidance 说歌单里没有这首、看上去不是在问歌就当没调用过，Claude 就照常回答这个问题（要是不是在跟机器人说话，就什么都不发）。
 
 **@ 了机器人**：
@@ -285,6 +286,7 @@ Love Story｜Taylor Swift｜英语
 - `tool definition {"name": …}`：启动时（和改了 `tool.json` 之后）加载了哪些工具；`room config` 里有打开的 `tools`
 - `looking now`：一条弹幕匹配了某个工具的 `listen.trigger` 或 `mentions`，马上去看了（只在 `logs/chat-bot.log` 里，机器人输出里没有）
 - `picked whom to answer`：Codex 挑了谁
+- `trigger matched`：一条弹幕匹配了只有 `trigger` 的工具，直接交给 Claude 了
 - `sure about the bot`：Jev 很确定是在跟机器人说话，没经过 Codex 直接回的
 - `mcp tool {"tool": "can_sing"}`：Claude 调用了这个工具
 - `tool guidance`、`fixed reply`、`skipped by user filter`：工具把 guidance 交给了 Claude、发了固定回复、因为用户过滤没动

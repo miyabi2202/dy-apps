@@ -100,7 +100,7 @@ export function loadToolDefinitions(
         ...(guidance && { guidance }),
         ...(listen && {
           listen: {
-            when: listen.when,
+            ...(listen.when !== undefined && { when: listen.when }),
             ...(listen.trigger && { trigger: listen.trigger }),
             ...(mentioned && { mentioned }),
           },

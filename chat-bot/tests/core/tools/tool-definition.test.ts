@@ -6,7 +6,7 @@ import {
   userMatches,
   type UserCondition,
 } from '../../../src/core/tools/tool-definition';
-import { parseToolDefinition } from '../../../src/core/tools/tool-definition';
+import { parseToolDefinition, type ToolDefinition } from '../../../src/core/tools/tool-definition';
 
 const CAN_SING = {
   name: 'can_sing',
@@ -74,9 +74,13 @@ test('it has a guidance file or a fixedReply, one of them, and the guidance file
   expect(parse({ ...CAN_SING, adminOnly: 'yes' })).toBe('adminOnly must be true or false');
 });
 
-test('listen needs its when, a trigger that compiles, and a mentions file inside the room folder', () => {
-  expect(parse({ ...CAN_SING, listen: { trigger: 'x' } })).toBe(
+test('listen needs a when or a trigger alone, a trigger that compiles, and a mentions file inside the room folder', () => {
+  expect(parse({ ...CAN_SING, listen: {} })).toBe('listen needs a when, or a trigger alone');
+  expect(parse({ ...CAN_SING, listen: { when: ' ', trigger: 'x' } })).toBe(
     'listen.when must be a non-empty string',
+  );
+  expect(parse({ ...CAN_SING, listen: { trigger: 'x', mentions: 't.txt' } })).toBe(
+    'listen.mentions needs a when',
   );
   expect(parse({ ...CAN_SING, listen: { when: 'w', trigger: '(' } })).toBe(
     'listen.trigger is not a regular expression: (',
@@ -87,6 +91,12 @@ test('listen needs its when, a trigger that compiles, and a mentions file inside
   expect(parse({ ...CAN_SING, listen: { when: 'w', level: 1 } })).toBe(
     'listen has an unknown field "level" (use when, trigger, mentions)',
   );
+});
+
+test('a trigger alone is a listen without a when', () => {
+  const tool = parse({ ...CAN_SING, listen: { trigger: '[Bb]on voyage' } });
+  expect(tool).toMatchObject({ listen: { trigger: /[Bb]on voyage/ } });
+  expect((tool as ToolDefinition).listen).not.toHaveProperty('when');
 });
 
 test('reads only and except: lists of conditions, each with a known field of the right type', () => {
