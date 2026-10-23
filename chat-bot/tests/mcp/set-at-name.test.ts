@@ -105,3 +105,9 @@ test('/叫我 takes the rest as the name, empty for the nickname, and says the m
     '好，以后 @阿拂',
   );
 });
+
+test('listens, with no trigger, for being asked to @ someone by another name, said to the bot only', () => {
+  const { listen } = setup().tool;
+  expect(listen?.when).toContain('要是在跟机器人说才算');
+  expect(listen?.trigger).toBeUndefined();
+});
