@@ -296,7 +296,12 @@ class LivePage implements RoomPage {
     } catch {
       throw new Error('找不到弹幕输入框（没有登录、被禁言，或者抖音改版了）');
     }
-    await input.click();
+    // A popup's mask can cover the box and take the click: a viewer's card, opened when the click
+    // that starts the player lands on a streamer's tile in a PK. Typing needs only the focus.
+    await input.click({ timeout: 3000 }).catch(async () => {
+      await this.page.keyboard.press('Escape').catch(() => {});
+      await input.focus();
+    });
     // What an earlier chat left behind would be sent with this one, so clear it first.
     await this.clearChatInput();
     await this.page.keyboard.insertText(text);
