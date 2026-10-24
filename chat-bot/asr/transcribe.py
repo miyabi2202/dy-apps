@@ -46,8 +46,21 @@ here, and only it is sent) and prints `{"music_id": 1, "title": "…", "artist":
 null when nothing matched, or `{"music_id": 1, "error": "…"}`. A song playing under the streamer's
 talk is usually still found; the streamer singing it themselves usually isn't.
 
+Two add-ons help the bot tell where one song ends and the next begins (see AddOns), each on unless
+turned off, and with both off the lines are as they were without them. BackingTitles
+(`--no-backing-title`): in Recordings' cycle the whole mix is looked up first, as Shazam names the
+backing track a streamer sings over, and a sung sentence carries what it found,
+`"backing": {"title": "…", "artist": "…", "at": <when it looked, Unix s>}` (null for none), held
+like `played`; the vocals are then
+looked up only when the mix matched a title they weren't looked up for yet. BackingGaps
+(`--no-backing-gaps`): while a sentence was sung in the last minute, every 15 s it prints how loud
+the backing (the mix minus Demucs' vocals) was each second,
+`{"backing_level": {"from": 1792131000.1, "to": 1792131015.1, "db": [-26.1, …]}}`, as a backing
+track stops between songs and plays on through the talk inside one; its split of the audio is shared
+with Recordings', so nothing is split twice.
+
     uv run transcribe.py [<stream url> | --serve PORT] [--device auto|cpu|mps|cuda] [--realtime] [--model-dir DIR]
-        [--lid-dir DIR] [--same-voice 0.6]
+        [--lid-dir DIR] [--same-voice 0.6] [--no-backing-title] [--no-backing-gaps]
 
 FireRedASR2-AED (4.7 GB) is downloaded into --model-dir and FireRedLID (3.5 GB) into --lid-dir on
 the first run, SenseVoiceSmall (0.9 GB) into FunASR's cache. They need a GPU (Apple's or CUDA) to
@@ -58,6 +71,7 @@ import argparse
 import asyncio
 import collections
 import contextlib
+import dataclasses
 import io
 import itertools
 import json
@@ -423,16 +437,20 @@ class Recordings:
     live). On the vocals it matched none of those 15 and 3 of 5 windows of the BGM playlist (a
     recording's vocals are its singer's, hers aren't). A match named as a backing track
     (BACKING_TRACK) still counts as singing. Looked up at most every PLAYED_CHECK_SECONDS while
-    sentences are sung, from the latest audio.
+    sentences are sung, from the latest audio. With `backing` (the BackingTitles add-on) the whole
+    mix is looked up first, and the vocals only for a title they weren't looked up for yet.
     """
 
-    def __init__(self, shazam: Shazam, separate, now=time.monotonic):
+    def __init__(self, shazam: Shazam, separate, now=time.monotonic, backing: "BackingTitles | None" = None):
         self.shazam = shazam
         self.separate = separate
         self.now = now
         self.checked_at: float | None = None
         self.sung_at: float | None = None
         self.playing: dict | None = None
+        # With BackingTitles (an add-on): the mix is looked up first, and the vocals only for a new title.
+        self.backing = backing
+        self.vocals_for: tuple[str, dict | None] | None = None  # (the mix's title, what its vocals were)
 
     def __call__(self, chunks: list[bytes]) -> dict | None:
         """The recording playing as a sentence was sung, `{"title", "artist"}`, or None."""
@@ -450,6 +468,18 @@ class Recordings:
     def lookup(self, chunks: list[bytes]) -> dict | None:
         if len(chunks) * CHUNK_MS < MIN_MUSIC_SECONDS * 1000:
             return None
+        if self.backing is not None:
+            mix = self.backing.lookup(as_wav(chunks))
+            if mix is None or BACKING_TRACK.search(mix["title"]):
+                return None  # nothing on the mix, so nothing on its vocals; or sung over a backing track
+            if self.vocals_for is not None and self.vocals_for[0] == bare_title(mix["title"]):
+                return self.vocals_for[1]  # this title's vocals were looked up already
+            played = self.lookup_vocals(chunks)
+            self.vocals_for = (bare_title(mix["title"]), played)
+            return played
+        return self.lookup_vocals(chunks)
+
+    def lookup_vocals(self, chunks: list[bytes]) -> dict | None:
         audio = np.frombuffer(b"".join(chunks), dtype=np.int16).astype(np.float32) / 32768
         vocals = (self.separate(audio) * 32768).clip(-32768, 32767).astype(np.int16).tobytes()
         try:
@@ -470,6 +500,176 @@ def played_track(track: dict | None) -> dict | None:
         return None
     log(f"played: {title} / {artist}")
     return {"title": title, "artist": artist}
+
+
+# --- Add-ons for telling songs apart (see AddOns); each is off with its flag, and then the worker
+# --- works as it did without them.
+
+# Shazam's version tags, dropped to tell whether two lookups named the same song (as displayTitle in
+# lyrics-search/: 「璀璨冒险人 (和声伴奏)」 is 「璀璨冒险人」).
+VERSION_TAG = re.compile(r"[（(\[【「《].*?[）)\]】」》]|\s*[-–—].*$")
+# Backing gaps: the backing's loudness is measured over blocks of this many seconds, while a
+# sentence was sung in the last BACKING_AROUND_SINGING_SECONDS (a longer pause in the singing ends
+# a song anyway, see currentSong in the bot).
+BACKING_BLOCK_SECONDS = 15
+BACKING_AROUND_SINGING_SECONDS = 60
+
+
+def bare_title(title: str) -> str:
+    return VERSION_TAG.sub("", title).strip() or title
+
+
+class BackingTitles:
+    """
+    The backing track a streamer sings over, as Shazam names it on the whole mix, an add-on to
+    Recordings' cycle (`--no-backing-title` turns it off). On a 75-minute show it named the backing
+    in 11 of 15 windows of live singing (and the recording, when one played); the bot takes its
+    title changing between lookups for a new song, and the same title across lookups for one song
+    (src/app/songs/shazam-breaks.ts). Recordings looks the mix up first, and the vocals only when
+    the mix matched a title it hasn't looked the vocals up for: if the mix doesn't match, its
+    vocals won't. What it found (`track`) holds until the next lookup, like `played`.
+    """
+
+    def __init__(self, shazam: Shazam, now=time.time):
+        self.shazam = shazam
+        self.now = now
+        self.track: dict | None = None
+
+    def lookup(self, wav: bytes) -> dict | None:
+        """Looks the mix up: `{"title", "artist", "at"}` (when, in Unix seconds), or None."""
+        at = round(self.now(), 2)
+        try:
+            found = asyncio.run(asyncio.wait_for(self.shazam.recognize(wav), PLAYED_TIMEOUT_SECONDS))
+            track = found.get("track")
+        except Exception as err:  # noqa: BLE001 - unknown is no backing, not fatal
+            log(f"backing: lookup failed: {str(err) or type(err).__name__}")
+            track = None
+        self.track = ({"title": track["title"], "artist": track.get("subtitle") or "", "at": at}
+                      if track and track.get("title") else None)
+        log(f"backing: {self.track and self.track['title']} / {self.track and self.track['artist']}")
+        return self.track
+
+
+class SeparatedStream:
+    """
+    The latest audio, and its vocals as Demucs splits them, each stretch split once however many
+    ask for it (BackingGaps' blocks, Recordings' vocals): what was split already is kept, and only
+    the rest is split, in one go. Holds as much as `recent` (MUSIC_SECONDS).
+    """
+
+    def __init__(self, separate, keep_chunks: int = MUSIC_SECONDS * 1000 // CHUNK_MS):
+        self.separate = separate
+        self.mix: collections.deque = collections.deque(maxlen=keep_chunks)
+        self.vocals: collections.deque = collections.deque(maxlen=keep_chunks)
+
+    def feed(self, raw: bytes) -> None:
+        self.mix.append(np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768)
+        self.vocals.append(None)
+
+    def latest(self, chunks: int) -> tuple[np.ndarray, np.ndarray]:
+        """The mix and the vocals of the latest `chunks` chunks."""
+        first = max(0, len(self.mix) - chunks)
+        i = first
+        while i < len(self.mix):
+            if self.vocals[i] is not None:
+                i += 1
+                continue
+            j = i
+            while j < len(self.mix) and self.vocals[j] is None:
+                j += 1
+            audio = np.concatenate([self.mix[k] for k in range(i, j)])
+            vocals = np.resize(self.separate(audio), len(audio)) if len(audio) else audio
+            at = 0
+            for k in range(i, j):
+                self.vocals[k] = vocals[at:at + len(self.mix[k])]
+                at += len(self.mix[k])
+            i = j
+        if first == len(self.mix):
+            return np.zeros(0, dtype=np.float32), np.zeros(0, dtype=np.float32)
+        return (np.concatenate([self.mix[k] for k in range(first, len(self.mix))]),
+                np.concatenate([self.vocals[k] for k in range(first, len(self.mix))]))
+
+    def vocals_of(self, audio: np.ndarray) -> np.ndarray:
+        """Recordings' `separate`: the vocals of `audio`, the latest audio (`recent`, fed alongside)."""
+        chunks = -(-len(audio) // (CHUNK_BYTES // 2))
+        return self.latest(chunks)[1][-len(audio):]
+
+
+class BackingGaps:
+    """
+    How loud the backing (the mix minus Demucs' vocals) is, second by second, around singing, an
+    add-on (`--no-backing-gaps`): a streamer's backing track stops between songs (for 3 s or more
+    on every song change of a 34-minute stretch but one) and plays on through the talk inside one,
+    which the bot reads as breaks and as one song (src/app/songs/backing-gap-breaks.ts). Every
+    BACKING_BLOCK_SECONDS of audio, while a sentence was sung in the last
+    BACKING_AROUND_SINGING_SECONDS, it prints
+    `{"backing_level": {"from": <unix s>, "to": <unix s>, "db": [<dBFS of each second>, …]}}`.
+    The split is SeparatedStream's, shared with Recordings. About 80 ms of an Apple GPU a second of
+    audio.
+    """
+
+    def __init__(self, stream: SeparatedStream, emit=print_line, now=time.time):
+        self.stream = stream
+        self.emit = emit
+        self.now = now
+        self.fed = 0
+        self.sung_at: float | None = None
+
+    def sung(self) -> None:
+        self.sung_at = self.now()
+
+    def feed(self) -> None:
+        """After each chunk the stream was fed."""
+        self.fed += 1
+        if self.fed * CHUNK_MS < BACKING_BLOCK_SECONDS * 1000:
+            return
+        self.fed = 0
+        now = self.now()
+        if self.sung_at is None or now - self.sung_at > BACKING_AROUND_SINGING_SECONDS:
+            return
+        mix, vocals = self.stream.latest(BACKING_BLOCK_SECONDS * 1000 // CHUNK_MS)
+        backing = mix - vocals
+        seconds = len(backing) // RATE
+        rms = np.sqrt((backing[: seconds * RATE].reshape(seconds, RATE) ** 2).mean(1))
+        db = [round(float(x), 1) for x in 20 * np.log10(rms + 1e-6)]
+        self.emit({"backing_level": {"from": round(now - seconds, 2), "to": round(now, 2), "db": db}})
+
+
+@dataclasses.dataclass(frozen=True)
+class AddOnFlags:
+    """Which add-ons run (see AddOns): all, unless turned off on the command line."""
+
+    backing_title: bool = True
+    backing_gaps: bool = True
+
+
+class AddOns:
+    """
+    The add-ons that help the bot tell where one song ends and the next begins, each on unless its
+    flag turns it off (`--no-backing-title`, `--no-backing-gaps`); with both off, the worker's lines
+    are as they were without them. listen() calls `feed` with each chunk read, and `on_line` with
+    each sentence before it's printed.
+    """
+
+    def __init__(self, backing_title: bool, backing_gaps: bool, shazam: Shazam, separator, emit=print_line):
+        self.titles = BackingTitles(shazam) if backing_title else None
+        self.stream = SeparatedStream(separator) if backing_gaps else None
+        self.gaps = BackingGaps(self.stream, emit) if self.stream else None
+
+    def separate(self, separator):
+        """What Recordings splits the vocals with: the shared split when BackingGaps keeps one."""
+        return self.stream.vocals_of if self.stream else separator
+
+    def feed(self, raw: bytes) -> None:
+        if self.stream:
+            self.stream.feed(raw)
+            self.gaps.feed()
+
+    def on_line(self, line: dict, sung: bool) -> None:
+        if self.titles:
+            line["backing"] = self.titles.track if sung else None
+        if self.gaps and sung:
+            self.gaps.sung()
 
 
 class Stream:
@@ -530,7 +730,8 @@ def answer_music_requests(music: queue.Queue, recent: collections.deque) -> None
         answer_music(music_id, recent, shazam)
 
 
-def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, realtime: bool) -> int:
+def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, realtime: bool,
+           add_ons: AddOnFlags = AddOnFlags()) -> int:
     """Transcribes the stream at `url` until it ends or is stopped; returns ffmpeg's exit code."""
     vad, asr, lid, sensevoice, voice, voices, separator = models
     with stream.lock:
@@ -548,7 +749,9 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
         )
     log("listening")
     recent.clear()
-    recordings = Recordings(Shazam(language="zh-CN", endpoint_country="CN"), separator)
+    shazam = Shazam(language="zh-CN", endpoint_country="CN")
+    extras = AddOns(add_ons.backing_title, add_ons.backing_gaps, shazam, separator)
+    recordings = Recordings(shazam, extras.separate(separator), backing=extras.titles)
 
     cache: dict = {}
     vad_ms = 0  # audio the VAD has seen since its last reset
@@ -583,6 +786,7 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
             "voice": similarity,
             "played": played,
         }
+        extras.on_line(line, is_sung(speech, lang))
         print_line(line)
 
     while True:
@@ -590,6 +794,7 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
         if not raw:
             break
         recent.append(raw)
+        extras.feed(raw)
         chunk = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768
         buf = np.concatenate([buf, chunk])
         vad_ms += len(chunk) * 1000 // RATE
@@ -634,7 +839,12 @@ def main() -> None:
                         help="how close (0–1) a sentence's voiceprint must be to a voice heard before to count as it")
     parser.add_argument("--model-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedASR2-AED"))
     parser.add_argument("--lid-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedLID"))
+    parser.add_argument("--no-backing-title", action="store_true",
+                        help="don't name the backing track on the whole mix (BackingTitles)")
+    parser.add_argument("--no-backing-gaps", action="store_true",
+                        help="don't measure how loud the backing is around singing (BackingGaps)")
     args = parser.parse_args()
+    add_ons = AddOnFlags(backing_title=not args.no_backing_title, backing_gaps=not args.no_backing_gaps)
 
     # Listening before the models load: a bot that connects meanwhile waits in the backlog for
     # `ready`, and one that finds the port taken knows a service is there and doesn't start another.
@@ -652,15 +862,16 @@ def main() -> None:
     recent: collections.deque = collections.deque(maxlen=MUSIC_SECONDS * 1000 // CHUNK_MS)
 
     if args.url:
-        listen(args.url, models, recent, Stream(), args.realtime)
+        listen(args.url, models, recent, Stream(), args.realtime, add_ons)
     elif server:
         log(f"serving on 127.0.0.1:{args.serve}")
-        serve(server, models, recent, args.realtime)
+        serve(server, models, recent, args.realtime, add_ons)
     else:
-        session(sys.stdin, models, recent, args.realtime)
+        session(sys.stdin, models, recent, args.realtime, add_ons)
 
 
-def session(lines, models: tuple, recent: collections.deque, realtime: bool) -> None:
+def session(lines, models: tuple, recent: collections.deque, realtime: bool,
+            add_ons: AddOnFlags = AddOnFlags()) -> None:
     """
     One bot's session: says it's ready, then listens to each URL it sends (a newer one replaces
     the one playing) and says when a stream ended, and answers its music requests, until `lines`
@@ -676,11 +887,12 @@ def session(lines, models: tuple, recent: collections.deque, realtime: bool) -> 
         # A newer URL waiting means this one was replaced before it started.
         if not urls.empty():
             continue
-        code = listen(url, models, recent, stream, realtime)
+        code = listen(url, models, recent, stream, realtime, add_ons)
         print_line({"stream_ended": True, "code": code})
 
 
-def serve(server: socket.socket, models: tuple, recent: collections.deque, realtime: bool) -> None:
+def serve(server: socket.socket, models: tuple, recent: collections.deque, realtime: bool,
+          add_ons: AddOnFlags = AddOnFlags()) -> None:
     """
     Serves the same JSON lines over `server`, a local TCP socket, to one bot at a time, for good:
     the models and voiceprints stay loaded between bots, so a restarted bot is back in a moment.
@@ -696,7 +908,7 @@ def serve(server: socket.socket, models: tuple, recent: collections.deque, realt
             with conn, conn.makefile("r", encoding="utf-8", errors="replace") as lines:
                 sink = lambda text: conn.sendall(f"{text}\n".encode())  # noqa: E731
                 try:
-                    session(lines, models, recent, realtime)
+                    session(lines, models, recent, realtime, add_ons)
                 except OSError:
                     pass
         finally:

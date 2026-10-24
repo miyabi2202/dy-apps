@@ -12,7 +12,11 @@
   between the two; the same title across lookups is one song (a `same` span) from its first lookup
   to its last.
 - novelty (B): Foote's checkerboard novelty on per-second chroma + MFCC of the backing (the mix
-  minus Demucs' vocals, from backing-features.py), its peaks breaks, kept only near singing.
+  minus Demucs' vocals, from backing-features.py), its peaks breaks, kept only near singing. It
+  found nothing: song starts scored under peaks inside songs.
+- backing gaps (B'): the same backing's loudness, a second at a time, measured within a minute of
+  a sung line: quiet (some dB under its median over the minute before) for 3 s or more between two
+  sung lines is a break at the second; no such gap between them makes them one song (`same`).
 
 Combined as song-breaks.ts ranks them: shazam > novelty > pauses, a break counting unless a
 higher-ranked `same` span covers it. Each is scored on the stretch of live singing: a song start
@@ -256,13 +260,36 @@ def novelty_spans(feats, lines, half, threshold, near_s=30) -> list[dict]:
     return spans
 
 
-def quiet_runs(back_db: np.ndarray, quiet_db: float, min_s: int) -> list[tuple[float, float]]:
-    """Where the backing went quiet (under `quiet_db`) for `min_s` seconds or more, as unix times."""
+def measured(lines: list[dict], around_s: int = 60) -> np.ndarray:
+    """The seconds the worker measures the backing: within `around_s` after a sung line."""
+    out = np.zeros(int(END - T0) + 1, bool)
+    for line in lines:
+        if worker_sung(line):
+            a = int(line["end"] - T0)
+            out[a:a + around_s] = True
+    return out
+
+
+def relative_quiet(back_db: np.ndarray, seen: np.ndarray, under_db: float, over_s: int = 60) -> np.ndarray:
+    """Each second's quiet level: `under_db` under the median of the measured seconds in the minute before."""
+    out = np.full(len(back_db), -np.inf)
+    for i in range(len(back_db)):
+        if seen[i]:
+            before = back_db[max(0, i - over_s):i][seen[max(0, i - over_s):i]]
+            if len(before) >= 10:
+                out[i] = np.median(before) - under_db
+    return out
+
+
+def quiet_runs(back_db: np.ndarray, quiet_db, min_s: int) -> list[tuple[float, float]]:
+    """Where the backing went quiet (under `quiet_db`, one level or one a second) for `min_s` seconds or more."""
     runs, start = [], None
+    levels = np.broadcast_to(quiet_db, back_db.shape)
     for i, db in enumerate([*back_db, 0.0]):
-        if db < quiet_db and start is None:
+        quiet = i < len(back_db) and db < levels[i]
+        if quiet and start is None:
             start = i
-        elif db >= quiet_db and start is not None:
+        elif not quiet and start is not None:
             if i - start >= min_s:
                 runs.append((T0 + start, T0 + i))
             start = None
@@ -396,6 +423,15 @@ def main() -> None:
                 print(f"{'':28} before {hms(SINGING[0])}: {len(bgm(novelty))} novelty breaks near singing")
         back_db = 20 * np.log10(data["back_rms"] + 1e-6)
         print("\nbacking gaps (the backing track stopping between sung lines):")
+        seen = measured(lines)[:len(back_db)]
+        for under in (20, 25, 30):
+            relative = relative_quiet(back_db, seen, under)
+            for min_s in (3, 5):
+                gaps = gap_spans(back_db, lines, relative, min_s)
+                tag = f"{under}dB under median ≥{min_s}s"
+                show(f"gaps {tag}", score(breaks_of(gaps)))
+                show(f"shazam + gaps + pauses {tag}", score(breaks_of(combine([shazam, gaps, pauses]))))
+                print(f"{'':28} before {hms(SINGING[0])}: {len(bgm(gaps))} gap breaks")
         for quiet_db in (-40, -45, -50):
             for min_s in (3, 5, 8):
                 gaps = gap_spans(back_db, lines, quiet_db, min_s)
