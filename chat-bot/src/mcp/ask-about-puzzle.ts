@@ -1,13 +1,12 @@
 import type { EventBus } from '../app/event-bus';
 import type { Outbox } from '../app/replies/outbox';
 import { Pending } from '../app/pending';
-import type { AskModel, Log, SettingsStore, UserTalk } from '../app/ports';
+import type { AskModel, BotTool, Log, SettingsStore, UserTalk } from '../app/ports';
 import type { RoomState } from '../app/room/room-state';
 import type { SolveEffort } from '../core/commands/settings';
 import { errorMessage } from '../core/errors';
 import { MESSAGE_SCHEMA, parseMentionAnswer } from '../core/replies/mention-answer';
 import { answerBudget, replyMessages, singleBudget } from '../core/replies/reply';
-import type { BotTool } from './rpc';
 
 export interface AskAboutPuzzleOptions {
   /** Codex's gpt-6-astra with the zoom tool, for the effort the room is set to (see ASK_SOLVE): medium with 6 minutes, high with 10. */

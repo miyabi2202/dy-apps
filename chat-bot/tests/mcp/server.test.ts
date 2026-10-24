@@ -1,6 +1,5 @@
 import { request } from 'node:http';
-import type { ToolSession } from '../../src/app/ports';
-import type { BotTool } from '../../src/mcp/rpc';
+import type { BotTool, ToolSession } from '../../src/app/ports';
 import { BotMcpServer } from '../../src/mcp/server';
 import { silentLog } from '../support/fakes';
 

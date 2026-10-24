@@ -163,6 +163,12 @@ export default tseslint.config(
               message: 'Only the entry imports main.ts, cli-options.ts and wiring/.',
             },
             {
+              target: './app',
+              from: './mcp',
+              message:
+                'app never imports mcp: tools reach app through the interfaces in app/ports.ts.',
+            },
+            {
               target: './adapters',
               from: './app',
               except: ['./ports.ts'],

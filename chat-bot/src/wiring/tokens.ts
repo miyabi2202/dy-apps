@@ -13,7 +13,6 @@ import type { ChatBot } from '../app/replies/chat-bot';
 import type { EventBus } from '../app/event-bus';
 import type { GiftThanker } from '../app/replies/gift-thanker';
 import type { MaliceWatch } from '../app/replies/malice-watch';
-import type { BotTool } from '../mcp/rpc';
 import type { BotMcpServer } from '../mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { OnSing } from '../app/songs/on-sing';
@@ -25,6 +24,7 @@ import type { Outbox } from '../app/replies/outbox';
 import type {
   AskModel,
   BotTalk,
+  BotTool,
   DefinedTool,
   Judge,
   Log,

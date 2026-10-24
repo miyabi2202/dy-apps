@@ -1,8 +1,7 @@
 import type { Mention } from '../app/replies/mention-answerer';
-import type { DefinedTool, Log } from '../app/ports';
+import type { BotTool, DefinedTool, Log } from '../app/ports';
 import type { RoomState } from '../app/room/room-state';
 import { appliesTo } from '../core/tools/tool-definition';
-import type { BotTool } from './rpc';
 
 export interface DeclarativeToolsOptions {
   /** The definitions in src/mcp/tools/ as they are now (see liveToolDefinitions). */

@@ -2,10 +2,9 @@ import type { CommandCall } from '../../core/commands/command';
 import type { IncomingChat } from '../../core/chat/room-events';
 import { errorMessage } from '../../core/errors';
 import { DOUYIN_CHAT_LIMIT, replyMessages } from '../../core/replies/reply';
-import type { BotTool, ToolCommand, ToolResult } from '../../mcp/rpc';
 import type { Outbox } from '../replies/outbox';
 import { Pending } from '../pending';
-import type { Log } from '../ports';
+import type { BotTool, Log, ToolCommand, ToolResult } from '../ports';
 import type { RoomState } from '../room/room-state';
 
 export interface ToolRunnerOptions {

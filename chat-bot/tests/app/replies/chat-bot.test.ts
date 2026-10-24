@@ -1,10 +1,17 @@
 import { ChatBot } from '../../../src/app/replies/chat-bot';
 import { MentionAnswerer } from '../../../src/app/replies/mention-answerer';
 import { RoomFeed } from '../../../src/app/room/room-feed';
-import { newSession, type BotTool, type Session } from '../../../src/mcp/rpc';
+import { newSession, type Session } from '../../../src/mcp/rpc';
 import { declarativeTools } from '../../../src/mcp/declarative-tools';
 import { onOffTool } from '../../../src/mcp/setting-tools';
-import type { BotTools, DefinedTool, Log, Question, ToolContext } from '../../../src/app/ports';
+import type {
+  BotTool,
+  BotTools,
+  DefinedTool,
+  Log,
+  Question,
+  ToolContext,
+} from '../../../src/app/ports';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import type { IncomingChat } from '../../../src/core/chat/room-events';
 import { fakeRoom } from '../../support/fake-room';

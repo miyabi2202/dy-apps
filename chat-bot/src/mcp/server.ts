@@ -6,8 +6,8 @@ import {
   type ServerResponse,
 } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { BotTools, Log, ToolAccess, ToolContext, ToolSession } from '../app/ports';
-import { handleRpc, newSession, type BotTool, type RpcMessage, type Session } from './rpc';
+import type { BotTool, BotTools, Log, ToolAccess, ToolContext, ToolSession } from '../app/ports';
+import { handleRpc, newSession, type RpcMessage, type Session } from './rpc';
 
 export interface BotMcpServerOptions {
   /** The bot's tools as they are now: a room's own change with its files, so each session reads them again. */

@@ -1,5 +1,4 @@
-import type { Log } from '../app/ports';
-import type { BotTool } from './rpc';
+import type { BotTool, Log } from '../app/ports';
 
 export interface OnOffToolOptions {
   /** The tool's name: `set_screenshots`. */

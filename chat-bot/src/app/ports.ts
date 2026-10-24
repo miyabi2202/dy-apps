@@ -117,6 +117,48 @@ export interface ToolContext {
   viewer?: Viewer;
 }
 
+/** What a tool answers: text for Claude to read. */
+export interface ToolResult {
+  text: string;
+  isError?: boolean;
+}
+
+/** A `/` command that calls a tool directly, with no model, as `@机器人/自动谢礼 100` does. */
+export interface ToolCommand {
+  /** The name typed after the slash: 自动谢礼. */
+  name: string;
+  /**
+   * The text after the name as the tool's arguments, or `usage`, what to say back when it isn't
+   * right (「阈值要写成钻石数，用法：/自动谢礼 100」).
+   */
+  parse(args: string): { args: Record<string, unknown> } | { usage: string };
+  /**
+   * What the bot says back to the asker for a typed `/`, from the tool's result (JSON written for
+   * Claude) and the arguments; empty for nothing (the tool spoke for itself).
+   */
+  say(result: ToolResult, args: Record<string, unknown>): string;
+}
+
+/** A tool the bot offers Claude while it answers an @. */
+export interface BotTool {
+  name: string;
+  /** Tells Claude when to call it, in Chinese like the prompts. */
+  description: string;
+  /** The JSON Schema of its arguments. */
+  inputSchema: object;
+  /** Offered only when an admin (or the streamer) asks; anyone else's session doesn't have it. */
+  adminOnly?: boolean;
+  /** The `/` commands that call it directly, typed after an @ of the bot; usually one, none for a tool only Claude calls. */
+  commands?: readonly ToolCommand[];
+  /**
+   * What it listens for in the room without an @: `when` is the question Jev scores each new line
+   * by, and `trigger` / `mentioned` make auto-reply look at once. The picker is told the topic, and
+   * a line that matched reaches Claude with a hint naming this tool.
+   */
+  listen?: ToolListen;
+  call(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult>;
+}
+
 /** One tool call Claude made while answering, for the log. */
 export interface ToolCall {
   tool: string;

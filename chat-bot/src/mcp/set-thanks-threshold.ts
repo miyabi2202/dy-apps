@@ -1,6 +1,5 @@
 import type { GiftThanker } from '../app/replies/gift-thanker';
-import type { Log } from '../app/ports';
-import type { BotTool } from './rpc';
+import type { BotTool, Log } from '../app/ports';
 import { numberTool } from './setting-tools';
 
 /** The threshold that leaves gifts unthanked, as `/自动谢礼 99999` does. */

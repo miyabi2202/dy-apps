@@ -1,7 +1,6 @@
-import type { Log } from '../app/ports';
+import type { BotTool, Log } from '../app/ports';
 import type { RoomState } from '../app/room/room-state';
 import { atName } from '../core/replies/reply';
-import type { BotTool } from './rpc';
 
 /** The longest name the bot @s someone as. */
 const MAX_NAME = 12;

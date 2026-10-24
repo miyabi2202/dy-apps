@@ -1,7 +1,6 @@
 import { errorMessage } from '../core/errors';
 import type { MusicMatch } from '../core/songs/music';
-import type { Log } from '../app/ports';
-import type { BotTool } from './rpc';
+import type { BotTool, Log } from '../app/ports';
 
 /**
  * `identify_bgm`: the music playing in the stream's background, by its audio fingerprint, for

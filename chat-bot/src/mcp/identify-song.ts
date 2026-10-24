@@ -1,8 +1,7 @@
-import type { Log } from '../app/ports';
+import type { BotTool, Log } from '../app/ports';
 import type { RoomState } from '../app/room/room-state';
 import type { SongId } from '../app/songs/song-id';
 import { currentSong } from '../core/songs/transcript';
-import type { BotTool } from './rpc';
 
 export interface IdentifySongOptions {
   songId: Pick<SongId, 'prompt' | 'identifyLines' | 'told' | 'lastTold'>;

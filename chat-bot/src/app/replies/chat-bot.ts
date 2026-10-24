@@ -3,11 +3,10 @@ import { parseCommand } from '../../core/commands/command';
 import type { ChatLine, IncomingChat } from '../../core/chat/room-events';
 import type { Heard } from '../../core/prompts/prompt';
 import { ToolRunner } from '../tools/tool-runner';
-import type { BotTool } from '../../mcp/rpc';
 import type { EventBus } from '../event-bus';
 import type { Mention, MentionAnswerer, UnpromptedReply } from './mention-answerer';
 import type { Outbox } from './outbox';
-import type { Admins, Log } from '../ports';
+import type { Admins, BotTool, Log } from '../ports';
 import type { RoomFeed } from '../room/room-feed';
 import type { RoomState } from '../room/room-state';
 
