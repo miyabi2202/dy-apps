@@ -1,12 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Log, OnSingConfig } from '../../app/ports';
+import type { Log } from '../../app/ports';
 import { errorMessage } from '../../core/errors';
-import { composePersona, parsePersonaFile } from '../../core/prompts/persona';
-import type { Alias } from '../../core/viewers/alias';
-import { DEFAULT_TIME_ZONE, isTimeZone } from '../../core/prompts/local-time';
-import { SETTING_DEFAULTS, settingsFrom, type Settings } from '../../core/commands/settings';
-import { wordingOf, type Wording } from '../../core/prompts/wording';
+import { DEFAULT_ROOM_CONFIG, roomConfigFrom, type RoomConfig } from '../../core/room/room-config';
+import type { Settings } from '../../core/commands/settings';
 import { writeTextAtomic } from './atomic-file';
 
 /** The files someone can edit for one room, to change the bot there while it runs. */
@@ -21,75 +18,16 @@ export interface RoomFiles {
   config: string;
 }
 
-/** What `room_config.json` says about a room. */
-export interface RoomConfig extends Settings {
-  /** A 私密 room: its viewers hide who they are, and come in under one shared user id. */
-  private: boolean;
-  /** What the bot says, now and then, as the streamer starts a song (`on_sing`); none when absent. */
-  onSing?: OnSingConfig;
-  /**
-   * Other names viewers and the streamer call the bot (`aliases`), each with how speech
-   * recognition may write it besides.
-   */
-  aliases: Alias[];
-  /** What viewers call the streamer (`streamerNames`), for a tool's `{{streamerNames}}`. */
-  streamerNames: string[];
-  /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`): 单推符号. */
-  atTrimStart: string[];
-  /** What the bot @s a viewer as instead of their nickname (`atNames`), by user id: `{ "103094206072": "阿拂" }`. */
-  atNames: Record<string, string>;
-  /**
-   * Where the streamer is (`timeZone`, an IANA name like `Asia/Shanghai`): every time the models
-   * and the records show is in it. Beijing time when not known.
-   */
-  timeZone: string;
-  /** The declarative tools switched on here (`tools`), by name: `["can_sing", "too_easy"]`; the built-in tools need no listing. */
-  tools: string[];
-  /**
-   * The song break sources on here (`songBreaks`), by name (`lyrics`, `shazam`, `backingGaps`): `["lyrics"]`, or `[]` for only pauses
-   * and talk; every one there is when absent.
-   */
-  songBreaks?: string[];
-  /**
-   * The file in the room's folder (`persona`, like `personas/fairy.md`) that says who the bot
-   * plays there, see livePersona; none when the bot has no persona there.
-   */
-  persona?: string;
-}
-
 /** The room's streamer, which the bot writes into `room_config.json` once it knows. */
 export interface Streamer {
   uid: string;
   nickname: string;
 }
 
-const DEFAULT_ROOM_CONFIG: RoomConfig = {
-  private: false,
-  aliases: [],
-  streamerNames: [],
-  atTrimStart: [],
-  atNames: {},
-  timeZone: DEFAULT_TIME_ZONE,
-  tools: [],
-  ...SETTING_DEFAULTS,
-};
-
-/** Every field a room's room_config.json is filled in with (see fillRoomConfig), and its default. */
-const ROOM_FIELDS = {
-  private: false,
-  aliases: [],
-  streamerNames: [],
-  atTrimStart: [],
-  atNames: {},
-  timeZone: DEFAULT_TIME_ZONE,
-  tools: [],
-  ...SETTING_DEFAULTS,
-};
-
 /**
  * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/`): an empty `context.md`
  * and a default `room_config.json` created when missing, `bot_logs.md`, and a `<user id>/` folder
- * for each viewer the bot talked with. The prompts are shared by every room (see PROMPT_FILES); a room
+ * for each viewer the bot talked with. The prompts are shared by every room (see PROMPT_FILES in prompt-files.ts); a room
  * only has its own when someone puts one there to override it.
  */
 export function roomFiles(dir: string): RoomFiles {
@@ -126,66 +64,13 @@ export function roomConfigFile(
     write?: (path: string, text: string) => void;
   },
 ): { get(): RoomConfig; update(patch: Record<string, unknown>): void } {
-  let config = DEFAULT_ROOM_CONFIG;
+  let config: RoomConfig = DEFAULT_ROOM_CONFIG;
   let seen: string | null = null;
   const load = (text: string) => {
     seen = text;
     const raw = JSON.parse(text) as Record<string, unknown>;
-    // Each field is checked on its own: a bad one keeps its last good value, so a typo in one
-    // setting can't, say, turn a 私密 room's `private` off with it.
     const problems: string[] = [];
-    const field = <T>(name: string, parse: () => T, last: T): T => {
-      try {
-        return parse();
-      } catch (err) {
-        problems.push(`${name}: ${errorMessage(err)}`);
-        return last;
-      }
-    };
-    const isPrivate = field(
-      'private',
-      () => {
-        const value = raw.private ?? false;
-        if (typeof value !== 'boolean') throw new Error('must be true or false');
-        return value;
-      },
-      config.private,
-    );
-    const onSing = field(
-      'on_sing',
-      () => (raw.on_sing === undefined ? undefined : onSingConfig(raw.on_sing)),
-      config.onSing,
-    );
-    const songBreaks = field(
-      'songBreaks',
-      () =>
-        raw.songBreaks === undefined
-          ? undefined
-          : nameList(raw.songBreaks, 'songBreaks', '["lyrics"]'),
-      config.songBreaks,
-    );
-    const persona = field(
-      'persona',
-      () => (raw.persona === undefined ? undefined : personaPath(raw.persona)),
-      config.persona,
-    );
-    config = {
-      private: isPrivate,
-      ...(onSing && { onSing }),
-      ...(persona && { persona }),
-      ...(songBreaks && { songBreaks }),
-      aliases: field('aliases', () => aliasList(raw.aliases), config.aliases),
-      streamerNames: field(
-        'streamerNames',
-        () => nameList(raw.streamerNames, 'streamerNames', '["茜茜", "茜颜"]'),
-        config.streamerNames,
-      ),
-      atTrimStart: field('atTrimStart', () => prefixList(raw.atTrimStart), config.atTrimStart),
-      atNames: field('atNames', () => atNameMap(raw.atNames), config.atNames),
-      timeZone: field('timeZone', () => timeZoneOf(raw.timeZone), config.timeZone),
-      tools: field('tools', () => toolList(raw.tools), config.tools),
-      ...settingsFrom(raw, config, problems),
-    };
+    config = roomConfigFrom(raw, config, problems);
     if (problems.length)
       log.warn('room_config.json has bad values, keeping their last ones', { problems });
     log.info('room config', { ...config });
@@ -220,7 +105,7 @@ export function roomConfigFile(
 }
 
 /**
- * Fills in `room_config.json` at start so it has every field (see ROOM_FIELDS): one that's missing
+ * Fills in `room_config.json` at start so it has every field (see DEFAULT_ROOM_CONFIG): one that's missing
  * is written with the command-line option `given` for it, else its default. One that's there wins
  * over an option (the file is the room's memory: a restart with other options keeps it), with a
  * warning when a given option differs. Other fields (`on_sing`, `download`, `streamer`…) stay as they
@@ -248,7 +133,7 @@ export function fillRoomConfig(
     return;
   }
   const filled: Record<string, unknown> = { ...raw };
-  const defaults: Record<string, unknown> = { ...ROOM_FIELDS };
+  const defaults: Record<string, unknown> = { ...DEFAULT_ROOM_CONFIG };
   for (const [field, fallback] of Object.entries(defaults)) {
     const option = (given as Record<string, unknown>)[field];
     if (raw[field] === undefined) {
@@ -259,103 +144,6 @@ export function fillRoomConfig(
   }
   if (Object.keys(filled).length === Object.keys(raw).length) return;
   write(path, `${JSON.stringify(filled, null, 2)}\n`);
-}
-
-/** `timeZone` as a time zone this machine knows (Beijing time when absent), or an error. */
-function timeZoneOf(raw: unknown): string {
-  if (raw === undefined) return DEFAULT_TIME_ZONE;
-  if (typeof raw !== 'string' || !isTimeZone(raw)) {
-    throw new Error('timeZone must be a time zone like "Asia/Shanghai" or "America/New_York"');
-  }
-  return raw;
-}
-
-/** `atTrimStart` as a list of prefixes (none when absent), or an error saying what's wrong with it. */
-function prefixList(raw: unknown): string[] {
-  if (raw === undefined) return [];
-  if (!Array.isArray(raw) || !raw.every((prefix) => typeof prefix === 'string')) {
-    throw new Error('atTrimStart must be a list of what to take off nicknames, like ["⊹꙳𝝑"]');
-  }
-  return raw.filter((prefix) => prefix.trim());
-}
-
-/**
- * `aliases` as a list of Alias (none when absent), or an error saying what's wrong with it: each
- * `{ "name": "Fairy", "heardAs": ["ferry"] }`, `heardAs` [] when left out.
- */
-function aliasList(raw: unknown): Alias[] {
-  if (raw === undefined) return [];
-  const wrong = () =>
-    new Error(
-      'aliases must be a list like [{ "name": "Fairy", "heardAs": ["ferry"] }, { "name": "菲瑞", "heardAs": [] }]',
-    );
-  if (!Array.isArray(raw)) throw wrong();
-  return raw.flatMap((item: unknown): Alias[] => {
-    if (typeof item !== 'object' || item === null) throw wrong();
-    const { name, heardAs = [] } = item as Record<string, unknown>;
-    if (typeof name !== 'string' || !Array.isArray(heardAs)) throw wrong();
-    if (!heardAs.every((form) => typeof form === 'string')) throw wrong();
-    const forms = heardAs.map((form: string) => form.trim()).filter(Boolean);
-    return name.trim() ? [{ name: name.trim(), heardAs: forms }] : [];
-  });
-}
-
-/** A list of names (none when absent), or an error saying the field `name` should be like `example`. */
-function nameList(raw: unknown, name: string, example: string): string[] {
-  if (raw === undefined) return [];
-  if (!Array.isArray(raw) || !raw.every((item) => typeof item === 'string')) {
-    throw new Error(`${name} must be a list of names, like ${example}`);
-  }
-  return raw.map((item) => item.trim()).filter(Boolean);
-}
-
-/** `atNames` as names by user id (none when absent), or an error saying what's wrong with it. */
-function atNameMap(raw: unknown): Record<string, string> {
-  if (raw === undefined) return {};
-  if (
-    typeof raw !== 'object' ||
-    raw === null ||
-    Array.isArray(raw) ||
-    !Object.values(raw).every((name) => typeof name === 'string')
-  ) {
-    throw new Error('atNames must be names by user id, like { "103094206072": "阿拂" }');
-  }
-  return Object.fromEntries(
-    Object.entries(raw as Record<string, string>)
-      .map(([userId, name]): [string, string] => [userId.trim(), name.trim()])
-      .filter(([userId, name]) => userId && name),
-  );
-}
-
-/** `tools` as a list of tool names (none when absent), or an error saying what's wrong with it. */
-function toolList(raw: unknown): string[] {
-  if (raw === undefined) return [];
-  const names = nameList(raw, 'tools', '["can_sing", "too_easy"]');
-  if (!names.every((name) => /^[a-z][a-z0-9_]*$/.test(name))) {
-    throw new Error('tools must be a list of tool names, like ["can_sing", "too_easy"]');
-  }
-  return names;
-}
-
-/** `persona` as a path inside the room's folder, or an error saying what's wrong with it. */
-function personaPath(raw: unknown): string {
-  const parts = typeof raw === 'string' ? raw.trim().split(/[/\\]/) : [];
-  if (!parts.length || !parts.every((part) => part && part !== '.' && part !== '..')) {
-    throw new Error('persona must be a file in the room\'s folder, like "personas/fairy.md"');
-  }
-  return parts.join('/');
-}
-
-/** `on_sing` as a OnSingConfig, or an error saying what's wrong with it. */
-function onSingConfig(raw: unknown): OnSingConfig {
-  const { message, probability } = (raw ?? {}) as Record<string, unknown>;
-  if (typeof message !== 'string' || !message.trim()) {
-    throw new Error('on_sing.message must be some text');
-  }
-  if (typeof probability !== 'number' || !(probability >= 0 && probability <= 1)) {
-    throw new Error('on_sing.probability must be a number from 0 to 1');
-  }
-  return { message, probability };
 }
 
 /**
@@ -377,128 +165,4 @@ export function saveStreamer(
   } catch (err) {
     log.warn('could not write the streamer into room_config.json', { error: errorMessage(err) });
   }
-}
-
-/**
- * The prompt files in chat-bot/prompts/, by what they're for. A room overrides one with a file of the same
- * name in its folder, with `_` for `-`: `song-id.md` by `song_id.md`.
- */
-export const PROMPT_FILES = {
-  mention: 'prompt.md',
-  replyPick: 'reply-pick.md',
-  songId: 'song-id.md',
-  giftThanks: 'gift-thanks.md',
-  songIntro: 'song-intro.md',
-  solve: 'solve.md',
-  malice: 'malice.md',
-} as const;
-
-export type PromptName = keyof typeof PROMPT_FILES;
-
-/**
- * The prompt `name`, read on every call so edits apply at once: the room's own file in `roomDir`
- * when there is one, else the shared one in `promptsDir` (or `sharedPath`, for a prompt the command
- * line points elsewhere). Without `roomDir` the prompt has no room override. The shared file is read
- * once now, so a missing one stops the bot at start; it's also the text used if the shared file
- * can't be read later.
- */
-export function livePrompt(
-  name: PromptName,
-  {
-    promptsDir,
-    roomDir,
-    sharedPath,
-  }: { promptsDir: string; roomDir?: string; sharedPath?: string },
-): () => string {
-  const file = PROMPT_FILES[name];
-  const shared = sharedPath ?? join(promptsDir, file);
-  const first = readFileSync(shared, 'utf8');
-  const sharedText = liveText(shared, () => first);
-  if (!roomDir) return sharedText;
-  return liveText(join(roomDir, file.replaceAll('-', '_')), sharedText);
-}
-
-/**
- * Reads `path` each time it's called, so edits apply at once; `fallback` when it can't be read
- * (deleted, say).
- */
-export function liveText(path: string, fallback: () => string = () => ''): () => string {
-  return () => {
-    try {
-      return readFileSync(path, 'utf8');
-    } catch {
-      return fallback();
-    }
-  };
-}
-
-/**
- * Who the bot plays in the room, read on every call so edits apply at once: the file `file()` names
- * in `roomDir` (room_config.json's `persona`), after its header (see parsePersonaFile). With a
- * `base` there, the file is changes to `sharedDir/<base>.md` (see composePersona); either way its
- * `{{…}}`s are filled in from the header. A file or shared persona that can't be read, a header line
- * that can't, and a `{{…}}` with no value are each warned about once: the bot then plays what's left
- * (nothing, the room's changes alone, the blank as it is).
- */
-export function livePersona({
-  roomDir,
-  sharedDir,
-  file,
-  log,
-}: {
-  roomDir: string;
-  sharedDir: string;
-  file: () => string | undefined;
-  log: Log;
-}): () => string {
-  const warned = new Set<string>();
-  const warnOnce = (message: string, fields: Record<string, unknown>) => {
-    const key = `${message} ${JSON.stringify(fields)}`;
-    if (warned.has(key)) return;
-    warned.add(key);
-    log.warn(message, fields);
-  };
-  const read = (path: string, problem: string): string | null => {
-    try {
-      return readFileSync(path, 'utf8');
-    } catch (err) {
-      warnOnce(problem, { path, error: errorMessage(err) });
-      return null;
-    }
-  };
-  return () => {
-    const name = file();
-    if (!name) return '';
-    const text = read(join(roomDir, name), 'could not read the persona file, playing no persona');
-    if (text === null) return '';
-    const { base, vars, body, problems } = parsePersonaFile(text);
-    if (problems.length) {
-      warnOnce('the persona file has header lines it could not read', { file: name, problems });
-    }
-    const shared =
-      base === undefined
-        ? null
-        : read(
-            join(sharedDir, `${base}.md`),
-            "could not read the shared persona, using the room's changes alone",
-          );
-    const composed = composePersona({ shared, room: body, vars });
-    if (composed.missing.length) {
-      warnOnce('the persona has {{…}}s with no value in its header', {
-        file: name,
-        missing: composed.missing,
-      });
-    }
-    return composed.text;
-  };
-}
-
-/**
- * The wording in `path` (wording.md), read on every use like a prompt so edits apply at once. The
- * file is read once now, so a missing one stops the bot at start; it's also the text used if it
- * can't be read later.
- */
-export function liveWording(path: string): Wording {
-  const first = readFileSync(path, 'utf8');
-  return wordingOf(liveText(path, () => first));
 }

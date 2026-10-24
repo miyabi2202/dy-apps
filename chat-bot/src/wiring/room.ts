@@ -3,13 +3,10 @@ import { forbiddenWordsOf } from '../core/prompts/forbidden';
 import { join, resolve } from 'node:path';
 import { ChatLog, RecordFile } from '../adapters/files/chat-log-files';
 import { liveAdmins, readConfig } from '../adapters/files/config-file';
+import { livePersona, livePrompt, liveText, liveWording } from '../adapters/files/prompt-files';
 import {
   fillRoomConfig,
   roomConfigFile,
-  livePersona,
-  livePrompt,
-  liveText,
-  liveWording,
   roomFiles,
   saveStreamer,
 } from '../adapters/files/room-files';

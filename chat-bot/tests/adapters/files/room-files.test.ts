@@ -1,14 +1,8 @@
 import { SETTING_DEFAULTS } from '../../../src/core/commands/settings';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  livePersona,
-  livePrompt,
-  roomConfigFile,
-  roomFiles,
-  saveStreamer,
-} from '../../../src/adapters/files/room-files';
+import { roomConfigFile, roomFiles, saveStreamer } from '../../../src/adapters/files/room-files';
 
 test('room_config.json starts not private, and is read again as it changes', () => {
   const { config } = roomFiles(mkdtempSync(join(tmpdir(), 'room-files-')));
@@ -123,58 +117,6 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
   expect(log.warn).toHaveBeenCalled();
 });
 
-describe('livePrompt', () => {
-  const dirs = () => ({
-    promptsDir: mkdtempSync(join(tmpdir(), 'prompts-')),
-    roomDir: mkdtempSync(join(tmpdir(), 'room-')),
-  });
-
-  test("the room's own file, named with underscores, wins over the shared one", () => {
-    const { promptsDir, roomDir } = dirs();
-    writeFileSync(join(promptsDir, 'song-id.md'), 'shared');
-    const prompt = livePrompt('songId', { promptsDir, roomDir });
-    expect(prompt()).toBe('shared');
-
-    writeFileSync(join(roomDir, 'song_id.md'), 'room');
-    expect(prompt()).toBe('room');
-
-    rmSync(join(roomDir, 'song_id.md'));
-    expect(prompt()).toBe('shared');
-  });
-
-  test('edits to the shared file are picked up', () => {
-    const { promptsDir, roomDir } = dirs();
-    writeFileSync(join(promptsDir, 'gift-thanks.md'), 'one');
-    const prompt = livePrompt('giftThanks', { promptsDir, roomDir });
-    writeFileSync(join(promptsDir, 'gift-thanks.md'), 'two');
-    expect(prompt()).toBe('two');
-  });
-
-  test('a prompt without roomDir ignores room files, and sharedPath replaces the shared file', () => {
-    const { promptsDir, roomDir } = dirs();
-    writeFileSync(join(promptsDir, 'prompt.md'), 'shared');
-    writeFileSync(join(roomDir, 'prompt.md'), 'room');
-    writeFileSync(join(roomDir, 'mine.md'), 'mine');
-    expect(livePrompt('mention', { promptsDir })()).toBe('shared');
-    expect(livePrompt('mention', { promptsDir, sharedPath: join(roomDir, 'mine.md') })()).toBe(
-      'mine',
-    );
-  });
-
-  test('the shared file read at the start is used if it can no longer be read', () => {
-    const { promptsDir, roomDir } = dirs();
-    writeFileSync(join(promptsDir, 'song-intro.md'), 'first');
-    const prompt = livePrompt('songIntro', { promptsDir, roomDir });
-    rmSync(join(promptsDir, 'song-intro.md'));
-    expect(prompt()).toBe('first');
-  });
-
-  test('a missing shared file throws at construction', () => {
-    const { promptsDir, roomDir } = dirs();
-    expect(() => livePrompt('replyPick', { promptsDir, roomDir })).toThrow();
-  });
-});
-
 const noLog = { debug() {}, info() {}, warn() {}, error() {} };
 
 test("room_config.json's aliases are the other names of the bot, read again as they change", () => {
@@ -228,70 +170,6 @@ test("room_config.json's atNames are what to @ viewers as, by user id, read agai
   expect(warned).toEqual(Array(2).fill('room_config.json has bad values, keeping their last ones'));
   writeFileSync(config, '{}');
   expect(file.get().atNames).toEqual({});
-});
-
-describe('livePersona', () => {
-  const setup = () => {
-    const roomDir = mkdtempSync(join(tmpdir(), 'room-'));
-    const sharedDir = mkdtempSync(join(tmpdir(), 'shared-'));
-    mkdirSync(join(roomDir, 'personas'));
-    const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
-    let file: string | undefined;
-    const persona = livePersona({ roomDir, sharedDir, file: () => file, log });
-    return { roomDir, sharedDir, log, persona, choose: (next?: string) => (file = next) };
-  };
-
-  test('plays the file room_config.json names, read as it changes; switching is naming another', () => {
-    const { roomDir, persona, choose } = setup();
-    expect(persona()).toBe('');
-    writeFileSync(join(roomDir, 'personas', '课代表.md'), '数学课代表\n');
-    writeFileSync(join(roomDir, 'personas', '小猫.md'), '小猫\n');
-    choose('personas/课代表.md');
-    expect(persona()).toBe('数学课代表');
-
-    writeFileSync(join(roomDir, 'personas', '课代表.md'), '嘴毒的数学课代表\n');
-    expect(persona()).toBe('嘴毒的数学课代表');
-    choose('personas/小猫.md');
-    expect(persona()).toBe('小猫');
-  });
-
-  test('a file with a base header is changes to that shared persona, its blanks filled from the header', () => {
-    const { roomDir, sharedDir, persona, choose } = setup();
-    writeFileSync(
-      join(sharedDir, 'fairy.md'),
-      'Fairy，{{主播}}的助手\n\n## 说话方式\n\n- 一本正经\n',
-    );
-    writeFileSync(
-      join(roomDir, 'personas', 'fairy.md'),
-      '---\nbase: fairy\n主播: 咿咿\n---\n## 说话方式\n\n- 正经里带点俏皮\n',
-    );
-    choose('personas/fairy.md');
-    expect(persona()).toBe('Fairy，咿咿的助手\n\n## 说话方式\n\n- 正经里带点俏皮');
-
-    // An edit to the shared persona applies at once too.
-    writeFileSync(join(sharedDir, 'fairy.md'), 'Fairy，{{主播}}的首席助手\n');
-    expect(persona()).toBe('Fairy，咿咿的首席助手\n\n## 说话方式\n\n- 正经里带点俏皮');
-  });
-
-  test("what it can't read is warned about once, and the bot plays what is left", () => {
-    const { roomDir, log, persona, choose } = setup();
-    choose('personas/gone.md');
-    expect(persona()).toBe('');
-    writeFileSync(join(roomDir, 'personas', 'mine.md'), '---\nbase: nowhere\n---\n小人机\n');
-    choose('personas/mine.md');
-    expect(persona()).toBe('小人机');
-    expect(persona()).toBe('小人机');
-
-    expect(log.warn).toHaveBeenCalledTimes(2);
-    expect(log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('could not read the persona file'),
-      expect.anything(),
-    );
-    expect(log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('could not read the shared persona'),
-      expect.anything(),
-    );
-  });
 });
 
 test("room_config.json's persona is a file in the room's folder; one outside it keeps the last good one", () => {

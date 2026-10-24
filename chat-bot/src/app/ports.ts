@@ -9,6 +9,7 @@ import type { ToolListen } from '../core/chat/relevance';
 import type { Settings } from '../core/commands/settings';
 import type { ToolDefinition, Viewer } from '../core/tools/tool-definition';
 import type { Exchange } from '../core/chat/talk-record';
+import type { OnSingConfig } from '../core/room/room-config';
 
 /** The room's settings, kept in its room_config.json: read each time (so a hand edit counts), and written when something changes one. */
 export interface SettingsStore {
@@ -31,7 +32,7 @@ export interface BotTalk {
   recent(): string;
 }
 
-export type { Exchange };
+export type { Exchange, OnSingConfig };
 
 /** Each viewer's past exchanges with the bot, by user id, so a regular gets continuity. */
 export interface UserTalk {
@@ -240,11 +241,3 @@ export type DefinedTool = Omit<ToolDefinition, 'guidance' | 'listen'> & {
   guidance?: () => string;
   listen?: ToolListen;
 };
-
-/** What the bot says when the streamer starts a song (a cheer, say). */
-export interface OnSingConfig {
-  /** Sent as it is. */
-  message: string;
-  /** The chance it's sent for each song, 0–1. */
-  probability: number;
-}

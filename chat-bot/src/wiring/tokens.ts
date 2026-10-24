@@ -5,7 +5,8 @@
 import type { LyricsSearch } from '@dy-apps/lyrics-search';
 import type { CodexCliOptions } from '../adapters/models/codex-cli';
 import type { RoomFeedApi } from '../adapters/room-feed/room-feed-api';
-import type { RoomConfig, RoomFiles, roomConfigFile } from '../adapters/files/room-files';
+import type { RoomFiles, roomConfigFile } from '../adapters/files/room-files';
+import type { RoomConfig } from '../core/room/room-config';
 import type { BotConfig } from '../adapters/files/config-file';
 import type { AutoReply } from '../app/replies/auto-reply';
 import type { AutoSongId } from '../app/songs/auto-song-id';
@@ -46,7 +47,7 @@ import type { SolveEffort } from '../core/commands/settings';
 import type { ChatHistory } from '../core/chat/chat-history';
 import type { RecentGifts } from '../core/chat/recent-gifts';
 import type { Transcript } from '../core/songs/transcript';
-import type { PromptName } from '../adapters/files/room-files';
+import type { PromptName } from '../adapters/files/prompt-files';
 import type { App } from './app';
 import { token } from './container';
 

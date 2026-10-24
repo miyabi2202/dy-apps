@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { livePrompt } from '../adapters/files/room-files';
+import { livePrompt } from '../adapters/files/prompt-files';
 import { ChatBot } from '../app/replies/chat-bot';
 import { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { Container } from './container';
