@@ -1,4 +1,5 @@
 import { matchChat, matchSpeech } from '../../core/viewers/alias';
+import { withoutReading } from '../../core/chat/reading';
 import { errorMessage, OutOfCreditError } from '../../core/errors';
 import {
   lineKey,
@@ -217,7 +218,8 @@ export class AutoReply {
     const line = roomLines(room.recentChat(), [heard], room.botName).find(
       (l) => l.candidate && l.who === STREAMER,
     );
-    const name = line && matchSpeech(line.text, room.callNames());
+    // Reading out the bot's chat names it in the mark, but isn't calling it.
+    const name = line && matchSpeech(withoutReading(line.text), room.callNames());
     if (!line || name === undefined) return;
     const streamer = this.options.streamer();
     if (!streamer) {

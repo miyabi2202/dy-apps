@@ -11,6 +11,11 @@ export function readMark(nickname: string): string {
   return `（念了${nickname}的弹幕）`;
 }
 
+/** `text` without its readMarks: only what the streamer said themselves. */
+export function withoutReading(text: string): string {
+  return text.replace(/（念了[^（）]*?的弹幕）/g, '');
+}
+
 /**
  * What the streamer said in `text` themselves: every stretch that reads out one of `chats` (as
  * heard, so misheard, missing and extra syllables are fine) becomes readMark(nickname), so the

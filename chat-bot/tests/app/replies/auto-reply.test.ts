@@ -615,6 +615,21 @@ test("the streamer is answered as theirs for a name as speech recognition wrote 
   ]);
 });
 
+test("the streamer reading out the bot's chat isn't calling it", async () => {
+  const ran = aliasSetup(
+    [
+      () => {
+        ran.chat('小助手', '转正要等主人批，考核也照常算数', 'bot-1');
+        ran.speak('那是大部位啊转正要等主人批考核也照常算数');
+      },
+    ],
+    { picks: [] },
+  );
+  await ran.autoReply.run();
+
+  expect(ran.replies).toEqual([]);
+});
+
 test('the streamer calling the bot while who they are is not known yet is only logged', async () => {
   const ran = aliasSetup([() => ran.speak('Fairy 你好')], { picks: [] }, { streamer: () => null });
   await ran.autoReply.run();
