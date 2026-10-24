@@ -17,7 +17,8 @@ export function cleanLine(line: string): string {
     .trim();
 }
 
-const BRACKETED = /[（([【「《].*?[）)\]】」》]/g;
+// Innermost first, so a bracket inside another (「千古(电视剧《花千骨》片头曲)」) goes with it.
+const BRACKETED = /[（([【「《][^（([【「《）)\]】」》]*[）)\]】」》]/g;
 const WAVED = /[～~].*?[～~]/g;
 const UNCLOSED = /[（([【].*$/;
 const DASHED = /\s*[-–—].*$/;
@@ -27,8 +28,9 @@ const VERSION_WORDS = /(?<![\p{L}\p{N}_])(live|dj|remix|cover|mp3)(?![\p{L}\p{N}
 
 /** A title as a person reads it: without "(TV Size)", "～Yui final ver.～", " - DJ版" or a 版 suffix. */
 export function displayTitle(title: string): string {
-  return title
-    .replace(BRACKETED, '')
+  let bare = title;
+  for (let last = ''; bare !== last;) [last, bare] = [bare, bare.replace(BRACKETED, '')];
+  return bare
     .replace(WAVED, '')
     .replace(UNCLOSED, '')
     .replace(DASHED, '')

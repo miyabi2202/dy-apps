@@ -30,6 +30,11 @@ describe('displayTitle', () => {
     expect(displayTitle('后来 - 抖音版')).toBe('后来');
     expect(displayTitle('知我 完整版')).toBe('知我');
   });
+
+  it('drops brackets inside brackets with them', () => {
+    expect(displayTitle('千古(电视剧《花千骨》片头曲)')).toBe('千古');
+    expect(displayTitle('若梦 (《与君歌》电视剧主题曲)')).toBe('若梦');
+  });
 });
 
 describe('foldArtist', () => {
