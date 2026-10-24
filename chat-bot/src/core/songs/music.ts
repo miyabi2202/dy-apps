@@ -18,12 +18,16 @@ export function musicRequest(id: number): string {
 
 /** A line of the worker's output as a music answer, or null when it isn't one. */
 export function parseMusicLine(text: string): MusicAnswer | null {
-  let line: { music_id?: unknown; title?: unknown; artist?: unknown; error?: unknown };
   try {
-    line = JSON.parse(text) as typeof line;
+    return musicAnswerFrom(JSON.parse(text));
   } catch {
     return null;
   }
+}
+
+/** A parsed line of the worker's output as a music answer, or null when it isn't one. */
+export function musicAnswerFrom(json: unknown): MusicAnswer | null {
+  const line = json as { music_id?: unknown; title?: unknown; artist?: unknown; error?: unknown };
   if (typeof line?.music_id !== 'number') return null;
   const { music_id: id, title, artist, error } = line;
   if (typeof error === 'string') return { id, match: null, error };

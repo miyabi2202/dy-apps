@@ -16,14 +16,19 @@ export interface BackingLevel {
 export function parseBackingLevel(text: string): BackingLevel | null {
   if (!text.includes('"backing_level"')) return null;
   try {
-    const level = (JSON.parse(text) as { backing_level?: Record<string, unknown> }).backing_level;
-    const { from, to, db } = level ?? {};
-    if (typeof from !== 'number' || typeof to !== 'number' || !Array.isArray(db)) return null;
-    if (!db.every((x) => typeof x === 'number')) return null;
-    return { from: from * 1000, to: to * 1000, db };
+    return backingLevelFrom(JSON.parse(text));
   } catch {
     return null;
   }
+}
+
+/** A parsed line of the worker's output as a BackingLevel, or null when it isn't one. */
+export function backingLevelFrom(json: unknown): BackingLevel | null {
+  const level = (json as { backing_level?: Record<string, unknown> } | null)?.backing_level;
+  const { from, to, db } = level ?? {};
+  if (typeof from !== 'number' || typeof to !== 'number' || !Array.isArray(db)) return null;
+  if (!db.every((x) => typeof x === 'number')) return null;
+  return { from: from * 1000, to: to * 1000, db };
 }
 
 export interface BackingGapOptions {

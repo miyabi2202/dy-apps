@@ -1,20 +1,8 @@
 import { singingRecord, speechRecord } from '../../core/chat/chat-record';
 import { errorMessage } from '../../core/errors';
-import { parseBackingLevel } from '../../core/songs/backing-gaps';
-import {
-  musicRequest,
-  parseMusicLine,
-  type MusicAnswer,
-  type MusicMatch,
-} from '../../core/songs/music';
-import {
-  isPlayed,
-  isStreamerSinging,
-  isSung,
-  parseStatusLine,
-  parseWorkerLine,
-  type Transcript,
-} from '../../core/songs/transcript';
+import { musicRequest, type MusicAnswer, type MusicMatch } from '../../core/songs/music';
+import { isPlayed, isStreamerSinging, isSung, type Transcript } from '../../core/songs/transcript';
+import { parseWorkerOutput } from '../../core/songs/worker-output';
 import type { EventBus } from '../event-bus';
 import type { Log, RoomRecord, SpawnWorker, StreamUrl, Worker } from '../ports';
 
@@ -208,23 +196,25 @@ export class Transcriber {
     const { transcript, log, spawnWorker } = this.options;
     const worker = spawnWorker({
       onLine: (text) => {
-        const answer = parseMusicLine(text);
-        if (answer) {
+        const output = parseWorkerOutput(text);
+        if (!output) return;
+        if (output.kind === 'music') {
+          const { answer } = output;
           this.musicWaiting.get(answer.id)?.(answer);
           this.musicWaiting.delete(answer.id);
           return;
         }
-        const status = parseStatusLine(text);
-        if (status === 'ready') return this.onReady();
-        if (status === 'stream_ended') return this.onStreamEnded();
-        if (status === 'busy') {
+        if (output.kind === 'status') {
+          const { status } = output;
+          if (status === 'ready') return this.onReady();
+          if (status === 'stream_ended') return this.onStreamEnded();
           log.warn('the speech service is serving another bot; trying again later');
           return this.worker?.kill();
         }
-        const level = parseBackingLevel(text);
-        if (level) return this.options.bus.emit('backing-level', level);
-        const line = parseWorkerLine(text);
-        if (!line) return;
+        if (output.kind === 'backing-level') {
+          return this.options.bus.emit('backing-level', output.level);
+        }
+        const { line } = output;
         transcript.add(line);
         this.options.record?.add(speechRecord(line));
         if (isSung(line) || isPlayed(line)) this.options.singing?.add(singingRecord(line));

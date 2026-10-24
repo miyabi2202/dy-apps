@@ -224,12 +224,18 @@ interface WorkerLine {
 
 /** A line of the worker's output as a TranscriptLine, or null when it isn't a sentence. */
 export function parseWorkerLine(text: string): TranscriptLine | null {
-  let line: WorkerLine;
+  let json: unknown;
   try {
-    line = JSON.parse(text) as WorkerLine;
+    json = JSON.parse(text);
   } catch {
     return null;
   }
+  return transcriptLineFrom(json);
+}
+
+/** A parsed line of the worker's output as a TranscriptLine, or null when it isn't a sentence. */
+export function transcriptLineFrom(json: unknown): TranscriptLine | null {
+  const line = json as WorkerLine;
   if (typeof line.text !== 'string' || !line.text) return null;
   return {
     start: line.start * 1000,
@@ -264,16 +270,25 @@ export function parseWorkerLine(text: string): TranscriptLine | null {
  * The worker's `{"ready": true}` (models loaded), `{"stream_ended": true, …}` or `{"busy": true}`
  * (the speech service is serving another bot), or null.
  */
-export function parseStatusLine(text: string): 'ready' | 'stream_ended' | 'busy' | null {
+export function parseStatusLine(text: string): WorkerStatus | null {
   if (!text.startsWith('{')) return null;
   try {
-    const json = JSON.parse(text) as Record<string, unknown>;
-    if (json.ready === true) return 'ready';
-    if (json.stream_ended === true) return 'stream_ended';
-    if (json.busy === true) return 'busy';
+    return statusFrom(JSON.parse(text));
   } catch {
     // Not JSON: not a status.
   }
+  return null;
+}
+
+/** What the worker says about itself: models loaded, the stream over, or another bot being served. */
+export type WorkerStatus = 'ready' | 'stream_ended' | 'busy';
+
+/** A parsed line of the worker's output as a status, or null when it isn't one. */
+export function statusFrom(json: unknown): WorkerStatus | null {
+  const status = json as Record<string, unknown>;
+  if (status.ready === true) return 'ready';
+  if (status.stream_ended === true) return 'stream_ended';
+  if (status.busy === true) return 'busy';
   return null;
 }
 
