@@ -87,7 +87,11 @@ export class SongId {
   /** The last song it told the room, and when. */
   private last: { song: SongAnswer; at: number } | undefined;
 
-  constructor(private readonly options: SongIdOptions) {}
+  private readonly now: () => number;
+
+  constructor(private readonly options: SongIdOptions) {
+    this.now = options.now ?? Date.now;
+  }
 
   prompt(): string {
     return this.options.prompt();
@@ -105,8 +109,7 @@ export class SongId {
     about?: { why: SongIdWhy; lines: readonly TranscriptLine[] },
   ): Promise<Named> {
     const { log, lyrics, found, hints, othersNote } = this.options;
-    const now = this.options.now ?? Date.now;
-    const start = now();
+    const start = this.now();
     const share = about ? othersShare(about.lines) : 0;
     const othersSang = share > OTHERS_SANG;
     // Marked for the intro; the note goes after a message there is: an empty one (the same song as
@@ -128,17 +131,9 @@ export class SongId {
         artist: music.artist,
         sure: true,
       };
-      log.info('song identified', {
-        title,
-        artist: music.artist,
-        shazamTitle: music.title,
-        sure: true,
-        by: 'shazam',
-        ms: now() - start,
+      return this.identified(answer, 'shazam', start, noted, othersSang, {
+        before: { shazamTitle: music.title },
       });
-      this.options.onNamed?.(answer, start);
-      const told = noted(answer);
-      return { answer: told, text: told.message, by: 'shazam', othersSang };
     }
     if (about) {
       const sung = about.lines.filter(isSung);
@@ -158,7 +153,7 @@ export class SongId {
         const guess = await lyrics(
           about.lines.map((line) => ({ text: line.text, sung: isSung(line) })),
         );
-        lyricsMs = now() - start;
+        lyricsMs = this.now() - start;
         log.info('lyrics search', {
           why: guess.why,
           ms: guess.ms,
@@ -180,16 +175,7 @@ export class SongId {
             artist,
             sure: true,
           };
-          log.info('song identified', {
-            title: answer.title,
-            artist,
-            sure: true,
-            by: 'lyrics-search',
-            ms: now() - start,
-          });
-          this.options.onNamed?.(answer, start);
-          const told = noted(answer);
-          return { answer: told, text: told.message, by: 'lyrics-search', othersSang };
+          return this.identified(answer, 'lyrics-search', start, noted, othersSang);
         }
         if (guess.candidates.length && hints) prompt += `\n\n${hints(guess.candidates)}`;
       } catch (err) {
@@ -203,16 +189,43 @@ export class SongId {
       log,
     );
     if (!answer) return { answer, text, by: 'codex', othersSang };
-    log.info('song identified', {
+    return this.identified(answer, 'codex', start, noted, othersSang, {
+      after: { lyricsMs },
+      text,
+      notify: answer.sure && !!answer.title,
+    });
+  }
+
+  /**
+   * The way out of `name` once a path gave an answer: logs `song identified`, tells `onNamed` (when
+   * `notify`), and marks the answer for others' voices (`noted`). `before` and `after` are extra
+   * log fields around `sure`/`by`/`ms`; `text` is what was said when that isn't the message.
+   */
+  private identified(
+    answer: SongAnswer,
+    by: Named['by'],
+    start: number,
+    noted: (answer: SongAnswer) => SongAnswer,
+    othersSang: boolean,
+    {
+      before,
+      after,
+      text,
+      notify = true,
+    }: { before?: object; after?: object; text?: string; notify?: boolean } = {},
+  ): Named {
+    this.options.log.info('song identified', {
       title: answer.title,
       artist: answer.artist,
+      ...before,
       sure: answer.sure,
-      by: 'codex',
-      ms: now() - start,
-      lyricsMs,
+      by,
+      ms: this.now() - start,
+      ...after,
     });
-    if (answer.sure && answer.title) this.options.onNamed?.(answer, start);
-    return { answer: noted(answer), text, by: 'codex', othersSang };
+    if (notify) this.options.onNamed?.(answer, start);
+    const told = noted(answer);
+    return { answer: told, text: text ?? told.message, by, othersSang };
   }
 
   /**
@@ -241,7 +254,7 @@ export class SongId {
 
   /** Whether a line of `lines` was sung within SINGING_LATELY_MS, so Shazam hears the song. */
   private singingLately(lines: readonly TranscriptLine[]): boolean {
-    const now = (this.options.now ?? Date.now)();
+    const now = this.now();
     return lines.some((line) => isSung(line) && now - line.end <= SINGING_LATELY_MS);
   }
 
@@ -275,7 +288,7 @@ export class SongId {
    */
   told(song: SongAnswer, { introduce = true }: { introduce?: boolean } = {}): void {
     if (!song.title || !song.sure) return;
-    const at = (this.options.now ?? Date.now)();
+    const at = this.now();
     this.named.set(normaliseTitle(song.title), at);
     this.last = { song, at };
     if (introduce) this.options.onTold?.(song);
