@@ -44,14 +44,18 @@ export class SongEnds {
     if (!song) return;
     const last = this.song;
     // A song's start moves on as its first lines drop out of the transcript, but never past its
-    // own lines: one that starts after them is the next song.
-    const next = last !== undefined && song.start > last.end;
+    // own lines: one that starts after them is the next song. So is one a song break source found
+    // after this one started, though only some lines in (the lyrics, on their third miss), when
+    // those lines were already taken for this song.
+    const found = spans && lastBreak(spans);
+    const late = last !== undefined && found !== undefined && found.from > last.start;
+    const next =
+      last !== undefined && (song.start > last.end || (late && song.start >= found.from));
     this.song = { start: next || !last ? song.start : last.start, end: line.end };
     if (!next) return;
     const told = lastTold?.();
     const title = told && told.at >= last.start && told.at <= song.start && told.song.title;
-    const found = spans && lastBreak(spans);
-    const by = found && found.from > last.end ? found.by : 'pauses';
+    const by = late ? found.by : 'pauses';
     const ended: ChatRecord = {
       type: 'song',
       sender: '主播',

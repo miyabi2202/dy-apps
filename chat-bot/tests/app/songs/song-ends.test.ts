@@ -52,6 +52,21 @@ test('an unnamed song ended, told apart by a song break source', () => {
   expect(ended()).toEqual(['一首歌唱完了，下一首从 10:01:07 开始（歌词对不上了）']);
 });
 
+test('a song the lyrics tell apart a few lines in still ends, from its first line', () => {
+  // As 喜欢你 → 爱的可能: the lyrics' third miss came 3 lines into the next song.
+  const spans: SongSpan[] = [];
+  const { line, ended } = setup({ title: '喜欢你', at: 30 }, spans);
+  for (let s = 10; s < 70; s += 10) line(s, `喜欢你${s}`);
+  for (let s = 70; s < 100; s += 10) line(s, `爱的可能${s}`);
+  expect(ended()).toEqual([]);
+  spans.push({ from: at + 67_000, to: at + 67_000, kind: 'break', by: 'lyrics' });
+  line(100, '爱的可能100');
+  expect(ended()).toEqual(['《喜欢你》唱完了，下一首从 10:01:07 开始（歌词对不上了）']);
+  // Once: the lines after are that song's.
+  for (let s = 110; s < 400; s += 10) line(s, `爱的可能${s}`);
+  expect(ended()).toHaveLength(1);
+});
+
 test('talk, or a guest singing, ends no song', () => {
   const { line, ended } = setup();
   for (let s = 10; s < 60; s += 10) line(s, `说话${s}`, false);
