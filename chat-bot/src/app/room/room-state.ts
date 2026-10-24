@@ -17,7 +17,7 @@ import {
   type TranscriptLine,
 } from '../../core/songs/transcript';
 import { combineSpans, type SongBreakSource, type SongSpan } from '../../core/songs/song-breaks';
-import type { BotTalk, Log, Screenshot, SettingsStore } from '../ports';
+import type { BotTalk, Log, Memory, Screenshot, SettingsStore } from '../ports';
 import { setting } from '../commands/setting';
 
 /** What a feature adds to the room's settings (everything but screenshots, which the room keeps). */
@@ -34,8 +34,15 @@ export interface RoomStateOptions {
   transcriptMs?: number;
   /** Who the bot plays, for `{{persona}}`, read each time so edits apply at once. */
   persona?: () => string;
-  /** Background on the room for `{{context}}`, read each time so edits apply at once. */
-  context?: () => string;
+  /**
+   * What the bot remembers (memory.md and each person's note.md), read each time so edits apply at
+   * once: the room's and the streamer's for `{{memory}}`, the asker's for `{{askerNote}}`.
+   */
+  memory?: Pick<Memory, 'room' | 'note'>;
+  /** The streamer's user id (room_config.json's `streamer`), read each time; none until known. */
+  streamerId?: () => string | undefined;
+  /** Whether the room is 私密 (room_config.json's `private`): viewers' notes are left out there. */
+  isPrivate?: () => boolean;
   /** Douyin's common knowledge for `{{commonKnowledge}}`, shared by every room, read each time. */
   commonKnowledge?: () => string;
   /** What the bot says about itself for `{{intro}}`, read each time so edits apply at once. */
@@ -60,8 +67,6 @@ export interface RoomStateOptions {
   aliases?: () => readonly Alias[];
   /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`), read each time. */
   atTrimStart?: () => readonly string[];
-  /** What to @ a viewer as instead of their nickname (`atNames`), by user id, read each time. */
-  atNames?: () => Readonly<Record<string, string>>;
   /** The time zone the room's times are shown in (room_config.json's `timeZone`), read each time. */
   timeZone?: () => string;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
@@ -128,9 +133,15 @@ export class RoomState {
     return this.options.atTrimStart?.() ?? [];
   }
 
-  /** The name the bot @s a viewer by: the room's `atNames` for them, or else their nickname. */
-  atNameOf(userId: string | undefined, nickname: string): string {
-    return (userId !== undefined && this.options.atNames?.()[userId]) || nickname;
+  /**
+   * What the bot remembers about `userId`, for a prompt answering them: their note.md. Empty for
+   * the streamer, whose note every prompt has already, and for anyone in a 私密 room, whose
+   * viewers can't be told apart.
+   */
+  askerNote(userId: string | undefined): string {
+    const { memory, streamerId, isPrivate } = this.options;
+    if (!memory || !userId || userId === streamerId?.() || isPrivate?.()) return '';
+    return memory.note(userId);
   }
 
   /** The most messages anything the bot says is split into; `/最大回复条数` sets it. */
@@ -199,7 +210,8 @@ export class RoomState {
 
   /** The room's part of a prompt (see buildPrompt), as it is now. */
   promptInput(): RoomPromptInput {
-    const { chatDir, context, intro, limitations, botTalk } = this.options;
+    const { chatDir, memory, intro, limitations, botTalk } = this.options;
+    const streamerId = this.options.streamerId?.();
     return {
       wording: this.wording,
       aliases: this.aliases(),
@@ -211,7 +223,8 @@ export class RoomState {
       chatDir,
       persona: this.persona,
       botName: this.botName,
-      context: context?.(),
+      memory: memory?.room(),
+      streamerNote: streamerId ? memory?.note(streamerId) : undefined,
       commonKnowledge: this.options.commonKnowledge?.(),
       intro: intro?.(),
       limitations: limitations?.(),

@@ -12,7 +12,7 @@ export interface ToolRunnerOptions {
   tools: () => readonly BotTool[];
   /** Where the replies go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
-  room: Pick<RoomState, 'replyLimits' | 'atNameOf'>;
+  room: Pick<RoomState, 'replyLimits'>;
   log: Log;
   isAdmin: (userId: string | undefined) => boolean;
   /** Who may run admin-only tools, as viewers know them: 「只有主播和…才可以」 (config.json's `adminNames`). */
@@ -51,7 +51,7 @@ export class ToolRunner {
     return this.work.idle();
   }
 
-  /** Queues `@asker text` to be sent, split like an answer when it's long (`asker` as it's @ed, see RoomState.atNameOf). */
+  /** Queues `@asker text` to be sent, split like an answer when it's long. */
   say(asker: string, text: string): void {
     const { outbox, room } = this.options;
     for (const message of replyMessages(asker, text, room.replyLimits(this.maxLength))) {
@@ -74,7 +74,6 @@ export class ToolRunner {
   ): Promise<void> | undefined {
     const { log, adminNames = '机器人管理员' } = this.options;
     const { nickname: asker, userId } = chat;
-    const at = this.options.room.atNameOf(userId, asker);
     const found = this.find(name);
     if (!found) {
       log.info('no such command for them', { asker, userId, name, admin });
@@ -82,19 +81,19 @@ export class ToolRunner {
         .tools()
         .filter((tool) => !tool.adminOnly || admin)
         .flatMap((tool) => (tool.commands ?? []).map((command) => command.name));
-      if (usable.length) this.say(at, `没有指令「${name}」，可用的有：${usable.join('、')}`);
+      if (usable.length) this.say(asker, `没有指令「${name}」，可用的有：${usable.join('、')}`);
       return undefined;
     }
     const { tool, command } = found;
     if (tool.adminOnly && !admin) {
       log.info('command not for them', { asker, userId, name });
-      this.say(at, `你无权调用「${name}」指令，只有主播和${adminNames}才可以`);
+      this.say(asker, `你无权调用「${name}」指令，只有主播和${adminNames}才可以`);
       return undefined;
     }
     const parsed = command.parse(args);
     if ('usage' in parsed) {
       log.info('command', { asker, userId, name, args, ok: false });
-      this.say(at, parsed.usage);
+      this.say(asker, parsed.usage);
       return undefined;
     }
     const now = this.options.now ?? Date.now;
@@ -112,11 +111,11 @@ export class ToolRunner {
             ms: now() - start,
           });
           const reply = result.isError ? result.text : command.say(result, parsed.args);
-          if (reply) this.say(at, reply);
+          if (reply) this.say(asker, reply);
         },
         (err: unknown) => {
           log.error('command failed', { name, error: errorMessage(err) });
-          this.say(at, `指令「${name}」出错了，没有完成`);
+          this.say(asker, `指令「${name}」出错了，没有完成`);
         },
       );
   }

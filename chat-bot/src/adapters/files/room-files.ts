@@ -8,8 +8,6 @@ import { writeTextAtomic } from './atomic-file';
 
 /** The files someone can edit for one room, to change the bot there while it runs. */
 export interface RoomFiles {
-  /** Background on the room, for the prompts' `{{context}}`. */
-  context: string;
   /** Everything the bot sent in the room. */
   botTalk: string;
   /** Where each viewer's folder of exchanges with the bot goes. */
@@ -25,20 +23,18 @@ export interface Streamer {
 }
 
 /**
- * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/`): an empty `context.md`
- * and a default `room_config.json` created when missing, `bot_logs.md`, and a `<user id>/` folder
- * for each viewer the bot talked with. The prompts are shared by every room (see PROMPT_FILES in prompt-files.ts); a room
+ * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and the bot's memory.md,
+ * see memoryFiles): a default `room_config.json` created when missing, `bot_logs.md`, and a
+ * `<user id>/` folder for each viewer the bot talked with. The prompts are shared by every room (see PROMPT_FILES in prompt-files.ts); a room
  * only has its own when someone puts one there to override it.
  */
 export function roomFiles(dir: string): RoomFiles {
   mkdirSync(dir, { recursive: true });
   const files = {
-    context: join(dir, 'context.md'),
     botTalk: join(dir, 'bot_logs.md'),
     users: dir,
     config: join(dir, 'room_config.json'),
   };
-  if (!existsSync(files.context)) writeFileSync(files.context, '');
   if (!existsSync(files.config)) {
     writeFileSync(files.config, `${JSON.stringify({ private: false }, null, 2)}\n`);
   }

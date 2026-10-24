@@ -24,7 +24,7 @@
 
 {{forbiddenWords}}
 
-{{context}}
+{{memory}}
 
 {{asker}} 最近自己发的弹幕（从旧到新）：
 
@@ -33,6 +33,8 @@
 你和 {{asker}} 以前的对话（从旧到新）：
 
 {{userHistory}}
+
+{{askerNote}}
 
 现在是 {{today}} {{now}}（{{timeZone}}）。这里所有的时间都是主播那边的时间（不知道主播在哪就是北京时间），说到几点、早上晚上、今天明天，都按这个时间来。
 

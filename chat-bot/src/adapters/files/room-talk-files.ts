@@ -47,7 +47,7 @@ export function botTalkFile(path: string, options: TalkFileOptions = {}): BotTal
  * The folder name for a user id: the id when it's digits, else (a 私密 viewer's `111111-苦***-31`)
  * a hash of it.
  */
-function folderOf(userId: string): string {
+export function folderOf(userId: string): string {
   if (isDouyinUserId(userId)) return userId;
   return createHash('sha256').update(userId).digest('hex').slice(0, 16);
 }

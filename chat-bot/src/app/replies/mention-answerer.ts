@@ -144,7 +144,7 @@ export class MentionAnswerer {
   private sendFixed(mention: Mention, text: string): void {
     const { outbox, log, userTalk, bus, room } = this.options;
     const limits = room.replyLimits(this.maxLength);
-    const messages = replyMessages(room.atNameOf(mention.userId, mention.asker), text, limits);
+    const messages = replyMessages(mention.asker, text, limits);
     if (!messages.length) {
       log.warn('a fixed reply is empty', { asker: mention.asker });
       return;
@@ -167,8 +167,6 @@ export class MentionAnswerer {
   private async answer(mention: Mention): Promise<void> {
     const { ask, outbox, room, log, promptTemplate, userTalk } = this.options;
     const limits = this.options.room.replyLimits(this.maxLength);
-    // The name the answer @s them by, which its length budget leaves room for.
-    const at = room.atNameOf(mention.userId, mention.asker);
     const session =
       this.options.tools?.open({
         asker: mention.asker,
@@ -184,9 +182,10 @@ export class MentionAnswerer {
         history: mention.history,
         asker: mention.asker,
         question: mention.question,
-        singleLength: singleBudget(at, limits),
-        maxLength: answerBudget(at, limits),
+        singleLength: singleBudget(mention.asker, limits),
+        maxLength: answerBudget(mention.asker, limits),
         userHistory: mention.userId ? userTalk?.recent(mention.userId) : undefined,
+        askerNote: room.askerNote(mention.userId),
         askerBadges: badgesOf(mention),
         unprompted: mention.unprompted,
         topics: mention.topics,
@@ -212,12 +211,12 @@ export class MentionAnswerer {
       // Each of the others gets a message of their own, after the asker's. An answer may have
       // them (「跟杨叔打个招呼」), and then says nothing to the asker.
       const others = parseOthers(raw);
-      const messages = others.length ? [] : replyMessages(at, answer, limits);
+      const messages = others.length ? [] : replyMessages(mention.asker, answer, limits);
       // The others are known by nickname only: whoever said something under it most lately.
       const chat = [...mention.history, ...room.recentChat()].reverse();
       const toOthers = others.flatMap(({ to, message }) => {
         const userId = chat.find((line) => line.nickname === to && line.userId)?.userId;
-        return replyMessages(room.atNameOf(userId, to), message, limits).map((text) => ({
+        return replyMessages(to, message, limits).map((text) => ({
           text,
           userId,
         }));

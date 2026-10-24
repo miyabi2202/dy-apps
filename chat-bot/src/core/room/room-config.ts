@@ -26,8 +26,6 @@ export interface RoomConfig extends Settings {
   streamerNames: string[];
   /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`): 单推符号. */
   atTrimStart: string[];
-  /** What the bot @s a viewer as instead of their nickname (`atNames`), by user id: `{ "103094206072": "阿拂" }`. */
-  atNames: Record<string, string>;
   /**
    * Where the streamer is (`timeZone`, an IANA name like `Asia/Shanghai`): every time the models
    * and the records show is in it. Beijing time when not known.
@@ -45,6 +43,8 @@ export interface RoomConfig extends Settings {
    * plays there, see livePersona; none when the bot has no persona there.
    */
   persona?: string;
+  /** The room's streamer (`streamer`), which the bot writes in once room-feed says who it is. */
+  streamer?: { uid: string; nickname: string };
 }
 
 /** Every field a room's room_config.json is filled in with (see fillRoomConfig), and its default. */
@@ -53,7 +53,6 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   aliases: [],
   streamerNames: [],
   atTrimStart: [],
-  atNames: {},
   timeZone: DEFAULT_TIME_ZONE,
   tools: [],
   ...SETTING_DEFAULTS,
@@ -104,8 +103,14 @@ export function roomConfigFrom(
     () => (raw.persona === undefined ? undefined : personaPath(raw.persona)),
     last.persona,
   );
+  const streamer = field(
+    'streamer',
+    () => (raw.streamer === undefined ? undefined : streamerOf(raw.streamer)),
+    last.streamer,
+  );
   return {
     private: isPrivate,
+    ...(streamer && { streamer }),
     ...(onSing && { onSing }),
     ...(persona && { persona }),
     ...(songBreaks && { songBreaks }),
@@ -116,7 +121,6 @@ export function roomConfigFrom(
       last.streamerNames,
     ),
     atTrimStart: field('atTrimStart', () => prefixList(raw.atTrimStart), last.atTrimStart),
-    atNames: field('atNames', () => atNameMap(raw.atNames), last.atNames),
     timeZone: field('timeZone', () => timeZoneOf(raw.timeZone), last.timeZone),
     tools: field('tools', () => toolList(raw.tools), last.tools),
     ...settingsFrom(raw, last, problems),
@@ -171,22 +175,13 @@ function nameList(raw: unknown, name: string, example: string): string[] {
   return raw.map((item) => item.trim()).filter(Boolean);
 }
 
-/** `atNames` as names by user id (none when absent), or an error saying what's wrong with it. */
-function atNameMap(raw: unknown): Record<string, string> {
-  if (raw === undefined) return {};
-  if (
-    typeof raw !== 'object' ||
-    raw === null ||
-    Array.isArray(raw) ||
-    !Object.values(raw).every((name) => typeof name === 'string')
-  ) {
-    throw new Error('atNames must be names by user id, like { "103094206072": "阿拂" }');
+/** `streamer` as a uid and nickname, or an error saying what's wrong with it. */
+function streamerOf(raw: unknown): { uid: string; nickname: string } {
+  const { uid, nickname } = (raw ?? {}) as Record<string, unknown>;
+  if (typeof uid !== 'string' || !uid.trim() || typeof nickname !== 'string') {
+    throw new Error('streamer must be { "nickname": "…", "uid": "…" }');
   }
-  return Object.fromEntries(
-    Object.entries(raw as Record<string, string>)
-      .map(([userId, name]): [string, string] => [userId.trim(), name.trim()])
-      .filter(([userId, name]) => userId && name),
-  );
+  return { uid: uid.trim(), nickname };
 }
 
 /** `tools` as a list of tool names (none when absent), or an error saying what's wrong with it. */

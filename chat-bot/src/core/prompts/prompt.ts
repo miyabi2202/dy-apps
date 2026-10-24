@@ -26,8 +26,10 @@ export interface RoomPromptInput {
   botName?: string;
   /** Other names the bot is called in this room, which mean it too. */
   aliases?: readonly string[];
-  /** Background on the room: who the streamer is, what's talked about, what to mind. */
-  context?: string;
+  /** What the bot remembers about the room (memory.md): who the streamer is, running jokes, what to mind. */
+  memory?: string;
+  /** What the bot remembers about the streamer (their note.md), in every prompt since viewers ask about them. */
+  streamerNote?: string;
   /** What every room's viewers ask about Douyin itself (灯牌, …), from common-knowledge.md. */
   commonKnowledge?: string;
   /** What the bot says about itself when asked: who made it, what it can and can't do. */
@@ -76,6 +78,8 @@ export interface PromptDetails {
   maxLength: number;
   /** The asker's past exchanges with the bot. */
   userHistory?: string;
+  /** What the bot remembers about the asker (their note.md); none for the streamer, whose note `memory` has. */
+  askerNote?: string;
   /** The asker's own recent messages in the chat, one a line. */
   userChat?: string;
   /** The badges shown by the asker's name (a 直播间会员's `V` or `V年`), when known. */
@@ -126,8 +130,9 @@ function settingsText(settings: RoomSettings): string {
  * (`2026-10-20 星期二`), both in the room's time zone, `{{timeZone}}` that zone's name (北京时间), `{{recordTimeZone}}` the machine's
  * (which record lines written before, without an offset, are in), `{{chatDir}}` the folder of chat
  * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{aliases}}` a line saying the room's other names for the bot mean it too (empty without any), `{{botName}}`
- * the bot's own nickname, `{{context}}` the room's background under a heading (empty
- * without one), `{{commonKnowledge}}` Douyin's own common knowledge (灯牌…), likewise, `{{intro}}`
+ * the bot's own nickname, `{{memory}}` what the bot remembers about the room and about the
+ * streamer, each under a heading (empty without either), `{{askerNote}}` what it remembers about
+ * the asker, likewise, `{{commonKnowledge}}` Douyin's own common knowledge (灯牌…), likewise, `{{intro}}`
  * what the bot says about itself, likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
  * none), `{{askerBadges}}` the badges by their name (`V年`; `（无）` when none or not known), `{{settings}}` the room's settings as a list, and
@@ -136,7 +141,7 @@ function settingsText(settings: RoomSettings): string {
  */
 export function buildPrompt(template: string, input: PromptInput): string {
   const { history, transcript, singleLength, maxLength, now, chatDir, persona } = input;
-  const { asker = '', question = '', botName, context, botTalk, userHistory, userChat } = input;
+  const { asker = '', question = '', botName, botTalk, userHistory, userChat } = input;
   const { settings, unprompted, topics, intro, wording } = input;
   const said = question || wording('asked-nothing');
   const values: Record<string, string> = {
@@ -173,7 +178,17 @@ export function buildPrompt(template: string, input: PromptInput): string {
       ? `\n${wording('aliases-you', { names: input.aliases.join('、') })}`
       : '',
     botName: botName ?? '',
-    context: context?.trim() ? wording('context', { context: context.trim() }) : '',
+    memory: [
+      input.memory?.trim() ? wording('memory', { memory: input.memory.trim() }) : '',
+      input.streamerNote?.trim()
+        ? wording('streamer-note', { note: input.streamerNote.trim() })
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    askerNote: input.askerNote?.trim()
+      ? wording('asker-note', { asker, note: input.askerNote.trim() })
+      : '',
     commonKnowledge: input.commonKnowledge?.trim()
       ? wording('common-knowledge', { knowledge: input.commonKnowledge.trim() })
       : '',

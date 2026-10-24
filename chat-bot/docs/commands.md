@@ -10,7 +10,6 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/截图 
 | `/自动回复间隔 <秒>`   | `set_auto_reply_interval`  | How long it keeps quiet after joining in                                                       | yes         | 60          |
 | `/最大回复条数 <1–10>` | `set_max_reply_parts`      | How many messages one @'s answer may take                                                      | yes         | 5           |
 | `/自动谢礼 <钻>`       | `set_thanks_threshold`     | Thank viewers who give more than this in 5 minutes                                             | yes         | 99999 (off) |
-| `/叫我 [名字]`         | `set_at_name`              | What the bot @s the asker as (an admin, in words, anyone)                                      | no          | nickname    |
 | `/截图 <0\|1>`         | `set_screenshots`          | Send Claude the live video or not                                                              | yes         | 0           |
 | `/识歌 [提示]`         | `identify_song`            | Name the song the streamer sings, from its lyrics                                              | no          | –           |
 | `/识别背景音乐`        | `identify_bgm`             | Name the recording playing, from its sound                                                     | no          | –           |
@@ -70,18 +69,6 @@ The most messages anything the bot says is split into, `@昵称 (1/3) …` (`(1/
 
 @默认关闭 /最大回复条数 十
 → 条数要写成 1 到 10 的整数，用法：/最大回复条数 3
-```
-
-### /叫我
-
-What the bot @s the asker as from now on, instead of their nickname (or its first 3 characters when the message is long): `/叫我 阿拂` @s them as `@阿拂`. Without a name it goes back to the nickname. It's kept by user id in the room's `room_config.json`, `atNames` (see [room-setup.md](room-setup.md)), which can be edited by hand too. Anyone may change their own; in words (「以后叫我阿拂」, 「把阿拂（吃荷灵咪馊饭版）那个叫成小拂」), Claude calls `set_at_name`, and an admin or the streamer may name someone else (`who`), found among those who chatted lately by nickname, by nickname without the room's `atTrimStart`, or by their current @ name; when more than one matches, the tool says so and Claude asks which. A name said on the stream comes through speech recognition: Claude fills in the arguments, and the tool's description asks it to fix homophone typos (啊拂 → 阿拂) from the chat's nicknames and the context. At most 12 characters. Without an @, auto-reply listens for it (see [Listening without an @](#listening-without-an-)) only when it's said to the bot, as 「以后叫我xxx」 is usually said to the streamer. The log has `at name set {by, userId, nickname, before, after}`.
-
-```text
-@默认关闭 /叫我 阿拂
-→ @⊹꙳𝝑阿拂（吃荷灵咪馊饭版）𝝔⋆₊ 好，以后 @阿拂
-
-@默认关闭 /叫我
-→ @阿拂 好，以后按昵称 @
 ```
 
 ### /自动谢礼
@@ -208,7 +195,7 @@ A `trigger` with no `when` is a tool that listens for that alone: a chat matchin
 
 The picker (Codex, shown `reply-pick.md`'s `{{topics}}`) is told these topics, one `- name：when` line for each tool, and a line that matched one (by Jev's score, a trigger or a phrase) ends `→ name` there. The line then reaches Claude with a hint in `{{asked}}` naming the tool(s) (`asked-topics` in `wording.md`): only a hint, Claude still decides, and a tool whose guidance says the line isn't for it is treated as not called. A line Jev scores above 0.9 as about the bot is still answered at once, without the picker; that skip uses the about-the-bot score only, never a topic's.
 
-Which tools listen today: `identify_song` (「这是什么歌」: Claude then picks `identify_song` or `identify_bgm`, by whether the streamer is singing), `set_at_name` (「以后叫我阿拂」, only when said to the bot: after an @ of it, its name, or the bot just @ing them; to the streamer it isn't, and it has no trigger, so Jev decides) and the five above. The log has `looking now`, `about the bot`, `sure about the bot`, `picked whom to answer`, `mcp tool {tool}`, `tool guidance {name, asker, userId}`, `fixed reply`, `skipped by user filter` and, at start and whenever a `tool.json` changes, `tool definition {name, folder, adminOnly, listen}`.
+Which tools listen today: `identify_song` (「这是什么歌」: Claude then picks `identify_song` or `identify_bgm`, by whether the streamer is singing), and the five above. The log has `looking now`, `about the bot`, `sure about the bot`, `picked whom to answer`, `mcp tool {tool}`, `tool guidance {name, asker, userId}`, `fixed reply`, `skipped by user filter` and, at start and whenever a `tool.json` changes, `tool definition {name, folder, adminOnly, listen}`.
 
 ## How a command is handled
 
@@ -223,6 +210,15 @@ Each is logged as `command {name, args, ok, ms}` in `logs/chat-bot.log`.
 ## Asking in words
 
 Anything said to the bot in words (an @, its name, a line auto-reply lets through) goes to Claude with these same tools in its MCP session, an MCP server in the bot's own process (`src/mcp/`, on 127.0.0.1 and a free port, `--mcp-port`). It is always on: without it Claude could not act on anything said in words, so a server that can't start (a taken port, `could not start` with `EADDRINUSE`) stops the bot at start. Claude reads each tool's description, calls the one that fits (「识别一下背景音乐」, 「把截图打开」, 「以后 100 钻以下的礼物不用谢了」) and answers in its own words from the result. A tool marked `adminOnly` (`BotTool` in `src/app/ports.ts`) is left out of anyone else's session: they don't see it, and `prompt.md` tells Claude to say it can't be done and who can. Each tool runs at most once per question, and each question gets a token of its own, which stops working when the answer is done. The tools a room switches on are in the same list, beside the built-in ones; they have no `/` names, and a guidance tool's text comes back to Claude, which answers in the same turn (`tool guidance` in the log). The log has `mcp server listening {port}`, `mcp tool {tool, asker, userId, ms, isError}` and, in `claude answered`, `tools: [{tool, ms, isError}]`.
+
+## What the bot remembers
+
+`update_memory` (`src/mcp/update-memory.ts`) has no `/` name: Claude calls it when something said is worth keeping past this question. It writes one of two kinds of file, both read on every use and editable by hand:
+
+- the room's `data/<房间号>/memory.md` (`scope: "room"`): running jokes, the room's rules, who the regulars are. Only the streamer and admins can change it; anyone else's call says so. It's in every prompt as `{{memory}}`, together with the streamer's note.
+- one person's `data/<房间号>/<user id>/note.md` (`scope: "note"`), next to their `talk.txt`: what to call them, songs they like, what they agreed with the bot. The program picks the file from who asked, so nobody writes into someone else's. A viewer's note is in the prompts that answer or thank them (`{{askerNote}}`); the streamer's (by `room_config.json`'s `streamer.uid`, or room-feed's word once it has it) is in every prompt, as viewers ask about them. In a 私密 room viewers can't be told apart, so their notes are neither written nor read; the streamer's still is.
+
+Each file is entries with a `§` line between them. The tool can `add` an entry, `replace` a piece of text (which must appear in exactly one place) or `remove` the entry holding it. `memory.md` holds at most 4000 characters, a note 1000 (`src/core/memory/memory-text.ts`); a change past that fails with a message telling Claude to merge or drop entries first. Nothing with a word from `forbidden-words.md` is kept. The tool's description tells Claude what to keep (what lasts and the person wouldn't mind) and what not (moods, anyone's private life, what someone says about someone else, topics that get rooms banned), and `prompt.md` lets it say 「记下了」 only after the tool said so. The log has `memory updated {scope, action, asker, userId, content, old, used}`.
 
 ## Where they're defined
 

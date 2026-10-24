@@ -315,31 +315,30 @@ test("the reply @s the whole nickname when it fits, and only a shortened @ goes 
   );
 });
 
-test("the reply @s a viewer by the room's atNames for them, by user id, whole or shortened; others by their nickname", async () => {
-  const asker = '⊹꙳𝝑阿拂（吃荷灵咪馊饭版）𝝔⋆₊';
-  const answers = [
-    '可以，以后叫你阿拂',
-    '先换首顺手的唱回回血，这首的调交给二号去研究，不开心的锅归伴奏不归茜茜呀',
-    '好',
-  ];
+test("the asker's note goes into their prompt, and the reply @s them by nickname", async () => {
+  const prompts: string[] = [];
   const { outbox, sent } = fakeOutbox();
   const answerer = new MentionAnswerer({
-    ask: () => Promise.resolve(answers.shift()!),
+    ask: ({ prompt }) => {
+      prompts.push(prompt);
+      return Promise.resolve('好的阿拂');
+    },
     outbox,
-    room: fakeRoom({ atNames: () => ({ '103094206072': '阿拂' }), now: () => NOW }),
+    room: fakeRoom({
+      memory: {
+        room: () => '',
+        note: (userId) => (userId === '103094206072' ? '喜欢被叫阿拂' : ''),
+      },
+      now: () => NOW,
+    }),
     log: silentLog,
-    promptTemplate: () => TEMPLATE,
+    promptTemplate: () => '{{askerNote}}|{{asker}}: {{question}}',
   });
-  for (const userId of ['103094206072', '103094206072', '7']) {
-    answerer.ask({ asker, userId, question: '只喊我阿拂', history: [] });
-    await answerer.idle();
-  }
+  answerer.ask({ asker: '⊹꙳𝝑阿拂', userId: '103094206072', question: '在吗', history: [] });
+  await answerer.idle();
   await outbox.idle();
-  expect(sent).toEqual([
-    '@阿拂 可以，以后叫你阿拂',
-    '@阿拂 先换首顺手的唱回回血，这首的调交给二号去研究，不开心的锅归伴奏不归茜茜呀',
-    `@${asker} 好`,
-  ]);
+  expect(prompts[0]).toContain('喜欢被叫阿拂');
+  expect(sent).toEqual(['@⊹꙳𝝑阿拂 好的阿拂']);
 });
 
 test('the most messages an answer may take is kept in the room settings, and splits the answer', async () => {

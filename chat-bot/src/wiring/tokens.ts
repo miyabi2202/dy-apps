@@ -35,6 +35,7 @@ import type {
   SettingsStore,
   SpawnWorker,
   UserTalk,
+  Memory,
 } from '../app/ports';
 import type { RoomFeed } from '../app/room/room-feed';
 import type { RoomState } from '../app/room/room-state';
@@ -109,6 +110,8 @@ export const RECORD = token<RoomRecord>('record');
 export const SINGING = token<Pick<RoomRecord, 'add'>>('singing');
 export const BOT_TALK = token<BotTalk>('botTalk');
 export const USER_TALK = token<UserTalk>('userTalk');
+/** What the bot remembers in the room: memory.md and each person's note.md. */
+export const MEMORY = token<Memory>('memory');
 /** The prompt `name`, read on every use: the room's own file, else the shared one. */
 export const PROMPT = token<(name: PromptName) => () => string>('prompt');
 export const ROOM = token<RoomState>('room');

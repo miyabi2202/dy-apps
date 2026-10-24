@@ -5,7 +5,7 @@ import { testWording } from '../../support/wording';
 
 const NOW = Date.UTC(2026, 9, 16, 8, 0, 0);
 
-test('gives every prompt the room as it is now: chat, recent speech, persona, context, what the bot said', () => {
+test("gives every prompt the room as it is now: chat, recent speech, persona, memory, the streamer's note, what the bot said", () => {
   const history = new ChatHistory(2);
   for (const content of ['一', '二', '三']) {
     history.add({ ts: NOW, userId: 'u-1', nickname: '阿明', content });
@@ -13,14 +13,16 @@ test('gives every prompt the room as it is now: chat, recent speech, persona, co
   const transcript = new Transcript(30 * 60_000, () => NOW);
   transcript.add({ start: NOW - 20 * 60_000, end: NOW - 19 * 60_000, text: '太早了' });
   transcript.add({ start: NOW - 3000, end: NOW, text: '大家好' });
-  let context = '主播是猫猫';
+  const notes: Record<string, string> = { 's-1': '爱喝奶茶' };
+  let memory = '主播是猫猫';
   let persona = '数学老师\n';
   const room = fakeRoom({
     history,
     transcript,
     transcriptMs: 5 * 60_000,
     persona: () => persona,
-    context: () => context,
+    memory: { room: () => memory, note: (userId) => notes[userId] ?? '' },
+    streamerId: () => 's-1',
     botTalk: { recent: () => '你好呀' },
     chatDir: '/data/chat',
     now: () => NOW,
@@ -38,14 +40,35 @@ test('gives every prompt the room as it is now: chat, recent speech, persona, co
     chatDir: '/data/chat',
     persona: '数学老师',
     botName: '小助手',
-    context: '主播是猫猫',
+    memory: '主播是猫猫',
+    streamerNote: '爱喝奶茶',
     botTalk: '你好呀',
   });
 
-  // Persona and context are read each time.
+  // Persona and memory are read each time.
   persona = '小狗';
-  context = '主播今天生日';
-  expect(room.promptInput()).toMatchObject({ persona: '小狗', context: '主播今天生日' });
+  memory = '主播今天生日';
+  expect(room.promptInput()).toMatchObject({ persona: '小狗', memory: '主播今天生日' });
+});
+
+test("the asker's note is theirs alone: none for the streamer (every prompt has theirs) or in a 私密 room", () => {
+  const notes: Record<string, string> = {
+    's-1': '爱喝奶茶',
+    'u-1': '叫 TA 阿明',
+    '111111-苦***-31': '爱听晴天',
+  };
+  let isPrivate = false;
+  const room = fakeRoom({
+    memory: { room: () => '', note: (userId) => notes[userId] ?? '' },
+    streamerId: () => 's-1',
+    isPrivate: () => isPrivate,
+  });
+  expect(room.askerNote('u-1')).toBe('叫 TA 阿明');
+  expect(room.askerNote('u-2')).toBe('');
+  expect(room.askerNote(undefined)).toBe('');
+  expect(room.askerNote('s-1')).toBe('');
+  isPrivate = true;
+  expect(room.askerNote('111111-苦***-31')).toBe('');
 });
 
 test('screenshots go to Claude only while on', async () => {

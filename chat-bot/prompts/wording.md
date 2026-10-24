@@ -54,11 +54,23 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 （程序提示：这条可能和 {{tools}} 有关，有这个工具就先看看它的说明合不合；只是提示，不一定对，不合就照常回答。）
 
-## context
+## memory
 
-关于这个直播间的背景资料：
+关于这个直播间你记着的事（一条一段，用 § 隔开）：
 
-{{context}}
+{{memory}}
+
+## streamer-note
+
+关于主播你记着的事（一条一段，用 § 隔开）：
+
+{{note}}
+
+## asker-note
+
+关于 {{asker}} 你记着的事（一条一段，用 § 隔开；只在回 TA 时用，别对别人说）：
+
+{{note}}
 
 ## common-knowledge
 

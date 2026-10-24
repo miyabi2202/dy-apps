@@ -10,6 +10,7 @@ import {
   roomFiles,
   saveStreamer,
 } from '../adapters/files/room-files';
+import { memoryFiles } from '../adapters/files/memory-files';
 import { botTalkFile, userTalkFiles } from '../adapters/files/room-talk-files';
 import { EventBus } from '../app/event-bus';
 import { Outbox } from '../app/replies/outbox';
@@ -30,6 +31,7 @@ import {
   GIFTS,
   HISTORY,
   LOG,
+  MEMORY,
   OPTIONS,
   OUTBOX,
   PROMPTS_DIR,
@@ -131,6 +133,9 @@ export function registerRoom(container: Container): void {
       const roomConfig = c.resolve(ROOM_CONFIG);
       return userTalkFiles(c.resolve(ROOM_FILES).users, { timeZone: () => roomConfig().timeZone });
     })
+    // What the bot remembers (memory.md, each person's note.md), which it writes with update_memory
+    // and anyone may edit by hand: read on every use.
+    .register(MEMORY, (c) => memoryFiles(c.resolve(ROOM_DIR)))
     // Words Douyin holds back a message for: every prompt that writes chat is told them, and the
     // outbox won't send one with them. Read on every use, so an edit applies at once.
     .register(FORBIDDEN_WORDS, (c) => {
@@ -145,11 +150,10 @@ export function registerRoom(container: Container): void {
     })
     // What the room looks like now, for every prompt. The bot plays the persona file room_config.json
     // names (one of the room's personas/, on its own or as changes to a shared persona in
-    // chat-bot/prompts/personas/, see livePersona), read on every use like context.md. The prompts also get the settings admins
+    // chat-bot/prompts/personas/, see livePersona), read on every use like memory.md. The prompts also get the settings admins
     // can change (each feature gives its own part), so the bot can tell viewers how it is set.
     .register(ROOM, (c) => {
       const options = c.resolve(OPTIONS);
-      const files = c.resolve(ROOM_FILES);
       const gifts = c.resolve(GIFTS);
       const roomConfig = c.resolve(ROOM_CONFIG);
       const room = new RoomState({
@@ -164,7 +168,10 @@ export function registerRoom(container: Container): void {
           file: () => roomConfig().persona,
           log: c.resolve(LOG),
         }),
-        context: liveText(files.context),
+        memory: c.resolve(MEMORY),
+        // room-feed's word on who the streamer is, else what room_config.json kept from last time.
+        streamerId: () => c.resolve(ADMINS).current()?.uid ?? roomConfig().streamer?.uid,
+        isPrivate: () => roomConfig().private,
         // What viewers ask about Douyin itself (灯牌…), shared by every room.
         commonKnowledge: liveText(join(c.resolve(PROMPTS_DIR), 'common-knowledge.md')),
         // What the bot says about itself when asked, shared by every room.
@@ -187,8 +194,6 @@ export function registerRoom(container: Container): void {
         songBreakSources: () => c.resolve(SONG_BREAK_SOURCES),
         // 单推符号 taken off a nickname before the bot @s them.
         atTrimStart: () => roomConfig().atTrimStart,
-        // What to @ some viewers as instead of their nickname, by user id.
-        atNames: () => roomConfig().atNames,
         // Where the streamer is: every time in the prompts is in it (Beijing time when not known).
         timeZone: () => roomConfig().timeZone,
         // What prompts say around what they fill in, shared by every room.

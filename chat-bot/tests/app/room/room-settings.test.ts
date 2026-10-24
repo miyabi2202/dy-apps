@@ -47,7 +47,6 @@ test('fills in the fields a room_config.json lacks with their defaults, and keep
     aliases: [],
     streamerNames: [],
     atTrimStart: [],
-    atNames: {},
     timeZone: 'Asia/Shanghai',
     tools: [],
     autoReplyThreshold: 1,

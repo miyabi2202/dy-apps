@@ -41,6 +41,19 @@ export interface UserTalk {
   recent(userId: string): string;
 }
 
+/**
+ * What the bot remembers in a room, in files it writes itself (update_memory) and anyone can edit:
+ * the room's own (memory.md) and one note a person (note.md), by user id.
+ */
+export interface Memory {
+  /** The room's memory; empty when there's none. */
+  room(): string;
+  setRoom(text: string): void;
+  /** What the bot keeps about one person; empty when there's none. */
+  note(userId: string): string;
+  setNote(userId: string, text: string): void;
+}
+
 /** The logger methods the bot uses; a winston logger fits. */
 export interface Log {
   debug(message: string, meta?: object): void;

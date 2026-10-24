@@ -6,8 +6,8 @@ import { identifyBgmTool } from '../mcp/identify-bgm';
 import { identifySongTool } from '../mcp/identify-song';
 import { BotMcpServer } from '../mcp/server';
 import { numberTool, onOffTool } from '../mcp/setting-tools';
-import { setAtNameTool } from '../mcp/set-at-name';
 import { setThanksThresholdTool } from '../mcp/set-thanks-threshold';
+import { updateMemoryTool } from '../mcp/update-memory';
 import type { Container } from './container';
 import {
   ADMINS,
@@ -16,8 +16,10 @@ import {
   AUTO_REPLY,
   AUTO_SONG_ID,
   BUS,
+  FORBIDDEN_WORDS,
   LOG,
   MALICE_WATCH,
+  MEMORY,
   MCP_SERVER,
   OPTIONS,
   OUTBOX,
@@ -25,7 +27,6 @@ import {
   PROMPT,
   ROOM,
   ROOM_CONFIG,
-  ROOM_CONFIG_FILE,
   ROOM_DIR,
   SETTINGS,
   SONG_ID,
@@ -105,13 +106,13 @@ export function registerMcp(container: Container): void {
           log,
         }),
         setThanksThresholdTool(c.resolve(THANKER), log),
-        // What the bot @s someone as: their own for anyone, anyone's for an admin.
-        setAtNameTool({
-          atNames: {
-            get: () => c.resolve(ROOM_CONFIG)().atNames,
-            set: (atNames) => c.resolve(ROOM_CONFIG_FILE).update({ atNames }),
-          },
-          room,
+        // What the bot remembers: the room's (admins) and the asker's own note (anyone).
+        updateMemoryTool({
+          memory: c.resolve(MEMORY),
+          streamerId: () =>
+            c.resolve(ADMINS).current()?.uid ?? c.resolve(ROOM_CONFIG)().streamer?.uid,
+          isPrivate: () => c.resolve(ROOM_CONFIG)().private,
+          forbiddenWords: c.resolve(FORBIDDEN_WORDS),
           log,
         }),
         onOffTool({

@@ -117,9 +117,10 @@ export class GiftThanker extends ModelFeature<Thanks, string[]> {
     return room.prompt(this.options.promptTemplate(), {
       asker: nickname,
       question: this.question(given, total),
-      singleLength: singleBudget(room.atNameOf(userId, nickname), this.limits()),
+      singleLength: singleBudget(nickname, this.limits()),
       maxLength,
       userHistory: this.options.userTalk?.recent(userId),
+      askerNote: room.askerNote(userId),
       userChat: room
         .recentChat()
         .filter((chat) => chat.userId === userId)
@@ -132,14 +133,10 @@ export class GiftThanker extends ModelFeature<Thanks, string[]> {
     { gift: { userId, nickname }, given, total }: Thanks,
     prompt: string,
   ): Promise<string[] | undefined> {
-    const { log, room } = this.options;
+    const { log } = this.options;
     log.info('thanking', { nickname, userId, gifts: this.gifts(given), total });
     log.debug('thanks prompt', { prompt });
-    const messages = replyMessages(
-      room.atNameOf(userId, nickname),
-      await this.options.ask({ prompt }),
-      this.limits(),
-    );
+    const messages = replyMessages(nickname, await this.options.ask({ prompt }), this.limits());
     if (!messages.length) {
       log.warn('claude had no thanks to give', { nickname });
       return undefined;

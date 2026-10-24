@@ -18,7 +18,7 @@ export interface ChatBotOptions {
   /** Answers the questions. */
   answerer: Pick<MentionAnswerer, 'ask' | 'idle'>;
   /** The chat before a question goes with it to the answerer. */
-  room: Pick<RoomState, 'recentChat' | 'replyLimits' | 'atNameOf'>;
+  room: Pick<RoomState, 'recentChat' | 'replyLimits'>;
   /** Where command replies go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
   log: Log;
