@@ -6,8 +6,9 @@ dialects, English and the rest) or SenseVoiceSmall does (Japanese and Korean, wh
 FireRedASR2-AED doesn't know: it hears a Japanese song as romaji, <unk>s or loops), AST (an
 AudioSet classifier) scores how much it sounds like speech and like music, since a song gets
 transcribed as if the streamer said it (AudioSet labels most songs Music and few of them Singing,
-so a song scores high on Music, not on Singing), and CAM++ voiceprints tell the streamer from
-whoever they're linked up with (连线). Each sentence is printed to stdout as one JSON line:
+so a song scores high on Music, not on Singing), and ERes2Net voiceprints (on the GPU) tell the
+streamer from whoever they're linked up with (连线), and her singing from a recording's singer.
+Each sentence is printed to stdout as one JSON line:
 
     {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "lang": "zh", "speech": 0.93,
      "music": 0.02, "speaker": 0, "host": true, "voice": 0.71}
@@ -60,11 +61,12 @@ track stops between songs and plays on through the talk inside one; its split of
 with Recordings', so nothing is split twice.
 
     uv run transcribe.py [<stream url> | --serve PORT] [--device auto|cpu|mps|cuda] [--realtime] [--model-dir DIR]
-        [--lid-dir DIR] [--same-voice 0.6] [--no-backing-title] [--no-backing-gaps]
+        [--lid-dir DIR] [--same-voice 0.6] [--same-singer 0.5] [--no-backing-title] [--no-backing-gaps]
 
 FireRedASR2-AED (4.7 GB) is downloaded into --model-dir and FireRedLID (3.5 GB) into --lid-dir on
-the first run, SenseVoiceSmall (0.9 GB) into FunASR's cache. They need a GPU (Apple's or CUDA) to
-keep up with a stream: on a CPU a sentence takes longer to transcribe than to say.
+the first run, SenseVoiceSmall (0.9 GB) and ERes2Net (0.2 GB) into ModelScope's cache. They need
+a GPU (Apple's or CUDA) to keep up with a stream: on a CPU a sentence takes longer to transcribe
+than to say.
 """
 
 import argparse
@@ -88,6 +90,7 @@ import wave
 
 import numpy as np
 import torch
+import torchaudio.compliance.kaldi as kaldi
 import torchaudio.functional as AF
 from demucs.apply import apply_model
 from demucs.pretrained import get_model as get_demucs
@@ -98,7 +101,9 @@ from fireredasr2s.fireredlid.data.feat import FeatExtractor as LidFeatExtractor
 from fireredasr2s.fireredlid.lid import load_fireredlid_model
 from fireredasr2s.fireredlid.tokenizer.lid_tokenizer import LidTokenizer
 from funasr import AutoModel
+from funasr.models.eres2net.eres2net_aug import ERes2NetAug
 from huggingface_hub import snapshot_download
+from modelscope.hub.snapshot_download import snapshot_download as model_snapshot
 from shazamio import Shazam
 from transformers import ASTFeatureExtractor, ASTForAudioClassification
 
@@ -123,18 +128,39 @@ BACKING_TRACK = re.compile(r"伴奏|纯音乐|instrumental|off[ -]?vocal|karaoke
 # Restart the VAD's state this often, between sentences, so its buffers stay small.
 VAD_RESET_MS = 5 * 60 * 1000
 ASR_MODEL = "FireRedTeam/FireRedASR2-AED"
-# A sentence this close (cosine) to a voice heard before is that voice; otherwise a new one
-# (--same-voice). Synthetic voices scored 0.83–0.90 against themselves and up to 0.62 against
-# others (two Apple voices of the same sex); real voices over music may score lower against
-# themselves, so this is to be tuned from the logged `voice`.
+# The voiceprint model (see Voiceprints): 3D-Speaker's ERes2Net trained on 200k Mandarin speakers
+# (55M parameters, a 192-dim voiceprint), from ModelScope.
+SPEAKER_MODEL = "iic/speech_eres2net_sv_zh-cn_16k-common"
+SPEAKER_CHECKPOINT = "pretrained_eres2net_aug.ckpt"
+# A sentence's features are wrapped round to a whole multiple of this many frames (10 ms each), so
+# the GPU sees a handful of lengths it has compiled for instead of a new one every sentence.
+VOICEPRINT_FRAMES = 100
+# A talked sentence this close (cosine) to a voice heard talking before is that voice; otherwise a
+# new one (--same-voice). With ERes2Net, the streamer's own talk in a 75-minute show scored 0.69 or
+# more against her average in 9 lines of 10 (0.63 in 19 of 20), and at 0.6 the worker split 7 of
+# her 203 talked lines off as other voices (CAM++, before it: 15). Other people talking haven't
+# been measured on real audio: Apple's synthetic voices of the same sex scored a median of 0.35
+# against each other (CAM++ 0.30) but up to 0.86 for two that share a voice engine. Tune it from
+# the logged `voice`.
 SAME_VOICE = 0.6
+# The same for a sung sentence among the voices heard singing (--same-singer). Singing scores lower
+# against the same singer than talk does, so it needs its own, lower threshold: in the 75-minute
+# show, where for its last 35 minutes she sang live (127 sung lines, as the worker cuts them) after
+# 30 minutes of a BGM playlist with vocals, ERes2Net at 0.5 took 4 of her lines for another voice
+# (long 「啊」s and a chorus over a backing track with backing vocals; 0.45–0.55 gave the same), took
+# none of the 12 BGM lines for hers, and on a recorded link-up kept the guest's and the streamer's
+# singing apart. CAM++ at the 0.6 it had took 33 of her 127 lines for another voice (the bot's
+# log of the show: 25 of 126), and its best, 0.45–0.5, 5. On shorter cuts of the same audio (238 of
+# her lines, 1.5–4 s each) ERes2Net at 0.5 split off 7, CAM++ at 0.45 12 (at 0.5 30, at 0.6 180).
+# Her lines scored a median of 0.82 against her average, the BGM's 0.42 (at most 0.52), a guest's
+# singing at most 0.43–0.45 against the streamer's.
+SAME_SINGER = 0.5
 # Shorter sentences give voiceprints too rough to sort.
 MIN_VOICE_SECONDS = 1.5
 # Below this speech score a line is sung (as in the bot's transcript.ts); singing changes a voice
 # too much for its voiceprint to match the same person talking (on a link-up, the streamer's
-# singing scored 0.33 against her talking and 0.28 against the guest's), so the two are sorted
-# apart. Sung lines of one singer scored 0.66–0.93 against that singer and 0.28–0.42 against
-# another, so the same SAME_VOICE sorts them.
+# singing scored 0.33 against her talking and 0.28 against the guest's, with CAM++), so the two are
+# sorted apart, sung lines by SAME_SINGER.
 SUNG_BELOW_SPEECH = 0.2
 # On music the decoder can get stuck repeating a character; a sentence can't hold more than this
 # many tokens a second (Mandarin is about 4–6 characters a second, quick singing a bit more).
@@ -332,18 +358,60 @@ class VoiceSet:
         return self.ids[voice], voice == self.host, similarity
 
 
-class Voices:
+class Voiceprints:
     """
-    Tells voices apart by their CAM++ voiceprints (see VoiceSet), the streamer's from whoever
-    they're linked up with: the voices heard talking, and apart from them those heard singing.
+    A sentence's voiceprint, unit length: ERes2Net (SPEAKER_MODEL) on 80 log-mel filterbanks, on
+    the GPU. Measured against CAM++ (FunASR's `cam++`, which this replaced) and other models of
+    the same family on a 75-minute show and a recorded link-up (see SAME_SINGER), ERes2Net kept as
+    many of the streamer's lines together as any, more than CAM++, and told a link-up's two singers
+    apart better (pairs of lines: AUC 0.999, CAM++ 0.963); the larger ERes2NetV2 variants and CAM++
+    zh-en did no better, 3D-Speaker's ERes2Nets and WavLM-SV (English) worse. Running it on the
+    vocals alone (Demucs' htdemucs or htdemucs_ft, or BS-RoFormer) didn't help: telling her lines
+    from the BGM's scored an AUC of 0.97 on the mix and 0.97–0.98 on each of those, for every model,
+    so voiceprints take the mix and don't wait on a split (htdemucs would cost 0.75 s a sung
+    sentence, htdemucs_ft 3.7 s).
+
+    On an Apple GPU a length it hasn't run before takes 0.3–0.6 s to compile for, and every sentence
+    is a new length; so the features are wrapped round to a whole number of VOICEPRINT_FRAMES
+    (repeating the sentence's start, which leaves the voiceprint as good as it was), and every such
+    length up to MAX_SENTENCE_MS is run once at start (`warm_up`, about 5 s). Then a sentence takes
+    about 140 ms of the GPU (9 s on average; CAM++ on the CPU took 60 ms, ERes2Net there 420).
     """
 
-    def __init__(self, same_voice: float, model: AutoModel | None = None):
-        # Small enough for the CPU, which leaves the GPU to the recognizer.
-        self.model = model or AutoModel(model="cam++", device="cpu", disable_update=True, log_level="ERROR")
+    def __init__(self, device: str):
+        self.device = device
+        path = os.path.join(model_snapshot(SPEAKER_MODEL), SPEAKER_CHECKPOINT)
+        self.model = ERes2NetAug()
+        self.model.load_state_dict(torch.load(path, map_location="cpu"), strict=True)
+        self.model.to(device).eval()
+
+    def __call__(self, audio: np.ndarray) -> np.ndarray:
+        features = kaldi.fbank(torch.from_numpy(audio)[None], num_mel_bins=80)
+        features = features - features.mean(0, keepdim=True)
+        frames = -(-len(features) // VOICEPRINT_FRAMES) * VOICEPRINT_FRAMES
+        features = features[torch.arange(frames) % len(features)]
+        with torch.no_grad():
+            embedding = self.model(features[None].to(self.device))
+        voiceprint = embedding.reshape(-1).float().cpu().numpy()
+        return voiceprint / np.linalg.norm(voiceprint)
+
+    def warm_up(self) -> None:
+        for seconds in range(1, MAX_SENTENCE_MS // 1000 + 2):
+            self(np.zeros(seconds * RATE, dtype=np.float32) + 1e-3)
+
+
+class Voices:
+    """
+    Tells voices apart by their voiceprints (see Voiceprints, VoiceSet), the streamer's from
+    whoever they're linked up with or a recording playing: the voices heard talking (at
+    SAME_VOICE), and apart from them those heard singing (at SAME_SINGER).
+    """
+
+    def __init__(self, same_voice: float, same_singer: float, voiceprint=None):
+        self.voiceprint = voiceprint or Voiceprints(pick_device("auto"))
         ids = itertools.count()
         self.talking = VoiceSet(same_voice, lambda: next(ids))
-        self.singing = VoiceSet(same_voice, lambda: next(ids))
+        self.singing = VoiceSet(same_singer, lambda: next(ids))
 
     def __call__(
         self, audio: np.ndarray, speech: float, lang: str | None
@@ -351,9 +419,7 @@ class Voices:
         seconds = len(audio) / RATE
         if seconds < MIN_VOICE_SECONDS:
             return None, None, None
-        embedding = self.model.generate(input=audio, disable_pbar=True)[0]["spk_embedding"]
-        voiceprint = embedding.reshape(-1).float().cpu().numpy()
-        voiceprint /= np.linalg.norm(voiceprint)
+        voiceprint = self.voiceprint(audio)
         return (self.singing if is_sung(speech, lang) else self.talking).add(voiceprint, seconds)
 
 
@@ -364,7 +430,7 @@ def is_sung(speech: float, lang: str | None) -> bool:
 
 
 def load_models(
-    device: str, model_dir: str, lid_dir: str, same_voice: float
+    device: str, model_dir: str, lid_dir: str, same_voice: float, same_singer: float
 ) -> tuple[AutoModel, Recognizer, LanguageId, SenseVoice, VoiceClassifier, Voices, Separator]:
     vad = AutoModel(
         model="fsmn-vad",
@@ -377,6 +443,7 @@ def load_models(
     sensevoice = SenseVoice(device)
     voice = VoiceClassifier(device)
     separator = Separator(device)
+    voiceprints = Voiceprints(device)
     # The first run on a GPU compiles kernels; do it before the stream starts.
     silence = np.zeros(RATE, dtype=np.float32)
     asr(silence)
@@ -384,7 +451,8 @@ def load_models(
     sensevoice(silence, "ja")
     voice(silence)
     separator(silence)
-    return vad, asr, lid, sensevoice, voice, Voices(same_voice), separator
+    voiceprints.warm_up()
+    return vad, asr, lid, sensevoice, voice, Voices(same_voice, same_singer, voiceprints), separator
 
 
 # Where the transcript and music answers go (stdout, or the bot's connection with --serve), one
@@ -836,7 +904,9 @@ def main() -> None:
     parser.add_argument("--device", default="auto")
     parser.add_argument("--realtime", action="store_true", help="read input at its own speed (for testing with a file)")
     parser.add_argument("--same-voice", type=float, default=SAME_VOICE,
-                        help="how close (0–1) a sentence's voiceprint must be to a voice heard before to count as it")
+                        help="how close (0–1) a talked sentence's voiceprint must be to a voice heard talking to count as it")
+    parser.add_argument("--same-singer", type=float, default=SAME_SINGER,
+                        help="how close (0–1) a sung sentence's voiceprint must be to a voice heard singing to count as it")
     parser.add_argument("--model-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedASR2-AED"))
     parser.add_argument("--lid-dir", default=os.path.expanduser("~/.cache/fireredasr2/FireRedLID"))
     parser.add_argument("--no-backing-title", action="store_true",
@@ -855,7 +925,7 @@ def main() -> None:
         log("no GPU: transcription will fall behind the stream")
     # FunASR prints while loading; stdout is only for transcript lines.
     with contextlib.redirect_stdout(sys.stderr):
-        models = load_models(device, args.model_dir, args.lid_dir, args.same_voice)
+        models = load_models(device, args.model_dir, args.lid_dir, args.same_voice, args.same_singer)
     logging.getLogger().setLevel(logging.WARNING)
 
     # The latest MUSIC_SECONDS of audio, for naming the music when the bot asks.

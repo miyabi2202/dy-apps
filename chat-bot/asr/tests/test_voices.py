@@ -16,7 +16,8 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 with contextlib.redirect_stdout(sys.stderr):
     from funasr import AutoModel
-    from transcribe import RATE, SAME_VOICE, SUNG_BELOW_SPEECH, VoiceClassifier, Voices
+    from transcribe import (RATE, SAME_SINGER, SAME_VOICE, SUNG_BELOW_SPEECH, VoiceClassifier, Voiceprints, Voices,
+                            pick_device)
 
 HERE = os.path.dirname(__file__)
 LABELS = json.load(open(os.path.join(HERE, "linkmic-singing.json"), encoding="utf-8"))
@@ -50,9 +51,9 @@ def sentences():
 
 
 @pytest.fixture(scope="module")
-def cam():
+def voiceprint():
     with contextlib.redirect_stdout(sys.stderr):
-        return AutoModel(model="cam++", device="cpu", disable_update=True, log_level="ERROR")
+        return Voiceprints(pick_device("auto"))
 
 
 def heard(voices: Voices, sentences) -> dict[str, list[tuple[int, bool]]]:
@@ -66,8 +67,8 @@ def heard(voices: Voices, sentences) -> dict[str, list[tuple[int, bool]]]:
     return out
 
 
-def test_each_singer_is_one_voice_of_their_own(sentences, cam):
-    got = heard(Voices(SAME_VOICE, cam), sentences)
+def test_each_singer_is_one_voice_of_their_own(sentences, voiceprint):
+    got = heard(Voices(SAME_VOICE, SAME_SINGER, voiceprint), sentences)
     guest, host = {v for v, _ in got["guest"]}, {v for v, _ in got["host"]}
     assert len(got["guest"]) >= 4 and len(got["host"]) >= 6
     assert len(guest) == 1 and len(host) == 1 and guest != host
@@ -75,8 +76,8 @@ def test_each_singer_is_one_voice_of_their_own(sentences, cam):
     assert got["host"][-1][1] is True
 
 
-def test_once_the_streamer_has_sung_a_guest_singing_is_the_guest(sentences, cam):
-    voices = Voices(SAME_VOICE, cam)
+def test_once_the_streamer_has_sung_a_guest_singing_is_the_guest(sentences, voiceprint):
+    voices = Voices(SAME_VOICE, SAME_SINGER, voiceprint)
     # As on the stream, where she had sung for half an hour before the link-up.
     heard(voices, [s for s in sentences if who_sang(s[0]) == "host"])
     got = heard(voices, sentences)
