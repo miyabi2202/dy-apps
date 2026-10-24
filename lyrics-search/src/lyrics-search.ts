@@ -155,6 +155,26 @@ export class LyricsSearch {
     return (await this.ask(() => this.client.lyrics(id))) ?? [];
   }
 
+  /**
+   * The sung lines of `title` by `artist`: those of the first `versions` versions with lyrics
+   * (see lookup), of the first `tries`, run together. A version's lyrics may be cut short or
+   * differ from what's sung, and an instrumental shares the title. Empty when none has lyrics, or
+   * NetEase fails or is down.
+   */
+  async songLyrics(
+    title: string,
+    artist = '',
+    { versions = 3, tries = 5 }: { versions?: number; tries?: number } = {},
+  ): Promise<string[]> {
+    const found: string[][] = [];
+    for (const id of (await this.lookup(title, artist)).slice(0, tries)) {
+      if (found.length >= versions) break;
+      const lines = await this.lyrics(id);
+      if (lines.length) found.push(lines);
+    }
+    return found.flat();
+  }
+
   /** One request through the breaker: null when it's open or the request fails. */
   private async ask<T>(request: () => Promise<T>): Promise<T | null> {
     if (this.breaker.open()) return null;

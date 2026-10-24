@@ -2,6 +2,7 @@
  * Every token of the bot's container, by the area that registers it (see the `register…` in each
  * module here). A test swaps the adapters' for fakes.
  */
+import type { LyricsSearch } from '@dy-apps/lyrics-search';
 import type { CodexCliOptions } from '../adapters/models/codex-cli';
 import type { RoomFeedApi } from '../adapters/room-feed/room-feed-api';
 import type { RoomConfig, RoomFiles, roomConfigFile } from '../adapters/files/room-files';
@@ -16,6 +17,7 @@ import type { BotTool } from '../mcp/rpc';
 import type { BotMcpServer } from '../mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { OnSing } from '../app/songs/on-sing';
+import type { LyricsBreaks } from '../app/songs/lyrics-breaks';
 import type { Outbox } from '../app/replies/outbox';
 import type {
   AskModel,
@@ -24,6 +26,7 @@ import type {
   Judge,
   Log,
   RoomEvents,
+  FetchLyrics,
   SearchLyrics,
   RoomRecord,
   SettingsStore,
@@ -67,8 +70,12 @@ export const CLAUDE_CLI = token<AskModel>('claudeCli');
 export const CODEX_CLI = token<(over: CodexCliOptions) => AskModel>('codexCli');
 /** Jev, for an API key. */
 export const JEV_CLIENT = token<(apiKey: string) => Judge>('jevClient');
+/** NetEase's searches and lyrics; null with --no-lyrics-search. */
+export const NETEASE = token<LyricsSearch | null>('netease');
 /** Names a song from lyrics; null with --no-lyrics-search. */
 export const LYRICS_SEARCH = token<SearchLyrics | null>('lyricsSearch');
+/** A song's lyrics from NetEase, by title and singer; null with --no-lyrics-search. */
+export const FETCH_LYRICS = token<FetchLyrics | null>('fetchLyrics');
 /** Fetches the files the room's room_config.json lists, in the background. */
 export const DOWNLOADS = token<() => void>('downloads');
 
@@ -114,6 +121,8 @@ export const SONG_INTRO = token<SongIntro>('songIntro');
 export const SONG_ID = token<SongId | null>('songId');
 export const AUTO_SONG_ID = token<AutoSongId | null>('autoSongId');
 export const ON_SING = token<OnSing>('onSing');
+/** The lyrics song break source (see song-breaks.ts); null without NetEase. */
+export const LYRICS_BREAKS = token<LyricsBreaks | null>('lyricsBreaks');
 
 // malice.ts: null without Jev.
 export const MALICE_WATCH = token<MaliceWatch | null>('maliceWatch');

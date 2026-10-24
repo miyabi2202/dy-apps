@@ -37,6 +37,11 @@ export interface SongIdOptions {
    * as the voices took her for someone else.
    */
   othersNote?: () => string;
+  /**
+   * Told each song named for sure, by any path, with when it was asked about (before it's told to
+   * the room, if it is): the lyrics song break source keeps it (see LyricsBreaks).
+   */
+  onNamed?: (song: { title: string; artist: string }, askedAt: number) => void;
   /** Told each song named to the room, after its message, to say more about it. */
   onTold?: (song: SongAnswer) => void;
   /**
@@ -131,6 +136,7 @@ export class SongId {
         by: 'shazam',
         ms: now() - start,
       });
+      this.options.onNamed?.(answer, start);
       const told = noted(answer);
       return { answer: told, text: told.message, by: 'shazam', othersSang };
     }
@@ -181,6 +187,7 @@ export class SongId {
             by: 'lyrics-search',
             ms: now() - start,
           });
+          this.options.onNamed?.(answer, start);
           const told = noted(answer);
           return { answer: told, text: told.message, by: 'lyrics-search', othersSang };
         }
@@ -204,6 +211,7 @@ export class SongId {
       ms: now() - start,
       lyricsMs,
     });
+    if (answer.sure && answer.title) this.options.onNamed?.(answer, start);
     return { answer: noted(answer), text, by: 'codex', othersSang };
   }
 

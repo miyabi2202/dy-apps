@@ -6,7 +6,7 @@ import type { BotTool } from './rpc';
 
 export interface IdentifySongOptions {
   songId: Pick<SongId, 'prompt' | 'identifyLines' | 'told' | 'lastTold'>;
-  room: Pick<RoomState, 'recentTranscript' | 'prompt' | 'now'>;
+  room: Pick<RoomState, 'recentTranscript' | 'prompt' | 'now' | 'songSpans'>;
   /** Douyin's chat length limit, which the song prompt asks its message to fit. */
   maxLength: number;
   log: Log;
@@ -46,7 +46,8 @@ export function identifySongTool({ songId, room, maxLength, log }: IdentifySongO
     ],
     async call(args, { asker, direct }) {
       const hint = typeof args.hint === 'string' ? args.hint : '';
-      const lines = currentSong(room.recentTranscript());
+      const transcript = room.recentTranscript();
+      const lines = currentSong(transcript, { spans: room.songSpans(transcript) });
       const prompt = room.prompt(songId.prompt(), {
         transcript: lines,
         asker,

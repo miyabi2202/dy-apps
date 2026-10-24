@@ -80,6 +80,12 @@ test('room_config.json starts not private, and is read again as it changes', () 
 
   writeFileSync(config, '{ "tools": ["can_sing"] }');
   expect(roomConfig().tools).toEqual(['can_sing']);
+  // Every song break source when absent; the ones listed, or none, when there.
+  expect(roomConfig().songBreaks).toBeUndefined();
+  writeFileSync(config, '{ "tools": ["can_sing"], "songBreaks": [] }');
+  expect(roomConfig().songBreaks).toEqual([]);
+  writeFileSync(config, '{ "tools": ["can_sing"], "songBreaks": ["lyrics"] }');
+  expect(roomConfig().songBreaks).toEqual(['lyrics']);
 
   // A bad list keeps the last good one, with a warning.
   log.warn.mockClear();

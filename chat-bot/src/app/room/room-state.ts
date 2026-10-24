@@ -16,6 +16,7 @@ import {
   type Transcript,
   type TranscriptLine,
 } from '../../core/songs/transcript';
+import { combineSpans, type SongBreakSource, type SongSpan } from '../../core/songs/song-breaks';
 import type { BotTalk, Log, Screenshot, SettingsStore } from '../ports';
 import { setting } from '../commands/setting';
 
@@ -65,6 +66,11 @@ export interface RoomStateOptions {
   timeZone?: () => string;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
   botName: string;
+  /**
+   * The song break sources the room has on, by name (room_config.json's `songBreaks`), read each
+   * time; undefined for all of them.
+   */
+  songBreaks?: () => readonly string[] | undefined;
   /** Words the bot must never say, for `{{forbiddenWords}}`, read each time. */
   forbiddenWords?: () => readonly string[];
   log: Log;
@@ -85,6 +91,8 @@ export class RoomState {
   private readonly partsSetting: ReturnType<typeof setting<'maxReplyParts'>>;
   /** The parts of the room's settings the features keep, for `{{settings}}`. */
   private readonly settingsParts: (() => SettingsPart)[] = [];
+  /** Where songs start beyond pauses and talk, highest ranked first (see combineSpans). */
+  private readonly songBreakSources: SongBreakSource[] = [];
 
   constructor(private readonly options: RoomStateOptions) {
     this.screenshotsSetting = setting(
@@ -157,6 +165,27 @@ export class RoomState {
   recentTranscript(): TranscriptLine[] {
     const { transcript, transcriptMs = DEFAULT_TRANSCRIPT_WINDOW_MS } = this.options;
     return transcript?.recent(transcriptMs) ?? [];
+  }
+
+  /**
+   * Has `source` tell where songs start (see song-breaks.ts), ranked below those added before it
+   * and above the pauses and talk of currentSong.
+   */
+  addSongBreaks(source: SongBreakSource): void {
+    this.songBreakSources.push(source);
+  }
+
+  /**
+   * What the song break sources the room has on make of `lines`, combined (see combineSpans), for
+   * currentSong and singingSong; none without any.
+   */
+  songSpans(lines: readonly TranscriptLine[]): SongSpan[] {
+    const on = this.options.songBreaks?.();
+    return combineSpans(
+      this.songBreakSources
+        .filter((source) => !on || on.includes(source.name))
+        .map((source) => source.spans(lines)),
+    );
   }
 
   /** What the bot said in the room lately, one message a line; empty when it said nothing. */

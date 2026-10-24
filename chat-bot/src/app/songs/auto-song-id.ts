@@ -85,7 +85,8 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
   hear(line: TranscriptLine): void {
     if (!this.on || this.busy) return;
     const { room, againMs = 180_000 } = this.options;
-    const song = singingSong(room.recentTranscript(), line);
+    const transcript = room.recentTranscript();
+    const song = singingSong(transcript, line, room.songSpans(transcript));
     if (!song) return;
     const chars = sungChars(song.lines);
     if (chars < SONG_CHARS) return;

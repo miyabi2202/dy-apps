@@ -16,9 +16,11 @@ import {
   CLAUDE_CLI,
   CODEX_CLI,
   DOWNLOADS,
+  FETCH_LYRICS,
   JEV_CLIENT,
   LOG,
   LYRICS_SEARCH,
+  NETEASE,
   OPTIONS,
   PACKAGE_DIR,
   ROOM_API,
@@ -76,10 +78,16 @@ export function registerAdapters(container: Container): void {
     })
     // NetEase's lyrics search names a song in about a second; Codex only when it isn't sure.
     .register(LYRICS_SEARCH, (c) => {
-      if (!c.resolve(OPTIONS).lyricsSearch) return null;
-      const search = new LyricsSearch();
-      return (lines) => search.identify(lines);
+      const search = c.resolve(NETEASE);
+      return search && ((lines) => search.identify(lines));
     })
+    // And a named song's lyrics, which tell where it ends (see LyricsBreaks).
+    .register(FETCH_LYRICS, (c) => {
+      const search = c.resolve(NETEASE);
+      return search && ((title, artist) => search.songLyrics(title, artist));
+    })
+    // One for both, so they share its rate limit and breaker.
+    .register(NETEASE, (c) => (c.resolve(OPTIONS).lyricsSearch ? new LyricsSearch() : null))
     .register(JEV_CLIENT, () => (apiKey) => jev({ apiKey }))
     // Each download goes through its transformer script, if it has one; a slow or failed one
     // doesn't hold up the bot.

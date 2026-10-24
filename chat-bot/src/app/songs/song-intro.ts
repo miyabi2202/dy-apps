@@ -74,8 +74,9 @@ export class SongIntro extends ModelFeature<Song, SongIntroAnswer> {
     const template = this.options
       .promptTemplate()
       .replace('{{hook}}', room.wording(this.hook ? 'song-hook' : 'song-no-hook'));
+    const transcript = room.recentTranscript().filter((line) => !isGuestTalk(line));
     return room.prompt(template, {
-      transcript: currentSong(room.recentTranscript().filter((line) => !isGuestTalk(line))),
+      transcript: currentSong(transcript, { spans: room.songSpans(transcript) }),
       question: artist ? `《${title}》，原唱 ${artist}` : `《${title}》`,
       singleLength: maxLength,
       maxLength,

@@ -6,7 +6,7 @@ import type { RoomState } from '../room/room-state';
 export interface OnSingOptions {
   /** The room's `on_sing` as it is now (room_config.json, read again as it changes). */
   config: () => OnSingConfig | undefined;
-  room: Pick<RoomState, 'recentTranscript'>;
+  room: Pick<RoomState, 'recentTranscript'> & Partial<Pick<RoomState, 'songSpans'>>;
   outbox: Pick<Outbox, 'push'>;
   log: Log;
   /** While the streamer goes on singing, take this long as the next song. */
@@ -31,7 +31,8 @@ export class OnSing {
     const { room, outbox, log, againMs = 180_000, random = Math.random } = this.options;
     const config = this.options.config();
     if (!config) return;
-    const song = singingSong(room.recentTranscript(), line);
+    const transcript = room.recentTranscript();
+    const song = singingSong(transcript, line, room.songSpans?.(transcript));
     if (!song || isHandled(song, this.rolledAt, line.end, againMs)) return;
     this.rolledAt = line.end;
     if (random() >= config.probability) {

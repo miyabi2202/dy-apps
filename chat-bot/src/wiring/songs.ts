@@ -1,4 +1,5 @@
 import { AutoSongId, SONG_CHARS } from '../app/songs/auto-song-id';
+import { LyricsBreaks } from '../app/songs/lyrics-breaks';
 import { OnSing } from '../app/songs/on-sing';
 import { SongId } from '../app/songs/song-id';
 import { candidateHints } from '../core/songs/song-candidates';
@@ -9,7 +10,9 @@ import {
   ASK_CODEX,
   AUTO_SONG_ID,
   BUS,
+  FETCH_LYRICS,
   LOG,
+  LYRICS_BREAKS,
   LYRICS_SEARCH,
   ON_SING,
   OPTIONS,
@@ -46,6 +49,7 @@ export function registerSongs(container: Container): void {
       // Made now, so a missing song-intro.md stops the bot at start.
       const songIntro = c.resolve(SONG_INTRO);
       const transcriber = c.resolve(TRANSCRIBER);
+      const lyricsBreaks = c.resolve(LYRICS_BREAKS);
       return new SongId({
         prompt: c.resolve(PROMPT)('songId'),
         codex: c.resolve(ASK_CODEX)('song-id', {
@@ -62,6 +66,10 @@ export function registerSongs(container: Container): void {
         hints: (candidates) =>
           c.resolve(ROOM).wording('song-candidates', { candidates: candidateHints(candidates) }),
         othersNote: () => c.resolve(ROOM).wording('song-others'),
+        // Each song named, by any path, has its lyrics end it (see LyricsBreaks).
+        ...(lyricsBreaks && {
+          onNamed: (song, askedAt) => lyricsBreaks.keep(song, askedAt),
+        }),
         onTold: (song) => void songIntro.introduce(song),
         // Too little sung to go on: said so, without asking Codex (see wording.md).
         early: {
@@ -93,6 +101,15 @@ export function registerSongs(container: Container): void {
       const bus = c.resolve(BUS);
       bus.on('heard', (line) => autoSongId?.hear(line));
       return autoSongId;
+    })
+    // Where songs start beyond pauses and talk (see song-breaks.ts), ranked in the order they're
+    // added to the room: first the lyrics of the song named last, from NetEase.
+    .register(LYRICS_BREAKS, (c) => {
+      const fetchLyrics = c.resolve(FETCH_LYRICS);
+      if (!fetchLyrics) return null;
+      const lyricsBreaks = new LyricsBreaks({ fetchLyrics, log: c.resolve(LOG) });
+      c.resolve(ROOM).addSongBreaks(lyricsBreaks);
+      return lyricsBreaks;
     })
     // And, in a room with on_sing in its room_config.json, its message as the streamer starts a song.
     .register(ON_SING, (c) => {

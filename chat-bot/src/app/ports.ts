@@ -147,6 +147,12 @@ export type SearchLyrics = (
   lines: readonly { text: string; sung: boolean }[],
 ) => Promise<SongGuess>;
 
+/**
+ * A song's lyrics from NetEase, by its title and singer: the sung lines of its first versions with
+ * lyrics, run together; empty when it has none, or NetEase fails or is down.
+ */
+export type FetchLyrics = (title: string, artist: string) => Promise<string[]>;
+
 /** Asks a model (Claude or Codex) one question and resolves with its answer. */
 export type AskModel = (question: Question) => Promise<string>;
 

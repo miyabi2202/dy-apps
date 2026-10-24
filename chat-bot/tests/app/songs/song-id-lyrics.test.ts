@@ -185,3 +185,43 @@ test('while she sings, Shazam names the song first, without its version tag; oth
   });
   expect(searched).toHaveLength(3);
 });
+
+test('tells onNamed each song named for sure, by any path, with when it was asked', async () => {
+  const named: [string, string, number][] = [];
+  let now = 9000;
+  const answers = [guess({ title: '雨爱', artist: '杨丞琳', sure: true }), guess({})];
+  const songId = new SongId({
+    prompt: () => '',
+    codex: () => {
+      now += 20_000;
+      return Promise.resolve(codexAnswer);
+    },
+    music: () => Promise.resolve(answers.length ? null : { title: '璀璨冒险人', artist: '周深' }),
+    lyrics: () => Promise.resolve(answers.shift() ?? guess({})),
+    log: silentLog,
+    now: () => now,
+    onNamed: ({ title, artist }, askedAt) => void named.push([title, artist, askedAt]),
+  });
+  await songId.identifyLines({ prompt: 'P' }, lines, 'auto');
+  await songId.identifyLines({ prompt: 'P' }, lines, 'auto');
+  now = 9000;
+  await songId.identifyLines({ prompt: 'P' }, lines, 'auto');
+  expect(named).toEqual([
+    ['雨爱', '杨丞琳', 9000],
+    ['晴天', '周杰伦', 9000],
+    ['璀璨冒险人', '周深', 9000],
+  ]);
+});
+
+test("doesn't tell onNamed a song Codex isn't sure of", async () => {
+  const named: string[] = [];
+  const songId = new SongId({
+    prompt: () => '',
+    codex: () =>
+      Promise.resolve(JSON.stringify({ message: '', title: '晴天', artist: '', sure: false })),
+    log: silentLog,
+    onNamed: ({ title }) => void named.push(title),
+  });
+  await songId.identifyLines({ prompt: 'P' }, lines, 'auto');
+  expect(named).toEqual([]);
+});

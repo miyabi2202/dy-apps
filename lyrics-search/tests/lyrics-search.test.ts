@@ -1,5 +1,8 @@
 import { CircuitBreaker } from '../src/limits';
 import { LyricsSearch } from '../src/lyrics-search';
+import PURE_MUSIC from './fixtures/lyric-pure-music.json';
+import 画廊游记 from './fixtures/lyric-画廊游记.json';
+import 遇萤 from './fixtures/lyric-遇萤.json';
 import { recorded, recordedFetch } from './recorded';
 
 const noLimit = async () => {};
@@ -167,5 +170,39 @@ describe('LyricsSearch.lyrics', () => {
     const search = new LyricsSearch({ fetch: failing, limit: noLimit, breaker });
     expect(await search.lyrics(1)).toEqual([]);
     expect(breaker.open()).toBe(true);
+  });
+});
+
+describe('LyricsSearch.songLyrics', () => {
+  /** 遇萤's title search, and each version's lyrics by its number: one an instrumental. */
+  const fetchFn = (lyricsById: Record<string, unknown>, asked: string[] = []) =>
+    ((url: string) => {
+      const { pathname, searchParams } = new URL(url);
+      if (pathname.endsWith('/lyric')) {
+        const id = searchParams.get('id') ?? '';
+        asked.push(id);
+        const body = lyricsById[id];
+        return Promise.resolve(
+          body ? new Response(JSON.stringify(body)) : new Response('', { status: 500 }),
+        );
+      }
+      return recordedFetch(recorded('遇萤'))(url);
+    }) as unknown as typeof fetch;
+
+  it('runs the lyrics of the first versions with lyrics together, past an instrumental', async () => {
+    const asked: string[] = [];
+    const search = new LyricsSearch({
+      fetch: fetchFn({ 37782740: 遇萤, 1906968692: PURE_MUSIC, 423849091: 画廊游记 }, asked),
+      limit: noLimit,
+    });
+    const lines = await search.songLyrics('遇萤', '', { versions: 2 });
+    expect(asked).toEqual(['37782740', '1906968692', '423849091']);
+    expect(lines).toContain('若千年的光阴');
+    expect(lines).toContain('在一切开始的时分');
+  });
+
+  it('is empty when no version tried has lyrics', async () => {
+    const search = new LyricsSearch({ fetch: fetchFn({}), limit: noLimit });
+    expect(await search.songLyrics('遇萤', 'CRITTY', { tries: 2 })).toEqual([]);
   });
 });

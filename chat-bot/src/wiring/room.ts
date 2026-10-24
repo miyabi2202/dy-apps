@@ -183,6 +183,8 @@ export function registerRoom(container: Container): void {
         chatDir: c.resolve(CHAT_DIR),
         botName: options.botName,
         aliases: () => roomConfig().aliases,
+        // The song break sources the room has on (room_config.json's songBreaks; all when absent).
+        songBreaks: () => roomConfig().songBreaks,
         // 单推符号 taken off a nickname before the bot @s them.
         atTrimStart: () => roomConfig().atTrimStart,
         // What to @ some viewers as instead of their nickname, by user id.

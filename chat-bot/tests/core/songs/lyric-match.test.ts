@@ -1,7 +1,7 @@
 import {
   lyricsBreak,
   lyricsIndex,
-  lyricsMatcher,
+  lyricsShare,
   lyricUnits,
   matchShare,
 } from '../../../src/core/songs/lyric-match';
@@ -77,10 +77,11 @@ describe('lyricsBreak', () => {
     clock += 10_000;
     return { start: clock - 8_000, end: clock, text, speech };
   };
-  const known = { since: 0, matches: lyricsMatcher(画廊游记) };
+  const known = { since: 0, share: lyricsShare(画廊游记) };
+  const two = { misses: 2, minChars: 6, heal: 'off' } as const;
   beforeEach(() => (clock = 0));
 
-  it('ends the song at the first of two misses in a row, whoever sang them', () => {
+  it('ends the song at the first of the misses in a row, whoever sang them', () => {
     const lines = [
       heard('在一切开始的时分我推开了花廊的门'),
       heard('走过跃然纸上的晨昏七情六欲'),
@@ -88,45 +89,81 @@ describe('lyricsBreak', () => {
       { ...heard('看见我孩子般微笑的脸再靠近一点'), host: false },
       heard('我是否用心发现你猜我也想靠近吧'),
     ];
+    expect(lyricsBreak(lines, known, two)).toBe(lines[2]);
+    // Three by default.
     expect(lyricsBreak(lines, known)).toBe(lines[2]);
+    expect(lyricsBreak(lines.slice(0, 4), known)).toBeUndefined();
   });
 
-  it('goes on through a single miss, short lines and talk', () => {
+  it('goes on through a single miss, short lines, talk and a recording playing', () => {
     const lines = [
       heard('在一切开始的时分我推开了花廊的门'),
       heard('福建过眼风一二三四'),
       heard('哼哼哼'),
       heard('YEAH'),
       heard('欢迎月神晚上好谢谢月神的灯牌', 0.9),
-      heard('欢迎松鹤欢迎咖喱棒回来', 0.9),
+      { ...heard('海风吹过的夏天仿佛从来我都在你身上'), played: { title: '靠近', artist: '' } },
       heard('一阵阵时光在我面前被逐一定格'),
       heard('福建过眼风一二三四'),
     ];
-    expect(lyricsBreak(lines, known)).toBeUndefined();
+    expect(lyricsBreak(lines, known, two)).toBeUndefined();
   });
 
-  it('checks only lines after the song was named', () => {
+  it('checks only lines after the song was asked about', () => {
     const before = [heard('海风吹过的夏天仿佛从来'), heard('看见我孩子般微笑的脸')];
     const after = [heard('望着满墙画作这双眼看到了什么')];
-    expect(lyricsBreak([...before, ...after], { ...known, since: clock - 5_000 })).toBeUndefined();
+    expect(lyricsBreak([...before, ...after], { ...known, since: clock - 5_000 }, two)).toBe(
+      undefined,
+    );
   });
 
-  it('with heal, undoes a break when the song is sung again, and breaks again after', () => {
-    const garbled = [heard('GONNA TREAT YOU WELL'), heard('谢谢大家的点赞我们点赞到一万啦')];
-    const again = heard('望着满墙画作这双眼看到了什么');
-    expect(lyricsBreak([...garbled, again], known)).toBe(garbled[0]);
-    expect(lyricsBreak([...garbled, again], known, { heal: true })).toBeUndefined();
-    const next = [heard('海风吹过的夏天仿佛从来'), heard('看见我孩子般微笑的脸')];
-    expect(lyricsBreak([...garbled, again, ...next], known, { heal: true })).toBe(next[0]);
-    // Lines missing after the break don't move it.
-    const more = [heard('再靠近一点幸福无限蔓延'), heard('心开始悄悄在改变')];
-    expect(lyricsBreak([...next, ...more], known, { heal: true })).toBe(next[0]);
+  describe('heal', () => {
+    const garbled = () => [heard('GONNA TREAT YOU WELL'), heard('谢谢大家的点赞我们点赞到一万啦')];
+
+    it('off: a break stands', () => {
+      const lines = [...garbled(), heard('望着满墙画作这双眼看到了什么')];
+      expect(lyricsBreak(lines, known, two)).toBe(lines[0]);
+    });
+
+    it('long: one long line mostly from the lyrics undoes it, a short one or a partial one not', () => {
+      const lines = garbled();
+      // 七个字, all from the lyrics: too short to be sure.
+      const short = heard('望着满墙画作这');
+      expect(lyricsBreak([...lines, short], known, { ...two, heal: 'long' })).toBe(lines[0]);
+      const long = heard('望着满墙画作这双眼看到了什么');
+      expect(lyricsBreak([...lines, short, long], known, { ...two, heal: 'long' })).toBe(undefined);
+    });
+
+    it('two: two matching lines in a row undo it', () => {
+      const lines = garbled();
+      const a = heard('望着满墙画作这');
+      const b = heard('这双眼看到了');
+      expect(lyricsBreak([...lines, a], known, { ...two, heal: 'two' })).toBe(lines[0]);
+      expect(lyricsBreak([...lines, a, b], known, { ...two, heal: 'two' })).toBeUndefined();
+    });
+
+    it('any and either', () => {
+      const lines = garbled();
+      const short = heard('望着满墙画作这');
+      expect(lyricsBreak([...lines, short], known, { ...two, heal: 'any' })).toBeUndefined();
+      expect(lyricsBreak([...lines, short], known, { ...two, heal: 'either' })).toBe(lines[0]);
+    });
+
+    it('breaks again after it undid one, and later misses do not move a break', () => {
+      const lines = [...garbled(), heard('望着满墙画作这双眼看到了什么')];
+      const next = [heard('海风吹过的夏天仿佛从来'), heard('看见我孩子般微笑的脸')];
+      const more = [heard('再靠近一点幸福无限蔓延'), heard('心开始悄悄在改变')];
+      const options = { ...two, heal: 'long' } as const;
+      expect(lyricsBreak([...lines, ...next, ...more], known, options)).toBe(next[0]);
+    });
   });
 
-  it('takes the miss count and the shortest line checked as options', () => {
+  it('takes the miss count, the shortest line checked and the threshold as options', () => {
     const lines = [heard('海风吹过的夏天'), heard('晚安前想念')];
-    expect(lyricsBreak(lines, known, { misses: 1 })).toBe(lines[0]);
-    expect(lyricsBreak(lines, known)).toBeUndefined();
-    expect(lyricsBreak(lines, known, { minChars: 5 })).toBe(lines[0]);
+    expect(lyricsBreak(lines, known, { ...two, misses: 1 })).toBe(lines[0]);
+    expect(lyricsBreak(lines, known, two)).toBeUndefined();
+    expect(lyricsBreak(lines, known, { ...two, minChars: 5 })).toBe(lines[0]);
+    const half = [heard('在一切开始的时分海风吹过的夏天')];
+    expect(lyricsBreak(half, known, { ...two, misses: 1, threshold: 0.9 })).toBe(half[0]);
   });
 });

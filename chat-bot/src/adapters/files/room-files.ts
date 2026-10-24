@@ -46,6 +46,11 @@ export interface RoomConfig extends Settings {
   /** The declarative tools switched on here (`tools`), by name: `["can_sing", "too_easy"]`; the built-in tools need no listing. */
   tools: string[];
   /**
+   * The song break sources on here (`songBreaks`), by name: `["lyrics"]`, or `[]` for only pauses
+   * and talk; every one there is when absent.
+   */
+  songBreaks?: string[];
+  /**
    * The file in the room's folder (`persona`, like `personas/fairy.md`) that says who the bot
    * plays there, see livePersona; none when the bot has no persona there.
    */
@@ -151,6 +156,14 @@ export function roomConfigFile(
       () => (raw.on_sing === undefined ? undefined : onSingConfig(raw.on_sing)),
       config.onSing,
     );
+    const songBreaks = field(
+      'songBreaks',
+      () =>
+        raw.songBreaks === undefined
+          ? undefined
+          : nameList(raw.songBreaks, 'songBreaks', '["lyrics"]'),
+      config.songBreaks,
+    );
     const persona = field(
       'persona',
       () => (raw.persona === undefined ? undefined : personaPath(raw.persona)),
@@ -160,6 +173,7 @@ export function roomConfigFile(
       private: isPrivate,
       ...(onSing && { onSing }),
       ...(persona && { persona }),
+      ...(songBreaks && { songBreaks }),
       aliases: field('aliases', () => aliasList(raw.aliases), config.aliases),
       streamerNames: field(
         'streamerNames',

@@ -32,6 +32,8 @@ import {
   lyricsBreak,
   lyricsIndex,
   matchShare,
+  lyricsShare,
+  type Heal,
   type LyricsBreakOptions,
   type LyricsIndex,
 } from '../src/core/songs/lyric-match';
@@ -64,16 +66,17 @@ interface Session {
   events: { at: number; text: string }[];
 }
 
-/** The replay's settings: lyricsMatcher's threshold and lyricsBreak's options. */
 /**
- * The replay's settings: lyricsMatcher's threshold, lyricsBreak's options, and how many of NetEase's
- * versions of the title the lyrics come from (a version's lyrics may be cut short or differ).
+ * The replay's settings: lyricsBreak's options, and how many of NetEase's versions of the title
+ * the lyrics come from (a version's lyrics may be cut short or differ).
  */
-type Params = { threshold: number; versions: number } & Required<LyricsBreakOptions>;
+type Params = { versions: number } & Required<LyricsBreakOptions>;
 
-/** The design's starting point, and what the replay came to. */
-const DEFAULT: Params = { threshold: 0.5, misses: 2, minChars: 6, heal: false, versions: 1 };
-const TUNED: Params = { threshold: 0.5, misses: 3, minChars: 8, heal: true, versions: 3 };
+/** The design's starting point, and what the replay came to (its heal set by --heal). */
+const DEFAULT: Params = { threshold: 0.5, misses: 2, minChars: 6, heal: 'off', versions: 1 };
+const TUNED: Params = { threshold: 0.5, misses: 3, minChars: 8, heal: 'long', versions: 3 };
+
+const HEALS: Heal[] = ['off', 'any', 'two', 'long', 'either'];
 
 /** Sung characters after which /自动识歌 asks about a song. */
 const ASKED_AT_CHARS = 40;
@@ -221,17 +224,17 @@ function netease(search: LyricsSearch): Sources {
 
 const chars = (line: TranscriptLine) => line.text.replace(/[\s\p{P}]/gu, '').length;
 
-/** Whether a line is from some lyrics, remembered per line (pinyin is slow). */
-function matcher(lyrics: readonly string[], threshold: number): (text: string) => boolean {
-  const index = lyricsIndex(lyrics);
-  const seen = new Map<string, boolean>();
+/** How much of a line is in some lyrics, remembered per line (pinyin is slow). */
+function shares(lyrics: readonly string[]): (text: string) => number {
+  const share = lyricsShare(lyrics);
+  const seen = new Map<string, number>();
   return (text) => {
-    let match = seen.get(text);
-    if (match === undefined) {
-      match = (matchShare(text, index) ?? 0) >= threshold;
-      seen.set(text, match);
+    let value = seen.get(text);
+    if (value === undefined) {
+      value = share(text);
+      seen.set(text, value);
     }
-    return match;
+    return value;
   };
 }
 
@@ -330,10 +333,11 @@ async function replay(
       runs.push(run);
       if (!run.lyrics.length) continue;
 
-      const matches = matcher(run.lyrics, params.threshold);
-      const nextMatches = run.nextLyrics.length
-        ? matcher(run.nextLyrics, params.threshold)
-        : () => false;
+      const share = shares(run.lyrics);
+      const nextShare = shares(run.nextLyrics);
+      const matches = (text: string) => share(text) >= params.threshold;
+      const nextMatches = (text: string) =>
+        run.nextLyrics.length > 0 && nextShare(text) >= params.threshold;
       const own = song.asked.filter(counted);
       if (own.length) run.ownShare = own.filter((l) => matches(l.text)).length / own.length;
       const sung = window.filter(counted);
@@ -342,7 +346,7 @@ async function replay(
       const inside = (b: TranscriptLine) => lastOwn !== undefined && b.end <= lastOwn.end;
 
       // Line by line, as the bot would see it.
-      const known = { since: song.askedAt, matches };
+      const known = { since: song.askedAt, share };
       const breakAt = (k: number) => lyricsBreak(window.slice(0, k + 1), known, params);
       for (let k = 0; k < window.length; k++) {
         if (!counted(window[k]!)) continue;
@@ -472,7 +476,7 @@ function summaryLine(p: Params, s: ReturnType<typeof summary>) {
   const of = (n: number, total: number) => `${n} (${pct(n / (total || 1))})`;
   const withLyrics = s.runs - s.noLyrics;
   return [
-    `${p.threshold} ${p.misses} ${p.minChars} ${p.heal ? 'heal' : '-   '} ${p.versions}`,
+    `${p.threshold} ${p.misses} ${p.minChars} ${p.heal.padEnd(6)} ${p.versions}`,
     `own ${pct(s.ownMedian)}`,
     `lyrics ${s.lyrics.join('/')}`,
     `today ${s.today.join('/')}`,
@@ -658,6 +662,10 @@ async function main() {
       'sample-out': { type: 'string', default: 'logs/song-breaks-sample.txt' },
       /** Skip the grid of settings. */
       'no-grid': { type: 'boolean', default: false },
+      /** The tuned setting's heal (see Heal), for --sample and --range. */
+      heal: { type: 'string' },
+      /** The heal to draw --sample's changes at, so each heal's verdicts are on the same ones. */
+      'sample-from': { type: 'string' },
       /** Lines from one time to another, `<ISO>..<ISO>`, written to --range-out (at the tuned setting). */
       range: { type: 'string' },
       'range-out': { type: 'string', default: 'logs/song-breaks-range.txt' },
@@ -677,7 +685,7 @@ async function main() {
     'threshold misses minChars heal versions | own lines matched (median) | lyrics and today: bounded/early/late/merged | false splits, lyrics vs today | lyrics false splits by language | renamed | merged then bounded a minute on | known merges',
   );
   for (const versions of values['no-grid'] ? [] : [1, 3]) {
-    for (const heal of [false, true]) {
+    for (const heal of HEALS) {
       for (const threshold of [0.4, 0.5, 0.6]) {
         for (const misses of [2, 3]) {
           for (const minChars of [6, 8]) {
@@ -689,7 +697,8 @@ async function main() {
     }
   }
 
-  for (const params of [DEFAULT, TUNED]) {
+  const tuned: Params = { ...TUNED, heal: (values.heal as Heal | undefined) ?? TUNED.heal };
+  for (const params of [DEFAULT, tuned]) {
     const runs = await replay(sessions, sources, params);
     say();
     say(`At ${JSON.stringify(params)}:`);
@@ -726,16 +735,21 @@ async function main() {
       say();
       show(runs, title, say);
     }
-    if (params === TUNED && values.range) {
+    if (params === tuned && values.range) {
       const [from = '', to = ''] = values.range.split('..');
       const lines: string[] = [];
       range(runs, Date.parse(from), Date.parse(to), (t = '') => lines.push(t));
       writeFileSync(values['range-out'], `${lines.join('\n')}\n`);
     }
     const n = Number(values.sample);
-    if (params === TUNED && n > 0) {
+    if (params === tuned && n > 0) {
       const lines: string[] = [];
-      sample(runs, n, Number(values.seed)).forEach((r, i) => dump(r, i, (t = '') => lines.push(t)));
+      // Drawn at another heal (--sample-from), to compare the same changes.
+      const from = values['sample-from'] as Heal | undefined;
+      const pool = from ? await replay(sessions, sources, { ...tuned, heal: from }) : runs;
+      sample(pool, n, Number(values.seed))
+        .flatMap((p) => runs.filter((r) => r.room === p.room && r.song.at === p.song.at))
+        .forEach((r, i) => dump(r, i, (t = '') => lines.push(t)));
       writeFileSync(values['sample-out'], `${lines.join('\n')}\n`);
     }
     quiet = false;

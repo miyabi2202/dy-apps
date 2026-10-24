@@ -1,4 +1,5 @@
 import type { MusicMatch } from './music';
+import { isOneSong, lastBreak, type SongSpan } from './song-breaks';
 
 /** How far back the prompts' `{{transcript}}` goes unless set otherwise. */
 export const DEFAULT_TRANSCRIPT_WINDOW_MS = 5 * 60_000;
@@ -80,6 +81,8 @@ export interface SongBreaks {
   /** A shorter pause, longer than this, in which the streamer said at least `talkLines` lines. */
   talkPauseMs?: number;
   talkLines?: number;
+  /** What the song break sources say, combined (see combineSpans); none, only pauses and talk. */
+  spans?: readonly SongSpan[];
 }
 
 /**
@@ -90,12 +93,15 @@ export interface SongBreaks {
  * ran 15 pairs of songs together; with the talk too, 5 (sung straight on, no pause or talk), and
  * split 5 songs in two (talk over the backing track) against 4. All of `lines` when nothing was
  * sung.
+ *
+ * The song break sources' `spans` (see song-breaks.ts) rank above the pauses and talk: a pause
+ * inside one of their `same` spans is no break, and a song also starts at their last break.
  */
 export function currentSong(
   lines: readonly TranscriptLine[],
-  { pauseMs = 60_000, talkPauseMs = 15_000, talkLines = 2 }: SongBreaks = {},
+  { pauseMs = 60_000, talkPauseMs = 15_000, talkLines = 2, spans = [] }: SongBreaks = {},
 ): TranscriptLine[] {
-  let start: number | undefined;
+  let start = lastBreak(spans)?.from;
   let lastSung: number | undefined;
   let talk = 0;
   for (const line of lines) {
@@ -105,7 +111,10 @@ export function currentSong(
       continue;
     }
     const pause = lastSung === undefined ? Infinity : line.end - lastSung;
-    if (pause > pauseMs || (pause > talkPauseMs && talk >= talkLines)) start = line.start;
+    const paused = pause > pauseMs || (pause > talkPauseMs && talk >= talkLines);
+    if (paused && !isOneSong(spans, line.start) && (start === undefined || line.start > start)) {
+      start = line.start;
+    }
     lastSung = line.end;
     talk = 0;
   }
@@ -159,16 +168,17 @@ export interface SungSong {
  * The song the streamer is singing as of `line`, a line they just said or sang (`transcript`
  * already has it): null when `line` is spoken, a guest's or a recording's, or they aren't singing
  * (see singingNow). Only the streamer's own lines make the song: what a guest sings or a
- * recording plays is left to the log.
+ * recording plays is left to the log. `spans`: what the song break sources say (see currentSong).
  */
 export function singingSong(
   transcript: readonly TranscriptLine[],
   line: TranscriptLine,
+  spans?: readonly SongSpan[],
 ): SungSong | null {
   if (!isStreamerSinging(line)) return null;
   const lines = transcript.filter(isStreamers);
   if (!singingNow(lines, line.end)) return null;
-  const song = currentSong(lines);
+  const song = currentSong(lines, { spans });
   return { lines: song, start: song.find(isSung)?.start ?? line.start };
 }
 
