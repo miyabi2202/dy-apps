@@ -1,5 +1,5 @@
 import { matchChat, matchSpeech } from '../../core/viewers/alias';
-import { withoutReading } from '../../core/chat/reading';
+import { readMark, withoutReading } from '../../core/chat/reading';
 import { errorMessage, OutOfCreditError } from '../../core/errors';
 import {
   lineKey,
@@ -209,7 +209,7 @@ export class AutoReply {
   /**
    * The streamer said something: calling the bot by its nickname or an alias, as speech
    * recognition may write it (「FAIRY 你来唱一首」, 「默认关壁」, an alias's `heardAs`), it's
-   * answered at once, as theirs, like a chat.
+   * answered at once, as theirs, like a chat. Reading out the bot's chat goes to the picker instead.
    */
   hearSpeech(heard: TranscriptLine): void {
     const { room, log } = this.options;
@@ -218,9 +218,14 @@ export class AutoReply {
     const line = roomLines(room.recentChat(), [heard], room.botName).find(
       (l) => l.candidate && l.who === STREAMER,
     );
-    // Reading out the bot's chat names it in the mark, but isn't calling it.
-    const name = line && matchSpeech(withoutReading(line.text), room.callNames());
-    if (!line || name === undefined) return;
+    if (!line) return;
+    // Reading out the bot's chat isn't calling it, but they're talking with it: like after an
+    // answer, what they say (this too) goes to the picker, which may leave it.
+    if (line.text.includes(readMark(room.botName))) {
+      this.saidTo.set(STREAMER, Math.max(this.saidTo.get(STREAMER) ?? -Infinity, line.ts));
+    }
+    const name = matchSpeech(withoutReading(line.text), room.callNames());
+    if (name === undefined) return;
     const streamer = this.options.streamer();
     if (!streamer) {
       log.info('name called, streamer unknown', { name, text: line.text });

@@ -615,7 +615,7 @@ test("the streamer is answered as theirs for a name as speech recognition wrote 
   ]);
 });
 
-test("the streamer reading out the bot's chat isn't calling it", async () => {
+test("the streamer reading out the bot's chat isn't calling it: it goes to the picker, as a follow-up", async () => {
   const ran = aliasSetup(
     [
       () => {
@@ -628,6 +628,9 @@ test("the streamer reading out the bot's chat isn't calling it", async () => {
   await ran.autoReply.run();
 
   expect(ran.replies).toEqual([]);
+  expect(ran.judged).toEqual([]);
+  expect(ran.asked.map(({ why }) => why)).toEqual(['follow-up']);
+  expect(ran.asked[0]!.prompt).toContain('那是大部位啊（念了小助手的弹幕）');
 });
 
 test('the streamer calling the bot while who they are is not known yet is only logged', async () => {
