@@ -1,4 +1,4 @@
-"""Recordings: a sung sentence is a recording playing when Shazam finds a song that isn't a backing track."""
+"""Recordings: a sung sentence is a recording playing when Shazam finds, in its vocals, a song that isn't a backing track."""
 
 import contextlib
 import os
@@ -32,7 +32,7 @@ def test_a_backing_track_is_singing_live():
 def test_looks_up_again_after_a_while_or_a_pause():
     clock = [0.0]
     shazam = FakeShazam({"title": "花", "subtitle": "夏川りみ"}, None, {"title": "Sign"})
-    recordings = Recordings(shazam, now=lambda: clock[0])
+    recordings = Recordings(shazam, lambda audio: audio, now=lambda: clock[0])
     assert recordings(AUDIO) == {"title": "花", "artist": "夏川りみ"}
     clock[0] = 5
     assert recordings(AUDIO)["title"] == "花"  # still the same lookup
@@ -46,5 +46,5 @@ def test_looks_up_again_after_a_while_or_a_pause():
 
 def test_too_little_audio_is_sung():
     shazam = FakeShazam({"title": "花"})
-    assert Recordings(shazam)(AUDIO[:10]) is None
+    assert Recordings(shazam, lambda audio: audio)(AUDIO[:10]) is None
     assert shazam.lookups == 0

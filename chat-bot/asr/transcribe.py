@@ -74,6 +74,9 @@ import wave
 
 import numpy as np
 import torch
+import torchaudio.functional as AF
+from demucs.apply import apply_model
+from demucs.pretrained import get_model as get_demucs
 from fireredasr2s.fireredasr2.asr import load_fireredasr_aed_model
 from fireredasr2s.fireredasr2.data.asr_feat import ASRFeatExtractor
 from fireredasr2s.fireredasr2.tokenizer.aed_tokenizer import ChineseCharEnglishSpmTokenizer
@@ -93,12 +96,13 @@ MAX_SENTENCE_MS = 15000
 # How much of the latest audio a music lookup gets, and the least it needs.
 MUSIC_SECONDS = 15
 MIN_MUSIC_SECONDS = 5
-# While sentences are sung, the latest audio is looked up with Shazam this often to tell a
-# recording playing from someone singing (see Recordings); what it found holds until then, or until
-# nothing has been sung for PLAYED_GAP_SECONDS.
+# While sentences are sung, the vocals of the latest audio are looked up with Shazam this often to
+# tell a recording playing from someone singing (see Recordings); what it found holds until then, or
+# until nothing has been sung for PLAYED_GAP_SECONDS.
 PLAYED_CHECK_SECONDS = 20
 PLAYED_GAP_SECONDS = 10
-# A lookup that takes longer is given up on, as it holds up the transcript.
+# A lookup that takes longer is given up on, as it holds up the transcript (separating the vocals
+# takes about 1 s more on an Apple GPU, 6 s on the CPU).
 PLAYED_TIMEOUT_SECONDS = 5
 # A match titled like this is a backing track: someone is singing over it, not playing a recording.
 BACKING_TRACK = re.compile(r"伴奏|纯音乐|instrumental|off[ -]?vocal|karaoke|カラオケ|\binst\b", re.I)
@@ -135,6 +139,8 @@ MIN_LID_SECONDS = 2.0
 # scored 0.85–1.0); otherwise FireRedASR2-AED.
 MIN_LID_CONFIDENCE = 0.8
 AST_MODEL = "MIT/ast-finetuned-audioset-10-10-0.4593"
+# Splits the voice from the music (Demucs v4), so a lookup hears only who is singing.
+SEPARATOR_MODEL = "htdemucs"
 # AudioSet classes that count as each kind of voice.
 SPEECH_LABELS = {"Speech", "Male speech, man speaking", "Female speech, woman speaking",
                  "Child speech, kid speaking", "Conversation", "Narration, monologue"}
@@ -259,6 +265,23 @@ class VoiceClassifier:
         return round(float(scores[self.speech].max()), 2), round(float(scores[self.music].max()), 2)
 
 
+class Separator:
+    """Demucs: the vocals of some audio, without the music under them (16 kHz mono in and out)."""
+
+    def __init__(self, device: str):
+        self.device = device
+        self.model = get_demucs(SEPARATOR_MODEL).eval()
+        self.vocals = self.model.sources.index("vocals")
+
+    def __call__(self, audio: np.ndarray) -> np.ndarray:
+        rate = self.model.samplerate
+        stereo = AF.resample(torch.from_numpy(audio)[None], RATE, rate).repeat(2, 1)
+        with torch.no_grad():
+            sources = apply_model(self.model, stereo[None], device=self.device, progress=False)
+        vocals = sources[0, self.vocals].mean(0, keepdim=True).cpu()
+        return AF.resample(vocals, rate, RATE)[0].numpy()
+
+
 class VoiceSet:
     """
     Voices told apart as they come: each voiceprint joins the closest voice heard so far if it's
@@ -328,7 +351,7 @@ def is_sung(speech: float, lang: str | None) -> bool:
 
 def load_models(
     device: str, model_dir: str, lid_dir: str, same_voice: float
-) -> tuple[AutoModel, Recognizer, LanguageId, SenseVoice, VoiceClassifier, Voices]:
+) -> tuple[AutoModel, Recognizer, LanguageId, SenseVoice, VoiceClassifier, Voices, Separator]:
     vad = AutoModel(
         model="fsmn-vad",
         max_single_segment_time=MAX_SENTENCE_MS,
@@ -339,13 +362,15 @@ def load_models(
     lid = LanguageId(lid_dir, device)
     sensevoice = SenseVoice(device)
     voice = VoiceClassifier(device)
+    separator = Separator(device)
     # The first run on a GPU compiles kernels; do it before the stream starts.
     silence = np.zeros(RATE, dtype=np.float32)
     asr(silence)
     lid(silence)
     sensevoice(silence, "ja")
     voice(silence)
-    return vad, asr, lid, sensevoice, voice, Voices(same_voice)
+    separator(silence)
+    return vad, asr, lid, sensevoice, voice, Voices(same_voice), separator
 
 
 # Where the transcript and music answers go (stdout, or the bot's connection with --serve), one
@@ -392,14 +417,18 @@ def answer_music(music_id, recent: collections.deque, shazam: Shazam) -> None:
 class Recordings:
     """
     Whether a sung sentence is a recording playing (a song with its singer, as the streamer plays
-    it to the room) rather than someone singing live: Shazam usually finds a recording, even under
-    talk, and usually doesn't find the streamer singing it herself; when she sings over a backing
-    track, it finds the backing track, named as one (BACKING_TRACK). Looked up at most every
-    PLAYED_CHECK_SECONDS while sentences are sung, from the latest audio.
+    it to the room) rather than someone singing live, from Shazam on the vocals alone (Separator).
+    On the whole mix it can't tell: a streamer singing over a backing track gets the track's song,
+    often as the original (in a 75-minute morning show it matched 11 of 15 windows of her singing
+    live). On the vocals it matched none of those 15 and 3 of 5 windows of the BGM playlist (a
+    recording's vocals are its singer's, hers aren't). A match named as a backing track
+    (BACKING_TRACK) still counts as singing. Looked up at most every PLAYED_CHECK_SECONDS while
+    sentences are sung, from the latest audio.
     """
 
-    def __init__(self, shazam: Shazam, now=time.monotonic):
+    def __init__(self, shazam: Shazam, separate, now=time.monotonic):
         self.shazam = shazam
+        self.separate = separate
         self.now = now
         self.checked_at: float | None = None
         self.sung_at: float | None = None
@@ -421,8 +450,10 @@ class Recordings:
     def lookup(self, chunks: list[bytes]) -> dict | None:
         if len(chunks) * CHUNK_MS < MIN_MUSIC_SECONDS * 1000:
             return None
+        audio = np.frombuffer(b"".join(chunks), dtype=np.int16).astype(np.float32) / 32768
+        vocals = (self.separate(audio) * 32768).clip(-32768, 32767).astype(np.int16).tobytes()
         try:
-            found = asyncio.run(asyncio.wait_for(self.shazam.recognize(as_wav(chunks)), PLAYED_TIMEOUT_SECONDS))
+            found = asyncio.run(asyncio.wait_for(self.shazam.recognize(as_wav([vocals])), PLAYED_TIMEOUT_SECONDS))
         except Exception as err:  # noqa: BLE001 - unknown is taken as sung, not fatal
             log(f"played: lookup failed: {str(err) or type(err).__name__}")
             return None
@@ -501,7 +532,7 @@ def answer_music_requests(music: queue.Queue, recent: collections.deque) -> None
 
 def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, realtime: bool) -> int:
     """Transcribes the stream at `url` until it ends or is stopped; returns ffmpeg's exit code."""
-    vad, asr, lid, sensevoice, voice, voices = models
+    vad, asr, lid, sensevoice, voice, voices, separator = models
     with stream.lock:
         stream.ffmpeg = ffmpeg = subprocess.Popen(
             # A CDN can stop sending without closing the connection; give up after 15s of
@@ -517,7 +548,7 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
         )
     log("listening")
     recent.clear()
-    recordings = Recordings(Shazam(language="zh-CN", endpoint_country="CN"))
+    recordings = Recordings(Shazam(language="zh-CN", endpoint_country="CN"), separator)
 
     cache: dict = {}
     vad_ms = 0  # audio the VAD has seen since its last reset

@@ -1,10 +1,11 @@
 [project]
 name = "dy-apps-chat-bot-asr"
 version = "0.1.0"
-description = "Live transcription worker for the chat bot: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED or SenseVoiceSmall + AST + CAM++."
+description = "Live transcription worker for the chat bot: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED or SenseVoiceSmall + AST + CAM++, with Demucs splitting the vocals for Shazam."
 requires-python = ">=3.11,<3.14"
 dependencies = [
   "audioop-lts>=0.2.2 ; python_full_version >= '3.13'",
+  "demucs>=4.0",
   "fireredasr2s",
   "funasr>=1.2",
   "huggingface_hub",
