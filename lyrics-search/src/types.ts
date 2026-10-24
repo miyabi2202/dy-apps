@@ -41,6 +41,8 @@ export interface SongGuess {
   artistBy?: 'marks' | 'share';
   /** About the title. */
   sure: boolean;
+  /** NetEase's number for the winning title's best lyric hit, for its lyrics; only when sure. */
+  id?: number;
   /** The top three, for Codex's hints and the log. */
   candidates: TitleCandidate[];
   /** A short reason: 'too few lines', 'no hits', 'score 2.0 vs 1.0', 'netease down', … */

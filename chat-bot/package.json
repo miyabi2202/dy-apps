@@ -6,6 +6,7 @@
   "description": "Command-line bot: reads a live room's chat from room-feed and answers @mentions with `claude -p`.",
   "scripts": {
     "start": "tsx src/main.ts",
+    "replay:song-breaks": "tsx scripts/song-breaks-replay.ts",
     "typecheck": "tsc --noEmit",
     "test": "jest -c jest.config.js"
   },

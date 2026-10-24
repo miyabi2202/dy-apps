@@ -34,6 +34,8 @@ describe('LyricsSearch.identify', () => {
     expect(guess).toMatchObject({ title: '遇萤', sure: true, artist: 'CRITTY', artistBy: 'marks' });
     expect(guess.candidates[0]!.originals[0]).toBe('CRITTY');
     expect(guess.candidates[0]!.covers).toContain('只有影子');
+    // The version whose lyrics matched first, for its lyrics.
+    expect(guess.id).toBe(37782740);
   });
 
   it('is unsure, with candidates, when the lines do not agree', async () => {
@@ -128,5 +130,42 @@ describe('LyricsSearch.identify', () => {
       now: () => clock,
     });
     expect((await search.identify(song.lines)).ms).toBe(300);
+  });
+});
+
+describe('LyricsSearch.lookup', () => {
+  const song = recorded('遇萤');
+  const search = () => new LyricsSearch({ fetch: recordedFetch(song), limit: noLimit });
+
+  it("puts the singer's versions of the title first, and leaves other titles out", async () => {
+    const ids = await search().lookup('遇萤', '李蚊香');
+    expect(ids.slice(0, 3)).toEqual([1906968692, 37782740, 423849091]);
+    // 遇萤（剧情版） is the same title; a song with another title isn't.
+    expect(ids).toContain(35848447);
+    expect(ids).not.toContain(undefined);
+  });
+
+  it("keeps NetEase's order when the singer has none, or none was given", async () => {
+    expect((await search().lookup('遇萤', '周杰伦'))[0]).toBe(37782740);
+    expect((await search().lookup('遇萤'))[0]).toBe(37782740);
+  });
+
+  it('is empty when the title search fails', async () => {
+    const failing = new LyricsSearch({
+      fetch: recordedFetch({ lines: [], responses: {}, titles: {} }),
+      limit: noLimit,
+    });
+    expect(await failing.lookup('遇萤', 'CRITTY')).toEqual([]);
+  });
+});
+
+describe('LyricsSearch.lyrics', () => {
+  it('is empty when NetEase fails, and counts the failure on the breaker', async () => {
+    const breaker = new CircuitBreaker({ failures: 1, offMs: 600_000 });
+    const failing = (() =>
+      Promise.resolve(new Response('', { status: 500 }))) as unknown as typeof fetch;
+    const search = new LyricsSearch({ fetch: failing, limit: noLimit, breaker });
+    expect(await search.lyrics(1)).toEqual([]);
+    expect(breaker.open()).toBe(true);
   });
 });

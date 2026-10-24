@@ -1,4 +1,7 @@
-import { neteaseClient } from '../src/netease';
+import { neteaseClient, parseLyricResponse } from '../src/netease';
+import PURE_MUSIC from './fixtures/lyric-pure-music.json';
+import 画廊游记 from './fixtures/lyric-画廊游记.json';
+import 遇萤 from './fixtures/lyric-遇萤.json';
 
 function fakeFetch(body: unknown, status = 200) {
   const calls: { url: URL; init: RequestInit }[] = [];
@@ -118,5 +121,45 @@ describe('neteaseClient.searchLyrics', () => {
       },
     }).searchLyrics('x');
     expect(order).toEqual(['limit', 'fetch']);
+  });
+});
+
+describe('neteaseClient.lyrics', () => {
+  it("asks NetEase's lyric endpoint for the song's number", async () => {
+    const { fetchFn, calls } = fakeFetch(画廊游记);
+    await neteaseClient({ fetch: fetchFn }).lyrics(1339750922);
+    const call = calls[0]!;
+    expect(call.url.origin + call.url.pathname).toBe('https://music.163.com/api/song/lyric');
+    expect(Object.fromEntries(call.url.searchParams)).toEqual({ id: '1339750922', lv: '1' });
+  });
+
+  it('keeps the sung lines, without timestamps, empty lines or credits', async () => {
+    const lines = await neteaseClient({ fetch: fakeFetch(画廊游记).fetchFn }).lyrics(1);
+    expect(lines.slice(0, 3)).toEqual([
+      '在一切开始的时分',
+      '我推开了画廊的门',
+      '捧着空白灵魂 迈步向画卷缤纷',
+    ]);
+    expect(lines.join('\n')).not.toMatch(/作词|作曲|编曲|\[/);
+  });
+
+  it('drops credits written with a full-width colon too', () => {
+    const lines = parseLyricResponse(遇萤);
+    expect(lines.slice(0, 3)).toEqual([
+      '《遇萤》',
+      '——橙光RPG剧情游戏《遇龙》主题曲',
+      '若千年的光阴',
+    ]);
+    expect(lines).not.toContain('原唱：CRITTY');
+    expect(lines.at(-1)).toBe('这一世 愿与你共存天地');
+  });
+
+  it('is empty for an instrumental', () => {
+    expect(parseLyricResponse(PURE_MUSIC)).toEqual([]);
+    expect(parseLyricResponse({ code: 200 })).toEqual([]);
+  });
+
+  it('fails on a code other than 200', () => {
+    expect(() => parseLyricResponse({ code: 404 })).toThrow('404');
   });
 });

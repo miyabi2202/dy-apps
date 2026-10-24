@@ -1,7 +1,7 @@
 import { markedSingers, pickArtist, pickOriginal, rankSingers } from './artist';
 import { CircuitBreaker, minGap } from './limits';
 import { neteaseClient } from './netease';
-import { displayTitle, normaliseTitle } from './normalise';
+import { displayTitle, foldArtist, normaliseTitle } from './normalise';
 import { lyricQueries } from './queries';
 import type { Hit, RateLimit, SongGuess, SungLine } from './types';
 import { decideTitle, vote } from './vote';
@@ -116,8 +116,55 @@ export class LyricsSearch {
       if (first) candidates[0] = { ...first, ...markedSingers([...lyricHits, ...titleHits]) };
       if (artist) guess.artist = artist;
       guess.artistShare = share;
+      // The version whose lyrics matched best, for the lyrics the song is then checked against.
+      const id = lyricHits.find((hit) => hit.id !== undefined)?.id;
+      if (id !== undefined) guess.id = id;
     }
     guess.ms = this.now() - start;
     return guess;
+  }
+
+  /**
+   * NetEase's numbers for the versions of `title`, for a song named another way (by Codex): those
+   * with a singer in `artist` first, then the rest, each in NetEase's order. Empty when there's
+   * none, or NetEase fails or is down.
+   */
+  async lookup(title: string, artist = ''): Promise<number[]> {
+    const key = normaliseTitle(title);
+    if (!key) return [];
+    const hits = await this.ask(() => this.client.searchTitle(title));
+    const same = (hits ?? []).filter(
+      (hit) => hit.id !== undefined && normaliseTitle(hit.title) === key,
+    );
+    const credit = foldArtist(artist);
+    const sungBy = (hit: Hit) =>
+      hit.artists.some((a) => {
+        const singer = foldArtist(a);
+        return singer !== '' && credit.includes(singer);
+      });
+    return [...same.filter(sungBy), ...same.filter((hit) => !sungBy(hit))].flatMap((hit) =>
+      hit.id === undefined ? [] : [hit.id],
+    );
+  }
+
+  /**
+   * The sung lines of the song NetEase numbers `id` (see parseLyricResponse): empty when it has
+   * none (an instrumental), or NetEase fails or is down.
+   */
+  async lyrics(id: number): Promise<string[]> {
+    return (await this.ask(() => this.client.lyrics(id))) ?? [];
+  }
+
+  /** One request through the breaker: null when it's open or the request fails. */
+  private async ask<T>(request: () => Promise<T>): Promise<T | null> {
+    if (this.breaker.open()) return null;
+    try {
+      const answer = await request();
+      this.breaker.success();
+      return answer;
+    } catch {
+      this.breaker.failure();
+      return null;
+    }
   }
 }

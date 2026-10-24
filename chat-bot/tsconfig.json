@@ -16,5 +16,5 @@
     "noEmit": true,
     "types": ["node", "jest"]
   },
-  "include": ["src", "tests", "jest.config.js"]
+  "include": ["src", "tests", "scripts", "jest.config.js"]
 }
