@@ -60,6 +60,8 @@ interface Session {
   room: string;
   lines: TranscriptLine[];
   namings: Naming[];
+  /** Chat, what the bot said, and its song naming, for reading a song change by hand (--sample). */
+  events: { at: number; text: string }[];
 }
 
 /** The replay's settings: lyricsMatcher's threshold and lyricsBreak's options. */
@@ -101,7 +103,7 @@ function readSessions(dir: string): Session[] {
   for (const entry of entries) {
     const at = Date.parse(entry.timestamp);
     if (entry.message === 'starting') {
-      session = { room: String(entry.roomId), lines: [], namings: [] };
+      session = { room: String(entry.roomId), lines: [], namings: [], events: [] };
       sessions.push(session);
       asked = undefined;
     } else if (!session) {
@@ -116,7 +118,12 @@ function readSessions(dir: string): Session[] {
         ...(typeof entry.speaker === 'number' && { speaker: entry.speaker }),
         ...(typeof entry.host === 'boolean' && { host: entry.host }),
       });
+    } else if (entry.message === 'chat') {
+      session.events.push({ at, text: `chat ${text(entry.nickname)}: ${text(entry.content)}` });
+    } else if (entry.message === 'talk sent' || entry.message === 'reply sent') {
+      session.events.push({ at, text: `bot: ${text(entry.text)}` });
     } else if (entry.message === 'song id asked') {
+      session.events.push({ at, text: `song id asked (${text(entry.why)})` });
       asked = { at, first: text(entry.first) };
     } else if (entry.message === 'song identified' && entry.sure === true) {
       const title = text(entry.title);
@@ -135,6 +142,7 @@ function readSessions(dir: string): Session[] {
         askedAt,
         asked: from >= 0 ? before.slice(from) : currentSong(before),
       });
+      session.events.push({ at, text: `song identified 《${title}》 ${text(entry.artist)}` });
       asked = undefined;
     }
   }
@@ -232,6 +240,9 @@ type Verdict = 'bounded' | 'early' | 'late' | 'merged';
 /** What a run of one named song came to. */
 interface Run {
   room: string;
+  session: Session;
+  /** Today's breaks after it was named, until the next song was asked about. */
+  todays: TranscriptLine[];
   song: Naming;
   /** The bot's next naming of another song in the same run of the bot, if any. */
   next?: Naming;
@@ -244,6 +255,8 @@ interface Run {
   /** The first break, and the one there was as the next song was asked about. */
   firstBreak?: TranscriptLine;
   finalBreak?: TranscriptLine;
+  /** Every break it made, line by line, in order (some later undone, with heal). */
+  breaks?: TranscriptLine[];
   /** A break inside the song that lasted 40 sung characters. */
   falseSplit?: TranscriptLine;
   /** The bot named the same song again while a break stood. */
@@ -304,6 +317,8 @@ async function replay(
       const window = session.lines.filter((l) => l.end > song.askedAt && l.end <= until);
       const run: Run = {
         room: session.room,
+        session,
+        todays: [],
         song,
         ...(next && { next }),
         lyrics: await lyricsOf(song, params.versions),
@@ -334,6 +349,7 @@ async function replay(
         const b = breakAt(k);
         if (!b) continue;
         run.firstBreak ??= b;
+        if (!run.breaks?.includes(b)) (run.breaks ??= []).push(b);
         const start = window.indexOf(b);
         if (
           !run.falseSplit &&
@@ -351,6 +367,7 @@ async function replay(
       });
 
       const todays = window.filter((l) => today.has(l));
+      run.todays = todays;
       run.todayFalseSplit = todays.find((b, j) => {
         const end = todays[j + 1]?.end ?? Infinity;
         return (
@@ -469,6 +486,138 @@ function summaryLine(p: Params, s: ReturnType<typeof summary>) {
   ].join(' | ');
 }
 
+/** A seeded random number in [0, 1) (mulberry32), so a sample can be drawn again. */
+function seeded(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * `n` song changes to check by hand, drawn with `seed`: 3 the lyrics split by mistake, 3 they
+ * never split, one from each room, and the rest by the old song's language (half Chinese, the
+ * rest Japanese and English alike).
+ */
+function sample(runs: readonly Run[], n: number, seed: number): Run[] {
+  const random = seeded(seed);
+  const picked: Run[] = [];
+  const take = (from: readonly Run[], count: number) => {
+    const left = from.filter((r) => !picked.includes(r));
+    for (let i = 0; i < count && left.length; i++) {
+      picked.push(left.splice(Math.floor(random() * left.length), 1)[0]!);
+    }
+  };
+  const changes = runs.filter((r) => r.lyricsVerdict);
+  take(
+    runs.filter((r) => r.falseSplit),
+    3,
+  );
+  take(
+    changes.filter((r) => r.lyricsVerdict === 'merged'),
+    3,
+  );
+  // One from each room with changes, as most come from one room.
+  for (const room of new Set(changes.map((r) => r.room))) {
+    if (!picked.some((r) => r.room === room)) {
+      take(
+        changes.filter((r) => r.room === room),
+        1,
+      );
+    }
+  }
+  const rest = n - picked.length;
+  const zh = Math.ceil(rest / 2);
+  take(
+    changes.filter((r) => language(r.lyrics) === 'zh'),
+    zh,
+  );
+  take(
+    changes.filter((r) => language(r.lyrics) === 'ja'),
+    Math.ceil((rest - zh) / 2),
+  );
+  take(
+    changes.filter((r) => language(r.lyrics) === 'en'),
+    n - picked.length,
+  );
+  return picked;
+}
+
+/** What was heard and said around a song change, marked with each rule's breaks, to judge by hand. */
+function dump(r: Run, index: number, say: (text?: string) => void) {
+  const own = lyricsIndex(r.lyrics);
+  const next = lyricsIndex(r.nextLyrics);
+  const anchor = r.falseSplit ?? r.lastOwn ?? r.finalBreak;
+  const from = Math.min(anchor?.end ?? r.song.askedAt, r.song.askedAt) - 90_000;
+  const to = r.next ? r.next.askedAt + 30_000 : (anchor?.end ?? r.song.askedAt) + 240_000;
+  say(
+    `=== case ${index + 1}: ${r.room} 《${r.song.title}》 (${language(r.lyrics)}) → 《${r.next?.title ?? ''}》 (${language(r.nextLyrics)})` +
+      ` | replay: lyrics ${r.lyricsVerdict ?? '-'}, today ${r.todayVerdict ?? '-'}` +
+      (r.falseSplit ? `, lyrics false split at ${clock(r.falseSplit.end)}` : '') +
+      (r.todayFalseSplit ? `, today false split at ${clock(r.todayFalseSplit.end)}` : '') +
+      (r.unnamed ? `, unnamed 《${r.unnamed}》` : ''),
+  );
+  say(
+    'marks: B lyrics break (as the next song was asked), F lyrics false split, T today break, L last line of the old lyrics, N first of the new; columns: speech score, voice, share of old / new lyrics',
+  );
+  const lines = r.session.lines.filter((l) => l.end >= from && l.end <= to);
+  const events = r.session.events.filter((e) => e.at >= from && e.at <= to);
+  const rows = [
+    ...lines.map((line) => {
+      const marks = [
+        line === r.finalBreak ? 'B' : '',
+        line === r.falseSplit ? 'F' : '',
+        r.todays.includes(line) ? 'T' : '',
+        line === r.lastOwn ? 'L' : '',
+        line === r.firstNext ? 'N' : '',
+      ].join('');
+      const share = (index: LyricsIndex) => {
+        const value = matchShare(line.text, index);
+        return value === undefined ? '  -' : `${Math.round(value * 100)}`.padStart(3);
+      };
+      const voice = `${line.speaker ?? '-'}${line.host === false ? 'g' : ''}`;
+      return {
+        at: line.end,
+        text: `${marks.padEnd(3)} ${(line.speech ?? -1).toFixed(2)} ${voice.padStart(3)} ${share(own)} ${share(next)} ${line.text}`,
+      };
+    }),
+    ...events.map((e) => ({ at: e.at, text: `    ${e.text}` })),
+  ].sort((a, b) => a.at - b.at);
+  for (const row of rows) say(`${clock(row.at).slice(6)} ${row.text}`);
+  say();
+}
+
+/**
+ * Every line heard from `from` to `to` (ms), marked with where each rule put a break, for checking
+ * against the truth from elsewhere (Shazam on a recording): B the lyrics' break as the next song
+ * was asked about, b one they made and later undid (heal), T today's.
+ */
+function range(runs: readonly Run[], from: number, to: number, say: (text?: string) => void) {
+  const session = runs.find((r) =>
+    r.session.lines.some((l) => l.end >= from && l.end <= to),
+  )?.session;
+  if (!session) return;
+  const mine = runs.filter((r) => r.session === session);
+  const finals = new Set(mine.flatMap((r) => (r.finalBreak ? [r.finalBreak] : [])));
+  const undone = new Set(mine.flatMap((r) => (r.breaks ?? []).filter((b) => !finals.has(b))));
+  const todays = new Set(mine.flatMap((r) => r.todays));
+  const rows = [
+    ...session.lines
+      .filter((l) => l.end >= from && l.end <= to)
+      .map((line) => ({
+        at: line.end,
+        text: `${[finals.has(line) ? 'B' : '', undone.has(line) ? 'b' : '', todays.has(line) ? 'T' : ''].join('').padEnd(3)} ${(line.speech ?? -1).toFixed(2)} ${line.text}`,
+      })),
+    ...session.events
+      .filter((e) => e.at >= from && e.at <= to && !e.text.startsWith('chat '))
+      .map((e) => ({ at: e.at, text: `    ${e.text}` })),
+  ].sort((a, b) => a.at - b.at);
+  for (const row of rows) say(`${new Date(row.at).toISOString().slice(11, 19)}Z ${row.text}`);
+}
+
 /** Each line heard during the runs of `title`, with how much of it is in that song's lyrics and the next one's. */
 function show(runs: readonly Run[], title: string, say: (text?: string) => void) {
   for (const r of runs.filter((run) => run.song.title === title)) {
@@ -503,6 +652,15 @@ async function main() {
       cache: { type: 'string', default: 'logs/netease-cache' },
       out: { type: 'string', default: 'logs/song-breaks-replay.txt' },
       show: { type: 'string', multiple: true, default: [] },
+      /** Song changes to check by hand, written to --sample-out (at the tuned setting). */
+      sample: { type: 'string', default: '0' },
+      seed: { type: 'string', default: '1' },
+      'sample-out': { type: 'string', default: 'logs/song-breaks-sample.txt' },
+      /** Skip the grid of settings. */
+      'no-grid': { type: 'boolean', default: false },
+      /** Lines from one time to another, `<ISO>..<ISO>`, written to --range-out (at the tuned setting). */
+      range: { type: 'string' },
+      'range-out': { type: 'string', default: 'logs/song-breaks-range.txt' },
     },
   });
   const sessions = readSessions(values.logs);
@@ -518,7 +676,7 @@ async function main() {
   say(
     'threshold misses minChars heal versions | own lines matched (median) | lyrics and today: bounded/early/late/merged | false splits, lyrics vs today | lyrics false splits by language | renamed | merged then bounded a minute on | known merges',
   );
-  for (const versions of [1, 3]) {
+  for (const versions of values['no-grid'] ? [] : [1, 3]) {
     for (const heal of [false, true]) {
       for (const threshold of [0.4, 0.5, 0.6]) {
         for (const misses of [2, 3]) {
@@ -567,6 +725,18 @@ async function main() {
     for (const title of values.show) {
       say();
       show(runs, title, say);
+    }
+    if (params === TUNED && values.range) {
+      const [from = '', to = ''] = values.range.split('..');
+      const lines: string[] = [];
+      range(runs, Date.parse(from), Date.parse(to), (t = '') => lines.push(t));
+      writeFileSync(values['range-out'], `${lines.join('\n')}\n`);
+    }
+    const n = Number(values.sample);
+    if (params === TUNED && n > 0) {
+      const lines: string[] = [];
+      sample(runs, n, Number(values.seed)).forEach((r, i) => dump(r, i, (t = '') => lines.push(t)));
+      writeFileSync(values['sample-out'], `${lines.join('\n')}\n`);
     }
     quiet = false;
   }

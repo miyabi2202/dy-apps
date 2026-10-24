@@ -69,7 +69,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   src/adapters/           #   room-feed, the Claude CLI, the ASR process, files and logging
   src/mcp/                #   the bot's tools for Claude, an MCP server in the bot's process (rpc.ts, server.ts, identify-song.ts, identify-bgm.ts)
   src/mcp/tools/          #   declarative tools (tool.json + guidance.md per folder) a room switches on in its room_config.json
-  scripts/                #   offline tools over logs/: song-breaks-replay.ts (`pnpm replay:song-breaks`), where lyrics would end each named song
+  scripts/                #   offline tools over logs/: song-breaks-replay.ts (`pnpm replay:song-breaks`), where lyrics would end each named song; shazam-windows.py, what Shazam hears in a recording, window by window
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + CAM++
   logs/  data/            #   winston logs; data/<房间号>/ per room: room_config.json, context.md, personas/, tools/, chat/, <user id>/, bot_logs.md (not in git)
 room-feed-protocol/       # @dy-apps/room-feed-protocol: room-feed's events and API, and the client that reads them
