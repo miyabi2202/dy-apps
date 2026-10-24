@@ -82,7 +82,9 @@ export function connectRoomFeed(
     if (!failed) handlers.onStatus('closed');
   };
 
+  // Once closed, nothing more reaches the handlers, not even a frame already on its way.
   return () => {
+    ws.onmessage = null;
     ws.onclose = null;
     ws.onerror = null;
     ws.close();

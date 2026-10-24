@@ -178,4 +178,12 @@ describe('RoomFeedClient', () => {
     expect(opened[0]!.closed).toBe(true);
     expect(clock.pending()).toEqual([]);
   });
+
+  it('tells nothing after close(), not even a frame already on its way', () => {
+    const { client, send, statuses } = setup();
+    client.connect();
+    client.close();
+    send({ type: '__ended', detail: '直播已结束' });
+    expect(statuses).toEqual([['opening', undefined]]);
+  });
 });
