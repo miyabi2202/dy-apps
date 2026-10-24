@@ -4,6 +4,7 @@ import {
   ADMINS,
   APP,
   AUTO_REPLY,
+  BACKING_GAP_BREAKS,
   BOT,
   BOT_CONFIG,
   DOWNLOADS,
@@ -51,6 +52,9 @@ export function registerApp(container: Container): void {
     // the streamer sing. A missing prompt file stops the bot here, at start.
     c.resolve(SONG_INTRO);
     c.resolve(ON_SING);
+    // And the song break sources from the speech worker's add-ons (Shazam's backing titles, the
+    // backing's gaps), which only listen.
+    c.resolve(BACKING_GAP_BREAKS);
     let stopping = false;
     return {
       async start() {

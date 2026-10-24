@@ -1,5 +1,6 @@
 import { singingRecord, speechRecord } from '../../core/chat/chat-record';
 import { errorMessage } from '../../core/errors';
+import { parseBackingLevel } from '../../core/songs/backing-gaps';
 import {
   musicRequest,
   parseMusicLine,
@@ -220,13 +221,25 @@ export class Transcriber {
           log.warn('the speech service is serving another bot; trying again later');
           return this.worker?.kill();
         }
+        const level = parseBackingLevel(text);
+        if (level) return this.options.bus.emit('backing-level', level);
         const line = parseWorkerLine(text);
         if (!line) return;
         transcript.add(line);
         this.options.record?.add(speechRecord(line));
         if (isSung(line) || isPlayed(line)) this.options.singing?.add(singingRecord(line));
-        const { text: heard, lang, speech, music, speaker, host, voice, played } = line;
-        log.info('heard', { text: heard, lang, speech, music, speaker, host, voice, played });
+        const { text: heard, lang, speech, music, speaker, host, voice, played, backing } = line;
+        log.info('heard', {
+          text: heard,
+          lang,
+          speech,
+          music,
+          speaker,
+          host,
+          voice,
+          played,
+          ...(backing && { backing: backing.title }),
+        });
         // Only the streamer's own singing is acted on (see singingSong).
         if (isPlayed(line) || (isSung(line) && !isStreamerSinging(line))) {
           log.info('not the streamer singing', {

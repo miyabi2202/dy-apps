@@ -17,7 +17,9 @@ import type { BotTool } from '../mcp/rpc';
 import type { BotMcpServer } from '../mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { OnSing } from '../app/songs/on-sing';
+import type { BackingGapBreaks } from '../app/songs/backing-gap-breaks';
 import type { LyricsBreaks } from '../app/songs/lyrics-breaks';
+import type { ShazamBreaks } from '../app/songs/shazam-breaks';
 import type { Outbox } from '../app/replies/outbox';
 import type {
   AskModel,
@@ -123,6 +125,10 @@ export const AUTO_SONG_ID = token<AutoSongId | null>('autoSongId');
 export const ON_SING = token<OnSing>('onSing');
 /** The lyrics song break source (see song-breaks.ts); null without NetEase. */
 export const LYRICS_BREAKS = token<LyricsBreaks | null>('lyricsBreaks');
+/** The song break source from Shazam's backing titles, ranked below the lyrics. */
+export const SHAZAM_BREAKS = token<ShazamBreaks>('shazamBreaks');
+/** The song break source from the backing track stopping, ranked below Shazam's titles. */
+export const BACKING_GAP_BREAKS = token<BackingGapBreaks>('backingGapBreaks');
 
 // malice.ts: null without Jev.
 export const MALICE_WATCH = token<MaliceWatch | null>('maliceWatch');

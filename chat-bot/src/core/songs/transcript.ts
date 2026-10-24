@@ -29,6 +29,16 @@ export interface TranscriptLine {
    * sung by anyone there (see the worker's Recordings).
    */
   played?: MusicMatch;
+  /**
+   * The backing track it was sung over, as Shazam named the whole mix (the worker's BackingTitles
+   * add-on), and when that lookup was: one lookup holds for the lines after it until the next.
+   */
+  backing?: BackingMatch;
+}
+
+/** What Shazam named on the whole mix while a line was sung, and when it looked (ms since the epoch). */
+export interface BackingMatch extends MusicMatch {
+  at: number;
 }
 
 /**
@@ -209,6 +219,7 @@ interface WorkerLine {
   host?: boolean | null;
   voice?: number | null;
   played?: { title?: unknown; artist?: unknown } | null;
+  backing?: { title?: unknown; artist?: unknown; at?: unknown } | null;
 }
 
 /** A line of the worker's output as a TranscriptLine, or null when it isn't a sentence. */
@@ -235,6 +246,15 @@ export function parseWorkerLine(text: string): TranscriptLine | null {
         played: {
           title: line.played.title,
           artist: typeof line.played.artist === 'string' ? line.played.artist : '',
+        },
+      }),
+    ...(typeof line.backing?.title === 'string' &&
+      line.backing.title &&
+      typeof line.backing.at === 'number' && {
+        backing: {
+          title: line.backing.title,
+          artist: typeof line.backing.artist === 'string' ? line.backing.artist : '',
+          at: line.backing.at * 1000,
         },
       }),
   };

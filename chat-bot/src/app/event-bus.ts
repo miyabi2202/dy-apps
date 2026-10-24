@@ -1,5 +1,6 @@
 import { errorMessage } from '../core/errors';
 import type { Gift, IncomingChat } from '../core/chat/room-events';
+import type { BackingLevel } from '../core/songs/backing-gaps';
 import type { TranscriptLine } from '../core/songs/transcript';
 import type { Log } from './ports';
 
@@ -13,6 +14,8 @@ export interface RoomEventMap {
   gift: Gift;
   /** A sentence the streamer said or sang, once it's in the transcript. */
   heard: TranscriptLine;
+  /** How loud the backing was around singing, a second at a time (the worker's BackingGaps add-on). */
+  'backing-level': BackingLevel;
   /** The bot's answer to `userId` has been sent. */
   answered: { userId: string };
 }

@@ -358,3 +358,39 @@ test('the current song starts after the last pause of over a minute between sung
   expect(currentSong(lines.slice(0, 2))).toHaveLength(2);
   expect(currentSong([line(0, '你好', 0.8)])).toHaveLength(1);
 });
+
+test("passes on the worker's add-ons: the backing a line was sung over, and the backing's levels", async () => {
+  const transcript = new Transcript(Infinity);
+  const bus = fakeBus();
+  const levels: object[] = [];
+  bus.on('backing-level', (level) => levels.push(level));
+  const transcriber: Transcriber = new Transcriber({
+    streamUrl: () => Promise.resolve('url-1'),
+    bus,
+    transcript,
+    log: silentLog,
+    spawnWorker: ({ onLine }) =>
+      fakeWorker(onLine, () => {
+        transcriber.stop();
+        return [
+          JSON.stringify({
+            start: 100,
+            end: 102,
+            text: '冒险的人',
+            speech: 0.01,
+            played: null,
+            backing: { title: '璀璨冒险人', artist: '周深', at: 99.5 },
+          }),
+          JSON.stringify({ backing_level: { from: 90, to: 105, db: [-26, -80] } }),
+        ];
+      }),
+    sleep: () => Promise.resolve(),
+  });
+  await transcriber.run();
+  expect(transcript.recent(Infinity)[0]?.backing).toEqual({
+    title: '璀璨冒险人',
+    artist: '周深',
+    at: 99_500,
+  });
+  expect(levels).toEqual([{ from: 90_000, to: 105_000, db: [-26, -80] }]);
+});

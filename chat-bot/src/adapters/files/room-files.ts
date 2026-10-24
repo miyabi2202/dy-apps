@@ -46,7 +46,7 @@ export interface RoomConfig extends Settings {
   /** The declarative tools switched on here (`tools`), by name: `["can_sing", "too_easy"]`; the built-in tools need no listing. */
   tools: string[];
   /**
-   * The song break sources on here (`songBreaks`), by name: `["lyrics"]`, or `[]` for only pauses
+   * The song break sources on here (`songBreaks`), by name (`lyrics`, `shazam`, `backingGaps`): `["lyrics"]`, or `[]` for only pauses
    * and talk; every one there is when absent.
    */
   songBreaks?: string[];

@@ -14,7 +14,8 @@ export interface SongSpan {
 
 /**
  * Something that tells where songs start beyond the pauses and talk of currentSong: the lyrics of
- * the song named last, and later Shazam's title changes, or novelty on the backing track. It keeps
+ * the song named last, Shazam's backing titles changing (shazam-spans.ts), the backing track
+ * stopping (backing-gaps.ts). It keeps
  * its own state, fed by whatever it needs (the lyrics source by the song naming), and `spans` is
  * pure given that state: what it makes of `lines`, the transcript lately, oldest first.
  */

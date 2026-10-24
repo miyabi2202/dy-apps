@@ -1,5 +1,7 @@
 import { AutoSongId, SONG_CHARS } from '../app/songs/auto-song-id';
+import { BackingGapBreaks } from '../app/songs/backing-gap-breaks';
 import { LyricsBreaks } from '../app/songs/lyrics-breaks';
+import { ShazamBreaks } from '../app/songs/shazam-breaks';
 import { OnSing } from '../app/songs/on-sing';
 import { SongId } from '../app/songs/song-id';
 import { candidateHints } from '../core/songs/song-candidates';
@@ -9,6 +11,7 @@ import {
   ASK_CLAUDE,
   ASK_CODEX,
   AUTO_SONG_ID,
+  BACKING_GAP_BREAKS,
   BUS,
   FETCH_LYRICS,
   LOG,
@@ -21,6 +24,7 @@ import {
   ROOM,
   ROOM_CONFIG,
   SETTINGS,
+  SHAZAM_BREAKS,
   SONG_ID,
   SONG_INTRO,
   TRANSCRIBER,
@@ -110,6 +114,23 @@ export function registerSongs(container: Container): void {
       const lyricsBreaks = new LyricsBreaks({ fetchLyrics, log: c.resolve(LOG) });
       c.resolve(ROOM).addSongBreaks(lyricsBreaks);
       return lyricsBreaks;
+    })
+    // Then the backing track's title, as Shazam names it on the whole mix (the speech worker's
+    // BackingTitles add-on). Made after the lyrics, so it ranks below them.
+    .register(SHAZAM_BREAKS, (c) => {
+      c.resolve(LYRICS_BREAKS);
+      const shazamBreaks = new ShazamBreaks({ log: c.resolve(LOG) });
+      c.resolve(ROOM).addSongBreaks(shazamBreaks);
+      return shazamBreaks;
+    })
+    // Then the backing track stopping between songs (the worker's BackingGaps add-on), fed its
+    // backing levels.
+    .register(BACKING_GAP_BREAKS, (c) => {
+      c.resolve(SHAZAM_BREAKS);
+      const backingGapBreaks = new BackingGapBreaks({ log: c.resolve(LOG) });
+      c.resolve(ROOM).addSongBreaks(backingGapBreaks);
+      c.resolve(BUS).on('backing-level', (level) => backingGapBreaks.add(level));
+      return backingGapBreaks;
     })
     // And, in a room with on_sing in its room_config.json, its message as the streamer starts a song.
     .register(ON_SING, (c) => {
