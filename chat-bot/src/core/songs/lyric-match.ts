@@ -72,8 +72,8 @@ export interface KnownSong {
 export type Heal = 'off' | 'any' | 'two' | 'long' | 'either';
 
 /** A line this long, matching this much, is surely from the song (see Heal). */
-export const LONG_CHARS = 12;
-export const STRONG_SHARE = 0.7;
+const LONG_CHARS = 12;
+const STRONG_SHARE = 0.7;
 
 export interface LyricsBreakOptions {
   /** The least share of a line's pairs in the lyrics for it to be from them. */

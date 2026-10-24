@@ -74,7 +74,7 @@ const STREAMER = '主播';
  * Above this score for being about the bot, Jev is sure enough that asking Codex only adds the 9
  * seconds it takes: the line is answered at once.
  */
-export const SURE_ABOUT_BOT = 0.9;
+const SURE_ABOUT_BOT = 0.9;
 
 /** At most this many lines go to the picker, the newest. */
 const PICK_LINES = 40;

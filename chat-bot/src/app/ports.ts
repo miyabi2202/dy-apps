@@ -61,7 +61,7 @@ export interface RoomEvents {
 /** Sends one chat message to the live room as the bot's account. */
 export type SendChat = (text: string) => Promise<SendResult>;
 
-export interface SendResult {
+interface SendResult {
   /** Whether the message came back in the room's chat stream, i.e. Douyin took it. */
   echoed: boolean;
 }

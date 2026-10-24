@@ -130,7 +130,7 @@ function folderNames(log: Log): (dir: string) => string[] {
  * can't be read, or isn't inside it. A `{{file?:<path>}}` is the same, but empty, and not warned
  * about, when the file isn't there: a room's notes a tool reads if it has them.
  */
-export function fillFiles(
+function fillFiles(
   body: string,
   roomDir: string,
   { log, read }: { log: Log; read: (path: string) => string },

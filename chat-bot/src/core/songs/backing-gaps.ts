@@ -51,7 +51,7 @@ export const BACKING_GAPS: Required<BackingGapOptions> = {
 const MIN_SECONDS = 10;
 
 /** Where the backing went quiet, as [from, to) in ms, by second. */
-export function quietRuns(levels: readonly BackingLevel[], options: BackingGapOptions = {}) {
+function quietRuns(levels: readonly BackingLevel[], options: BackingGapOptions = {}) {
   const { underDb, minQuietMs } = { ...BACKING_GAPS, ...options };
   const db = new Map<number, number>();
   for (const level of levels) {
