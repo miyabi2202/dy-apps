@@ -17,6 +17,8 @@ export const PROMPT_FILES = {
   songIntro: 'song-intro.md',
   solve: 'solve.md',
   malice: 'malice.md',
+  rememberNotes: 'remember-notes.md',
+  rememberRoom: 'remember-room.md',
 } as const;
 
 export type PromptName = keyof typeof PROMPT_FILES;

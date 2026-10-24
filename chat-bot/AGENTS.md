@@ -83,6 +83,8 @@ How the bot tells viewers apart: set `"private": true` in the room's `data/<房�
 
 Stop the bot's background task first, then room-feed's, then the speech service's (TaskStop each; leave the speech service running when the bot is only being restarted), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or room-feed process is left.
 
+After a stream (the bot stopped by you, or gone with room-feed), read its chat into memory, from `chat-bot/`, with the bot's room and account: `pnpm remember --room <房间号> --bot-name 默认关闭 --bot-id 7692586790687114297` (half a minute or so; see "Reading the chat into memory" in docs/commands.md). Tell the user what it changed: the `memory updated` lines with `by: "chat"` in `logs/chat-bot.log`. Not when the bot was only restarted mid-stream.
+
 ## Troubleshooting
 
 - Switching to another room: the speech service keeps the voices it learned, and doesn't know the room changed, so the old room's streamer stays "the streamer" and the new one's talk comes out as `（连线）` (`host: false` in `heard`). Restart the speech service (step 2) when switching rooms, until it resets voices on its own.

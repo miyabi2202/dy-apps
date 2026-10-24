@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { ENV, LOG, OPTIONS, PACKAGE_DIR, PROMPTS_DIR } from './tokens';
 import { registerTranscriber } from './transcriber';
 
-export { APP, BOT } from './tokens';
+export { APP, BOT, REMEMBER_CHAT } from './tokens';
 export type { App } from './app';
 
 /** What the entry gives the container: the command line, where the package is, the log, the environment. */

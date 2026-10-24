@@ -220,6 +220,15 @@ Anything said to the bot in words (an @, its name, a line auto-reply lets throug
 
 Each file is entries with a `§` line between them. The tool can `add` an entry, `replace` a piece of text (which must appear in exactly one place) or `remove` the entry holding it. `memory.md` holds at most 4000 characters, a note 1000 (`src/core/memory/memory-text.ts`); a change past that fails with a message telling Claude to merge or drop entries first. Nothing with a word from `forbidden-words.md` is kept. The tool's description tells Claude what to keep (what lasts and the person wouldn't mind) and what not (moods, anyone's private life, what someone says about someone else, topics that get rooms banned), and `prompt.md` lets it say 「记下了」 only after the tool said so. The log has `memory updated {scope, action, asker, userId, content, old, used}`.
 
+### Reading the chat into memory
+
+Most of what's worth knowing about regulars is in their chat with each other, not in what they say to the bot. `pnpm remember` (with the same `--room`, `--bot-name`, `--bot-id` and `--data` as the bot; `src/remember.ts`, `src/app/memory/remember-chat.ts`) reads the room's chat record since it last ran (`data/<房间号>/memory_read.txt`; the last 12 hours the first time) and asks Claude, with no tools:
+
+- for each viewer who sent at least 5 chats since then, 8 a question, with their own chats and their note: changes to their note (`remember-notes.md`). Not in a 私密 room, and never the bot's or the streamer's chat;
+- once for the whole stream (the streamer's speech and everyone's chat, songs sung left out), with `memory.md` and the streamer's note: changes to both (`remember-room.md`).
+
+The changes are the tool's add / replace / remove, checked the same way (limits, forbidden words; one that fails is skipped, `memory change skipped {why}`), and logged as `memory updated {…, by: "chat"}`; a viewer Claude names that it wasn't asked about writes nowhere. `remembered {lines, viewers, changes, failed}` ends a run; the mark moves on only when every question was answered, so a failed run is read again next time. On 咿咿's room, a 394-line stream took three questions and 35 seconds.
+
 ## Where they're defined
 
 Each tool is a `BotTool` in `src/mcp/`; `src/wiring/mcp.ts` lists them, in the order the help shows them. The ones a room switches on are folders in `src/mcp/tools/`, built by `src/mcp/declarative-tools.ts` and loaded by `src/adapters/files/tool-files.ts`.

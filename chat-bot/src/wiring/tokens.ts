@@ -37,6 +37,7 @@ import type {
   UserTalk,
   Memory,
 } from '../app/ports';
+import type { RememberChat } from '../app/memory/remember-chat';
 import type { RoomFeed } from '../app/room/room-feed';
 import type { RoomState } from '../app/room/room-state';
 import type { SongId } from '../app/songs/song-id';
@@ -112,6 +113,8 @@ export const BOT_TALK = token<BotTalk>('botTalk');
 export const USER_TALK = token<UserTalk>('userTalk');
 /** What the bot remembers in the room: memory.md and each person's note.md. */
 export const MEMORY = token<Memory>('memory');
+/** Reads the chat record since last time into memory (`pnpm remember`). */
+export const REMEMBER_CHAT = token<RememberChat>('rememberChat');
 /** The prompt `name`, read on every use: the room's own file, else the shared one. */
 export const PROMPT = token<(name: PromptName) => () => string>('prompt');
 export const ROOM = token<RoomState>('room');

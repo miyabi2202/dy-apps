@@ -10,7 +10,8 @@ import {
   roomFiles,
   saveStreamer,
 } from '../adapters/files/room-files';
-import { memoryFiles } from '../adapters/files/memory-files';
+import { memoryFiles, memoryReadMark, readRecordSince } from '../adapters/files/memory-files';
+import { RememberChat } from '../app/memory/remember-chat';
 import { botTalkFile, userTalkFiles } from '../adapters/files/room-talk-files';
 import { EventBus } from '../app/event-bus';
 import { Outbox } from '../app/replies/outbox';
@@ -32,6 +33,8 @@ import {
   HISTORY,
   LOG,
   MEMORY,
+  REMEMBER_CHAT,
+  ASK_CLAUDE,
   OPTIONS,
   OUTBOX,
   PROMPTS_DIR,
@@ -136,6 +139,28 @@ export function registerRoom(container: Container): void {
     // What the bot remembers (memory.md, each person's note.md), which it writes with update_memory
     // and anyone may edit by hand: read on every use.
     .register(MEMORY, (c) => memoryFiles(c.resolve(ROOM_DIR)))
+    // `pnpm remember`: the chat record since last time, read into the notes and memory.md by Claude.
+    .register(REMEMBER_CHAT, (c) => {
+      const [options, roomConfig, prompt] = [
+        c.resolve(OPTIONS),
+        c.resolve(ROOM_CONFIG),
+        c.resolve(PROMPT),
+      ];
+      const chatDir = c.resolve(CHAT_DIR);
+      return new RememberChat({
+        ask: c.resolve(ASK_CLAUDE)('remember'),
+        memory: c.resolve(MEMORY),
+        readSince: (sinceMs) => readRecordSince(chatDir, sinceMs),
+        mark: memoryReadMark(c.resolve(ROOM_DIR)),
+        notesPrompt: prompt('rememberNotes'),
+        roomPrompt: prompt('rememberRoom'),
+        streamerId: () => c.resolve(ADMINS).current()?.uid ?? roomConfig().streamer?.uid,
+        bot: { name: options.botName, id: options.botId },
+        isPrivate: () => roomConfig().private,
+        forbiddenWords: c.resolve(FORBIDDEN_WORDS),
+        log: c.resolve(LOG),
+      });
+    })
     // Words Douyin holds back a message for: every prompt that writes chat is told them, and the
     // outbox won't send one with them. Read on every use, so an edit applies at once.
     .register(FORBIDDEN_WORDS, (c) => {
