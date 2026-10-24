@@ -39,12 +39,13 @@ export function registerSongs(container: Container): void {
           maxLength: c.resolve(OPTIONS).maxReplyLength,
         }),
     )
-    // /识歌 and /自动识歌: the lyrics search, then Codex (which searches with Google) when it isn't
-    // sure; without Codex, neither.
+    // /识歌 and /自动识歌: Shazam while she sings, then the lyrics search, then Codex (which searches
+    // with Google) when it isn't sure; without Codex, none of them.
     .register(SONG_ID, (c) => {
       if (!c.resolve(OPTIONS).codex) return null;
       // Made now, so a missing song-intro.md stops the bot at start.
       const songIntro = c.resolve(SONG_INTRO);
+      const transcriber = c.resolve(TRANSCRIBER);
       return new SongId({
         prompt: c.resolve(PROMPT)('songId'),
         codex: c.resolve(ASK_CODEX)('song-id', {
@@ -52,6 +53,8 @@ export function registerSongs(container: Container): void {
           effort: 'medium',
         }),
         log: c.resolve(LOG),
+        // Shazam answers in a second or two; a slow one gives way to the lyrics.
+        ...(transcriber && { music: () => transcriber.identifyMusic(10_000) }),
         // NetEase's lyrics search first: Codex only when it isn't sure of the title or names no singer.
         lyrics: c.resolve(LYRICS_SEARCH) ?? undefined,
         found: ({ title, artist }) =>

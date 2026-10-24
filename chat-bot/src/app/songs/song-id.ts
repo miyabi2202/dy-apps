@@ -1,7 +1,8 @@
-import { normaliseTitle, type TitleCandidate } from '@dy-apps/lyrics-search';
+import { displayTitle, normaliseTitle, type TitleCandidate } from '@dy-apps/lyrics-search';
 import { parseSongAnswer, SONG_ANSWER_SCHEMA, type SongAnswer } from '../../core/songs/song-answer';
 import { errorMessage } from '../../core/errors';
 import { askJson } from '../models/ask-json';
+import type { MusicMatch } from '../../core/songs/music';
 import { isSung, othersShare, sungChars, type TranscriptLine } from '../../core/songs/transcript';
 import type { AskModel, Log, Question, SearchLyrics } from '../ports';
 
@@ -13,7 +14,15 @@ export interface SongIdOptions {
   log: Log;
   now?: () => number;
   /**
-   * NetEase's lyrics search, asked first: when it's sure of the title and a singer, the answer
+   * Shazam on the stream's last 15 s, asked before anything else while the streamer is singing
+   * (a sung line ended within SINGING_LATELY_MS): she mostly sings over a backing track, which it
+   * names with its song, in about a second. In a 75-minute morning show of 海老夏二 it named the
+   * song she was singing in 11 of 15 windows; sung a cappella, or with nothing matched (null) or a
+   * failure, the lyrics search and Codex go on as before. Its answer is said with `found`.
+   */
+  music?: () => Promise<MusicMatch | null>;
+  /**
+   * NetEase's lyrics search, asked first after Shazam: when it's sure of the title and a singer, the answer
    * comes from it (`found`) and Codex isn't asked; when it isn't (or it fails, or names no
    * singer), Codex is, with its candidates as hints (`hints`).
    */
@@ -48,7 +57,7 @@ export type SongIdOutcome = { kind: 'early'; text: string } | ({ kind: 'named' }
 export interface Named {
   answer: SongAnswer | null;
   text: string;
-  by: 'lyrics-search' | 'codex';
+  by: 'shazam' | 'lyrics-search' | 'codex';
   /** Most of what was sung was another voice's (see othersShare); the message then says so. */
   othersSang: boolean;
 }
@@ -57,8 +66,14 @@ export interface Named {
 const OTHERS_SANG = 0.5;
 
 /**
- * Names the song being sung, for `identify_song` (Claude's, or a typed `/识歌`) and /自动识歌: the lyrics search
- * first, which is fast; when it isn't sure, Codex searches the web for the lyrics of the current
+ * Shazam hears the last 15 s, so it's asked only when a sung line ended this recently: asked
+ * after the song, it would name whatever plays now.
+ */
+const SINGING_LATELY_MS = 15_000;
+
+/**
+ * Names the song being sung, for `identify_song` (Claude's, or a typed `/识歌`) and /自动识歌: Shazam
+ * first while she's singing, then the lyrics search, both fast; when it isn't sure, Codex searches the web for the lyrics of the current
  * song, with the prompt, and answers in SONG_ANSWER_SCHEMA's shape.
  */
 export class SongId {
@@ -99,6 +114,26 @@ export class SongId {
             ...(othersNote && answer.message && { message: `${answer.message}${othersNote()}` }),
           }
         : answer;
+    const music = about && this.singingLately(about.lines) ? await this.music() : null;
+    if (music) {
+      const title = displayTitle(music.title) || music.title;
+      const answer: SongAnswer = {
+        message: (found ?? defaultFound)({ title, artist: music.artist }),
+        title,
+        artist: music.artist,
+        sure: true,
+      };
+      log.info('song identified', {
+        title,
+        artist: music.artist,
+        shazamTitle: music.title,
+        sure: true,
+        by: 'shazam',
+        ms: now() - start,
+      });
+      const told = noted(answer);
+      return { answer: told, text: told.message, by: 'shazam', othersSang };
+    }
     if (about) {
       const sung = about.lines.filter(isSung);
       log.info('song id asked', {
@@ -194,6 +229,25 @@ export class SongId {
       return { kind: 'early', text: early.tooEarly(heard) };
     }
     return { kind: 'named', ...(await this.name(question, { why, lines })) };
+  }
+
+  /** Whether a line of `lines` was sung within SINGING_LATELY_MS, so Shazam hears the song. */
+  private singingLately(lines: readonly TranscriptLine[]): boolean {
+    const now = (this.options.now ?? Date.now)();
+    return lines.some((line) => isSung(line) && now - line.end <= SINGING_LATELY_MS);
+  }
+
+  /** Shazam's match for the song playing, or null when there's none, it found none, or it failed. */
+  private async music(): Promise<MusicMatch | null> {
+    if (!this.options.music) return null;
+    try {
+      const match = await this.options.music();
+      if (!match) this.options.log.info('shazam found no song');
+      return match;
+    } catch (err) {
+      this.options.log.warn('shazam failed', { error: errorMessage(err) });
+      return null;
+    }
   }
 
   /** When `title` was last told to the room (by /识歌 or on its own), if it was. */
