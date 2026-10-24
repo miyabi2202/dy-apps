@@ -15,6 +15,7 @@ import {
   ROOM,
   ROOM_EVENTS,
   SETTINGS,
+  SONG_ENDS,
   SONG_INTRO,
   TRANSCRIBER,
 } from './tokens';
@@ -52,6 +53,7 @@ export function registerApp(container: Container): void {
     // the streamer sing. A missing prompt file stops the bot here, at start.
     c.resolve(SONG_INTRO);
     c.resolve(ON_SING);
+    c.resolve(SONG_ENDS);
     // And the song break sources from the speech worker's add-ons (Shazam's backing titles, the
     // backing's gaps), which only listen.
     c.resolve(BACKING_GAP_BREAKS);

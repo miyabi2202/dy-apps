@@ -10,9 +10,9 @@ export type ChatRecord = {
   /** What the sender wears, for a chat: `V` / `V年` (直播间会员), `灯牌16`, `财富36`. */
   tags?: string[];
 } &
-  /** What the streamer said, or sang, or a recording they played. */
+  /** What the streamer said, or sang, or a recording they played; or a song of theirs ended (see SongEnds). */
   (
-    | { type: 'speech' | 'sing' | 'play'; text: string }
+    | { type: 'speech' | 'sing' | 'play' | 'song'; text: string }
     | { type: 'chat'; text: string }
     | { type: 'gift'; gift: { name: string; count: number; diamonds: number } }
   );
@@ -80,6 +80,7 @@ export function singingRecord(line: TranscriptLine): ChatRecord {
  *     2026-10-16 16:47:33+08:00 [主播](speech) 而且有出土的文物可以作证……
  *     2026-10-17 20:40:21+08:00 [主播](sing) 寒江陪烟火月伴星如昨
  *     2026-10-17 20:44:02+08:00 [主播](play) 心の中に花を咲かそよ
+ *     2026-10-17 20:48:12+08:00 [主播](song) 《璀璨冒险人》唱完了，下一首从 20:48:11 开始（歌词对不上了）
  *     2026-10-17 21:02:10+08:00 [连线](speech) 你那边信号不太好
  *     2026-10-16 16:47:22+08:00 [雅#7664182420958889017](gift) 送出 人气票×1（1钻）
  *     2026-10-16 16:47:30+08:00 [雅#7664182420958889017|V年|灯牌16|财富36](chat) 讲讲曲面积分

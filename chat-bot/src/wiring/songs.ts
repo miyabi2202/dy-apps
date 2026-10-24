@@ -3,6 +3,7 @@ import { BackingGapBreaks } from '../app/songs/backing-gap-breaks';
 import { LyricsBreaks } from '../app/songs/lyrics-breaks';
 import { ShazamBreaks } from '../app/songs/shazam-breaks';
 import { OnSing } from '../app/songs/on-sing';
+import { SongEnds } from '../app/songs/song-ends';
 import { SongId } from '../app/songs/song-id';
 import { candidateHints } from '../core/songs/song-candidates';
 import { SongIntro } from '../app/songs/song-intro';
@@ -18,6 +19,7 @@ import {
   LYRICS_BREAKS,
   LYRICS_SEARCH,
   ON_SING,
+  RECORD,
   OPTIONS,
   OUTBOX,
   PROMPT,
@@ -25,6 +27,7 @@ import {
   ROOM_CONFIG,
   SETTINGS,
   SHAZAM_BREAKS,
+  SONG_ENDS,
   SONG_ID,
   SONG_INTRO,
   TRANSCRIBER,
@@ -143,5 +146,18 @@ export function registerSongs(container: Container): void {
       });
       c.resolve(BUS).on('heard', (line) => onSing.hear(line));
       return onSing;
+    })
+    // And a line in the chat record each time a song the streamer sang ended.
+    .register(SONG_ENDS, (c) => {
+      const roomConfig = c.resolve(ROOM_CONFIG);
+      const songId = c.resolve(SONG_ID);
+      const songEnds = new SongEnds({
+        room: c.resolve(ROOM),
+        record: c.resolve(RECORD),
+        ...(songId && { lastTold: () => songId.lastTold() }),
+        timeZone: () => roomConfig().timeZone,
+      });
+      c.resolve(BUS).on('heard', (line) => songEnds.hear(line));
+      return songEnds;
     });
 }

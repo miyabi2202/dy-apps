@@ -17,6 +17,7 @@ import type { BotTool } from '../mcp/rpc';
 import type { BotMcpServer } from '../mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { OnSing } from '../app/songs/on-sing';
+import type { SongEnds } from '../app/songs/song-ends';
 import type { BackingGapBreaks } from '../app/songs/backing-gap-breaks';
 import type { LyricsBreaks } from '../app/songs/lyrics-breaks';
 import type { ShazamBreaks } from '../app/songs/shazam-breaks';
@@ -123,6 +124,7 @@ export const SONG_INTRO = token<SongIntro>('songIntro');
 export const SONG_ID = token<SongId | null>('songId');
 export const AUTO_SONG_ID = token<AutoSongId | null>('autoSongId');
 export const ON_SING = token<OnSing>('onSing');
+export const SONG_ENDS = token<SongEnds>('songEnds');
 /** The lyrics song break source (see song-breaks.ts); null without NetEase. */
 export const LYRICS_BREAKS = token<LyricsBreaks | null>('lyricsBreaks');
 /** The song break source from Shazam's backing titles, ranked below the lyrics. */
