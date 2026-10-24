@@ -1,4 +1,9 @@
-import { chatRecord, formatRecord, singingRecord } from '../../../src/core/chat/chat-record';
+import {
+  chatRecord,
+  formatRecord,
+  singingRecord,
+  speechRecord,
+} from '../../../src/core/chat/chat-record';
 
 const at = Date.UTC(2026, 9, 21, 8, 0, 0);
 
@@ -53,4 +58,23 @@ test('a sung line is whose the speech service took it for, with its voice and ho
   );
   // Too short for a voiceprint: the streamer's, untagged.
   expect(sung({})).toBe('2026-10-21 16:00:00+08:00 [主播](sing) SUMMERTIME SADNESS');
+});
+
+test("a recording playing is the streamer's, marked play, with what Shazam found in sing.txt", () => {
+  const played = {
+    start: at - 3000,
+    end: at,
+    text: '心の中に花を咲かそよ',
+    speech: 0.05,
+    speaker: 3,
+    host: false,
+    voice: 0.71,
+    played: { title: '花', artist: '夏川りみ' },
+  };
+  expect(formatRecord(speechRecord(played), at, 'Asia/Shanghai')).toBe(
+    '2026-10-21 16:00:00+08:00 [主播](play) 心の中に花を咲かそよ',
+  );
+  expect(formatRecord(singingRecord(played), at, 'Asia/Shanghai')).toBe(
+    '2026-10-21 16:00:00+08:00 [连线|声3|0.71|放 花 / 夏川りみ](play) 心の中に花を咲かそよ',
+  );
 });

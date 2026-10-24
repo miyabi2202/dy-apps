@@ -1,7 +1,9 @@
 import {
   currentSong,
   isHandled,
+  isSung,
   parseStatusLine,
+  parseWorkerLine,
   singingSong,
   type TranscriptLine,
 } from '../../../src/core/songs/transcript';
@@ -25,10 +27,16 @@ test('a song is the sung lines since the last pause, once at least 3 of the last
   expect(singingSong(lines.slice(0, 2), lines[1]!)).toBeNull();
   expect(singingSong([...lines, line(26, false)], line(26, false))).toBeNull();
   expect(singingSong([...lines, line(26, false, false)], line(26, false, false))).toBeNull();
-  // A line another voice sang is still the song: the voices can't tell her singing in another
-  // style from someone else's.
+  // A line another voice sang isn't hers: no song, and it isn't part of hers.
   const guestSang = line(26, true, false);
-  expect(singingSong([...lines, guestSang], guestSang)?.lines).toEqual([...lines, guestSang]);
+  expect(singingSong([...lines, guestSang], guestSang)).toBeNull();
+  expect(singingSong([...lines, guestSang, line(30)], line(30))?.lines).toEqual([
+    ...lines,
+    line(30),
+  ]);
+  // A guest singing alone is no song.
+  const guest = [line(10, true, false), line(14, true, false), line(18, true, false)];
+  expect(singingSong(guest, guest[2]!)).toBeNull();
 });
 
 test('a song after a long pause starts a new one, and the same one counts again after a while', () => {
@@ -75,4 +83,27 @@ test('a song also ends at a shorter pause the streamer talks in, but not at a gu
   expect(
     currentSong([...sang, at(12, '谢谢', 0.8), at(14, '哈哈', 0.8), at(20, '接着唱')]),
   ).toHaveLength(5);
+});
+
+test('a recording playing is no one singing: it neither makes a song nor ends one', () => {
+  const played = (end: number): TranscriptLine => ({
+    ...line(end),
+    played: { title: '花', artist: '夏川りみ' },
+  });
+  // Lines of a recording alone are no song.
+  const recording = [played(10), played(14), played(18), played(22)];
+  expect(isSung(recording[3]!)).toBe(false);
+  expect(singingSong(recording, recording[3]!)).toBeNull();
+  // Nor do they count against her singing, or split her song.
+  const mixed = [line(10), played(12), line(14), played(16), line(18)];
+  expect(singingSong(mixed, mixed[4]!)?.start).toBe(7000);
+});
+
+test("reads the worker's played recording, and only a named one", () => {
+  const parse = (played: unknown) =>
+    parseWorkerLine(JSON.stringify({ start: 1, end: 2, text: '花', speech: 0.05, played }))?.played;
+  expect(parse({ title: '花', artist: '夏川りみ' })).toEqual({ title: '花', artist: '夏川りみ' });
+  expect(parse({ title: '花' })).toEqual({ title: '花', artist: '' });
+  expect(parse(null)).toBeUndefined();
+  expect(parse({ title: '' })).toBeUndefined();
 });

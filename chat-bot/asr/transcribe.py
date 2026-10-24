@@ -93,6 +93,15 @@ MAX_SENTENCE_MS = 15000
 # How much of the latest audio a music lookup gets, and the least it needs.
 MUSIC_SECONDS = 15
 MIN_MUSIC_SECONDS = 5
+# While sentences are sung, the latest audio is looked up with Shazam this often to tell a
+# recording playing from someone singing (see Recordings); what it found holds until then, or until
+# nothing has been sung for PLAYED_GAP_SECONDS.
+PLAYED_CHECK_SECONDS = 20
+PLAYED_GAP_SECONDS = 10
+# A lookup that takes longer is given up on, as it holds up the transcript.
+PLAYED_TIMEOUT_SECONDS = 5
+# A match titled like this is a backing track: someone is singing over it, not playing a recording.
+BACKING_TRACK = re.compile(r"伴奏|纯音乐|instrumental|off[ -]?vocal|karaoke|カラオケ|\binst\b", re.I)
 # Restart the VAD's state this often, between sentences, so its buffers stay small.
 VAD_RESET_MS = 5 * 60 * 1000
 ASR_MODEL = "FireRedTeam/FireRedASR2-AED"
@@ -308,10 +317,13 @@ class Voices:
         embedding = self.model.generate(input=audio, disable_pbar=True)[0]["spk_embedding"]
         voiceprint = embedding.reshape(-1).float().cpu().numpy()
         voiceprint /= np.linalg.norm(voiceprint)
-        # Japanese and Korean here are almost always lyrics, sung over music that can score as
-        # speech: one such line once became "the streamer" talking, and her talking the guest's.
-        sung = speech < SUNG_BELOW_SPEECH or lang in SENSEVOICE_LANGS
-        return (self.singing if sung else self.talking).add(voiceprint, seconds)
+        return (self.singing if is_sung(speech, lang) else self.talking).add(voiceprint, seconds)
+
+
+def is_sung(speech: float, lang: str | None) -> bool:
+    # Japanese and Korean here are almost always lyrics, sung over music that can score as
+    # speech: one such line once became "the streamer" talking, and her talking the guest's.
+    return speech < SUNG_BELOW_SPEECH or lang in SENSEVOICE_LANGS
 
 
 def load_models(
@@ -375,6 +387,58 @@ def answer_music(music_id, recent: collections.deque, shazam: Shazam) -> None:
                 "title": track and track.get("title"),
                 "artist": track and track.get("subtitle")})
     log(f"music: {track and track.get('title')} / {track and track.get('subtitle')}")
+
+
+class Recordings:
+    """
+    Whether a sung sentence is a recording playing (a song with its singer, as the streamer plays
+    it to the room) rather than someone singing live: Shazam usually finds a recording, even under
+    talk, and usually doesn't find the streamer singing it herself; when she sings over a backing
+    track, it finds the backing track, named as one (BACKING_TRACK). Looked up at most every
+    PLAYED_CHECK_SECONDS while sentences are sung, from the latest audio.
+    """
+
+    def __init__(self, shazam: Shazam, now=time.monotonic):
+        self.shazam = shazam
+        self.now = now
+        self.checked_at: float | None = None
+        self.sung_at: float | None = None
+        self.playing: dict | None = None
+
+    def __call__(self, chunks: list[bytes]) -> dict | None:
+        """The recording playing as a sentence was sung, `{"title", "artist"}`, or None."""
+        now = self.now()
+        fresh = (
+            self.checked_at is not None and now - self.checked_at < PLAYED_CHECK_SECONDS
+            and self.sung_at is not None and now - self.sung_at < PLAYED_GAP_SECONDS
+        )
+        self.sung_at = now
+        if not fresh:
+            self.checked_at = now
+            self.playing = self.lookup(chunks)
+        return self.playing
+
+    def lookup(self, chunks: list[bytes]) -> dict | None:
+        if len(chunks) * CHUNK_MS < MIN_MUSIC_SECONDS * 1000:
+            return None
+        try:
+            found = asyncio.run(asyncio.wait_for(self.shazam.recognize(as_wav(chunks)), PLAYED_TIMEOUT_SECONDS))
+        except Exception as err:  # noqa: BLE001 - unknown is taken as sung, not fatal
+            log(f"played: lookup failed: {str(err) or type(err).__name__}")
+            return None
+        return played_track(found.get("track"))
+
+
+def played_track(track: dict | None) -> dict | None:
+    """Shazam's match as a recording playing, or None for no match or a backing track."""
+    if not track or not track.get("title"):
+        return None
+    title, artist = track["title"], track.get("subtitle") or ""
+    if BACKING_TRACK.search(title):
+        log(f"played: backing track {title} / {artist}, sung live")
+        return None
+    log(f"played: {title} / {artist}")
+    return {"title": title, "artist": artist}
 
 
 class Stream:
@@ -453,6 +517,7 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
         )
     log("listening")
     recent.clear()
+    recordings = Recordings(Shazam(language="zh-CN", endpoint_country="CN"))
 
     cache: dict = {}
     vad_ms = 0  # audio the VAD has seen since its last reset
@@ -472,6 +537,7 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
             return
         speech, music = voice(audio)
         speaker, host, similarity = voices(audio, speech, lang)
+        played = recordings(list(recent)) if is_sung(speech, lang) else None
         now = time.time()
         duration = (end - beg) / 1000
         line = {
@@ -484,6 +550,7 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
             "speaker": speaker,
             "host": host,
             "voice": similarity,
+            "played": played,
         }
         print_line(line)
 

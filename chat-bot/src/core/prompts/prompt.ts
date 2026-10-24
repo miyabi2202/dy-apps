@@ -2,7 +2,7 @@ import { clock, localDate, machineTimeZone, retimeLines, timeZoneName } from './
 import type { GiftLine } from '../chat/recent-gifts';
 import type { ChatLine } from '../chat/room-events';
 import type { Wording } from './wording';
-import { isGuest, isSung, type TranscriptLine } from '../songs/transcript';
+import { isGuest, isPlayed, isSung, type TranscriptLine } from '../songs/transcript';
 
 /** What every prompt knows about the room as it is now. */
 export interface RoomPromptInput {
@@ -144,7 +144,9 @@ export function buildPrompt(template: string, input: PromptInput): string {
     transcript:
       transcript
         .map((line) => {
-          const marks = `${isGuest(line) ? '（连线）' : ''}${isSung(line) ? '（唱）' : ''}`;
+          const marks = isPlayed(line)
+            ? '（放歌）'
+            : `${isGuest(line) ? '（连线）' : ''}${isSung(line) ? '（唱）' : ''}`;
           return `${clock(line.start, input.timeZone)} ${marks}${line.text}`;
         })
         .join('\n') || '（暂无）',

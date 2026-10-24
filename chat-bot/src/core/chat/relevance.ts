@@ -1,7 +1,7 @@
 import { clock } from '../prompts/local-time';
 import { readMark, unread } from './reading';
 import type { ChatLine } from './room-events';
-import { isGuest, isSung, type TranscriptLine } from '../songs/transcript';
+import { isGuest, isPlayed, isSung, type TranscriptLine } from '../songs/transcript';
 import type { Wording } from '../prompts/wording';
 
 /** One thing said in the room: a chat, or a sentence the streamer (or a guest) said or sang. */
@@ -58,15 +58,16 @@ export function roomLines(
   }));
   const spoken = transcript.flatMap((line): RoomLine[] => {
     const sung = isSung(line);
+    const played = isPlayed(line);
     const read = chat.filter((c) => c.ts <= line.end && line.end - c.ts <= READ_WITHIN_MS);
-    const text = sung ? line.text : unread(line.text, read);
+    const text = sung || played ? line.text : unread(line.text, read);
     if (text === null) return [];
     return [
       {
         ts: line.end,
-        who: isGuest(line) ? '连线' : '主播',
-        text: sung ? `（唱）${text}` : text,
-        candidate: !sung,
+        who: isGuest(line) && !played ? '连线' : '主播',
+        text: played ? `（放歌）${text}` : sung ? `（唱）${text}` : text,
+        candidate: !sung && !played,
       },
     ];
   });

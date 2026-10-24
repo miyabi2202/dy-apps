@@ -1,3 +1,5 @@
+import type { MusicMatch } from './music';
+
 /** How far back the prompts' `{{transcript}}` goes unless set otherwise. */
 export const DEFAULT_TRANSCRIPT_WINDOW_MS = 5 * 60_000;
 
@@ -21,6 +23,11 @@ export interface TranscriptLine {
   host?: boolean;
   /** How close its voiceprint was to that voice's, 0–1; unknown for a voice heard first. */
   voice?: number;
+  /**
+   * The recording playing when it was sung, as Shazam found it: a song played to the room, not
+   * sung by anyone there (see the worker's Recordings).
+   */
+  played?: MusicMatch;
 }
 
 /**
@@ -48,9 +55,22 @@ export function isGuestTalk(line: TranscriptLine): boolean {
  */
 const SUNG_BELOW_SPEECH = 0.2;
 
-/** Whether the streamer sang the line rather than said it; unknown without a speech score. */
+/**
+ * Whether the streamer (or a guest) sang the line rather than said it; unknown without a speech
+ * score. A recording playing isn't sung (see isPlayed).
+ */
 export function isSung(line: TranscriptLine): boolean {
-  return line.speech !== undefined && line.speech < SUNG_BELOW_SPEECH;
+  return !isPlayed(line) && line.speech !== undefined && line.speech < SUNG_BELOW_SPEECH;
+}
+
+/** Whether the streamer sang it herself: sung, and neither a guest's (see isGuest) nor a recording. */
+export function isStreamerSinging(line: TranscriptLine): boolean {
+  return isSung(line) && !isGuest(line);
+}
+
+/** Whether the line is a recording playing: neither sung nor said by anyone in the room. */
+export function isPlayed(line: TranscriptLine): boolean {
+  return line.played !== undefined;
 }
 
 /** Where one song ends and the next begins, see currentSong. */
@@ -79,6 +99,7 @@ export function currentSong(
   let lastSung: number | undefined;
   let talk = 0;
   for (const line of lines) {
+    if (isPlayed(line)) continue;
     if (!isSung(line)) {
       if (!isGuestTalk(line)) talk++;
       continue;
@@ -108,22 +129,27 @@ export function sungChars(lines: readonly TranscriptLine[]): number {
 }
 
 /**
- * Whether the streamer is singing at `at`: of their lines (not a linked-up guest's) that ended in
- * the minute before, at least 3 were sung and they're at least 70% of them. On a singing stream
+ * Whether the streamer is singing at `at`: of their own lines (not a guest's, said or sung, nor a
+ * recording's) that ended in the minute before, at least 3 were sung and they're at least 70% of them. On a singing stream
  * that was 75–100% a minute of singing, and at most 40% (60% once) one of talk, where a line now
  * and then is taken for sung.
  */
 export function singingNow(lines: readonly TranscriptLine[], at: number): boolean {
   const lately = lines.filter(
-    (line) => !isGuestTalk(line) && at - line.end < 60_000 && line.end <= at,
+    (line) => isStreamers(line) && at - line.end < 60_000 && line.end <= at,
   );
   const sung = lately.filter(isSung).length;
   return sung >= 3 && sung >= 0.7 * lately.length;
 }
 
+/** Whether the streamer said or sang it herself: not a guest's, nor a recording playing. */
+function isStreamers(line: TranscriptLine): boolean {
+  return !isGuest(line) && !isPlayed(line);
+}
+
 /** The song being sung as `line` comes in, and when it started. */
 export interface SungSong {
-  /** What the streamer said and sang since it started (not a linked-up guest's lines). */
+  /** What the streamer said and sang since it started (not a guest's lines, nor a recording's). */
   lines: TranscriptLine[];
   /** When its first sung line started. */
   start: number;
@@ -131,15 +157,16 @@ export interface SungSong {
 
 /**
  * The song the streamer is singing as of `line`, a line they just said or sang (`transcript`
- * already has it): null when `line` is spoken or a guest's, or they aren't singing (see
- * singingNow).
+ * already has it): null when `line` is spoken, a guest's or a recording's, or they aren't singing
+ * (see singingNow). Only the streamer's own lines make the song: what a guest sings or a
+ * recording plays is left to the log.
  */
 export function singingSong(
   transcript: readonly TranscriptLine[],
   line: TranscriptLine,
 ): SungSong | null {
-  if (!isSung(line)) return null;
-  const lines = transcript.filter((l) => !isGuestTalk(l));
+  if (!isStreamerSinging(line)) return null;
+  const lines = transcript.filter(isStreamers);
   if (!singingNow(lines, line.end)) return null;
   const song = currentSong(lines);
   return { lines: song, start: song.find(isSung)?.start ?? line.start };
@@ -171,6 +198,7 @@ interface WorkerLine {
   speaker?: number | null;
   host?: boolean | null;
   voice?: number | null;
+  played?: { title?: unknown; artist?: unknown } | null;
 }
 
 /** A line of the worker's output as a TranscriptLine, or null when it isn't a sentence. */
@@ -192,6 +220,13 @@ export function parseWorkerLine(text: string): TranscriptLine | null {
     ...(typeof line.speaker === 'number' && { speaker: line.speaker }),
     ...(typeof line.host === 'boolean' && { host: line.host }),
     ...(typeof line.voice === 'number' && { voice: line.voice }),
+    ...(typeof line.played?.title === 'string' &&
+      line.played.title && {
+        played: {
+          title: line.played.title,
+          artist: typeof line.played.artist === 'string' ? line.played.artist : '',
+        },
+      }),
   };
 }
 

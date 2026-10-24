@@ -7,6 +7,8 @@ import {
   type MusicMatch,
 } from '../../core/songs/music';
 import {
+  isPlayed,
+  isStreamerSinging,
   isSung,
   parseStatusLine,
   parseWorkerLine,
@@ -222,9 +224,17 @@ export class Transcriber {
         if (!line) return;
         transcript.add(line);
         this.options.record?.add(speechRecord(line));
-        if (isSung(line)) this.options.singing?.add(singingRecord(line));
-        const { text: heard, lang, speech, music, speaker, host, voice } = line;
-        log.info('heard', { text: heard, lang, speech, music, speaker, host, voice });
+        if (isSung(line) || isPlayed(line)) this.options.singing?.add(singingRecord(line));
+        const { text: heard, lang, speech, music, speaker, host, voice, played } = line;
+        log.info('heard', { text: heard, lang, speech, music, speaker, host, voice, played });
+        // Only the streamer's own singing is acted on (see singingSong).
+        if (isPlayed(line) || (isSung(line) && !isStreamerSinging(line))) {
+          log.info('not the streamer singing', {
+            by: played ? 'recording' : 'guest',
+            text: heard,
+            ...(played && { title: played.title, artist: played.artist }),
+          });
+        }
         this.options.bus.emit('heard', line);
       },
       onLog: (text) => log.debug('asr', { text }),

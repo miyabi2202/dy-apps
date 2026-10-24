@@ -1,6 +1,6 @@
 import { recordStamp } from '../prompts/local-time';
 import type { ChatLine, Gift } from './room-events';
-import { isGuest, isSung, type TranscriptLine } from '../songs/transcript';
+import { isGuest, isPlayed, isSung, type TranscriptLine } from '../songs/transcript';
 
 /** One thing that happened in the room: the streamer spoke, a viewer chatted, or sent a gift. */
 export type ChatRecord = {
@@ -10,9 +10,9 @@ export type ChatRecord = {
   /** What the sender wears, for a chat: `V` / `V年` (直播间会员), `灯牌16`, `财富36`. */
   tags?: string[];
 } &
-  /** What the streamer said, or sang. */
+  /** What the streamer said, or sang, or a recording they played. */
   (
-    | { type: 'speech' | 'sing'; text: string }
+    | { type: 'speech' | 'sing' | 'play'; text: string }
     | { type: 'chat'; text: string }
     | { type: 'gift'; gift: { name: string; count: number; diamonds: number } }
   );
@@ -45,6 +45,7 @@ export function giftRecord({ userId, nickname, name, count, diamonds }: Gift): C
 }
 
 export function speechRecord(line: TranscriptLine): ChatRecord {
+  if (isPlayed(line)) return { type: 'play', sender: '主播', text: line.text };
   return {
     type: isSung(line) ? 'sing' : 'speech',
     sender: isGuest(line) ? '连线' : '主播',
@@ -55,15 +56,17 @@ export function speechRecord(line: TranscriptLine): ChatRecord {
 /**
  * A sung line as the speech service told whose it is, for looking at how well it tells singers
  * apart: `[主播|声2|0.83](sing)`, or `[连线|声3](sing)` for another voice (tagged with the voice's
- * number and how close the line was to it; no closeness for a voice heard first).
+ * number and how close the line was to it; no closeness for a voice heard first), or
+ * `[主播|声2|0.83|放 歌名 / 歌手](play)` for a recording playing.
  */
 export function singingRecord(line: TranscriptLine): ChatRecord {
   const tags = [
     ...(line.speaker !== undefined ? [`声${line.speaker}`] : []),
     ...(line.voice !== undefined ? [String(line.voice)] : []),
+    ...(line.played ? [`放 ${line.played.title} / ${line.played.artist}`] : []),
   ];
   return {
-    type: 'sing',
+    type: isPlayed(line) ? 'play' : 'sing',
     sender: line.host === false ? '连线' : '主播',
     ...(tags.length && { tags }),
     text: line.text,
@@ -76,6 +79,7 @@ export function singingRecord(line: TranscriptLine): ChatRecord {
  *
  *     2026-10-16 16:47:33+08:00 [主播](speech) 而且有出土的文物可以作证……
  *     2026-10-17 20:40:21+08:00 [主播](sing) 寒江陪烟火月伴星如昨
+ *     2026-10-17 20:44:02+08:00 [主播](play) 心の中に花を咲かそよ
  *     2026-10-17 21:02:10+08:00 [连线](speech) 你那边信号不太好
  *     2026-10-16 16:47:22+08:00 [雅#7664182420958889017](gift) 送出 人气票×1（1钻）
  *     2026-10-16 16:47:30+08:00 [雅#7664182420958889017|V年|灯牌16|财富36](chat) 讲讲曲面积分
