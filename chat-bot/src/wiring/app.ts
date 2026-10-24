@@ -4,7 +4,6 @@ import {
   ADMINS,
   APP,
   AUTO_REPLY,
-  BACKING_GAP_BREAKS,
   BOT,
   BOT_CONFIG,
   DOWNLOADS,
@@ -15,6 +14,7 @@ import {
   ROOM,
   ROOM_EVENTS,
   SETTINGS,
+  SONG_BREAK_SOURCES,
   SONG_ENDS,
   SONG_INTRO,
   TRANSCRIBER,
@@ -54,9 +54,9 @@ export function registerApp(container: Container): void {
     c.resolve(SONG_INTRO);
     c.resolve(ON_SING);
     c.resolve(SONG_ENDS);
-    // And the song break sources from the speech worker's add-ons (Shazam's backing titles, the
-    // backing's gaps), which only listen.
-    c.resolve(BACKING_GAP_BREAKS);
+    // And the song break sources, so the ones the speech worker's add-ons feed (Shazam's backing
+    // titles, the backing's gaps) are listening from the start.
+    c.resolve(SONG_BREAK_SOURCES);
     let stopping = false;
     return {
       async start() {

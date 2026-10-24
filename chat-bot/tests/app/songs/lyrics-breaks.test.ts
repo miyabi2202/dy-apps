@@ -42,8 +42,7 @@ function setup(lyrics: Record<string, string[]> = { 画廊游记 }) {
   });
   let now = 0;
   const transcript = new Transcript(Infinity, () => now);
-  const room = fakeRoom({ transcript, now: () => now });
-  room.addSongBreaks(breaks);
+  const room = fakeRoom({ transcript, now: () => now, songBreakSources: () => [breaks] });
   /** The streamer sings (or says) `text` at `at` seconds. */
   const heard = (at: number, text: string, sung = true): TranscriptLine => {
     now = at * 1000;
@@ -145,8 +144,7 @@ describe('in the room', () => {
       fetchLyrics: () => Promise.resolve(画廊游记),
       log: { debug() {}, info() {}, warn() {}, error() {} },
     });
-    const room = fakeRoom({ songBreaks: () => [] });
-    room.addSongBreaks(breaks);
+    const room = fakeRoom({ songBreaks: () => [], songBreakSources: () => [breaks] });
     breaks.keep({ title: '画廊游记', artist: '' }, 0);
     await breaks.settled();
     const line: TranscriptLine = { start: 1000, end: 5000, text: '在一切开始的时分', speech: 0.05 };

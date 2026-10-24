@@ -22,6 +22,7 @@ import {
   OUTBOX,
   ROOM_API,
   ROOM_EVENTS,
+  SONG_BREAK_SOURCES,
   SONG_ID,
   SPAWN_WORKER,
   THANKER,
@@ -220,6 +221,15 @@ test('--no-asr has no transcriber, no /识歌, no /识别背景音乐 and no aut
   );
   expect(bot.spawned).toEqual([]);
   expect(bot.connected()).toBe(1);
+});
+
+test('the song break sources rank the lyrics first, then the backing titles, then the backing gaps', () => {
+  const bot = build();
+  expect(bot.container.resolve(SONG_BREAK_SOURCES).map((source) => source.name)).toEqual([
+    'lyrics',
+    'shazam',
+    'backingGaps',
+  ]);
 });
 
 test('without a JEV_API_KEY there is no Jev, so no auto-reply and no malice watch', () => {

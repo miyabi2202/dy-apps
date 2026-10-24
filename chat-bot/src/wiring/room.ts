@@ -48,6 +48,7 @@ import {
   ROOM_EVENTS,
   ROOM_FILES,
   SETTINGS,
+  SONG_BREAK_SOURCES,
   TRANSCRIPT,
   USER_TALK,
 } from './tokens';
@@ -185,6 +186,8 @@ export function registerRoom(container: Container): void {
         aliases: () => roomConfig().aliases,
         // The song break sources the room has on (room_config.json's songBreaks; all when absent).
         songBreaks: () => roomConfig().songBreaks,
+        // Ranked below the talk and pauses of currentSong, in this order; made when first asked.
+        songBreakSources: () => c.resolve(SONG_BREAK_SOURCES),
         // 单推符号 taken off a nickname before the bot @s them.
         atTrimStart: () => roomConfig().atTrimStart,
         // What to @ some viewers as instead of their nickname, by user id.

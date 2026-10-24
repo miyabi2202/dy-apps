@@ -39,18 +39,16 @@ test("ranks below the lyrics, above the pauses, and is off when the room's songB
     name: 'lyrics',
     spans: () => [{ from: 77_000, to: 77_000, kind: 'break', by: 'lyrics' }],
   };
-  const room = fakeRoom();
-  room.addSongBreaks(lyrics);
-  room.addSongBreaks(setup().breaks);
+  const room = fakeRoom({ songBreakSources: () => [lyrics, setup().breaks] });
   expect(currentSong(lines, { spans: room.songSpans(lines) })[0]?.text).toBe('唱80');
 
-  const withoutLyrics = fakeRoom({ songBreaks: () => ['shazam'] });
-  withoutLyrics.addSongBreaks(lyrics);
-  withoutLyrics.addSongBreaks(setup().breaks);
+  const withoutLyrics = fakeRoom({
+    songBreaks: () => ['shazam'],
+    songBreakSources: () => [lyrics, setup().breaks],
+  });
   expect(currentSong(lines, { spans: withoutLyrics.songSpans(lines) })[0]?.text).toBe('唱10');
 
-  const off = fakeRoom({ songBreaks: () => ['lyrics'] });
-  off.addSongBreaks(setup().breaks);
+  const off = fakeRoom({ songBreaks: () => ['lyrics'], songBreakSources: () => [setup().breaks] });
   expect(off.songSpans(lines)).toEqual([]);
   expect(currentSong(lines, { spans: off.songSpans(lines) })[0]?.text).toBe('唱80');
 });
