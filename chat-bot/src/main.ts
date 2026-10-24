@@ -26,7 +26,8 @@ const app = buildContainer({ options, packageDir, log, env: process.env }).resol
 const shutdown = ({ code = 0, ...options }: { quitSpeech?: boolean; code?: number } = {}) => {
   app.stop(options);
   log.on('finish', () => process.exit(code));
-  log.end();
+  // After the event that stopped it: the rest of its listeners (room-feed's 「ended」, logged) still run.
+  setImmediate(() => log.end());
 };
 process.on('SIGINT', () => shutdown());
 process.on('SIGTERM', () => shutdown());
