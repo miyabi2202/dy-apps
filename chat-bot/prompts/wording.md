@@ -46,6 +46,11 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 {{asker}} @ 了你：{{said}}
 
+## asked-earlier
+
+{{asker}} 在等你回的时候连着说了好几句，这几句和下面最后一句是一起的（可能是一个问题分几句说，也可能是补充、改口、催你），连起来看，回一条就够：
+{{lines}}
+
 ## asked-nothing
 
 （只 @ 了你，没有说别的）

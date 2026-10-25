@@ -198,6 +198,47 @@ test('drops what waits beyond the limit, answering the rest in order', async () 
   expect(sent).toEqual(['@甲 一', '@乙 二']);
 });
 
+test("what one person said while waiting is answered once, together; others' stay in order", async () => {
+  const finish: ((answer: string) => void)[] = [];
+  const talk: { question: string }[] = [];
+  const { answerer, prompts, sent } = setup({
+    template: '{{asked}}',
+    ask: () => new Promise((resolve) => finish.push(resolve)),
+    userTalk: { add: (_userId, exchange) => talk.push(exchange), recent: () => '' },
+  });
+  const mention = (asker: string, userId: string, question: string): Mention => ({
+    asker,
+    userId,
+    question,
+    history: [],
+  });
+
+  answerer.ask(mention('虾虾', 'u-虾', '这首是什么'));
+  // While Claude answers that, the streamer asks again in two lines, and 阿明 asks in between.
+  answerer.ask(mention('虾虾', 'u-虾', 'サライ国语版是什么'));
+  answerer.ask(mention('阿明', 'u-明', '在吗'));
+  answerer.ask(mention('虾虾', 'u-虾', '我发文字你看'));
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  await tick();
+  finish[0]?.('一');
+  await tick();
+  finish[1]?.('二');
+  await tick();
+  finish[2]?.('三');
+  await answerer.idle();
+
+  expect(sent).toEqual(['@虾虾 一', '@虾虾 二', '@阿明 三']);
+  expect(prompts).toHaveLength(3);
+  expect(prompts[1]).toContain('- サライ国语版是什么');
+  expect(prompts[1]).toContain('我发文字你看');
+  expect(prompts[2]).not.toContain('サライ');
+  expect(talk.map(({ question }) => question)).toEqual([
+    '这首是什么',
+    'サライ国语版是什么 我发文字你看',
+    '在吗',
+  ]);
+});
+
 test("remembers each viewer's exchanges and what the bot said, for the next prompt", async () => {
   const talk = new Map<string, string[]>();
   const userTalk: UserTalk = {

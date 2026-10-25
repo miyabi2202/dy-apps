@@ -36,6 +36,8 @@ export interface Mention {
   topics?: readonly string[];
   /** Who asked, for a tool's `only` / `except` (their badges, fan club, wealth level). */
   viewer?: Viewer;
+  /** What the asker said before `question` while waiting for Claude, oldest first (see takeNext). */
+  earlier?: readonly string[];
 }
 
 export type { UnpromptedReply };
@@ -85,7 +87,7 @@ const TOOLS_TIMEOUT_MS = 300_000;
  * tools first, and the answer joins the outbox to be sent to the room, split into numbered messages
  * when it's long. Claude may answer the asker, say something to others instead (「跟杨叔打个招呼」),
  * or say nothing. Claude answers one mention at a time, in order, without waiting for earlier
- * answers to go out.
+ * answers to go out; what one person said while waiting is answered together (takeNext).
  */
 export class MentionAnswerer {
   private readonly pending: Mention[] = [];
@@ -132,12 +134,40 @@ export class MentionAnswerer {
 
   private async answerAll(): Promise<void> {
     try {
-      for (let mention = this.pending.shift(); mention; mention = this.pending.shift()) {
+      for (let mention = this.takeNext(); mention; mention = this.takeNext()) {
         await this.answer(mention);
       }
     } finally {
       this.busy = false;
     }
+  }
+
+  /**
+   * The next mention, with everything else its asker said while waiting: one request (a question,
+   * then 「我发文字你看」) gets one answer instead of one each, the later answering the earlier
+   * again. It's the asker's latest line, with the chat as then, and the earlier ones as `earlier`.
+   * Other people's stay in the queue, in order.
+   */
+  private takeNext(): Mention | undefined {
+    const first = this.pending.shift();
+    if (!first) return undefined;
+    const sameAsker = (other: Mention) =>
+      first.userId !== undefined ? other.userId === first.userId : other.asker === first.asker;
+    const more = this.pending.filter(sameAsker);
+    if (!more.length) return first;
+    this.pending.splice(0, this.pending.length, ...this.pending.filter((m) => !sameAsker(m)));
+    const all = [first, ...more];
+    const latest = more.at(-1)!;
+    const topics = [...new Set(all.flatMap((mention) => mention.topics ?? []))];
+    this.options.log.info('answering together', {
+      asker: latest.asker,
+      questions: all.map(({ question }) => question),
+    });
+    return {
+      ...latest,
+      earlier: all.slice(0, -1).map(({ question }) => question),
+      ...(topics.length && { topics }),
+    };
   }
 
   /** Sends `text` to the asker as a reply, like an answer. */
@@ -189,6 +219,7 @@ export class MentionAnswerer {
         askerBadges: badgesOf(mention),
         unprompted: mention.unprompted,
         topics: mention.topics,
+        earlier: mention.earlier,
       });
       log.debug('prompt', { prompt });
       const image = await room.screenshot();
@@ -244,7 +275,8 @@ export class MentionAnswerer {
       if (others.length)
         log.info('at others', { asker: mention.asker, to: others.map((o) => o.to) });
       if (mention.userId) {
-        const { asker: nickname, question } = mention;
+        const { asker: nickname } = mention;
+        const question = [...(mention.earlier ?? []), mention.question].join(' ');
         const said = [...messages, ...toOthers.map(({ text }) => text)].join(' ');
         userTalk?.add(mention.userId, { nickname, question, answer: said });
       }

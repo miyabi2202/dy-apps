@@ -89,6 +89,8 @@ export interface PromptDetails {
   unprompted?: Heard;
   /** The tools whose listen the line matched, named to the model as a hint (see `{{asked}}`). */
   topics?: readonly string[];
+  /** What the asker said before `question` while they waited, oldest first: one request with it. */
+  earlier?: readonly string[];
 }
 
 /** The room plus what's particular to one prompt. */
@@ -125,7 +127,7 @@ function settingsText(settings: RoomSettings): string {
  * one `HH:MM:SS 内容` line per sentence the streamer said (`HH:MM:SS （唱）内容` when sung, and
  * `（连线）` before it when someone they're linked up with said it), `{{asker}}` and `{{question}}` the
  * mention's sender and text, `{{asked}}` the two as a line saying they @ed the bot (or, when
- * `unprompted`, that it heard them talk to or about it, and, for a line that matched a tool's listen, a line naming the tool as a hint), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
+ * `unprompted`, that it heard them talk to or about it, and, for a line that matched a tool's listen, a line naming the tool as a hint; after what they said `earlier` while they waited, as one request), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
  * most the answer may use over several, `{{now}}` the time, `{{today}}` the date and weekday
  * (`2026-10-20 星期二`), both in the room's time zone, `{{timeZone}}` that zone's name (北京时间), `{{recordTimeZone}}` the machine's
  * (which record lines written before, without an offset, are in), `{{chatDir}}` the folder of chat
@@ -142,7 +144,7 @@ function settingsText(settings: RoomSettings): string {
 export function buildPrompt(template: string, input: PromptInput): string {
   const { history, transcript, singleLength, maxLength, now, chatDir, persona } = input;
   const { asker = '', question = '', botName, botTalk, userHistory, userChat } = input;
-  const { settings, unprompted, topics, intro, wording } = input;
+  const { settings, unprompted, topics, earlier, intro, wording } = input;
   const said = question || wording('asked-nothing');
   const values: Record<string, string> = {
     history: historyText(history, input.gifts ?? []),
@@ -158,6 +160,9 @@ export function buildPrompt(template: string, input: PromptInput): string {
     asker,
     question: said,
     asked:
+      (earlier?.length
+        ? `${wording('asked-earlier', { asker, lines: earlier.map((line) => `- ${line}`).join('\n') })}\n`
+        : '') +
       wording(
         unprompted === 'speech'
           ? 'asked-speech'
@@ -165,7 +170,8 @@ export function buildPrompt(template: string, input: PromptInput): string {
             ? 'asked-chat'
             : 'asked-mention',
         { asker, said },
-      ) + (topics?.length ? `\n${wording('asked-topics', { tools: topics.join('、') })}` : ''),
+      ) +
+      (topics?.length ? `\n${wording('asked-topics', { tools: topics.join('、') })}` : ''),
     singleLength: String(singleLength),
     maxLength: String(maxLength),
     now: clock(now, input.timeZone),

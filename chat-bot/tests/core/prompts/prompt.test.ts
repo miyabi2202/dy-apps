@@ -39,6 +39,19 @@ test('{{asked}} says how the asker reached the bot, and names the tools a line m
   );
 });
 
+test('{{asked}} puts what the asker said while waiting before their latest line, as one request', () => {
+  const asked = buildPrompt('{{asked}}', {
+    ...input,
+    asker: '虾虾',
+    question: '我发文字你看能不能识别',
+    earlier: ['谷村新司的サライ国语版是什么'],
+    unprompted: 'speech',
+  });
+  expect(asked).toBe(
+    `${testWording('asked-earlier', { asker: '虾虾', lines: '- 谷村新司的サライ国语版是什么' })}\n${testWording('asked-speech', { asker: '虾虾', said: '我发文字你看能不能识别' })}`,
+  );
+});
+
 test('{{history}} shows the recent gifts among the chat, by time', () => {
   const prompt = buildPrompt('{{history}}', {
     history: [
