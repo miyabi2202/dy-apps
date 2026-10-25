@@ -29,7 +29,7 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Start three
    - `heard {"text": …}` soon after `room-feed ready`: speech recognition is running. The bot connects to the speech service on port 8758 (`--asr-port`) and, while it's still loading its models, waits for them (up to 3 minutes) before it enters the room, so it hears the streamer from the start. With no service running it enters at once, without speech, logs `could not start the transcriber` (`no speech service on port 8758: start it first, …`) once, and connects by itself within 10 s of the service being started.
    - `gift {…}` lines as viewers send gifts.
 
-8. **Recording the audio**, only when the user asks (「录音」「turn on recording」): once the bot is up, from `chat-bot/`, with `run_in_background`: `scripts/record-stream.sh <房间号>`. It copies the stream's AAC as it is into `data/<房间号>/recordings/stream-<UTC time>.aac` (about 60 MB an hour), asking room-feed for the signed URL (`GET /api/rooms/<房间号>/stream`; the URL in the bot's log has its signature cut off and gets 403). A drop starts a new file, and it stops by itself within 5 s of the bot exiting. Check the file grows with `ffprobe` after a minute.
+8. **Recording the audio**, only when the user asks (「录音」「turn on recording」): once the bot is up, from `chat-bot/`, with `run_in_background`: `scripts/record-stream.sh <房间号>`. It copies the stream's AAC as it is into `data/<房间号>/recordings/stream-<UTC time>.aac` (about 60 MB an hour), asking room-feed for the signed URL (`GET /api/rooms/<房间号>/stream`; the URL in the bot's log has its signature cut off and gets 403). A drop starts a new file, and it stops by itself within 10 s of the bot exiting. Check the file grows with `ffprobe` after a minute.
 
 ## While it runs
 

@@ -2,7 +2,7 @@
 # Records a room's audio while the bot is in it: data/<room>/recordings/stream-<UTC time>.aac, the
 # stream's own AAC copied as it is (no re-encoding). It asks room-feed for the stream's signed URL
 # (`GET /api/rooms/<room>/stream`, as the speech service does), starts a new file whenever the
-# stream drops and comes back, and stops within 5 s of the bot exiting.
+# stream drops and comes back, and stops within 10 s of the bot exiting.
 # Usage, from chat-bot/: scripts/record-stream.sh <room>
 set -u
 room=${1:?usage: scripts/record-stream.sh <room>}
@@ -23,8 +23,11 @@ while bot_running; do
     ffmpeg -nostdin -loglevel error -i "$url" -vn -c:a copy "$out" &
     ffmpeg=$!
     while kill -0 "$ffmpeg" 2>/dev/null && bot_running; do sleep 5; done
+    # ffmpeg can miss the first stop while it waits on the network, so it gets 5 s, then a kill.
     kill "$ffmpeg" 2>/dev/null
-    wait "$ffmpeg"
+    for _ in 1 2 3 4 5; do kill -0 "$ffmpeg" 2>/dev/null && sleep 1; done
+    kill -9 "$ffmpeg" 2>/dev/null
+    wait "$ffmpeg" 2>/dev/null
     # A drop that left nothing behind isn't worth keeping.
     [ -s "$out" ] || rm -f "$out"
   fi
