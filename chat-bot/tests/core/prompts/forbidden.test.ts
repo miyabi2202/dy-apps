@@ -1,9 +1,40 @@
-import { forbiddenIn, forbiddenWordsOf } from '../../../src/core/prompts/forbidden';
+import {
+  forbiddenIn,
+  forbiddenTopicsOf,
+  forbiddenWordsOf,
+} from '../../../src/core/prompts/forbidden';
 
-test("forbidden-words.md's words are its list items; the rest of the file is notes", () => {
-  expect(
-    forbiddenWordsOf('# Forbidden words\n\nNotes about `{{x}}`.\n\n- 警\n-  编制 \n* 第三个\n'),
-  ).toEqual(['警', '编制', '第三个']);
+const FILE = [
+  '# Forbidden',
+  '',
+  'Notes about `{{x}}`.',
+  '',
+  '- a note, not a word',
+  '',
+  '## Topics',
+  '',
+  '- 不碰投资理财',
+  '  - 股票、基金',
+  '',
+  '## Words',
+  '',
+  '- 警',
+  '-  编制 ',
+  '',
+  '### Other platforms',
+  '',
+  '* 快手',
+  '',
+].join('\n');
+
+test("forbidden.md's words are the list items under ## Words, any ### heading too", () => {
+  expect(forbiddenWordsOf(FILE)).toEqual(['警', '编制', '快手']);
+  expect(forbiddenWordsOf('- 警\n')).toEqual([]);
+});
+
+test("forbidden.md's topics are its ## Topics section as it is, empty without one", () => {
+  expect(forbiddenTopicsOf(FILE)).toBe('- 不碰投资理财\n  - 股票、基金');
+  expect(forbiddenTopicsOf('## Words\n\n- 警\n')).toBe('');
 });
 
 test('finds each forbidden word a message has, anywhere in it', () => {

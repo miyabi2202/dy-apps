@@ -97,6 +97,13 @@ test('{{aliases}} says the room’s other names for the bot mean it too, and is 
   expect(filled).toMatch(/^你的人设是小猫\n.*「Fairy、菲瑞」/);
 });
 
+test('{{forbiddenTopics}} is the rules for topics as they are, and empty without them', () => {
+  expect(
+    buildPrompt('{{forbiddenTopics}}', { ...input, forbiddenTopics: '- 不碰投资理财\n' }),
+  ).toBe('- 不碰投资理财');
+  expect(buildPrompt('[{{forbiddenTopics}}]', input)).toBe('[]');
+});
+
 test('{{forbiddenWords}} names the words never to use, and is empty without any', () => {
   expect(buildPrompt('{{forbiddenWords}}', { ...input, forbiddenWords: ['警', '编制'] })).toContain(
     '警、编制',

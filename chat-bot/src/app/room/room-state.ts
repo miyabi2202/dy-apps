@@ -83,6 +83,8 @@ export interface RoomStateOptions {
   songBreakSources?: () => readonly SongBreakSource[];
   /** Words the bot must never say, for `{{forbiddenWords}}`, read each time. */
   forbiddenWords?: () => readonly string[];
+  /** The rules for topics not to take up, for `{{forbiddenTopics}}`, read each time. */
+  forbiddenTopics?: () => string;
   log: Log;
   now?: () => number;
 }
@@ -231,6 +233,7 @@ export class RoomState {
       botTalk: botTalk?.recent(),
       settings: this.settings(),
       forbiddenWords: this.options.forbiddenWords?.(),
+      forbiddenTopics: this.options.forbiddenTopics?.(),
     };
   }
 

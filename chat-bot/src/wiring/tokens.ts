@@ -58,8 +58,10 @@ export const OPTIONS = token<CliOptions>('options');
 export const PACKAGE_DIR = token<string>('packageDir');
 /** chat-bot/prompts/: every text the models are sent (the prompts, wording.md, the shared personas). */
 export const PROMPTS_DIR = token<string>('promptsDir');
-/** The words the bot must never say (prompts/forbidden-words.md), read on every call. */
+/** The words the bot must never say (prompts/forbidden.md's `## Words`), read on every call. */
 export const FORBIDDEN_WORDS = token<() => readonly string[]>('forbiddenWords');
+/** The rules for topics the bot must not take up (prompts/forbidden.md's `## Topics`), read on every call. */
+export const FORBIDDEN_TOPICS = token<() => string>('forbiddenTopics');
 export const LOG = token<Log>('log');
 /** The environment variables the bot reads (`JEV_API_KEY` from chat-bot/.env). */
 export const ENV = token<{ JEV_API_KEY?: string }>('env');

@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import { forbiddenWordsOf } from '../core/prompts/forbidden';
+import { forbiddenTopicsOf, forbiddenWordsOf } from '../core/prompts/forbidden';
 import { join, resolve } from 'node:path';
 import { ChatLog, RecordFile } from '../adapters/files/chat-log-files';
 import { liveAdmins, readConfig } from '../adapters/files/config-file';
@@ -38,6 +38,7 @@ import {
   OPTIONS,
   OUTBOX,
   PROMPTS_DIR,
+  FORBIDDEN_TOPICS,
   FORBIDDEN_WORDS,
   PROMPT,
   RECORD,
@@ -161,11 +162,16 @@ export function registerRoom(container: Container): void {
         log: c.resolve(LOG),
       });
     })
-    // Words Douyin holds back a message for: every prompt that writes chat is told them, and the
-    // outbox won't send one with them. Read on every use, so an edit applies at once.
+    // forbidden.md, read on every use so an edit applies at once. Its words Douyin holds back a
+    // message for: every prompt that writes chat is told them, and the outbox won't send one with
+    // them. Its topics go into the prompt that answers people.
     .register(FORBIDDEN_WORDS, (c) => {
-      const read = liveText(join(c.resolve(PROMPTS_DIR), 'forbidden-words.md'));
+      const read = liveText(join(c.resolve(PROMPTS_DIR), 'forbidden.md'));
       return () => forbiddenWordsOf(read());
+    })
+    .register(FORBIDDEN_TOPICS, (c) => {
+      const read = liveText(join(c.resolve(PROMPTS_DIR), 'forbidden.md'));
+      return () => forbiddenTopicsOf(read());
     })
     // The prompts are shared by every room, a room's own file overrides one (see PROMPT_FILES);
     // all read on every use so edits apply while it runs.
@@ -184,6 +190,7 @@ export function registerRoom(container: Container): void {
       const room = new RoomState({
         history: c.resolve(HISTORY),
         forbiddenWords: c.resolve(FORBIDDEN_WORDS),
+        forbiddenTopics: c.resolve(FORBIDDEN_TOPICS),
         gifts,
         transcript: c.resolve(TRANSCRIPT),
         transcriptMs: options.transcriptMs,

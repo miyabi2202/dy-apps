@@ -40,8 +40,10 @@ export interface RoomPromptInput {
   botTalk?: string;
   /** How the bot is set up in the room right now. */
   settings?: RoomSettings;
-  /** Words the bot must never say, since Douyin holds back a message with one (forbidden-words.md). */
+  /** Words the bot must never say, since Douyin holds back a message with one (forbidden.md). */
   forbiddenWords?: readonly string[];
+  /** The rules for topics the bot must not take up (forbidden.md's `## Topics`). */
+  forbiddenTopics?: string;
 }
 
 /**
@@ -138,8 +140,8 @@ function settingsText(settings: RoomSettings): string {
  * what the bot says about itself, likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
  * none), `{{askerBadges}}` the badges by their name (`V年`; `（无）` when none or not known), `{{settings}}` the room's settings as a list, and
- * (empty when not given), and `{{forbiddenWords}}` a line saying which words never to use (empty
- * without any).
+ * (empty when not given), `{{forbiddenWords}}` a line saying which words never to use (empty
+ * without any), and `{{forbiddenTopics}}` the rules for topics not to take up, as they are.
  */
 export function buildPrompt(template: string, input: PromptInput): string {
   const { history, transcript, singleLength, maxLength, now, chatDir, persona } = input;
@@ -211,6 +213,7 @@ export function buildPrompt(template: string, input: PromptInput): string {
     forbiddenWords: input.forbiddenWords?.length
       ? wording('forbidden-words', { words: input.forbiddenWords.join('、') })
       : '',
+    forbiddenTopics: input.forbiddenTopics?.trim() ?? '',
   };
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => values[key] ?? match);
 }
