@@ -29,6 +29,8 @@ The user gives a room number (the digits in `live.douyin.com/<id>`). Start three
    - `heard {"text": …}` soon after `room-feed ready`: speech recognition is running. The bot connects to the speech service on port 8758 (`--asr-port`) and, while it's still loading its models, waits for them (up to 3 minutes) before it enters the room, so it hears the streamer from the start. With no service running it enters at once, without speech, logs `could not start the transcriber` (`no speech service on port 8758: start it first, …`) once, and connects by itself within 10 s of the service being started.
    - `gift {…}` lines as viewers send gifts.
 
+8. **Recording the audio**, only when the user asks (「录音」「turn on recording」): once the bot is up, from `chat-bot/`, with `run_in_background`: `scripts/record-stream.sh <房间号>`. It copies the stream's AAC as it is into `data/<房间号>/recordings/stream-<UTC time>.aac` (about 60 MB an hour), asking room-feed for the signed URL (`GET /api/rooms/<房间号>/stream`; the URL in the bot's log has its signature cut off and gets 403). A drop starts a new file, and it stops by itself within 5 s of the bot exiting. Check the file grows with `ffprobe` after a minute.
+
 ## While it runs
 
 - In someone else's room, the bot answers anyone who @s it, in public, as the user's account, and, when turned on (`--auto-reply-threshold 0.6` or `/自动回复阈值 0.6`; off by default), joins in when people talk to or about it without an @ (Jev, with `JEV_API_KEY` in `chat-bot/.env`; at most once a minute, or every `--auto-reply-interval` seconds; `/自动回复间隔 0` for a busy room). Gift thanks (`--thanks-threshold`, `/自动谢礼`) are off by default too. Say so when starting it there.
@@ -81,7 +83,7 @@ How the bot tells viewers apart: set `"private": true` in the room's `data/<房�
 
 ## Stop
 
-Stop the bot's background task first, then room-feed's, then the speech service's (TaskStop each; leave the speech service running when the bot is only being restarted), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or room-feed process is left.
+Stop the bot's background task first (a recorder, if one is running, stops with it), then room-feed's, then the speech service's (TaskStop each; leave the speech service running when the bot is only being restarted), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or room-feed process is left.
 
 After a stream (the bot stopped by you, or gone with room-feed), read its chat into memory, from `chat-bot/`, with the bot's room and account: `pnpm remember --room <房间号> --bot-name 默认关闭 --bot-id 7692586790687114297` (half a minute or so; see "Reading the chat into memory" in docs/commands.md). Tell the user what it changed: the `memory updated` lines with `by: "chat"` in `logs/chat-bot.log`. Not when the bot was only restarted mid-stream.
 
