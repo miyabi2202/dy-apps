@@ -67,37 +67,23 @@ test("tells a message's own onSent once it's sent, at its turn, and not when sen
   ]);
 });
 
-test("never sends a message with a forbidden word, and the next one doesn't wait for it", async () => {
-  let now = 0;
-  const sentAt: [string, number][] = [];
-  let words = ['编制'];
+test('swaps a forbidden word left in a message, reading the words each time', async () => {
+  const sent: string[] = [];
+  let words: Record<string, string> = { 编制: '', 酒: '8+1' };
   const outbox = new Outbox({
     send: (text) => {
-      sentAt.push([text, now]);
+      sent.push(text);
       return Promise.resolve({ echoed: true });
     },
     log: silentLog,
-    intervalMs: 10_000,
+    intervalMs: 0,
     forbiddenWords: () => words,
-    now: () => now,
-    sleep: (ms) => {
-      now += ms;
-      return Promise.resolve();
-    },
   });
-  outbox.push({ kind: 'reply', text: '一' });
-  outbox.push({ kind: 'reply', text: '我的编制在这' });
-  outbox.push({ kind: 'reply', text: '二' });
+  outbox.push({ kind: 'reply', text: '@编制君 少喝酒' });
   await outbox.idle();
-
-  expect(sentAt).toEqual([
-    ['一', 0],
-    ['二', 10_000],
-  ]);
-
-  // The list is read each time.
-  words = [];
+  words = {};
   outbox.push({ kind: 'reply', text: '编制' });
   await outbox.idle();
-  expect(sentAt.at(-1)?.[0]).toBe('编制');
+
+  expect(sent).toEqual(['@**君 少喝8+1', '编制']);
 });

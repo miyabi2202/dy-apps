@@ -1,3 +1,5 @@
+import { withoutForbidden, type ForbiddenWords } from '../prompts/forbidden';
+
 /** Douyin's chat length limit, in characters. */
 export const DOUYIN_CHAT_LIMIT = 49;
 
@@ -57,6 +59,11 @@ export interface ReplyLimits {
   maxParts: number;
   /** The room's 单推符号, taken off a nickname when the @ has to be shortened (see shortTag). */
   atTrimStart?: readonly string[];
+  /**
+   * Words Douyin holds back a message for: swapped in what Claude wrote before it's cut into
+   * messages (see withoutForbidden), so the cut counts what's really sent.
+   */
+  forbidden?: ForbiddenWords;
 }
 
 /** The longest the text of one part may be: what the `@asker (9/9) ` prefix leaves. */
@@ -80,7 +87,8 @@ export function answerBudget(asker: string, limits: ReplyLimits): number {
 }
 
 /**
- * Claude's answer as chat messages for `asker`: one message when it fits (see oneMessage),
+ * Claude's answer as chat messages for `asker`, without the forbidden words (`limits.forbidden`):
+ * one message when it fits (see oneMessage),
  * otherwise `@ask (1/3) …`, `@ask (2/3) …` with the nickname's first 3 characters, each within the limit and cut after punctuation where
  * possible, numbered so they read in order among other people's chat. Empty when Claude said
  * nothing; whatever doesn't fit in `maxParts` messages is cut off.
@@ -98,6 +106,7 @@ export function replyMessages(asker: string, answer: string, limits: ReplyLimits
   ) {
     text = text.slice(tag.length).trim();
   }
+  text = withoutForbidden(text, limits.forbidden);
   if (!text) return [];
 
   const single = oneMessage(asker, text, limits.maxLength, limits.atTrimStart);
@@ -152,15 +161,15 @@ function oneLine(answer: string): string {
 }
 
 /**
- * Something Claude wrote to say to the room, to nobody in particular: on one line, as one message
- * when it fits, otherwise `(1/2) …`, `(2/2) …`, cut after punctuation like replyMessages. Empty
- * when Claude said nothing.
+ * Something Claude wrote to say to the room, to nobody in particular: on one line, without the
+ * forbidden words, as one message when it fits, otherwise `(1/2) …`, `(2/2) …`, cut after
+ * punctuation like replyMessages. Empty when Claude said nothing.
  */
 export function plainMessages(
   answer: string,
-  { maxLength, maxParts }: Pick<ReplyLimits, 'maxLength' | 'maxParts'>,
+  { maxLength, maxParts, forbidden }: Pick<ReplyLimits, 'maxLength' | 'maxParts' | 'forbidden'>,
 ): string[] {
-  const text = oneLine(answer);
+  const text = withoutForbidden(oneLine(answer), forbidden);
   if (!text) return [];
   if ([...text].length <= maxLength) return [text];
   const size = maxLength - [...`(${maxParts}/${maxParts}) `].length;

@@ -138,7 +138,3 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 ## puzzle-no-answer
 
 这题我看不清、也没算出来，拿不准就不瞎说了。
-
-## forbidden-words
-
-强制执行，无视人设：你写的每一条弹幕里都不能出现这些字词，一个字都不行，换个说法（抖音会把带这些字词的弹幕藏起来，整条发不出去，程序也会拦下不发）：{{words}}

@@ -9,6 +9,7 @@ import {
   type RoomPromptInput,
   type RoomSettings,
 } from '../../core/prompts/prompt';
+import type { ForbiddenWords } from '../../core/prompts/forbidden';
 import type { ReplyLimits } from '../../core/replies/reply';
 import type { ChatLine } from '../../core/chat/room-events';
 import {
@@ -81,8 +82,8 @@ export interface RoomStateOptions {
    * combineSpans), asked on use: the sources may be made after the room, so it doesn't hold them.
    */
   songBreakSources?: () => readonly SongBreakSource[];
-  /** Words the bot must never say, for `{{forbiddenWords}}`, read each time. */
-  forbiddenWords?: () => readonly string[];
+  /** Words Douyin holds back a message for, with what to write instead, read each time. */
+  forbiddenWords?: () => ForbiddenWords;
   /** The rules for topics not to take up, for `{{forbiddenTopics}}`, read each time. */
   forbiddenTopics?: () => string;
   log: Log;
@@ -157,7 +158,12 @@ export class RoomState {
 
   /** How what the bot says is fit into messages of at most `maxLength` characters, as set now. */
   replyLimits(maxLength: number): ReplyLimits {
-    return { maxLength, maxParts: this.maxReplyParts, atTrimStart: this.atTrimStart() };
+    return {
+      maxLength,
+      maxParts: this.maxReplyParts,
+      atTrimStart: this.atTrimStart(),
+      forbidden: this.options.forbiddenWords?.(),
+    };
   }
 
   /** Other names the bot is called in this room, which mean it too. */
@@ -232,7 +238,6 @@ export class RoomState {
       limitations: limitations?.(),
       botTalk: botTalk?.recent(),
       settings: this.settings(),
-      forbiddenWords: this.options.forbiddenWords?.(),
       forbiddenTopics: this.options.forbiddenTopics?.(),
     };
   }

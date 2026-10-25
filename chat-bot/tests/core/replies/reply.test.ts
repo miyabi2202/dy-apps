@@ -96,3 +96,14 @@ test('what the bot says to nobody in particular is split like a reply, without t
     '(2/2) 刚才那下是我画蛇添足',
   ]);
 });
+
+test('forbidden words are swapped before the cut, so the parts fit what is really sent', () => {
+  const limits = { maxLength: 12, maxParts: 3, forbidden: { 酒: '8+1' } };
+  // 11 characters fit in one message, but not once each 酒 is 8+1.
+  expect(plainMessages('喝酒了，喝酒了，喝酒了', limits)).toEqual([
+    '(1/3) 喝8+1了，',
+    '(2/3) 喝8+1了，',
+    '(3/3) 喝8+1了',
+  ]);
+  expect(replyMessages('阿明', '@阿明 少喝酒', limits)).toEqual(['@阿明 少喝8+1']);
+});

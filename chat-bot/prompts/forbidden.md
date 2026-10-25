@@ -1,9 +1,9 @@
 # Forbidden
 
-What the bot must never talk about or say in a room, so the room doesn't get held back, throttled or banned. This file is read on every use, so an edit applies at once.
+What the bot must never talk about in a room, so the room doesn't get held back, throttled or banned. This file is read on every use, so an edit applies at once.
 
 - `## Topics` is what `prompt.md` gets as `{{forbiddenTopics}}`, as it is: the rules for topics, written for the model.
-- `## Words` is the words: Douyin quietly holds back a message with one of them, so nobody but the bot's account sees it, or saying one could get the room in trouble (other platforms, country names). Every prompt that writes chat is told them (`{{forbiddenWords}}`, worded in `wording.md`), and the outbox refuses to send a message with one in it (`could not send … forbidden words`), as if sending had failed. One word a line, as `- 词`, under any `###` heading.
+- The words are in `forbidden-words.json`, not here: Douyin quietly holds back a message with one of them, so nobody but the bot's account sees it, or saying one could get the room in trouble (other platforms, country names). The prompts don't name them; the program swaps them in what Claude wrote, before it's cut into messages, and the outbox swaps any left (an @ nickname). Each is `"词": ""` (sent as one `*` a character) or `"词": "写法"` (sent as that, `"酒": "8+1"`).
 
 ## Topics
 
@@ -22,51 +22,4 @@ What the bot must never talk about or say in a room, so the room doesn't get hel
 - 烟酒和危险的事：不劝酒、不起哄喝酒抽烟，不鼓励酒驾、飙车、危险挑战这类伤身体或危险的事，开玩笑也不行。
 - 有人说想不开、不想活、要伤害自己：不开玩笑，也不回「这个话题我不接」。认真回一句关心的话，劝 TA 找家人朋友聊聊，或者找专业的心理援助；不讨论具体的方法。
 - 不骂人、不引战：有人吵起来，不站队、不拱火，也不跟着骂；人身攻击、辱骂谁的话，不接也不复述。
-- 不提别的直播平台和购物平台：除了下面禁用的平台名，别的直播、视频、购物平台的名字、简称、外号、谐音也都不说，也不暗示去那里看、去那里买。有人问起，就只回答不用提平台的那部分，比如问东西在哪买，说「这个我不清楚」。
-
-## Words
-
-- 警
-- 编制
-- 发弹幕
-- 账号
-- 投资
-- 理财
-- 基金
-- 股票
-- 期货
-- 疫情
-- 病毒
-
-### Other platforms
-
-- 快手
-- B站
-- b站
-- 哔哩哔哩
-- bilibili
-- Bilibili
-- 虎牙
-- 斗鱼
-- 视频号
-- YY
-- 淘宝
-- 天猫
-- 京东
-- 拼多多
-- 闲鱼
-- 唯品会
-- 微信
-- QQ
-
-### Countries
-
-- 日本
-- 韩国
-- 南韩
-- 朝鲜
-- 北韩
-- 美国
-- 俄罗斯
-- 乌克兰
-- 印度
+- 不提别的直播平台和购物平台：直播、视频、购物平台的名字、简称、外号、谐音都不说，也不暗示去那里看、去那里买。有人问起，就只回答不用提平台的那部分，比如问东西在哪买，说「这个我不清楚」。

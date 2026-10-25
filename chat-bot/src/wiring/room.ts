@@ -1,5 +1,9 @@
 import { mkdirSync } from 'node:fs';
-import { forbiddenTopicsOf, forbiddenWordsOf } from '../core/prompts/forbidden';
+import {
+  forbiddenTopicsOf,
+  forbiddenWordsOf,
+  type ForbiddenWords,
+} from '../core/prompts/forbidden';
 import { join, resolve } from 'node:path';
 import { ChatLog, RecordFile } from '../adapters/files/chat-log-files';
 import { liveAdmins, readConfig } from '../adapters/files/config-file';
@@ -20,6 +24,7 @@ import { RoomState } from '../app/room/room-state';
 import { StreamerAdmin } from '../app/commands/streamer-admin';
 import { ChatHistory } from '../core/chat/chat-history';
 import { RecentGifts } from '../core/chat/recent-gifts';
+import { errorMessage } from '../core/errors';
 import { Transcript } from '../core/songs/transcript';
 import type { Container } from './container';
 import {
@@ -161,12 +166,27 @@ export function registerRoom(container: Container): void {
         log: c.resolve(LOG),
       });
     })
-    // forbidden.md, read on every use so an edit applies at once. Its words Douyin holds back a
-    // message for: every prompt that writes chat is told them, and the outbox won't send one with
-    // them. Its topics go into the prompt that answers people.
+    // forbidden-words.json and forbidden.md, read on every use so an edit applies at once. The
+    // words Douyin holds back a message for are swapped in everything sent; forbidden.md's topics
+    // go into the prompt that answers people. A forbidden-words.json that isn't right is warned
+    // about, and the last good one stays.
     .register(FORBIDDEN_WORDS, (c) => {
-      const read = liveText(join(c.resolve(PROMPTS_DIR), 'forbidden.md'));
-      return () => forbiddenWordsOf(read());
+      const read = liveText(join(c.resolve(PROMPTS_DIR), 'forbidden-words.json'), () => '{}');
+      const log = c.resolve(LOG);
+      let last = { text: '{}', words: {} as ForbiddenWords };
+      return () => {
+        const text = read();
+        if (text === last.text) return last.words;
+        try {
+          last = { text, words: forbiddenWordsOf(text) };
+        } catch (err) {
+          log.warn('forbidden-words.json is not right, keeping the last one', {
+            error: errorMessage(err),
+          });
+          last = { text, words: last.words };
+        }
+        return last.words;
+      };
     })
     .register(FORBIDDEN_TOPICS, (c) => {
       const read = liveText(join(c.resolve(PROMPTS_DIR), 'forbidden.md'));

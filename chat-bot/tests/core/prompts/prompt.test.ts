@@ -104,13 +104,6 @@ test('{{forbiddenTopics}} is the rules for topics as they are, and empty without
   expect(buildPrompt('[{{forbiddenTopics}}]', input)).toBe('[]');
 });
 
-test('{{forbiddenWords}} names the words never to use, and is empty without any', () => {
-  expect(buildPrompt('{{forbiddenWords}}', { ...input, forbiddenWords: ['警', '编制'] })).toContain(
-    '警、编制',
-  );
-  expect(buildPrompt('[{{forbiddenWords}}]', { ...input, forbiddenWords: [] })).toBe('[]');
-});
-
 test('{{commonKnowledge}} gives Douyin common knowledge under a heading, and is empty without any', () => {
   const filled = buildPrompt('{{commonKnowledge}}', {
     ...input,

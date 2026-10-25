@@ -59,7 +59,8 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
     limitations.md        #     what it can't do and why, for when viewers notice (in prompt.md)
     wording.md            #     the sentences the program says to Jev, Codex and Claude around what it fills in (asked, relevance, song notes…)
     common-knowledge.md   #     what viewers ask about Douyin itself (灯牌…), in prompt.md as {{commonKnowledge}}
-    forbidden-words.md    #     words the bot never says (Douyin hides a message with one): told to every chat-writing prompt, and blocked in the outbox
+    forbidden.md          #     topics the bot never takes up, in prompt.md as {{forbiddenTopics}}
+    forbidden-words.json  #     words Douyin hides a message for, each with what to send instead (`*`s by default), swapped in everything sent
     personas/             #     shared personas a room's persona file can build on (fairy.md, …)
   config.json             #   admins (user ids) and what viewers call them (adminNames)
   src/main.ts             #   entry: options (cli-options.ts), the container built, started and stopped

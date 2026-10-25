@@ -7,6 +7,7 @@ import type { CodexCliOptions } from '../adapters/models/codex-cli';
 import type { RoomFeedApi } from '../adapters/room-feed/room-feed-api';
 import type { RoomFiles, roomConfigFile } from '../adapters/files/room-files';
 import type { RoomConfig } from '../core/room/room-config';
+import type { ForbiddenWords } from '../core/prompts/forbidden';
 import type { BotConfig } from '../adapters/files/config-file';
 import type { AutoReply } from '../app/replies/auto-reply';
 import type { AutoSongId } from '../app/songs/auto-song-id';
@@ -58,8 +59,11 @@ export const OPTIONS = token<CliOptions>('options');
 export const PACKAGE_DIR = token<string>('packageDir');
 /** chat-bot/prompts/: every text the models are sent (the prompts, wording.md, the shared personas). */
 export const PROMPTS_DIR = token<string>('promptsDir');
-/** The words the bot must never say (prompts/forbidden.md's `## Words`), read on every call. */
-export const FORBIDDEN_WORDS = token<() => readonly string[]>('forbiddenWords');
+/**
+ * The words Douyin holds back a message for, with what to write instead
+ * (prompts/forbidden-words.json), read on every call.
+ */
+export const FORBIDDEN_WORDS = token<() => ForbiddenWords>('forbiddenWords');
 /** The rules for topics the bot must not take up (prompts/forbidden.md's `## Topics`), read on every call. */
 export const FORBIDDEN_TOPICS = token<() => string>('forbiddenTopics');
 export const LOG = token<Log>('log');
