@@ -62,7 +62,8 @@ export function liveText(path: string, fallback: () => string = () => ''): () =>
 
 /**
  * Who the bot plays in the room, read on every call so edits apply at once: the file `file()` names
- * in `roomDir` (room_config.json's `persona`), after its header (see parsePersonaFile). With a
+ * in `roomDir` (room_config.json's `persona`), after its header (see parsePersonaFile), or, when it
+ * names none, the shared `sharedDir/default.md` as it is (none if that's missing). With a
  * `base` there, the file is changes to `sharedDir/<base>.md` (see composePersona); either way its
  * `{{…}}`s are filled in from the header. A file or shared persona that can't be read, a header line
  * that can't, and a `{{…}}` with no value are each warned about once: the bot then plays what's left
@@ -79,6 +80,7 @@ export function livePersona({
   file: () => string | undefined;
   log: Log;
 }): () => string {
+  const defaultPersona = liveText(join(sharedDir, 'default.md'));
   const warned = new Set<string>();
   const warnOnce = (message: string, fields: Record<string, unknown>) => {
     const key = `${message} ${JSON.stringify(fields)}`;
@@ -96,7 +98,7 @@ export function livePersona({
   };
   return () => {
     const name = file();
-    if (!name) return '';
+    if (!name) return defaultPersona().trim();
     const text = read(join(roomDir, name), 'could not read the persona file, playing no persona');
     if (text === null) return '';
     const { base, vars, body, problems } = parsePersonaFile(text);

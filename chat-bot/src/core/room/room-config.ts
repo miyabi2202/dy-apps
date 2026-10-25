@@ -40,7 +40,7 @@ export interface RoomConfig extends Settings {
   songBreaks?: string[];
   /**
    * The file in the room's folder (`persona`, like `personas/fairy.md`) that says who the bot
-   * plays there, see livePersona; none when the bot has no persona there.
+   * plays there, see livePersona; none for the shared default persona.
    */
   persona?: string;
   /** The room's streamer (`streamer`), which the bot writes in once room-feed says who it is. */

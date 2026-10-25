@@ -98,6 +98,16 @@ describe('livePersona', () => {
     expect(persona()).toBe('Fairy，咿咿的首席助手\n\n## 说话方式\n\n- 正经里带点俏皮');
   });
 
+  test('a room that names no persona plays the shared default one, if there is one', () => {
+    const { sharedDir, log, persona, choose } = setup();
+    expect(persona()).toBe('');
+    writeFileSync(join(sharedDir, 'default.md'), '普通观众\n');
+    expect(persona()).toBe('普通观众');
+    choose('personas/gone.md');
+    expect(persona()).toBe('');
+    expect(log.warn).toHaveBeenCalledTimes(1);
+  });
+
   test("what it can't read is warned about once, and the bot plays what is left", () => {
     const { roomDir, log, persona, choose } = setup();
     choose('personas/gone.md');
