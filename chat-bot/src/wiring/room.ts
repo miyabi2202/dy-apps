@@ -158,7 +158,6 @@ export function registerRoom(container: Container): void {
         streamerId: () => c.resolve(ADMINS).current()?.uid ?? roomConfig().streamer?.uid,
         bot: { name: options.botName, id: options.botId },
         isPrivate: () => roomConfig().private,
-        forbiddenWords: c.resolve(FORBIDDEN_WORDS),
         log: c.resolve(LOG),
       });
     })

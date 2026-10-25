@@ -16,7 +16,6 @@ import {
   AUTO_REPLY,
   AUTO_SONG_ID,
   BUS,
-  FORBIDDEN_WORDS,
   LOG,
   MALICE_WATCH,
   MEMORY,
@@ -112,7 +111,6 @@ export function registerMcp(container: Container): void {
           streamerId: () =>
             c.resolve(ADMINS).current()?.uid ?? c.resolve(ROOM_CONFIG)().streamer?.uid,
           isPrivate: () => c.resolve(ROOM_CONFIG)().private,
-          forbiddenWords: c.resolve(FORBIDDEN_WORDS),
           log,
         }),
         onOffTool({

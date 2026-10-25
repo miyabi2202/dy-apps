@@ -37,8 +37,6 @@ export interface RememberChatOptions {
   bot: { name: string; id?: string };
   /** A 私密 room, whose viewers can't be told apart: no viewer notes there. */
   isPrivate: () => boolean;
-  /** Words Douyin holds back a message for: nothing with one is remembered. */
-  forbiddenWords: () => readonly string[];
   log: Log;
   now?: () => number;
   /** How many chats a viewer must have sent since last time to get their note looked at. */
@@ -61,7 +59,7 @@ export interface RememberResult {
  * Reads the room's chat record since last time into what the bot remembers: each regular's
  * note.md from what they said themselves, and the room's memory.md and the streamer's note from
  * the whole stream. Claude says what to change, in the same add / replace / remove form as
- * update_memory, and each change goes through the same checks (limits, forbidden words); one that
+ * update_memory, and each change goes through the same checks (the limits); one that
  * fails is skipped. The mark moves on only when every question was answered, so a failed run is
  * read again next time.
  */
@@ -116,7 +114,7 @@ export class RememberChat {
       )
       .join('\n\n');
     const answer = await this.ask(
-      fill(notesPrompt(), { viewers, noteLimit: NOTE_LIMIT, ...this.common() }),
+      fill(notesPrompt(), { viewers, noteLimit: NOTE_LIMIT }),
       NOTE_CHANGES_SCHEMA,
       'notes',
     );
@@ -154,7 +152,6 @@ export class RememberChat {
         digest: digestText(lines, { maxChars: 60_000 }),
         roomLimit: ROOM_MEMORY_LIMIT,
         noteLimit: NOTE_LIMIT,
-        ...this.common(),
       }),
       ROOM_CHANGES_SCHEMA,
       'room',
@@ -179,11 +176,6 @@ export class RememberChat {
         (text) => memory.setNote(streamer, text),
       );
     }
-  }
-
-  /** What both prompts are told. */
-  private common(): Record<string, string> {
-    return { forbiddenWords: this.options.forbiddenWords().join('、') || '（无）' };
   }
 
   /** Claude's answer as JSON, or null (logged) when it failed or isn't JSON. */
@@ -211,9 +203,9 @@ export class RememberChat {
     limit: number,
     write: (text: string) => void,
   ): number {
-    const { log, forbiddenWords } = this.options;
+    const { log } = this.options;
     if (!changes.length) return 0;
-    const done = changeMemoryAll(text, changes, limit, forbiddenWords());
+    const done = changeMemoryAll(text, changes, limit);
     if (done.made.length) write(done.text);
     const used = memoryLength(done.text);
     for (const change of done.made) {

@@ -74,24 +74,18 @@ export function changeMemory(
 }
 
 /**
- * `text` with each of `changes` made in turn (see changeMemory): one that can't be made, or whose
- * new text has a word from `forbidden` in it, is skipped, with why in `skipped`, and the rest
- * still are.
+ * `text` with each of `changes` made in turn (see changeMemory): one that can't be made is
+ * skipped, with why in `skipped`, and the rest still are.
  */
 export function changeMemoryAll(
   text: string,
   changes: readonly MemoryChange[],
   limit: number,
-  forbidden: readonly string[] = [],
 ): { text: string; made: MemoryChange[]; skipped: { change: MemoryChange; why: string }[] } {
   const made: MemoryChange[] = [];
   const skipped: { change: MemoryChange; why: string }[] = [];
   for (const change of changes) {
-    const content = 'content' in change ? change.content : '';
-    const banned = forbidden.filter((word) => content.includes(word));
-    const changed = banned.length
-      ? { error: `有不能说的词（${banned.join('、')}）` }
-      : changeMemory(text, change, limit);
+    const changed = changeMemory(text, change, limit);
     if ('error' in changed) {
       skipped.push({ change, why: changed.error });
     } else {

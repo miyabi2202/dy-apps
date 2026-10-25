@@ -16,7 +16,6 @@ function setup({ isPrivate = false } = {}) {
     memory,
     streamerId: () => 's-1',
     isPrivate: () => isPrivate,
-    forbiddenWords: () => ['某平台'],
     log: silentLog,
   });
   return { store, tool };
@@ -57,15 +56,9 @@ test("a 私密 room's viewers get no note, as they can't be told apart; its stre
   expect(store.notes).toEqual({ 's-1': '爱听晴天\n' });
 });
 
-test('nothing with a forbidden word is kept, and bad arguments say what is wrong', async () => {
+test('bad arguments say what is wrong', async () => {
   const { store, tool } = setup();
   const context = { asker: '阿明', userId: 'u-2', question: '' };
-  const banned = await tool.call(
-    { scope: 'note', action: 'add', content: '去某平台看我' },
-    context,
-  );
-  expect(banned.isError).toBe(true);
-  expect(banned.text).toContain('某平台');
   expect((await tool.call({ scope: 'all', action: 'add', content: '甲' }, context)).isError).toBe(
     true,
   );

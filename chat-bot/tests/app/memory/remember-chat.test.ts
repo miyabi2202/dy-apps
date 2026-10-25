@@ -50,7 +50,6 @@ function setup({
     streamerId: () => 's-1',
     bot: { name: '默认关闭', id: 'bot' },
     isPrivate: () => isPrivate,
-    forbiddenWords: () => ['某平台'],
     log: silentLog,
     now: () => T0 + 3_600_000,
     minChats: 2,
@@ -113,14 +112,13 @@ test('only what came after the mark is read, and nothing new asks nothing', asyn
   expect(asked).toEqual([]);
 });
 
-test("a 私密 room gets no viewer notes; a change with a forbidden word, or that can't be made, is skipped", async () => {
+test("a 私密 room gets no viewer notes; a change that can't be made is skipped", async () => {
   const { remember, store, asked } = setup({
     record: RECORD,
     isPrivate: true,
     answers: {
       room: {
         room: [
-          { action: 'add', content: '去某平台看回放', old: '' },
           { action: 'remove', content: '', old: '没有这条' },
           { action: 'add', content: '周五不播', old: '' },
         ],

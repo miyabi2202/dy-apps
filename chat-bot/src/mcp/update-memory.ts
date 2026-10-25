@@ -6,7 +6,6 @@ import {
   ROOM_MEMORY_LIMIT,
   type MemoryChange,
 } from '../core/memory/memory-text';
-import { forbiddenIn } from '../core/prompts/forbidden';
 
 export interface UpdateMemoryOptions {
   memory: Memory;
@@ -14,8 +13,6 @@ export interface UpdateMemoryOptions {
   streamerId: () => string | undefined;
   /** Whether the room is 私密 (room_config.json's `private`): viewers' notes are off there. */
   isPrivate: () => boolean;
-  /** Words Douyin holds back a message for: nothing with one is remembered. */
-  forbiddenWords: () => readonly string[];
   log: Log;
 }
 
@@ -31,7 +28,6 @@ export function updateMemoryTool({
   memory,
   streamerId,
   isPrivate,
-  forbiddenWords,
   log,
 }: UpdateMemoryOptions): BotTool {
   return {
@@ -59,8 +55,6 @@ export function updateMemoryTool({
       const content = typeof args.content === 'string' ? args.content : '';
       const old = typeof args.old === 'string' ? args.old : '';
       const change = { action, content, old } as MemoryChange;
-      const banned = forbiddenIn(content, forbiddenWords());
-      if (banned.length) return fail(`有不能说的词（${banned.join('、')}），不记`);
 
       let file: { read(): string; write(text: string): void };
       let limit: number;
