@@ -6,6 +6,13 @@ Words the bot must never say in a room: Douyin quietly holds back a message with
 - 编制
 - 发弹幕
 - 账号
+- 投资
+- 理财
+- 基金
+- 股票
+- 期货
+- 疫情
+- 病毒
 
 ## Other platforms
 
