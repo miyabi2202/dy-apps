@@ -17,8 +17,6 @@ export interface RoomConfig extends Settings {
   private: boolean;
   /** What the bot says, now and then, as the streamer starts a song (`on_sing`); none when absent. */
   onSing?: OnSingConfig;
-  /** What the bot says every `autoMessageIntervalSeconds` (`auto_message`); none when absent. */
-  autoMessage?: string;
   /**
    * Other names viewers and the streamer call the bot (`aliases`), each with how speech
    * recognition may write it besides.
@@ -92,11 +90,6 @@ export function roomConfigFrom(
     () => (raw.on_sing === undefined ? undefined : onSingConfig(raw.on_sing)),
     last.onSing,
   );
-  const autoMessage = field(
-    'auto_message',
-    () => (raw.auto_message === undefined ? undefined : autoMessageText(raw.auto_message)),
-    last.autoMessage,
-  );
   const songBreaks = field(
     'songBreaks',
     () =>
@@ -119,7 +112,6 @@ export function roomConfigFrom(
     private: isPrivate,
     ...(streamer && { streamer }),
     ...(onSing && { onSing }),
-    ...(autoMessage && { autoMessage }),
     ...(persona && { persona }),
     ...(songBreaks && { songBreaks }),
     aliases: field('aliases', () => aliasList(raw.aliases), last.aliases),
@@ -221,10 +213,4 @@ function onSingConfig(raw: unknown): OnSingConfig {
     throw new Error('on_sing.probability must be a number from 0 to 1');
   }
   return { message, probability };
-}
-
-/** `auto_message` as the text to send, or an error saying what's wrong with it. */
-function autoMessageText(raw: unknown): string {
-  if (typeof raw !== 'string' || !raw.trim()) throw new Error('auto_message must be some text');
-  return raw;
 }

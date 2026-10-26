@@ -8,7 +8,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/截图 
 | ---------------------- | --------------------------- | ---------------------------------------------------------------------------------------------- | ----------- | ----------- |
 | `/自动回复阈值 <0–1>`  | `set_auto_reply_threshold`  | How sure it must be it's talked about to join in                                               | yes         | 1 (off)     |
 | `/自动回复间隔 <秒>`   | `set_auto_reply_interval`   | How long it keeps quiet after joining in                                                       | yes         | 60          |
-| `/自动消息间隔 <秒>`   | `set_auto_message_interval` | Send the room's `auto_message` every this many seconds                                         | yes         | 0 (off)     |
+| `/自动消息间隔 <秒>`   | `set_auto_message_interval` | Claude says something to the room on its own every this many seconds                           | yes         | 0 (off)     |
 | `/最大回复条数 <1–10>` | `set_max_reply_parts`       | How many messages one @'s answer may take                                                      | yes         | 5           |
 | `/自动谢礼 <钻>`       | `set_thanks_threshold`      | Thank viewers who give more than this in 5 minutes                                             | yes         | 99999 (off) |
 | `/截图 <0\|1>`         | `set_screenshots`           | Send Claude the live video or not                                                              | yes         | 0           |
@@ -63,7 +63,7 @@ How many seconds auto-reply keeps quiet after it answered someone unprompted: wh
 
 ### /自动消息间隔
 
-Every this many seconds, the bot sends the room's `auto_message` (a text in its `room_config.json`, like `"auto_message": "点点关注不迷路"`) as it is, as something it says unprompted (after any waiting @ answer). `0` turns it off, and so does a room with no `auto_message`. The first one goes out one interval after it's turned on (or the bot starts with it on), not at once. It has nothing to do with `/自动回复间隔`. Editing `auto_message` takes effect at once; the log says `auto message {text}` for each.
+Every this many seconds, Claude looks at the room (what the streamer said lately, the recent chat, what the bot said lately, the room's memory and persona) with `prompts/auto-message.md` (a room overrides it with its own `auto_message.md`) and says one message of its own, unprompted, after any waiting @ answer; or nothing, when there's nothing worth saying (`auto message: nothing to say`). `0`, the default, turns it off. The first one is asked one interval after it's turned on (or the bot starts with it on), and the next is counted from when Claude answered, so it never asks twice at once. It has nothing to do with `/自动回复间隔`. The log has `claude asking` / `claude answered` with `task: "auto-message"`, and `auto message {text}` for each sent.
 
 ```text
 @默认关闭 /自动消息间隔 300

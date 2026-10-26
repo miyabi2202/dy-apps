@@ -87,7 +87,7 @@ export function registerApp(container: Container): void {
         if (!stopping) {
           bot.start();
           void autoReply.run();
-          void autoMessage.run();
+          void autoMessage.loop();
         }
       },
       stop({ quitSpeech = false } = {}) {

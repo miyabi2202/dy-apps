@@ -1,49 +1,56 @@
 import { AutoMessage } from '../../../src/app/replies/auto-message';
+import type { Question } from '../../../src/app/ports';
+import { fakeRoom } from '../../support/fake-room';
 import { silentLog } from '../../support/fakes';
 
-/** An AutoMessage starting at `intervalSeconds`, saying `message`, at a clock the test moves. */
-function setup(intervalSeconds: number, message: string | undefined = '点点关注不迷路') {
+/** An AutoMessage starting at `intervalSeconds`, whose Claude gives `answers` in turn, at a clock the test moves. */
+function setup(intervalSeconds: number, answers: string[]) {
   let now = 0;
-  let text: string | undefined = message;
   const sent: string[] = [];
+  const prompts: string[] = [];
   const auto = new AutoMessage({
-    message: () => text,
-    intervalSeconds,
+    ask: (question: Question) => {
+      prompts.push(question.prompt);
+      return Promise.resolve(answers.shift() ?? '{"message":""}');
+    },
     outbox: { push: (m) => sent.push(`${m.kind}:${m.text}`) },
+    promptTemplate: () => '说点什么，{{singleLength}} 字以内',
+    room: fakeRoom(),
+    intervalSeconds,
     log: silentLog,
     now: () => now,
   });
   /** Moves the clock to `at` seconds and looks whether it's time. */
   const at = (seconds: number) => {
     now = seconds * 1000;
-    auto.tick();
+    return auto.tick();
   };
-  return { auto, at, sent, setMessage: (m: string | undefined) => (text = m) };
+  return { auto, at, sent, prompts };
 }
 
-test('says the message every interval, the first one interval after it starts', () => {
-  const { at, sent } = setup(60);
-  at(0);
-  at(59);
-  expect(sent).toEqual([]);
-  at(60);
-  at(100);
-  at(120);
-  expect(sent).toEqual(['talk:点点关注不迷路', 'talk:点点关注不迷路']);
+test('asks Claude every interval, the first time one interval after it starts, and sends what it says', async () => {
+  const { at, sent, prompts } = setup(60, ['{"message":"第一条"}', '{"message":""}']);
+  await at(0);
+  await at(59);
+  expect(prompts).toEqual([]);
+  await at(60);
+  await at(100);
+  await at(120);
+  expect(prompts).toHaveLength(2);
+  expect(prompts[0]).toContain('说点什么');
+  // The second time Claude chose to say nothing.
+  expect(sent).toEqual(['talk:第一条']);
 });
 
-test('says nothing at 0 or without a message, and counts afresh once turned on', () => {
-  const { auto, at, sent, setMessage } = setup(0);
-  at(0);
-  at(1000);
-  expect(sent).toEqual([]);
+test('asks nothing at 0, and counts afresh once turned on', async () => {
+  const { auto, at, prompts } = setup(0, []);
+  await at(0);
+  await at(1000);
+  expect(prompts).toEqual([]);
   auto.intervalSeconds = 30;
-  at(1010);
-  at(1039);
-  expect(sent).toEqual([]);
-  at(1040);
-  expect(sent).toEqual(['talk:点点关注不迷路']);
-  setMessage(undefined);
-  at(2000);
-  expect(sent).toHaveLength(1);
+  await at(1010);
+  await at(1039);
+  expect(prompts).toEqual([]);
+  await at(1040);
+  expect(prompts).toHaveLength(1);
 });

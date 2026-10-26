@@ -17,7 +17,6 @@ import {
   OUTBOX,
   PROMPT,
   ROOM,
-  ROOM_CONFIG,
   SETTINGS,
   THANKER,
   TOOLS,
@@ -26,7 +25,7 @@ import {
 
 /**
  * What the bot says without being @ed: joining in when talked about, thanking big givers, and the
- * room's auto_message every so often.
+ * room something of its own every so often (auto message).
  */
 export function registerAutoReply(container: Container): void {
   container
@@ -98,13 +97,16 @@ export function registerAutoReply(container: Container): void {
       c.resolve(BUS).on('gift', (gift) => thanker.onGift(gift));
       return thanker;
     })
-    // The room's auto_message every autoMessageIntervalSeconds (/自动消息间隔); off at 0.
+    // Claude says something to the room, from what's going on in it, every
+    // autoMessageIntervalSeconds (/自动消息间隔); off at 0.
     .register(AUTO_MESSAGE, (c) => {
-      const roomConfig = c.resolve(ROOM_CONFIG);
       return new AutoMessage({
-        message: () => roomConfig().autoMessage,
-        settings: c.resolve(SETTINGS),
+        ask: c.resolve(ASK_CLAUDE)('auto-message'),
         outbox: c.resolve(OUTBOX),
+        promptTemplate: c.resolve(PROMPT)('autoMessage'),
+        room: c.resolve(ROOM),
+        settings: c.resolve(SETTINGS),
+        maxLength: c.resolve(OPTIONS).maxReplyLength,
         log: c.resolve(LOG),
       });
     });

@@ -10,7 +10,7 @@ export interface Settings {
   autoReplyThreshold: number;
   /** Seconds it keeps quiet after talking unprompted; 0 doesn't wait (`/自动回复间隔`). */
   autoReplyIntervalSeconds: number;
-  /** Seconds between two of the room's `auto_message`s; 0 off (`/自动消息间隔`). */
+  /** Seconds between two things Claude says to the room unprompted (auto message); 0 off (`/自动消息间隔`). */
   autoMessageIntervalSeconds: number;
   /** Viewers whose gifts within 5 minutes pass this many diamonds are thanked (`/自动谢礼`). */
   thanksThreshold: number;

@@ -97,7 +97,7 @@ export function registerMcp(container: Container): void {
           name: 'set_auto_message_interval',
           command: '自动消息间隔',
           description:
-            '改自动消息的间隔：每隔多少秒把直播间设好的自动消息原样发一次，0 关闭。和自动回复无关。',
+            '改自动消息的间隔：每隔多少秒，机器人看一眼直播间（主播说的、弹幕），自己发一条弹幕（没什么可说就不发），0 关闭。和自动回复无关。',
           arg: { name: 'seconds', description: '秒数；0 关闭' },
           integer: true,
           min: 0,
