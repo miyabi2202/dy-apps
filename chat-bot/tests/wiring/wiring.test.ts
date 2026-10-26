@@ -148,6 +148,7 @@ function build(
 const ALL_COMMANDS = [
   '自动回复阈值',
   '自动回复间隔',
+  '自动消息间隔',
   '最大回复条数',
   '自动谢礼',
   '截图',
@@ -397,6 +398,7 @@ test('without speech, Codex or Jev the tools server still has the admin-only set
   expect(server.open({ asker: 'a', question: '', admin: true })!.access.tools).toEqual([
     'set_auto_reply_threshold',
     'set_auto_reply_interval',
+    'set_auto_message_interval',
     'set_max_reply_parts',
     'set_thanks_threshold',
     'update_memory',

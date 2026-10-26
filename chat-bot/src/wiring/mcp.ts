@@ -13,6 +13,7 @@ import {
   ADMINS,
   ANSWERER,
   ASK_SOLVE,
+  AUTO_MESSAGE,
   AUTO_REPLY,
   AUTO_SONG_ID,
   BUS,
@@ -62,6 +63,7 @@ export function registerMcp(container: Container): void {
       const songId = c.resolve(SONG_ID);
       const room = c.resolve(ROOM);
       const autoReply = c.resolve(AUTO_REPLY);
+      const autoMessage = c.resolve(AUTO_MESSAGE);
       const autoSongId = c.resolve(AUTO_SONG_ID);
       const maliceWatch = c.resolve(MALICE_WATCH);
       // Made once: a tool may hold options. The function is read hot, for the room's declarative tools.
@@ -89,6 +91,19 @@ export function registerMcp(container: Container): void {
           usage: '间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20',
           get: () => autoReply.quietMs / 1000,
           set: (seconds) => (autoReply.quietMs = seconds * 1000),
+          log,
+        }),
+        numberTool({
+          name: 'set_auto_message_interval',
+          command: '自动消息间隔',
+          description:
+            '改自动消息的间隔：每隔多少秒把直播间设好的自动消息原样发一次，0 关闭。和自动回复无关。',
+          arg: { name: 'seconds', description: '秒数；0 关闭' },
+          integer: true,
+          min: 0,
+          usage: '间隔要写成秒数，0 表示关闭，用法：/自动消息间隔 300',
+          get: () => autoMessage.intervalSeconds,
+          set: (seconds) => (autoMessage.intervalSeconds = seconds),
           log,
         }),
         numberTool({

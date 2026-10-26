@@ -1,3 +1,4 @@
+import { AutoMessage } from '../app/replies/auto-message';
 import { AutoReply } from '../app/replies/auto-reply';
 import { GiftThanker } from '../app/replies/gift-thanker';
 import type { AskModel } from '../app/ports';
@@ -6,6 +7,7 @@ import {
   ADMINS,
   ASK_CLAUDE,
   ASK_CODEX,
+  AUTO_MESSAGE,
   AUTO_REPLY,
   BOT,
   BUS,
@@ -15,13 +17,17 @@ import {
   OUTBOX,
   PROMPT,
   ROOM,
+  ROOM_CONFIG,
   SETTINGS,
   THANKER,
   TOOLS,
   USER_TALK,
 } from './tokens';
 
-/** What the bot says without being @ed: joining in when talked about, and thanking big givers. */
+/**
+ * What the bot says without being @ed: joining in when talked about, thanking big givers, and the
+ * room's auto_message every so often.
+ */
 export function registerAutoReply(container: Container): void {
   container
     // Joins in when Jev scores something said in the room as about the bot at
@@ -91,5 +97,15 @@ export function registerAutoReply(container: Container): void {
       room.addSettings(() => thanker.settings());
       c.resolve(BUS).on('gift', (gift) => thanker.onGift(gift));
       return thanker;
+    })
+    // The room's auto_message every autoMessageIntervalSeconds (/自动消息间隔); off at 0.
+    .register(AUTO_MESSAGE, (c) => {
+      const roomConfig = c.resolve(ROOM_CONFIG);
+      return new AutoMessage({
+        message: () => roomConfig().autoMessage,
+        settings: c.resolve(SETTINGS),
+        outbox: c.resolve(OUTBOX),
+        log: c.resolve(LOG),
+      });
     });
 }

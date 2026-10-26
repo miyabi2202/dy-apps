@@ -4,31 +4,33 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/截图 
 
 ## The commands
 
-| Command                | Tool                       | What it does                                                                                   | Admins only | Default     |
-| ---------------------- | -------------------------- | ---------------------------------------------------------------------------------------------- | ----------- | ----------- |
-| `/自动回复阈值 <0–1>`  | `set_auto_reply_threshold` | How sure it must be it's talked about to join in                                               | yes         | 1 (off)     |
-| `/自动回复间隔 <秒>`   | `set_auto_reply_interval`  | How long it keeps quiet after joining in                                                       | yes         | 60          |
-| `/最大回复条数 <1–10>` | `set_max_reply_parts`      | How many messages one @'s answer may take                                                      | yes         | 5           |
-| `/自动谢礼 <钻>`       | `set_thanks_threshold`     | Thank viewers who give more than this in 5 minutes                                             | yes         | 99999 (off) |
-| `/截图 <0\|1>`         | `set_screenshots`          | Send Claude the live video or not                                                              | yes         | 0           |
-| `/识歌 [提示]`         | `identify_song`            | Name the song the streamer sings, from its lyrics                                              | no          | –           |
-| `/识别背景音乐`        | `identify_bgm`             | Name the recording playing, from its sound                                                     | no          | –           |
-| `/解题 [问题]`         | `ask_about_puzzle`         | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | yes         | –           |
-| `/自动识歌 <0\|1>`     | `set_auto_song_id`         | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
-| `/识别恶意言论 <0\|1>` | `set_malice_watch`         | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
+| Command                | Tool                        | What it does                                                                                   | Admins only | Default     |
+| ---------------------- | --------------------------- | ---------------------------------------------------------------------------------------------- | ----------- | ----------- |
+| `/自动回复阈值 <0–1>`  | `set_auto_reply_threshold`  | How sure it must be it's talked about to join in                                               | yes         | 1 (off)     |
+| `/自动回复间隔 <秒>`   | `set_auto_reply_interval`   | How long it keeps quiet after joining in                                                       | yes         | 60          |
+| `/自动消息间隔 <秒>`   | `set_auto_message_interval` | Send the room's `auto_message` every this many seconds                                         | yes         | 0 (off)     |
+| `/最大回复条数 <1–10>` | `set_max_reply_parts`       | How many messages one @'s answer may take                                                      | yes         | 5           |
+| `/自动谢礼 <钻>`       | `set_thanks_threshold`      | Thank viewers who give more than this in 5 minutes                                             | yes         | 99999 (off) |
+| `/截图 <0\|1>`         | `set_screenshots`           | Send Claude the live video or not                                                              | yes         | 0           |
+| `/识歌 [提示]`         | `identify_song`             | Name the song the streamer sings, from its lyrics                                              | no          | –           |
+| `/识别背景音乐`        | `identify_bgm`              | Name the recording playing, from its sound                                                     | no          | –           |
+| `/解题 [问题]`         | `ask_about_puzzle`          | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | yes         | –           |
+| `/自动识歌 <0\|1>`     | `set_auto_song_id`          | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
+| `/识别恶意言论 <0\|1>` | `set_malice_watch`          | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
 
 These tools are always on, as far as their feature is: `identify_song` needs speech and Codex, `identify_bgm` speech. Admin-only commands are for admins and the streamer; the others are for anyone. A command that changes a setting writes it to the room's `data/<房间号>/room_config.json` (one field each, in the table below), so it stays after a restart, and the bot reads that file again whenever it changes: editing the field by hand does the same as the command, with no restart. A command-line option only seeds a room's setting the first time, when its `room_config.json` has no such field; after that the file wins, and an option that differs from it is a `setting from room_config, ignoring option` warning at start.
 
-| Command                | `room_config.json` field   | Default    |
-| ---------------------- | -------------------------- | ---------- |
-| `/自动回复阈值 <0–1>`  | `autoReplyThreshold`       | `1`        |
-| `/自动回复间隔 <秒>`   | `autoReplyIntervalSeconds` | `60`       |
-| `/最大回复条数 <1–10>` | `maxReplyParts`            | `5`        |
-| `/自动谢礼 <钻>`       | `thanksThreshold`          | `99999`    |
-| `/自动识歌 <0\|1>`     | `autoSongId`               | `false`    |
-| `/识别恶意言论 <0\|1>` | `maliceWatch`              | `false`    |
-| `/截图 <0\|1>`         | `screenshots`              | `false`    |
-| （无指令，只能改文件） | `solveEffort`              | `"medium"` |
+| Command                | `room_config.json` field     | Default    |
+| ---------------------- | ---------------------------- | ---------- |
+| `/自动回复阈值 <0–1>`  | `autoReplyThreshold`         | `1`        |
+| `/自动回复间隔 <秒>`   | `autoReplyIntervalSeconds`   | `60`       |
+| `/自动消息间隔 <秒>`   | `autoMessageIntervalSeconds` | `0`        |
+| `/最大回复条数 <1–10>` | `maxReplyParts`              | `5`        |
+| `/自动谢礼 <钻>`       | `thanksThreshold`            | `99999`    |
+| `/自动识歌 <0\|1>`     | `autoSongId`                 | `false`    |
+| `/识别恶意言论 <0\|1>` | `maliceWatch`                | `false`    |
+| `/截图 <0\|1>`         | `screenshots`                | `false`    |
+| （无指令，只能改文件） | `solveEffort`                | `"medium"` |
 
 When Jev runs out of money the bot sets `autoReplyThreshold` to `10` (off) in the file too. `solveEffort` is how hard Codex thinks for `ask_about_puzzle` / `/解题`: `"medium"` (up to 6 minutes) or `"high"` (up to 10); edit the file, it's read again at once.
 
@@ -57,6 +59,18 @@ How many seconds auto-reply keeps quiet after it answered someone unprompted: wh
 
 @默认关闭 /自动回复间隔 半分钟
 → 间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20
+```
+
+### /自动消息间隔
+
+Every this many seconds, the bot sends the room's `auto_message` (a text in its `room_config.json`, like `"auto_message": "点点关注不迷路"`) as it is, as something it says unprompted (after any waiting @ answer). `0` turns it off, and so does a room with no `auto_message`. The first one goes out one interval after it's turned on (or the bot starts with it on), not at once. It has nothing to do with `/自动回复间隔`. Editing `auto_message` takes effect at once; the log says `auto message {text}` for each.
+
+```text
+@默认关闭 /自动消息间隔 300
+→ 已处理自动消息间隔请求
+
+@默认关闭 /自动消息间隔 0
+→ 已处理自动消息间隔请求
 ```
 
 ### /最大回复条数

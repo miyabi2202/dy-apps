@@ -3,6 +3,7 @@ import type { Container } from './container';
 import {
   ADMINS,
   APP,
+  AUTO_MESSAGE,
   AUTO_REPLY,
   BOT,
   BOT_CONFIG,
@@ -42,6 +43,7 @@ export function registerApp(container: Container): void {
     const log = c.resolve(LOG);
     const bot = c.resolve(BOT);
     const autoReply = c.resolve(AUTO_REPLY);
+    const autoMessage = c.resolve(AUTO_MESSAGE);
     const transcriber = c.resolve(TRANSCRIBER);
     const mcp = c.resolve(MCP_SERVER);
     const admins = c.resolve(ADMINS);
@@ -74,6 +76,7 @@ export function registerApp(container: Container): void {
           persona: room.persona,
           autoReplyThreshold: settings.autoReplyThreshold,
           autoReplyIntervalMs: settings.autoReplyIntervalSeconds * 1000,
+          autoMessageIntervalSeconds: settings.autoMessageIntervalSeconds,
           thanksThreshold: settings.thanksThreshold,
           autoSongId: settings.autoSongId,
         });
@@ -84,6 +87,7 @@ export function registerApp(container: Container): void {
         if (!stopping) {
           bot.start();
           void autoReply.run();
+          void autoMessage.run();
         }
       },
       stop({ quitSpeech = false } = {}) {
@@ -92,6 +96,7 @@ export function registerApp(container: Container): void {
         bot.stop();
         transcriber?.stop({ quitService: quitSpeech });
         autoReply.stop();
+        autoMessage.stop();
         void mcp.stop();
       },
       onRoomFeedGone(handler) {

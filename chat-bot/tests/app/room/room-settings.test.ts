@@ -51,6 +51,7 @@ test('fills in the fields a room_config.json lacks with their defaults, and keep
     tools: [],
     autoReplyThreshold: 1,
     autoReplyIntervalSeconds: 60,
+    autoMessageIntervalSeconds: 0,
     thanksThreshold: 99999,
     autoSongId: false,
     maliceWatch: false,

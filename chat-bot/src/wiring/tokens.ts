@@ -17,6 +17,7 @@ import type { GiftThanker } from '../app/replies/gift-thanker';
 import type { MaliceWatch } from '../app/replies/malice-watch';
 import type { BotMcpServer } from '../mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
+import type { AutoMessage } from '../app/replies/auto-message';
 import type { OnSing } from '../app/songs/on-sing';
 import type { SongEnds } from '../app/songs/song-ends';
 import type { SongBreakSource } from '../core/songs/song-breaks';
@@ -130,6 +131,7 @@ export const FEED = token<RoomFeed>('feed');
 // auto-reply.ts: what the bot says unprompted.
 export const AUTO_REPLY = token<AutoReply>('autoReply');
 export const THANKER = token<GiftThanker>('thanker');
+export const AUTO_MESSAGE = token<AutoMessage>('autoMessage');
 
 // songs.ts: naming the songs sung; null without what they need.
 export const SONG_INTRO = token<SongIntro>('songIntro');
