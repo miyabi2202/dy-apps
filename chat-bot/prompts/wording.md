@@ -109,7 +109,7 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 ## song-known
 
-这首已经认出来了：《{{title}}》，原唱 {{artist}}（听歌识曲和歌词搜索认的，可信）。不用再搜歌词认歌：title、artist 照这个填，sure 写 true，只写 message；想说这首歌的来历，可以搜一下再说。
+这首已经认出来了：《{{title}}》（听歌识曲和歌词搜索认的，歌名可信），给的原唱是 {{artist}}。不用再搜歌词认歌，但要按上面说的搜一下这首歌，找一件具体的事写进 message；搜的时候顺便核对原唱：给的常常是翻唱的人，查到原唱是别人就按原唱写，artist 也填原唱。title 照这个填，sure 写 true。
 
 ## song-no-lyrics
 
