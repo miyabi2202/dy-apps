@@ -181,10 +181,11 @@ test('by default it has every feature, each with its own command in the order th
   expect(bot.container.resolve(MALICE_WATCH)).not.toBeNull();
   expect(bot.container.resolve(TRANSCRIBER)).not.toBeNull();
   expect(bot.jevKeys).toEqual(['key']);
-  // Codex for the picker, the song id and malice watch, and gpt-6-astra for the puzzle tool: one
-  // for each effort the room can be set to.
+  // Codex's default for the picker and malice watch, gpt-6-sol for the song id, and gpt-6-astra
+  // for the puzzle tool: one for each effort the room can be set to.
   const models = bot.codexMade.map((over) => over.model);
-  expect(models.filter((model) => model === undefined)).toHaveLength(3);
+  expect(models.filter((model) => model === undefined)).toHaveLength(2);
+  expect(models.filter((model) => model === 'gpt-6-sol')).toHaveLength(1);
   expect(models.filter((model) => model === 'gpt-6-astra')).toHaveLength(2);
 });
 
