@@ -35,7 +35,7 @@ import {
 /** Naming the songs the streamer sings, saying more about them, and cheering when one starts. */
 export function registerSongs(container: Container): void {
   container
-    // Once a song is named, may say up to two more things about it, or nothing.
+    // Once a song is named, tells the room in one message, in Claude's words.
     .register(
       SONG_INTRO,
       (c) =>
@@ -96,7 +96,6 @@ export function registerSongs(container: Container): void {
           ? new AutoSongId({
               songId,
               room,
-              outbox: c.resolve(OUTBOX),
               log: c.resolve(LOG),
               on: options.autoSongId,
               settings: c.resolve(SETTINGS),

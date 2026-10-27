@@ -1,5 +1,5 @@
 import { errorMessage } from '../../core/errors';
-import { DOUYIN_CHAT_LIMIT, plainMessages } from '../../core/replies/reply';
+import { DOUYIN_CHAT_LIMIT } from '../../core/replies/reply';
 import type { SongAnswer } from '../../core/songs/song-answer';
 import {
   isHandled,
@@ -8,7 +8,6 @@ import {
   type TranscriptLine,
 } from '../../core/songs/transcript';
 import { ModelFeature } from '../models/model-feature';
-import type { Outbox } from '../replies/outbox';
 import { Pending } from '../pending';
 import type { Log, SettingsStore } from '../ports';
 import { setting } from '../commands/setting';
@@ -18,7 +17,6 @@ import type { SongId } from './song-id';
 export interface AutoSongIdOptions {
   songId: Pick<SongId, 'prompt' | 'name' | 'namedAt' | 'lastTold' | 'told'>;
   room: RoomState;
-  outbox: Pick<Outbox, 'push'>;
   log: Log;
   /** Whether it starts on; `/自动识歌` switches it. Without `settings`, what it starts as. */
   on?: boolean;
@@ -160,15 +158,7 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
   }
 
   protected deliver(_song: TranscriptLine[], answer: SongAnswer | null): void {
-    const {
-      songId,
-      room,
-      outbox,
-      log,
-      maxLength = DOUYIN_CHAT_LIMIT,
-      repeatMs = 60 * 60_000,
-      sameAgainMs = 60_000,
-    } = this.options;
+    const { songId, room, log, repeatMs = 60 * 60_000, sameAgainMs = 60_000 } = this.options;
     // Only a song it's sure of is said: a guess (「听着像…不太确定」) isn't.
     if (!answer?.title || !answer.sure) {
       this.unsure = true;
@@ -176,14 +166,13 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
       return;
     }
     const last = songId.namedAt(answer.title);
-    const messages = plainMessages(answer.message, room.replyLimits(maxLength));
-    if (!messages.length || (last !== undefined && room.now() - last < repeatMs)) {
+    if (!answer.message.trim() || (last !== undefined && room.now() - last < repeatMs)) {
       // Still the song it named: she may move on soon, so it looks again sooner.
       this.waitMs = sameAgainMs;
       log.info('auto song id: still the song told lately', { title: answer.title });
       return;
     }
-    for (const text of messages) outbox.push({ kind: 'talk', text });
+    // Told, the song intro says it to the room, in one message with whatever it adds.
     songId.told(answer);
   }
 

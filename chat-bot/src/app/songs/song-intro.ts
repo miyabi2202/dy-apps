@@ -29,16 +29,17 @@ export interface SongIntroOptions {
   random?: () => number;
 }
 
-/** The song named. */
-type Song = Pick<SongAnswer, 'title' | 'artist' | 'othersSang'>;
+/** The song named, with the program's plain sentence for it (`message`), said when Claude's isn't. */
+type Song = Pick<SongAnswer, 'message' | 'title' | 'artist' | 'othersSang'>;
 
 /** At most this many of Claude's turns, searching for the song. */
 const MAX_TURNS = 8;
 
 /**
- * After a song was named (by /识歌 or on its own), lets Claude say up to two more messages to the
- * room, whatever it likes (something it finds searching for the song, a word on how the streamer
- * sang it, a joke) or nothing, so it doesn't fall into one pattern song after song.
+ * When a song was named (by /识歌 or on its own), tells the room in one message Claude writes: the
+ * song, woven into whatever it likes (something it finds searching for it, the room, a joke), so it
+ * doesn't fall into one pattern song after song. The program's plain sentence (「这首是…」) goes
+ * out instead when Claude fails or leaves the title out.
  */
 export class SongIntro extends ModelFeature<Song, SongIntroAnswer> {
   constructor(private readonly options: SongIntroOptions) {
@@ -46,13 +47,14 @@ export class SongIntro extends ModelFeature<Song, SongIntroAnswer> {
   }
 
   /**
-   * Nothing for a song another voice sang most of (a 连线, a recording, or the streamer taken for
-   * someone else): what it would say is about the streamer singing it.
+   * Only the plain sentence for a song another voice sang most of (a 连线, a recording, or the
+   * streamer taken for someone else): what Claude would say is about the streamer singing it.
    */
   introduce(song: Song): Promise<void> {
     if (!song.title) return Promise.resolve();
     if (song.othersSang) {
       this.options.log.info('no song intro, others sang', { title: song.title });
+      this.say(song.message);
       return Promise.resolve();
     }
     return this.run(song);
@@ -94,20 +96,28 @@ export class SongIntro extends ModelFeature<Song, SongIntroAnswer> {
       },
       this.options.log,
     );
-    return value ?? undefined;
+    // Not json: the plain sentence still names the song.
+    return value ?? { message: '' };
   }
 
-  protected deliver({ title }: Song, answer: SongIntroAnswer): void {
-    const { outbox, log, room, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
-    log.info('song intro', { title, hook: this.hook, messages: answer.messages });
-    for (const message of answer.messages) {
-      for (const text of plainMessages(message, room.replyLimits(maxLength))) {
-        outbox.push({ kind: 'talk', text });
-      }
+  protected deliver(song: Song, { message }: SongIntroAnswer): void {
+    const named = message.includes(song.title);
+    this.options.log.info('song intro', { title: song.title, hook: this.hook, message, named });
+    this.say(named ? message : song.message);
+  }
+
+  protected failed(song: Song, err: unknown): void {
+    this.options.log.warn('could not introduce the song', {
+      title: song.title,
+      error: errorMessage(err),
+    });
+    this.say(song.message);
+  }
+
+  private say(message: string): void {
+    const { outbox, room, maxLength = DOUYIN_CHAT_LIMIT } = this.options;
+    for (const text of plainMessages(message, room.replyLimits(maxLength))) {
+      outbox.push({ kind: 'talk', text });
     }
-  }
-
-  protected failed({ title }: Song, err: unknown): void {
-    this.options.log.warn('could not introduce the song', { title, error: errorMessage(err) });
   }
 }

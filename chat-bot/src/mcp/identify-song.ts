@@ -40,7 +40,15 @@ export function identifySongTool({ songId, room, maxLength, log }: IdentifySongO
       {
         name: '识歌',
         parse: (args) => ({ args: args ? { hint: args } : {} }),
-        say: (result) => (JSON.parse(result.text) as { message: string }).message,
+        // A song it's sure of is said by the song intro, in its own words; anything else, here.
+        say: (result) => {
+          const { message, found, sure } = JSON.parse(result.text) as {
+            message: string;
+            found: boolean;
+            sure?: boolean;
+          };
+          return found && sure ? '' : message;
+        },
       },
     ],
     async call(args, { asker, direct }) {

@@ -30,13 +30,14 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
       },
       namedAt: (title) => named.get(title),
       lastTold: () => last,
+      // The song intro says what's told; here, the program's sentence.
       told: (song) => {
+        sent.push(song.message);
         named.set(song.title, now);
         last = { song, at: now };
       },
     },
     room: fakeRoom({ transcript, now: () => now }),
-    outbox: { push: ({ text }) => sent.push(text) },
     log: silentLog,
     on,
   });

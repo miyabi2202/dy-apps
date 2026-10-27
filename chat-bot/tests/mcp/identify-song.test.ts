@@ -118,7 +118,7 @@ test('tells which song the room was last told, and how long ago', async () => {
   expect((await answer(tool)).lastTold).toEqual({ title: '晴天', artist: '周杰伦', minutesAgo: 3 });
 });
 
-test('/识歌 passes its text as the hint, says the program’s sentence, and starts the intro', async () => {
+test('/识歌 passes its text as the hint and leaves a sure song for the intro to say', async () => {
   const { tool, intros } = setup({ lyrics: 'sure' });
   const [command] = tool.commands!;
   expect(command!.name).toBe('识歌');
@@ -127,7 +127,7 @@ test('/识歌 passes its text as the hint, says the program’s sentence, and st
 
   const result = await tool.call({}, { ...context, direct: true });
   expect(JSON.parse(result.text)).toMatchObject({ found: true, message: '这首是《晴天》' });
-  expect(command!.say(result, {})).toBe('这首是《晴天》');
+  expect(command!.say(result, {})).toBe('');
   expect(intros).toEqual(['晴天']);
 });
 

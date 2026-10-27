@@ -27,13 +27,14 @@ function setup(titles: string[]) {
         ms: 500,
       }),
     found: ({ title }) => `这首是《${title}》`,
+    // The song intro says what's told; here, the program's sentence.
+    onTold: (song) => void sent.push(song.message),
     log: silentLog,
     now: () => now,
   });
   const auto = new AutoSongId({
     songId,
     room: fakeRoom({ transcript, now: () => now }),
-    outbox: { push: ({ text }) => sent.push(text) },
     log: silentLog,
     on: true,
   });
