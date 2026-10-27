@@ -41,7 +41,10 @@ export function registerSongs(container: Container): void {
       return new SongId({
         prompt: c.resolve(PROMPT)('songId'),
         codex: c.resolve(ASK_CODEX)('song-id', {
-          // Low sometimes answered without searching at all; medium always searched, ~8 s slower.
+          // On 10 of 虾虾's songs, sol told what each song is about more often than luna (the
+          // --codex default), ~5 s slower. Low effort sometimes answered without searching at all;
+          // medium always searched, ~8 s slower.
+          model: 'gpt-6-sol',
           effort: 'medium',
         }),
         log: c.resolve(LOG),
