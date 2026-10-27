@@ -216,6 +216,7 @@ test('auto-reply, the thanker, auto song id, malice watch and the screenshots ke
       told: () => {},
     },
     room,
+    outbox: { push: () => {} },
     log: { debug() {}, info() {}, warn() {}, error() {} },
     settings: store,
   });

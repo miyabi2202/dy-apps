@@ -52,7 +52,6 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
     song-id.md            #     the prompt for /识歌 (Codex)
     solve.md              #     the prompt for ask_about_puzzle, /解题 (Codex)
     gift-thanks.md        #     the prompt for thanking big givers
-    song-intro.md         #     the prompt for saying more about a song once it's named
     reply-pick.md         #     the prompt for picking whom to answer unprompted
     malice.md             #     the prompt for spotting malicious chat (Codex)
     intro.md              #     what the bot says about itself when asked (in prompt.md)

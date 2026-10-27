@@ -14,7 +14,6 @@ export const PROMPT_FILES = {
   replyPick: 'reply-pick.md',
   songId: 'song-id.md',
   giftThanks: 'gift-thanks.md',
-  songIntro: 'song-intro.md',
   autoMessage: 'auto-message.md',
   solve: 'solve.md',
   malice: 'malice.md',

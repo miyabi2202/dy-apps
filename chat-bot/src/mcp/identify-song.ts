@@ -20,9 +20,10 @@ const WHAT_SONG_TRIGGER =
 /**
  * `identify_song`: what the streamer is singing now (the lyrics search, then Codex when it isn't
  * sure), for Claude to say in its own words. The song it named is remembered as told, so
- * /自动识歌 doesn't say it again; it has no intro of its own, as Claude's reply is the intro, unless
- * a typed `/识歌` called it (`direct`), which has no reply of Claude's and so gets the intro as
- * usual. It also says which song the room was last told, so Claude can tell "still that one".
+ * /自动识歌 doesn't say it again. A typed `/识歌` (`direct`) has no reply of Claude's, so Codex
+ * writes its message to the room even for a song Shazam or the lyrics search named; for Claude it
+ * doesn't, as Claude's reply is the message. It also says which song the room was last told, so
+ * Claude can tell "still that one".
  */
 export function identifySongTool({ songId, room, maxLength, log }: IdentifySongOptions): BotTool {
   return {
@@ -40,15 +41,7 @@ export function identifySongTool({ songId, room, maxLength, log }: IdentifySongO
       {
         name: '识歌',
         parse: (args) => ({ args: args ? { hint: args } : {} }),
-        // A song it's sure of is said by the song intro, in its own words; anything else, here.
-        say: (result) => {
-          const { message, found, sure } = JSON.parse(result.text) as {
-            message: string;
-            found: boolean;
-            sure?: boolean;
-          };
-          return found && sure ? '' : message;
-        },
+        say: (result) => (JSON.parse(result.text) as { message: string }).message,
       },
     ],
     async call(args, { asker, direct }) {
@@ -92,7 +85,7 @@ export function identifySongTool({ songId, room, maxLength, log }: IdentifySongO
           }),
         };
       }
-      songId.told(answer, { introduce: direct === true });
+      songId.told(answer);
       return {
         text: JSON.stringify({
           found: true,

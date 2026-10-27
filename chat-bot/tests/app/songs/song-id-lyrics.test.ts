@@ -122,19 +122,10 @@ test('does not search at all when too little was sung', async () => {
   expect(searched).toBe(0);
 });
 
-test('knows a song named one way by the way another spells it, and can skip the intro', () => {
-  const intros: string[] = [];
-  const songId = new SongId({
-    prompt: () => '',
-    codex: () => Promise.resolve(''),
-    log: silentLog,
-    onTold: (song) => void intros.push(song.title),
-  });
-  songId.told({ message: '', title: '晴天 (Live)', artist: '', sure: true }, { introduce: false });
+test('knows a song named one way by the way another spells it', () => {
+  const songId = new SongId({ prompt: () => '', codex: () => Promise.resolve(''), log: silentLog });
+  songId.told({ message: '', title: '晴天 (Live)', artist: '', sure: true });
   expect(songId.namedAt('晴天')).toBeDefined();
-  expect(intros).toEqual([]);
-  songId.told({ message: '', title: '七里香', artist: '', sure: true });
-  expect(intros).toEqual(['七里香']);
 });
 
 test('while she sings, Shazam names the song first, without its version tag; otherwise the lyrics', async () => {
@@ -224,4 +215,39 @@ test("doesn't tell onNamed a song Codex isn't sure of", async () => {
   });
   await songId.identifyLines({ prompt: 'P' }, lines, 'auto');
   expect(named).toEqual([]);
+});
+
+test('for the room, Codex writes the message for a song the search named, title and all, or the plain one stays', async () => {
+  const written = (reply: string) => {
+    const asked: string[] = [];
+    const songId = new SongId({
+      prompt: () => '',
+      codex: ({ prompt }) => {
+        asked.push(prompt);
+        return Promise.resolve(reply);
+      },
+      lyrics: () => Promise.resolve(guess({ title: '雨爱', artist: '杨丞琳', sure: true })),
+      found: ({ title, artist }) => `找到了${artist}${title}`,
+      known: ({ title }) => `已认出${title}`,
+      hookNote: (on) => (on ? '加钩子' : '不提问'),
+      random: () => 0.1,
+      log: silentLog,
+    });
+    return { songId, asked };
+  };
+  const answer = (message: string) =>
+    JSON.stringify({ message, title: '雨爱', artist: '杨丞琳', sure: true });
+
+  const own = written(answer('杨丞琳的《雨爱》，下雨天必点'));
+  expect(await own.songId.identifyLines({ prompt: 'P' }, lines, 'auto')).toMatchObject({
+    answer: { title: '雨爱', message: '杨丞琳的《雨爱》，下雨天必点' },
+  });
+  expect(own.asked).toEqual(['P\n\n加钩子\n\n已认出雨爱']);
+
+  for (const reply of [answer('下雨天必点'), '不是 json']) {
+    const plain = written(reply);
+    expect(await plain.songId.identifyLines({ prompt: 'P' }, lines, 'command')).toMatchObject({
+      answer: { message: '找到了杨丞琳雨爱' },
+    });
+  }
 });

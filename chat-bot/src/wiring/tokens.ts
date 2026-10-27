@@ -43,7 +43,6 @@ import type { RememberChat } from '../app/memory/remember-chat';
 import type { RoomFeed } from '../app/room/room-feed';
 import type { RoomState } from '../app/room/room-state';
 import type { SongId } from '../app/songs/song-id';
-import type { SongIntro } from '../app/songs/song-intro';
 import type { StreamerAdmin } from '../app/commands/streamer-admin';
 import type { Transcriber } from '../app/songs/transcriber';
 import type { CliOptions } from '../cli-options';
@@ -134,7 +133,6 @@ export const THANKER = token<GiftThanker>('thanker');
 export const AUTO_MESSAGE = token<AutoMessage>('autoMessage');
 
 // songs.ts: naming the songs sung; null without what they need.
-export const SONG_INTRO = token<SongIntro>('songIntro');
 export const SONG_ID = token<SongId | null>('songId');
 export const AUTO_SONG_ID = token<AutoSongId | null>('autoSongId');
 export const ON_SING = token<OnSing>('onSing');

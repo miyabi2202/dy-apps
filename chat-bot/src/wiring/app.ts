@@ -17,7 +17,6 @@ import {
   SETTINGS,
   SONG_BREAK_SOURCES,
   SONG_ENDS,
-  SONG_INTRO,
   TRANSCRIBER,
 } from './tokens';
 
@@ -51,9 +50,7 @@ export function registerApp(container: Container): void {
     const options = c.resolve(OPTIONS);
     const config = c.resolve(BOT_CONFIG);
     const downloads = c.resolve(DOWNLOADS);
-    // Made now, though nothing asks for them: one is told when a song is named, the other hears
-    // the streamer sing. A missing prompt file stops the bot here, at start.
-    c.resolve(SONG_INTRO);
+    // Made now, though nothing asks for them: they hear the streamer sing.
     c.resolve(ON_SING);
     c.resolve(SONG_ENDS);
     // And the song break sources, so the ones the speech worker's add-ons feed (Shazam's backing

@@ -6,10 +6,8 @@ import { OnSing } from '../app/songs/on-sing';
 import { SongEnds } from '../app/songs/song-ends';
 import { SongId } from '../app/songs/song-id';
 import { candidateHints } from '../core/songs/song-candidates';
-import { SongIntro } from '../app/songs/song-intro';
 import type { Container } from './container';
 import {
-  ASK_CLAUDE,
   ASK_CODEX,
   AUTO_SONG_ID,
   BUS,
@@ -28,32 +26,16 @@ import {
   SONG_BREAK_SOURCES,
   SONG_ENDS,
   SONG_ID,
-  SONG_INTRO,
   TRANSCRIBER,
 } from './tokens';
 
-/** Naming the songs the streamer sings, saying more about them, and cheering when one starts. */
+/** Naming the songs the streamer sings, and cheering when one starts. */
 export function registerSongs(container: Container): void {
   container
-    // Once a song is named, tells the room in one message, in Claude's words.
-    .register(
-      SONG_INTRO,
-      (c) =>
-        new SongIntro({
-          ask: c.resolve(ASK_CLAUDE)('song-intro'),
-          outbox: c.resolve(OUTBOX),
-          promptTemplate: c.resolve(PROMPT)('songIntro'),
-          room: c.resolve(ROOM),
-          log: c.resolve(LOG),
-          maxLength: c.resolve(OPTIONS).maxReplyLength,
-        }),
-    )
     // /识歌 and /自动识歌: Shazam while she sings, then the lyrics search, then Codex (which searches
     // with Google) when it isn't sure; without Codex, none of them.
     .register(SONG_ID, (c) => {
       if (!c.resolve(OPTIONS).codex) return null;
-      // Made now, so a missing song-intro.md stops the bot at start.
-      const songIntro = c.resolve(SONG_INTRO);
       const transcriber = c.resolve(TRANSCRIBER);
       const lyricsBreaks = c.resolve(LYRICS_BREAKS);
       return new SongId({
@@ -69,6 +51,10 @@ export function registerSongs(container: Container): void {
         lyrics: c.resolve(LYRICS_SEARCH) ?? undefined,
         found: ({ title, artist }) =>
           c.resolve(ROOM).wording('song-found', { title, artist: artist ? `${artist}的` : '' }),
+        // Codex writes the message to the room even for a song Shazam or the lyrics search named.
+        known: ({ title, artist }) =>
+          c.resolve(ROOM).wording('song-known', { title, artist: artist || '不确定' }),
+        hookNote: (on) => c.resolve(ROOM).wording(on ? 'song-hook' : 'song-no-hook'),
         hints: (candidates) =>
           c.resolve(ROOM).wording('song-candidates', { candidates: candidateHints(candidates) }),
         othersNote: () => c.resolve(ROOM).wording('song-others'),
@@ -76,7 +62,6 @@ export function registerSongs(container: Container): void {
         ...(lyricsBreaks && {
           onNamed: (song, askedAt) => lyricsBreaks.keep(song, askedAt),
         }),
-        onTold: (song) => void songIntro.introduce(song),
         // Too little sung to go on: said so, without asking Codex (see wording.md).
         early: {
           minChars: SONG_CHARS,
@@ -96,6 +81,7 @@ export function registerSongs(container: Container): void {
           ? new AutoSongId({
               songId,
               room,
+              outbox: c.resolve(OUTBOX),
               log: c.resolve(LOG),
               on: options.autoSongId,
               settings: c.resolve(SETTINGS),

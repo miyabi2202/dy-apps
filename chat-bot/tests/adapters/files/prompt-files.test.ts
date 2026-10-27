@@ -43,9 +43,9 @@ describe('livePrompt', () => {
 
   test('the shared file read at the start is used if it can no longer be read', () => {
     const { promptsDir, roomDir } = dirs();
-    writeFileSync(join(promptsDir, 'song-intro.md'), 'first');
-    const prompt = livePrompt('songIntro', { promptsDir, roomDir });
-    rmSync(join(promptsDir, 'song-intro.md'));
+    writeFileSync(join(promptsDir, 'gift-thanks.md'), 'first');
+    const prompt = livePrompt('giftThanks', { promptsDir, roomDir });
+    rmSync(join(promptsDir, 'gift-thanks.md'));
     expect(prompt()).toBe('first');
   });
 

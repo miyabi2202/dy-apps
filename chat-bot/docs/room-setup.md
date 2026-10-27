@@ -144,7 +144,7 @@ base: fairy
 
 ## 覆盖共用的提示词
 
-`chat-bot/` 下的提示词（`song-id.md`、`gift-thanks.md`、`song-intro.md`、`solve.md`、`reply-pick.md`、`malice.md`）是所有直播间共用的。在直播间文件夹里放一个同名文件，`-` 换成 `_`（比如 `song_id.md`），就只覆盖这个直播间的。`prompt.md` 不能覆盖。其中 `song-id.md`（`song_id.md`）现在只在歌词搜索（网易云）认不准、改让 Codex 找时才用。
+`chat-bot/` 下的提示词（`song-id.md`、`gift-thanks.md`、`solve.md`、`reply-pick.md`、`malice.md`）是所有直播间共用的。在直播间文件夹里放一个同名文件，`-` 换成 `_`（比如 `song_id.md`），就只覆盖这个直播间的。`prompt.md` 不能覆盖。其中 `song-id.md`（`song_id.md`）现在只在歌词搜索（网易云）认不准、改让 Codex 找时才用。
 
 ## 工具：打开、配置、给它资料
 
@@ -252,7 +252,7 @@ base: fairy
 | `{{forbiddenTopics}}`                | `chat-bot/prompts/forbidden.md` 的 `## Topics`，原样放进来：不能接的话题（会让直播间被封、被限流的），和医疗、自伤这些要怎么回。只有 `prompt.md` 用                                 |
 | `{{commonKnowledge}}`                | `chat-bot/prompts/common-knowledge.md` 里的抖音直播常识（灯牌是什么……），带标题；没有就是空的。每个直播间都一样，只放抖音本身的规矩，直播间自己的事写 `memory.md`                   |
 
-`song-intro.md` 还用了一个只在它里面有的：`{{hook}}`（这首歌的介绍要不要加一句钩子，四首里一首，由程序掷骰子）。
+`song-id.md` 发到直播间的那条要不要加一句钩子（四首里一首），由程序掷骰子，加在提示词后面（`wording.md` 的 `song-hook` / `song-no-hook`）。
 
 ### @ 别人
 

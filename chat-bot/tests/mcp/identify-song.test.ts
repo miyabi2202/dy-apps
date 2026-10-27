@@ -29,7 +29,6 @@ function setup(
     speaker: 7,
     host: false,
   });
-  const intros: string[] = [];
   const searched: string[][] = [];
   const asked: string[] = [];
   const songId = new SongId({
@@ -37,7 +36,12 @@ function setup(
     codex: ({ prompt }) => {
       asked.push(prompt);
       return Promise.resolve(
-        JSON.stringify({ message: 'm', title: '晴天', artist: '周杰伦', sure: true }),
+        JSON.stringify({
+          message: '《晴天》一出来就回到高中了',
+          title: '晴天',
+          artist: '周杰伦',
+          sure: true,
+        }),
       );
     },
     lyrics: (lines) => {
@@ -54,7 +58,9 @@ function setup(
     },
     found: ({ title }) => `这首是《${title}》`,
     early: { minChars: options.minChars ?? 5, noLyrics: () => '没听到', tooEarly: () => '太早' },
-    onTold: (song) => void intros.push(song.title),
+    known: ({ title }) => `已认出《${title}》`,
+    hookNote: (on) => (on ? '加钩子' : '不提问'),
+    random: () => 0.9,
     log: silentLog,
     now: () => now,
   });
@@ -64,14 +70,14 @@ function setup(
     maxLength: 49,
     log: silentLog,
   });
-  return { tool, songId, intros, asked, searched, tick: (ms: number) => (now += ms) };
+  return { tool, songId, asked, searched, tick: (ms: number) => (now += ms) };
 }
 
 const answer = async (tool: ReturnType<typeof setup>['tool'], args = {}) =>
   JSON.parse((await tool.call(args, context)).text) as Record<string, unknown>;
 
-test('names the song from the lyrics search without Codex, and does not start an intro', async () => {
-  const { tool, songId, intros, asked } = setup({ lyrics: 'sure' });
+test('names the song from the lyrics search without Codex, as Claude writes the message', async () => {
+  const { tool, songId, asked } = setup({ lyrics: 'sure' });
   expect(await answer(tool)).toMatchObject({
     found: true,
     title: '晴天',
@@ -79,9 +85,8 @@ test('names the song from the lyrics search without Codex, and does not start an
     by: 'lyrics-search',
   });
   expect(asked).toEqual([]);
-  // Remembered as told (so /自动识歌 stays quiet), but Claude's reply is the intro.
+  // Remembered as told, so /自动识歌 stays quiet.
   expect(songId.namedAt('晴天')).toBeDefined();
-  expect(intros).toEqual([]);
 });
 
 test("everything sung is asked about, whoever's voice; when most was another's, Claude is told", async () => {
@@ -118,17 +123,16 @@ test('tells which song the room was last told, and how long ago', async () => {
   expect((await answer(tool)).lastTold).toEqual({ title: '晴天', artist: '周杰伦', minutesAgo: 3 });
 });
 
-test('/识歌 passes its text as the hint and leaves a sure song for the intro to say', async () => {
-  const { tool, intros } = setup({ lyrics: 'sure' });
+test('/识歌 passes its text as the hint, and has Codex write the message for a song already named', async () => {
+  const { tool, asked } = setup({ lyrics: 'sure' });
   const [command] = tool.commands!;
   expect(command!.name).toBe('识歌');
   expect(command!.parse('日文的')).toEqual({ args: { hint: '日文的' } });
   expect(command!.parse('')).toEqual({ args: {} });
 
   const result = await tool.call({}, { ...context, direct: true });
-  expect(JSON.parse(result.text)).toMatchObject({ found: true, message: '这首是《晴天》' });
-  expect(command!.say(result, {})).toBe('');
-  expect(intros).toEqual(['晴天']);
+  expect(command!.say(result, {})).toBe('《晴天》一出来就回到高中了');
+  expect(asked).toEqual([expect.stringMatching(/\n\n不提问\n\n已认出《晴天》$/)]);
 });
 
 test('what /识歌 says when too little is sung is the early wording', async () => {
