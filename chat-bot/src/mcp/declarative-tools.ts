@@ -65,7 +65,7 @@ function declarativeTool(definition: DefinedTool, options: DeclarativeToolsOptio
   const { name, fixedReply, guidance, adminOnly, listen } = definition;
   return {
     name,
-    description: `${definition.description}${adminOnly ? '（只有主播和管理员问时才有）' : ''}`,
+    description: `${definition.description}${adminOnly ? '（只有主播和机器人管理员问时才有）' : ''}`,
     // It works from what the asker said, which Claude has.
     inputSchema: { type: 'object', properties: {} },
     adminOnly,

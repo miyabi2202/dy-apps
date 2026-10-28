@@ -103,7 +103,7 @@ export function pickPrompt(
           '',
           ...topics.map(
             ({ name, when, adminOnly }) =>
-              `- ${name}：${when}${adminOnly ? '（只有主播和管理员）' : ''}`,
+              `- ${name}：${when}${adminOnly ? '（只有主播和机器人管理员）' : ''}`,
           ),
           '',
           wording('pick-topics-tail'),

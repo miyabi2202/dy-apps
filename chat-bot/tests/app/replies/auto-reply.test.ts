@@ -376,7 +376,7 @@ test("a line for a tool's listen topic goes to the picker, which is told the top
   expect(picks[0]).toContain('(2)★ 00:00:20 [小红] 会唱孤勇者吗');
   expect(picks[0]).toContain('(3)  00:00:20 [小蓝] 今晚吃火锅');
   expect(picks[0]).toContain('- can_sing：在问主播会不会唱某首歌');
-  expect(picks[0]).toContain('- only_admin：主播要叫它做事（只有主播和管理员）');
+  expect(picks[0]).toContain('- only_admin：主播要叫它做事（只有主播和机器人管理员）');
   // Not 小蓝, whom neither Jev nor a trigger found anything in: the picker's pick of it is dropped.
   expect(replies.map((r) => r.nickname)).toEqual(['小绿', '小红', '阿明']);
   expect(replies[0]).toEqual({

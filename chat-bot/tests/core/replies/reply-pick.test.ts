@@ -163,7 +163,7 @@ test('the picker is told the topics the tools listen for, with only the admins�
   });
   expect(prompt).toContain(testWording('pick-topics-head'));
   expect(prompt).toContain('- can_sing：在问主播会不会唱某首歌\n');
-  expect(prompt).toContain('- only_admin：主播要叫它做事（只有主播和管理员）');
+  expect(prompt).toContain('- only_admin：主播要叫它做事（只有主播和机器人管理员）');
   expect(prompt).toContain(testWording('pick-topics-tail'));
   expect(prompt.indexOf('can_sing')).toBeLessThan(prompt.indexOf('only_admin'));
 });
