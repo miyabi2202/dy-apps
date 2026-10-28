@@ -211,6 +211,7 @@ base: fairy
 3. **Codex**（`reply-pick.md`）看最近 40 行聊天、机器人最近说的话，和工具在听什么（每个有 `listen` 的工具一行 `- <名字>：<when>`），只决定回不回、回谁。它**看不到**工具的 guidance 和歌单。
    - 只因为某个工具的 `listen` 才送来的弹幕也可以回；Jev 没觉得是这条弹幕在跟机器人说话、也没对上任何工具的，Codex 挑了也会被程序丢掉。
    - `listen` 只写了 `trigger`、没写 `when` 的工具（比如 `wuwa_meme`）不走 2、3 步：弹幕一匹配 `trigger` 就像叫了机器人名字一样马上交给 Claude（带这个工具的提示），Jev 和 Codex 都不知道这个工具；不受自动回复间隔限制，只看弹幕，不看主播说的话。
+   - 反过来，`listen` 写了 `"speech": true`（只有 `trigger`，工具有 `fixedReply`）的工具（比如 `say_one`）只听主播说的话、不看弹幕：她说的话一匹配 `trigger`，程序就把 `fixedReply` 原样发到公屏，不 @ 人、不问模型，每个工具一分钟最多一次。日志里是 `speech trigger matched`。
 4. **Claude** 带着工具回答。对上了某个工具 `listen` 的弹幕，`{{asked}}` 里会多一句「程序提示」，说这条可能和哪个工具有关；只是提示，Claude 自己决定调不调。它调用的工具要是有 `guidance`，工具的结果就是 guidance（歌单也在里面），Claude 在**同一次**回答里照着用自己的话回；要是 `fixedReply`，程序直接发这句话（工具回 `sent`），Claude 自己什么都不发。比如「虾虾会吃醋吗」：Claude 调了 `can_sing`，guidance 说歌单里没有这首、看上去不是在问歌就当没调用过，Claude 就照常回答这个问题（要是不是在跟机器人说话，就什么都不发）。
 
 **@ 了机器人**：

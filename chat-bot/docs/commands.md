@@ -174,13 +174,14 @@ Watches the chat for malicious messages (insults, attacks on looks or age, and s
 
 Besides the tools above, a room can switch on the ones defined in `src/mcp/tools/`, each in a folder of its own. They have no `/` names: Claude calls them when someone asks in words. This table lists them (a test keeps it in step with the folders):
 
-| Tool          | What it does                                                        | Admins only | Data in the room's folder                                                         |
-| ------------- | ------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------- |
-| `can_sing`    | 主播会唱xxx吗、拿手的、推荐: answers from the song list             | no          | `artifacts/songs.txt` (also its `mentions`), `tools/can-sing/notes.md` (optional) |
-| `too_easy`    | Teases a viewer who calls the puzzle too easy (秒了)                | no          | –                                                                                 |
-| `wants_topic` | A fixed line to a viewer asking for another topic, members excepted | no          | –                                                                                 |
-| `schedule`    | When the streamer streams, from her own hours                       | no          | `tools/schedule/hours.md`                                                         |
-| `wuwa_meme`   | Picks up a 鸣潮 meme (Bon voyage, 至↑此↓间→…), on its trigger alone | no          | `tools/wuwa-meme/notes.md` (optional)                                             |
+| Tool          | What it does                                                                       | Admins only | Data in the room's folder                                                         |
+| ------------- | ---------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------- |
+| `can_sing`    | 主播会唱xxx吗、拿手的、推荐: answers from the song list                            | no          | `artifacts/songs.txt` (also its `mentions`), `tools/can-sing/notes.md` (optional) |
+| `too_easy`    | Teases a viewer who calls the puzzle too easy (秒了)                               | no          | –                                                                                 |
+| `wants_topic` | A fixed line to a viewer asking for another topic, members excepted                | no          | –                                                                                 |
+| `schedule`    | When the streamer streams, from her own hours                                      | no          | `tools/schedule/hours.md`                                                         |
+| `wuwa_meme`   | Picks up a 鸣潮 meme (Bon voyage, 至↑此↓间→…), on its trigger alone                | no          | `tools/wuwa-meme/notes.md` (optional)                                             |
+| `say_one`     | Sends 「1」 when the streamer asks the room to 扣1 (能理解的打一), from her speech | no          | –                                                                                 |
 
 A room switches tools on by name in its `data/<房间号>/room_config.json`: `"tools": ["can_sing", "too_easy"]`. It's read again whenever the file changes, so no restart is needed; the built-in tools need no listing, and a name no folder defines is warned about (`room_config.json lists a tool there is no definition for`) and skipped. The tools are built in the order the list gives them, after the built-in ones.
 
@@ -206,6 +207,8 @@ A tool may listen for what's said in the room without an @ of the bot: `listen` 
 - `trigger` (a regular expression, `{{streamerNames}}` filled in as `主播|name|…`) and `mentions` (a file in the room's folder of phrases, one a line, or a `｜` table such as a song list, whose first column it uses) make auto-reply look at once instead of at its next 20-second check. They don't pick the tool; they only say the line is surely for it.
 
 A `trigger` with no `when` is a tool that listens for that alone: a chat matching it is answered at once, like one calling the bot by name (Claude gets the tool as a hint and may still say nothing), and Jev and the picker never hear of the tool; the quiet time doesn't hold it back, nor does it start it. The streamer's speech doesn't go through it, and `mentions` needs a `when`. The log has `trigger matched {tools, who, text}`. `wuwa_meme` is one.
+
+`"speech": true` beside such a `trigger` (and a `fixedReply` on the tool) turns it round: the trigger is matched against the streamer's own speech instead of the chat (not sung, not a guest, not her reading the chat out), and when it matches, the `fixedReply` goes out to the room as it is, with no @ and no model, at most once a minute for each tool (`src/app/replies/auto-reply.ts`, `replyToSpeech`). It needs auto-reply on (a threshold below 1). The log has `speech trigger matched {tool, text}`. `say_one` is one: 「能理解的打一」 → 1.
 
 The picker (Codex, shown `reply-pick.md`'s `{{topics}}`) is told these topics, one `- name：when` line for each tool, and a line that matched one (by Jev's score, a trigger or a phrase) ends `→ name` there. The line then reaches Claude with a hint in `{{asked}}` naming the tool(s) (`asked-topics` in `wording.md`): only a hint, Claude still decides, and a tool whose guidance says the line isn't for it is treated as not called. A line Jev scores above 0.9 as about the bot is still answered at once, without the picker; that skip uses the about-the-bot score only, never a topic's.
 
@@ -262,6 +265,7 @@ Each tool is a `BotTool` in `src/mcp/`; `src/wiring/mcp.ts` lists them, in the o
 | `can_sing`                 | `src/mcp/tools/can-sing/` (`tool.json`, `guidance.md`)                   |
 | `too_easy`                 | `src/mcp/tools/too-easy/` (`tool.json`, `guidance.md`)                   |
 | `wants_topic`              | `src/mcp/tools/wants-topic/` (`tool.json`)                               |
+| `say_one`                  | `src/mcp/tools/say-one/` (`tool.json`)                                   |
 | `schedule`                 | `src/mcp/tools/schedule/` (`tool.json`, `guidance.md`)                   |
 
 ## Adding one

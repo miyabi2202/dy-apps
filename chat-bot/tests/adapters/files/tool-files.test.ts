@@ -62,6 +62,21 @@ test("loads the tools in folder order, a guidance read again on every call with 
   expect(wantsTopic!.guidance).toBeUndefined();
 });
 
+test("a tool listening to speech has its fixedReply as the listen's speechReply", () => {
+  const { toolsDir, roomDir } = setup();
+  writeFileSync(
+    join(toolsDir, 'wants-topic', 'tool.json'),
+    JSON.stringify({
+      name: 'wants_topic',
+      description: '扣 1',
+      fixedReply: '1',
+      listen: { trigger: '打一', speech: true },
+    }),
+  );
+  const [, wantsTopic] = loadToolDefinitions(toolsDir, { roomDir, log: fakeLog() });
+  expect(wantsTopic!.listen).toEqual({ trigger: /打一/, speechReply: '1' });
+});
+
 test("a tool's mentions file is read on each use, and a missing one mentions nothing", () => {
   const { toolsDir, roomDir } = setup();
   const [canSing] = loadToolDefinitions(toolsDir, {

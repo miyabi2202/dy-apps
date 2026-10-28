@@ -82,6 +82,9 @@ const PICK_LINES = 40;
 /** At most this many are answered at once. */
 const MAX_PICKS = 3;
 
+/** A tool's reply to the streamer's speech (ListenTopic.speechReply) goes out at most this often. */
+const SPEECH_REPLY_GAP_MS = 60_000;
+
 /** The threshold set when the judge's account runs dry: off. */
 const OFF_FOR_NO_CREDIT = 10;
 
@@ -117,6 +120,8 @@ export class AutoReply {
    * said: the check that gets to them leaves them out, and forgets them.
    */
   private readonly called = new Map<string, number>();
+  /** When each tool last said its speechReply, by tool name. */
+  private readonly spoke = new Map<string, number>();
 
   constructor(private readonly options: AutoReplyOptions) {
     this.thresholdSetting = setting(options.settings, 'autoReplyThreshold', options.threshold);
@@ -168,6 +173,11 @@ export class AutoReply {
     return this.options.topics?.() ?? [];
   }
 
+  /** The topics a chat may match: not those that listen to the streamer's speech (speechReply). */
+  private chatTopics() {
+    return this.topics().filter((topic) => topic.speechReply === undefined);
+  }
+
   /** The topics Jev is asked about and the picker told of: those with a `when`. */
   private judgedTopics(): (ListenTopic & { when: string })[] {
     return this.topics().filter((topic): topic is ListenTopic & { when: string } => !!topic.when);
@@ -193,7 +203,7 @@ export class AutoReply {
       this.callsBot(line, name, { nickname, userId, question: content, heard: 'chat' });
       return;
     }
-    const triggered = this.topics()
+    const triggered = this.chatTopics()
       .filter((topic) => !topic.when && topic.trigger?.test(content))
       .map((topic) => topic.name);
     if (line?.candidate && triggered.length) {
@@ -202,7 +212,7 @@ export class AutoReply {
       this.options.reply({ nickname, userId, question: content, heard: 'chat', topics: triggered });
       return;
     }
-    if (!this.topics().some((topic) => matchFor(topic, content))) return;
+    if (!this.chatTopics().some((topic) => matchFor(topic, content))) return;
     this.lookAtOnce(content);
   }
 
@@ -210,6 +220,8 @@ export class AutoReply {
    * The streamer said something: calling the bot by its nickname or an alias, as speech
    * recognition may write it (「FAIRY 你来唱一首」, 「默认关壁」, an alias's `heardAs`), it's
    * answered at once, as theirs, like a chat. Reading out the bot's chat goes to the picker instead.
+   * Matching the trigger of a tool that listens to speech (能理解的打一), its speechReply goes out
+   * as it is, at most once a SPEECH_REPLY_GAP_MS for each tool.
    */
   hearSpeech(heard: TranscriptLine): void {
     const { room, log } = this.options;
@@ -224,6 +236,7 @@ export class AutoReply {
     if (line.text.includes(readMark(room.botName))) {
       this.saidTo.set(STREAMER, Math.max(this.saidTo.get(STREAMER) ?? -Infinity, line.ts));
     }
+    this.replyToSpeech(line);
     const name = matchSpeech(withoutReading(line.text), room.callNames());
     if (name === undefined) return;
     const streamer = this.options.streamer();
@@ -233,6 +246,18 @@ export class AutoReply {
     }
     const { nickname, uid: userId } = streamer;
     this.callsBot(line, name, { nickname, userId, question: line.text, heard: 'speech' });
+  }
+
+  /** Says the speechReply of each tool whose trigger the streamer's `line` matches, unless it just did. */
+  private replyToSpeech(line: RoomLine): void {
+    const said = withoutReading(line.text);
+    for (const { name, trigger, speechReply } of this.topics()) {
+      if (speechReply === undefined || !trigger?.test(said)) continue;
+      if (line.ts - (this.spoke.get(name) ?? -Infinity) < SPEECH_REPLY_GAP_MS) continue;
+      this.spoke.set(name, line.ts);
+      this.options.log.info('speech trigger matched', { tool: name, text: line.text });
+      this.options.outbox.push({ kind: 'talk', text: speechReply });
+    }
   }
 
   /**

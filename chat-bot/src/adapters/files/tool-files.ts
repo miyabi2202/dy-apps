@@ -103,6 +103,7 @@ export function loadToolDefinitions(
             ...(listen.when !== undefined && { when: listen.when }),
             ...(listen.trigger && { trigger: listen.trigger }),
             ...(mentioned && { mentioned }),
+            ...(listen.speech && rest.fixedReply !== undefined && { speechReply: rest.fixedReply }),
           },
         }),
       },

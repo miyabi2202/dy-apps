@@ -27,6 +27,8 @@ export interface ToolListen {
   trigger?: RegExp;
   /** Which of its phrases `text` contains (a song list's title), as they are now; null for none. */
   mentioned?: (text: string) => string | null;
+  /** Said to the room as it is when the streamer's speech matches `trigger` (tool.json's listen.speech, its fixedReply). */
+  speechReply?: string;
 }
 
 /** A tool's listen block with the tool's name, for the judge, the look-now and the picker. */

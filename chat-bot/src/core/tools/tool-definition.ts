@@ -10,6 +10,12 @@ export interface ListenDefinition {
   trigger: RegExp | null;
   /** A file in the room's folder of phrases (a song list's titles) that make auto-reply look at once too. */
   mentions?: string;
+  /**
+   * `trigger` is matched against what the streamer says on the stream too, and when it matches,
+   * the tool's `fixedReply` goes out to the room as it is, with no @ and no model, at most once a
+   * minute (能理解的扣 1 → 1). Needs a `trigger` alone and a `fixedReply`.
+   */
+  speech?: true;
 }
 
 /**
@@ -52,7 +58,7 @@ const FIELDS = [
   'except',
   'listen',
 ];
-const LISTEN_FIELDS = ['when', 'trigger', 'mentions'];
+const LISTEN_FIELDS = ['when', 'trigger', 'mentions', 'speech'];
 const NAME = /^[a-z][a-z0-9_]*$/;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -63,8 +69,8 @@ const isText = (value: unknown): value is string => typeof value === 'string' &&
 /**
  * `json` (a parsed tool.json) as a ToolDefinition, or what's wrong with it. It holds `name`,
  * `description`, one of `guidance` and `fixedReply`, and optionally `adminOnly`, `only`, `except`
- * and `listen { when?, trigger?, mentions? }` (a `trigger` alone, without `when`, is a tool that
- * listens for nothing else); a field it doesn't know is an error, since a typo
+ * and `listen { when?, trigger?, mentions?, speech? }` (a `trigger` alone, without `when`, is a tool
+ * that listens for nothing else; `speech` has it heard in the streamer's speech too); a field it doesn't know is an error, since a typo
  * in the repo should fail loudly. `{{streamerNames}}` in `description`, `listen.when` and
  * `listen.trigger` is what viewers call the streamer (see streamerNamesIn).
  */
@@ -109,6 +115,7 @@ export function parseToolDefinition(
   }
   const listen = json.listen === undefined ? undefined : parseListen(json.listen, streamerNames);
   if (typeof listen === 'string') return listen;
+  if (listen?.speech && fixedReply === undefined) return 'listen.speech needs a fixedReply';
   return {
     name,
     description: streamerNamesIn(description, streamerNames),
@@ -127,8 +134,12 @@ function parseListen(listen: unknown, streamerNames: readonly string[]): ListenD
   if (unknown !== undefined) {
     return `listen has an unknown field "${unknown}" (use ${LISTEN_FIELDS.join(', ')})`;
   }
-  const { when, trigger, mentions } = listen;
+  const { when, trigger, mentions, speech } = listen;
   if (when !== undefined && !isText(when)) return 'listen.when must be a non-empty string';
+  if (speech !== undefined && speech !== true) return 'listen.speech must be true';
+  if (speech && (when !== undefined || trigger === undefined)) {
+    return 'listen.speech needs a trigger alone, without when';
+  }
   if (when === undefined && trigger === undefined) return 'listen needs a when, or a trigger alone';
   if (when === undefined && mentions !== undefined) return 'listen.mentions needs a when';
   let pattern: RegExp | null = null;
@@ -147,6 +158,7 @@ function parseListen(listen: unknown, streamerNames: readonly string[]): ListenD
     ...(when !== undefined && { when: streamerNamesIn(when, streamerNames) }),
     trigger: pattern,
     ...(mentions !== undefined && { mentions }),
+    ...(speech && { speech }),
   };
 }
 

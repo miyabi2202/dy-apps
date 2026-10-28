@@ -817,6 +817,25 @@ test('a sure line from the streamer is answered as theirs, and waits while the s
   expect(unknown).toEqual([]);
 });
 
+test("a tool listening to speech says its reply as it is when the streamer's words match, at most once a minute, and never for a chat", () => {
+  const replies: UnpromptedReply[] = [];
+  const ran = setup([], {
+    reply: (target) => void replies.push(target),
+    topics: () => [{ name: 'say_one', trigger: /打一/, speechReply: '1' }],
+  });
+  ran.autoReply.hearSpeech(ran.say('能理解的打一'));
+  ran.later(30_000, () => ran.autoReply.hearSpeech(ran.say('能理解打一啊')));
+  ran.later(31_000, () => ran.autoReply.hearSpeech(ran.say('没有问题的打一')));
+  ran.later(1_000, () => ran.autoReply.hearSpeech(ran.say('我们讲下个题')));
+  ran.autoReply.hear(ran.chat('小红', '打一', 'u-小红'));
+
+  expect(ran.sent).toEqual([
+    { kind: 'talk', text: '1' },
+    { kind: 'talk', text: '1' },
+  ]);
+  expect(replies).toEqual([]);
+});
+
 test('a chat matching the trigger of a tool with no when is answered at once, with the tool as a hint; Jev and the picker never hear of the tool', async () => {
   const meme = { name: 'wuwa_meme', trigger: /[Bb]on voyage/ };
   const ran = aliasSetup(

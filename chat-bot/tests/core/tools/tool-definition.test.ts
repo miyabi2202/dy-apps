@@ -89,7 +89,24 @@ test('listen needs a when or a trigger alone, a trigger that compiles, and a men
     'listen.mentions must be a file inside the room folder',
   );
   expect(parse({ ...CAN_SING, listen: { when: 'w', level: 1 } })).toBe(
-    'listen has an unknown field "level" (use when, trigger, mentions)',
+    'listen has an unknown field "level" (use when, trigger, mentions, speech)',
+  );
+});
+
+test('listen.speech is a trigger alone, on a tool with a fixedReply', () => {
+  const sayOne = { name: 'say_one', description: '扣 1', fixedReply: '1' };
+  const parseOne = (listen: unknown) =>
+    parseToolDefinition({ ...sayOne, listen }, { folder: 'say-one' });
+  expect(parseOne({ trigger: '打一', speech: true })).toMatchObject({
+    fixedReply: '1',
+    listen: { trigger: /打一/, speech: true },
+  });
+  expect(parseOne({ trigger: '打一', speech: 1 })).toBe('listen.speech must be true');
+  expect(parseOne({ when: 'w', trigger: '打一', speech: true })).toBe(
+    'listen.speech needs a trigger alone, without when',
+  );
+  expect(parse({ ...CAN_SING, listen: { trigger: '会唱', speech: true } })).toBe(
+    'listen.speech needs a fixedReply',
   );
 });
 
