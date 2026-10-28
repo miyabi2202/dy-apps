@@ -17,6 +17,7 @@ import {
   OUTBOX,
   PROMPT,
   ROOM,
+  ROOM_CONFIG,
   SETTINGS,
   THANKER,
   TOOLS,
@@ -60,6 +61,7 @@ export function registerAutoReply(container: Container): void {
         // The bot is made after this, and asks for it only when there's someone to answer.
         reply: (target) => c.resolve(BOT).replyUnprompted(target),
         streamer: () => admins.current(),
+        focus: () => c.resolve(ROOM_CONFIG)().focus,
         // What the tools listen for; resolved when used: the tools are registered after this and a
         // tool reaches the answerer, which needs the bot, which needs this.
         topics: () =>

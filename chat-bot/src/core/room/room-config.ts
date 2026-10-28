@@ -24,6 +24,8 @@ export interface RoomConfig extends Settings {
   aliases: Alias[];
   /** What viewers call the streamer (`streamerNames`), for a tool's `{{streamerNames}}`. */
   streamerNames: string[];
+  /** Viewers by user id (`focus`) whose every chat goes to Claude at once, like an @. */
+  focus: string[];
   /** What to take off the start of a nickname when the bot @s someone (`atTrimStart`): 单推符号. */
   atTrimStart: string[];
   /**
@@ -52,6 +54,7 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   private: false,
   aliases: [],
   streamerNames: [],
+  focus: [],
   atTrimStart: [],
   timeZone: DEFAULT_TIME_ZONE,
   tools: [],
@@ -120,6 +123,7 @@ export function roomConfigFrom(
       () => nameList(raw.streamerNames, 'streamerNames', '["茜茜", "茜颜"]'),
       last.streamerNames,
     ),
+    focus: field('focus', () => userIdList(raw.focus), last.focus),
     atTrimStart: field('atTrimStart', () => prefixList(raw.atTrimStart), last.atTrimStart),
     timeZone: field('timeZone', () => timeZoneOf(raw.timeZone), last.timeZone),
     tools: field('tools', () => toolList(raw.tools), last.tools),
@@ -134,6 +138,18 @@ function timeZoneOf(raw: unknown): string {
     throw new Error('timeZone must be a time zone like "Asia/Shanghai" or "America/New_York"');
   }
   return raw;
+}
+
+/**
+ * `focus` as a list of user ids (none when absent), or an error saying what's wrong with it. Each
+ * in quotes: JSON reads a long uid written as a number wrong (7550979343834252345 as …252000).
+ */
+function userIdList(raw: unknown): string[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || !raw.every((id) => typeof id === 'string')) {
+    throw new Error('focus must be a list of user ids in quotes, like ["103094206072"]');
+  }
+  return raw.map((id) => id.trim()).filter(Boolean);
 }
 
 /** `atTrimStart` as a list of prefixes (none when absent), or an error saying what's wrong with it. */

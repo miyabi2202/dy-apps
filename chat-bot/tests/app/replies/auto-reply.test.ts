@@ -549,6 +549,32 @@ function aliasSetup(
   return { ...ran, call, speak, asked, replies, judged, names };
 }
 
+test('a chat from someone in focus is answered at once, whatever it says and with auto-reply off, a 私密 viewer too; an @ of the bot is left to the mention', async () => {
+  const ran = aliasSetup(
+    [
+      () => {
+        ran.call('阿明', '今晚吃火锅', 'u-阿明');
+        ran.call('苦***', '好饿', '111111-苦***-31');
+        ran.call('阿明', '@小助手 在吗', 'u-阿明');
+        ran.call('小红', '今晚吃火锅', 'u-小红');
+      },
+    ],
+    { picks: [] },
+    { threshold: 1, focus: () => ['u-阿明', '111111-苦***-31'] },
+  );
+  await ran.autoReply.run();
+
+  expect(ran.replies.map((r) => [r.nickname, r.question, r.heard])).toEqual([
+    ['阿明', '今晚吃火锅', 'chat'],
+    ['苦***', '好饿', 'chat'],
+  ]);
+  expect(ran.judged).toEqual([]);
+  expect(ran.names('focus')).toEqual([
+    { who: '阿明', userId: 'u-阿明', text: '今晚吃火锅' },
+    { who: '苦***', userId: '111111-苦***-31', text: '好饿' },
+  ]);
+});
+
 test('a chat calling the bot by an alias, in any case, is answered at once, without Jev or the picker', async () => {
   const ran = aliasSetup(
     [

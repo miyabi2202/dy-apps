@@ -59,6 +59,8 @@ export interface AutoReplyOptions {
    * themselves are what Claude calls.
    */
   topics?: () => readonly ListenTopic[];
+  /** The user ids (room_config.json's `focus`) whose every chat is answered at once, as it is now. */
+  focus?: () => readonly string[];
   /** Jev's score above which a line is answered at once, without the picker (SURE_ABOUT_BOT without it). */
   sureThreshold?: number;
 }
@@ -188,7 +190,8 @@ export class AutoReply {
    * at once, without the judge or the picker (Claude may still say nothing). One matching a tool's
    * listen trigger (主播会唱xxx吗) is surely for the bot, so it looks now instead of at the next
    * check; one matching the trigger of a tool that listens for nothing else (no `when`) is
-   * answered at once, like a name. The rest wait for it, so the room has time to answer.
+   * answered at once, like a name. The rest wait for it, so the room has time to answer. A chat
+   * from someone in `focus` is answered at once whatever it says, auto-reply on or off.
    */
   hear({
     ts,
@@ -196,8 +199,15 @@ export class AutoReply {
     nickname,
     content,
   }: Pick<IncomingChat, 'ts' | 'userId' | 'nickname' | 'content'>): void {
-    if (this.threshold >= 1 || userId === undefined) return;
+    if (userId === undefined) return;
     const [line] = roomLines([{ ts, userId, nickname, content }], [], this.options.room.botName);
+    if (line?.candidate && this.options.focus?.().includes(userId)) {
+      this.called.set(lineKey(line), line.ts);
+      this.options.log.info('focus', { who: nickname, userId, text: content });
+      this.options.reply({ nickname, userId, question: content, heard: 'chat' });
+      return;
+    }
+    if (this.threshold >= 1) return;
     const name = line?.candidate ? matchChat(content, this.options.room.callNames()) : undefined;
     if (line && name !== undefined) {
       this.callsBot(line, name, { nickname, userId, question: content, heard: 'chat' });

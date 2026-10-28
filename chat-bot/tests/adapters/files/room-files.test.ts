@@ -14,6 +14,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: false,
     aliases: [],
     streamerNames: [],
+    focus: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     tools: [],
@@ -25,6 +26,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: true,
     aliases: [],
     streamerNames: [],
+    focus: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     tools: [],
@@ -36,6 +38,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     private: true,
     aliases: [],
     streamerNames: [],
+    focus: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     tools: [],
@@ -49,6 +52,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
     aliases: [],
     streamerNames: [],
+    focus: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     tools: [],
@@ -61,6 +65,7 @@ test('room_config.json starts not private, and is read again as it changes', () 
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
     aliases: [],
     streamerNames: [],
+    focus: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     tools: [],
@@ -100,6 +105,7 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
     streamer: { nickname: '晨曦FM ⁹⁰¹', uid: '7500039236442915865' },
     aliases: [],
     streamerNames: [],
+    focus: [],
     atTrimStart: [],
     timeZone: 'Asia/Shanghai',
     tools: [],
@@ -144,6 +150,22 @@ test("room_config.json's aliases are the other names of the bot, read again as t
   expect(roomConfig().aliases).toEqual([]);
   writeFileSync(config, '{ "streamerNames": ["茜茜", " 茜颜 "] }');
   expect(roomConfig().streamerNames).toEqual(['茜茜', '茜颜']);
+});
+
+test("room_config.json's focus is a list of user ids in quotes; a bad one, a long uid as a number too, keeps the last good one", () => {
+  const { config } = roomFiles(mkdtempSync(join(tmpdir(), 'room-files-')));
+  const file = roomConfigFile(config, { log: noLog });
+
+  writeFileSync(
+    config,
+    '{ "focus": [" 103094206072 ", "7550979343834252345", "111111-苦***-31", ""] }',
+  );
+  const focus = ['103094206072', '7550979343834252345', '111111-苦***-31'];
+  expect(file.get().focus).toEqual(focus);
+  writeFileSync(config, '{ "focus": "103094206072" }');
+  expect(file.get().focus).toEqual(focus);
+  writeFileSync(config, '{ "focus": [7550979343834252345] }');
+  expect(file.get().focus).toEqual(focus);
 });
 
 test("room_config.json's streamer is read back; a bad one keeps the last good one", () => {
