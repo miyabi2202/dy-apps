@@ -23,7 +23,7 @@ export function pressLikeTool(like: PressLike, log: Log): BotTool {
   const valid = (likes: number) => Number.isInteger(likes) && likes >= 1 && likes <= MAX_LIKES;
   return {
     name: 'press_like',
-    description: `给直播间点赞（默认 ${DEFAULT_LIKES} 个）。主播或管理员要你点赞、点几个赞时调用；主播号召大家点赞（「大家帮我点点赞」）时也调用，用默认个数。调用后程序什么都不发，你也什么都不用说。`,
+    description: `给直播间点赞（默认 ${DEFAULT_LIKES} 个）。有人要你点赞、点几个赞时调用（你有这个工具，就说明问的人有权叫你点）；主播号召大家点赞（「大家帮我点点赞」）时也调用，用默认个数。调用后程序什么都不发，你也什么都不用说。`,
     adminOnly: true,
     inputSchema: {
       type: 'object',
