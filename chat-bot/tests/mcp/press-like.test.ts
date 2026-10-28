@@ -14,7 +14,7 @@ function setup(cutMs = Infinity) {
   return { tool, held };
 }
 
-test('holds the key a second for every 20 likes, 100 likes unless told, and says how many it gave', async () => {
+test('holds the key a second for every 20 likes and one more, 100 likes unless told, and says how many it gave', async () => {
   const { tool, held } = setup();
   expect(JSON.parse((await tool.call({ likes: 40 }, context)).text)).toEqual({
     asked: 40,
@@ -22,11 +22,11 @@ test('holds the key a second for every 20 likes, 100 likes unless told, and says
     stoppedByTooFast: false,
   });
   await tool.call({}, context);
-  expect(held).toEqual([2, 5]);
+  expect(held).toEqual([3, 6]);
 });
 
 test('says how many it gave when 手速太快了 stopped it early', async () => {
-  const { tool } = setup(1500);
+  const { tool } = setup(2500);
   expect(JSON.parse((await tool.call({ likes: 100 }, context)).text)).toEqual({
     asked: 100,
     liked: 30,
@@ -34,12 +34,12 @@ test('says how many it gave when 手速太快了 stopped it early', async () => 
   });
 });
 
-test('/点赞 takes a whole number of likes up to 1200, or none for 100, and says nothing', () => {
+test('/点赞 takes a whole number of likes up to 1180, or none for 100, and says nothing', () => {
   const [command] = setup().tool.commands!;
   expect(command!.name).toBe('点赞');
   expect(command!.parse('')).toEqual({ args: { likes: 100 } });
   expect(command!.parse(' 300 ')).toEqual({ args: { likes: 300 } });
-  for (const bad of ['0', '1201', '2.5', '很多']) {
+  for (const bad of ['0', '1181', '2.5', '很多']) {
     expect(command!.parse(bad)).toHaveProperty('usage');
   }
   expect(command!.say({ text: '{}' }, {})).toBe('');

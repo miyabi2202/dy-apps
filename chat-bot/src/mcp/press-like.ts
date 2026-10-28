@@ -4,16 +4,18 @@ import type { BotTool, Log, PressLike } from '../app/ports';
 
 /** How many likes a second of holding Douyin's like key makes. */
 const LIKES_PER_SECOND = 20;
+/** Held this much longer than the likes come to, so the last ones aren't cut short. */
+const EXTRA_SECONDS = 1;
 /** How many likes it gives when no number is given. */
 const DEFAULT_LIKES = 100;
-/** The most it gives at once: as long as room-feed holds the key. */
-const MAX_LIKES = MAX_LIKE_SECONDS * LIKES_PER_SECOND;
+/** The most it gives at once: as long as room-feed holds the key, less the extra second. */
+const MAX_LIKES = (MAX_LIKE_SECONDS - EXTRA_SECONDS) * LIKES_PER_SECOND;
 
 /**
  * `press_like`: gives the room some likes (100 unless told) as the bot's account, by holding
- * Douyin's like key (z) on the live video, a second for every LIKES_PER_SECOND, and letting go
- * early when Douyin says 手速太快了. Admin-only. `/点赞 [次数]` calls it directly and says
- * nothing; the log has how long it held.
+ * Douyin's like key (z) on the live video, a second for every LIKES_PER_SECOND and EXTRA_SECONDS
+ * more, and letting go early when Douyin says 手速太快了. Admin-only. `/点赞 [次数]` calls it
+ * directly and says nothing; the log has how long it held.
  */
 export function pressLikeTool(like: PressLike, log: Log): BotTool {
   const usage = `用法：/点赞 次数（1 到 ${MAX_LIKES}，不写就是 ${DEFAULT_LIKES}）`;
@@ -52,8 +54,10 @@ export function pressLikeTool(like: PressLike, log: Log): BotTool {
         return { text: `likes 要写成 1 到 ${MAX_LIKES} 的整数`, isError: true };
       }
       try {
-        const { heldMs, tooFast } = await like(likes / LIKES_PER_SECOND);
-        const liked = Math.round((heldMs / 1000) * LIKES_PER_SECOND);
+        const { heldMs, tooFast } = await like(likes / LIKES_PER_SECOND + EXTRA_SECONDS);
+        // What the time held comes to, the extra second not counted, and never more than asked.
+        const held = Math.max(heldMs / 1000 - EXTRA_SECONDS, 0);
+        const liked = Math.min(Math.round(held * LIKES_PER_SECOND), likes);
         log.info('liked', { asker, likes, liked, heldMs, tooFast });
         return { text: JSON.stringify({ asked: likes, liked, stoppedByTooFast: tooFast }) };
       } catch (err) {
