@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { WebSocket, WebSocketServer } from 'ws';
 import {
   EVENT_TYPES,
-  MAX_LIKE_SECONDS,
+  MAX_LIKES,
   type ChatAnswer,
   type ErrorAnswer,
   type LikeAnswer,
@@ -73,8 +73,8 @@ function errorMessage(e: unknown): string {
  * - `ws://…/ws?roomId=<id>&types=chat,gift`: the room's events and status frames
  * - `GET /api/rooms/<id>`: the room's status, its streamer and the login's expiry
  * - `POST /api/rooms/<id>/chat` `{ text }`: send a chat as the logged-in account
- * - `POST /api/rooms/<id>/like` `{ seconds }`: hold the like key (z) on the player that long, or
- *   until Douyin says 手速太快了
+ * - `POST /api/rooms/<id>/like` `{ likes }`: hold the like key (z) on the player until about that
+ *   many likes have gone, by Douyin's counter, or until Douyin says 手速太快了
  * - `GET /api/rooms/<id>/stream`: the URL of the stream the page plays
  * - `GET /api/rooms/<id>/screenshot`: the player as a JPEG
  * Asking for another room is an error that names the room this room-feed serves.
@@ -119,13 +119,16 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
           return sendJson(res, 200, answer);
         }
         case 'POST /like': {
-          const { seconds } = await readJson(req);
-          if (typeof seconds !== 'number' || !(seconds > 0 && seconds <= MAX_LIKE_SECONDS)) {
-            return sendJson(res, 400, {
-              error: `seconds 要是 0 到 ${MAX_LIKE_SECONDS} 之间的秒数`,
-            });
+          const { likes } = await readJson(req);
+          if (
+            typeof likes !== 'number' ||
+            !Number.isInteger(likes) ||
+            likes < 1 ||
+            likes > MAX_LIKES
+          ) {
+            return sendJson(res, 400, { error: `likes 要是 1 到 ${MAX_LIKES} 的整数` });
           }
-          const answer: LikeAnswer = { ok: true, ...(await room.like(seconds)) };
+          const answer: LikeAnswer = { ok: true, ...(await room.like(likes)) };
           return sendJson(res, 200, answer);
         }
         case 'GET /stream': {

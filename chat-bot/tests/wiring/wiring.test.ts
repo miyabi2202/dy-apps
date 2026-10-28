@@ -95,7 +95,8 @@ function build(
         sent.push(text);
         return Promise.resolve({ echoed: true });
       },
-      like: (seconds: number) => Promise.resolve({ heldMs: seconds * 1000, tooFast: false }),
+      like: (likes: number) =>
+        Promise.resolve({ liked: likes, heldMs: likes * 200, tooFast: false }),
       streamUrl: () => Promise.resolve('https://stream/live.flv'),
       streamer: () => Promise.resolve(null),
       screenshot: () => Promise.resolve(new Uint8Array()),

@@ -81,10 +81,12 @@ interface SendResult {
 }
 
 /**
- * Holds Douyin's like key on the live video for `seconds`: how long it was held, and whether
- * Douyin's 手速太快了 stopped it first.
+ * Gives about `likes` likes by holding Douyin's like key on the live video: about how many it gave
+ * (give or take a few), how long it held, and whether Douyin's 手速太快了 stopped it first.
  */
-export type PressLike = (seconds: number) => Promise<{ heldMs: number; tooFast: boolean }>;
+export type PressLike = (
+  likes: number,
+) => Promise<{ liked: number; heldMs: number; tooFast: boolean }>;
 
 /** A JPEG of the live video. */
 export type Screenshot = () => Promise<Uint8Array>;

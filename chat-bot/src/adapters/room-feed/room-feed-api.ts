@@ -35,8 +35,8 @@ export class RoomFeedApi {
   };
 
   /** `POST …/like`: holds the like key, answering once it's let go. */
-  readonly like: PressLike = async (seconds) => {
-    const request: LikeRequest = { seconds };
+  readonly like: PressLike = async (likes) => {
+    const request: LikeRequest = { likes };
     const res = await this.fetchFn(roomUrl(this.port, this.roomId, 'like'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -44,7 +44,7 @@ export class RoomFeedApi {
     });
     const body = (await res.json().catch(() => ({}))) as Partial<LikeAnswer & ErrorAnswer>;
     if (!res.ok) throw new Error(body.error ?? `room-feed answered ${res.status}`);
-    return { heldMs: body.heldMs ?? 0, tooFast: body.tooFast === true };
+    return { liked: body.liked ?? 0, heldMs: body.heldMs ?? 0, tooFast: body.tooFast === true };
   };
 
   /** `GET …/stream`: the FLV or HLS URL the room's player pulls, or null before it starts. */

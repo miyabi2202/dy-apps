@@ -55,9 +55,9 @@ class FakePage implements RoomPage {
   screenshot() {
     return Promise.resolve(new Uint8Array([0xff, 0xd8]));
   }
-  holdLike(ms: number) {
-    this.typed.push(`<z ${ms}>`);
-    return Promise.resolve({ heldMs: ms, tooFast: false });
+  holdLike(likes: number) {
+    this.typed.push(`<z ${likes}>`);
+    return Promise.resolve({ liked: likes, heldMs: likes * 200, tooFast: false });
   }
   close() {
     this.closed = true;
@@ -266,18 +266,18 @@ describe('Room', () => {
     const { clock, pages, room } = setup();
     room.start();
     await clock.advance(0);
-    await expect(room.like(5)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(room.like(20)).rejects.toMatchObject({ statusCode: 409 });
     const page = pages[0]!;
     page.handlers.onPush([]);
 
     const sent = room.sendChat('第一条');
-    const liked = room.like(5);
+    const liked = room.like(20);
     await clock.advance(0);
     // The like waits for the chat to finish, echo and all.
     expect(page.typed).toEqual(['第一条']);
     page.handlers.onPush([chat('9', '第一条')]);
     await sent;
-    await expect(liked).resolves.toEqual({ heldMs: 5000, tooFast: false });
-    expect(page.typed).toEqual(['第一条', '<z 5000>']);
+    await expect(liked).resolves.toEqual({ liked: 20, heldMs: 4000, tooFast: false });
+    expect(page.typed).toEqual(['第一条', '<z 20>']);
   });
 });

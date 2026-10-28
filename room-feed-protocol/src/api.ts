@@ -46,17 +46,21 @@ export interface ChatAnswer {
   echoed: boolean;
 }
 
-/** The longest one like may hold the key, in seconds. */
-export const MAX_LIKE_SECONDS = 60;
+/** The most likes one like may ask for. */
+export const MAX_LIKES = 200;
 
-/** `POST /api/rooms/<id>/like`'s body: how long to hold Douyin's like key (z), in seconds, up to MAX_LIKE_SECONDS. */
+/** `POST /api/rooms/<id>/like`'s body: how many likes to give by holding Douyin's like key (z), up to MAX_LIKES. */
 export interface LikeRequest {
-  seconds: number;
+  likes: number;
 }
 
-/** `POST /api/rooms/<id>/like`: how long the key was held, and whether Douyin's 手速太快了 cut it short. */
+/**
+ * `POST /api/rooms/<id>/like`: about how many likes it gave (from Douyin's counter by the heart,
+ * so give or take a few), how long the key was held, and whether Douyin's 手速太快了 cut it short.
+ */
 export interface LikeAnswer {
   ok: true;
+  liked: number;
   heldMs: number;
   tooFast: boolean;
 }

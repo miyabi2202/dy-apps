@@ -14,7 +14,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/截图 
 | `/截图 <0\|1>`         | `set_screenshots`           | Send Claude the live video or not                                                              | yes         | 0           |
 | `/识歌 [提示]`         | `identify_song`             | Name the song the streamer sings, from its lyrics                                              | no          | –           |
 | `/识别背景音乐`        | `identify_bgm`              | Name the recording playing, from its sound                                                     | no          | –           |
-| `/点赞 [次数]`         | `press_like`                | Likes the room as the bot's account, 100 unless told, up to 500                                | yes         | –           |
+| `/点赞 [次数]`         | `press_like`                | Likes the room as the bot's account, 100 unless told, up to 200                                | yes         | –           |
 | `/解题 [问题]`         | `ask_about_puzzle`          | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | no          | –           |
 | `/自动识歌 <0\|1>`     | `set_auto_song_id`          | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
 | `/识别恶意言论 <0\|1>` | `set_malice_watch`          | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
@@ -140,11 +140,11 @@ Has the bot name the songs the streamer sings without anyone asking, as `/识歌
 
 ### /点赞
 
-Likes the room as the bot's account, for admins only: `/点赞 300` gives 300 likes, `/点赞` 100 (up to 500, `MAX_LIKES`). Asked in words (「帮我点点赞」), Claude calls the tool `press_like`. It asks room-feed (`POST /api/rooms/<id>/like {seconds}`) to hold Douyin's like key, z, on the live video: room-feed clicks the player (so the key doesn't go to the chat box), then holds z, a keydown every 100 ms as a held key repeats, a second for every 20 likes and one more, so the last ones aren't cut short (`LIKES_PER_SECOND` and `EXTRA_SECONDS` in `src/mcp/press-like.ts`), at most 60 seconds (`MAX_LIKE_SECONDS`). When the page says 手速太快了, Douyin's limit, it lets go at once. It takes turns with the chats, which use the same keyboard.
+Likes the room as the bot's account, for admins only: `/点赞 300` gives 300 likes, `/点赞` 100 (up to 200, `MAX_LIKES` in `room-feed-protocol`). Asked in words (「帮我点点赞」), Claude calls the tool `press_like`. It asks room-feed (`POST /api/rooms/<id>/like {likes}`) to hold Douyin's like key, z, on the live video: room-feed clicks the player (so the key doesn't go to the chat box), then holds z, a keydown every 100 ms as a held key repeats, until Douyin's counter by the heart (「x22」) adds up to about that many. The counter can start again from 1 partway, so room-feed adds up the runs (`LikeTally` in `room-feed/src/like-tally.ts`); it's give or take a few. Holding gives about 5 likes a second (measured on 2026-10-29), so 200 takes some 40 seconds; when the counter doesn't show, room-feed guesses from the time held at that rate, and never holds longer than 60 seconds. When the page says 手速太快了, Douyin's limit, it lets go at once. It takes turns with the chats, which use the same keyboard.
 
 Liking is done in silence. A typed `/点赞` says nothing; asked in words, the tool's result is `silent`, and the bot sends nothing for that question, @ or not, whatever Claude wrote (`silent after a tool` in the log; any tool can return `silent: true`, `src/app/replies/mention-answerer.ts`). With auto-reply on, it also listens (`listen.when`) for the streamer asking the room for likes (「大家帮我点点赞」「记得点一下赞」, not 「谢谢小雅的点赞」): like any topic, Jev scores her line, the picker (told it's for the streamer and admins only) picks it, and Claude calls `press_like` with the default 100, silently. That takes the 20-second check and the models, so the likes start some 30–40 s after she asks, and later while auto-reply keeps quiet after an answer. With auto-reply off it never listens.
 
-The log has `liked {asker, likes, liked, heldMs, tooFast}` (`liked` is what the time held comes to, without the extra second), or `could not like`.
+The log has `liked {asker, likes, liked, heldMs, tooFast}` (`liked` is what Douyin's counter added up to), or `could not like`.
 
 ### /解题
 

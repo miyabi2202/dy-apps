@@ -36,9 +36,13 @@ class FakeRoom implements ServedRoom {
     this.chats.push(text);
     return Promise.resolve({ echoed: true });
   }
-  like(seconds: number) {
-    this.likes.push(seconds);
-    return Promise.resolve({ heldMs: seconds * 1000, tooFast: seconds > 10 });
+  like(likes: number) {
+    this.likes.push(likes);
+    return Promise.resolve({
+      liked: Math.min(likes, 50),
+      heldMs: likes * 200,
+      tooFast: likes > 50,
+    });
   }
   streamUrl(): string | null {
     if (this.status !== 'live') throw new RoomError('直播间的弹幕连接还没建立', 409);
@@ -160,20 +164,21 @@ describe('the HTTP API', () => {
     expect(room.chats).toEqual(['hi']);
   });
 
-  it('holds the like key for the seconds asked, from 0 up to a minute', async () => {
+  it('gives the likes asked, a whole number from 1 up to MAX_LIKES', async () => {
     const post = (body: unknown) =>
       fetch(`http://${base}/api/rooms/123/like`, { method: 'POST', body: JSON.stringify(body) });
 
-    expect(await (await post({ seconds: 5 })).json()).toEqual({
+    expect(await (await post({ likes: 20 })).json()).toEqual({
       ok: true,
-      heldMs: 5000,
+      liked: 20,
+      heldMs: 4000,
       tooFast: false,
     });
-    expect(await (await post({ seconds: 30 })).json()).toMatchObject({ tooFast: true });
-    for (const seconds of [0, 61, '5', undefined]) {
-      expect((await post({ seconds })).status).toBe(400);
+    expect(await (await post({ likes: 200 })).json()).toMatchObject({ liked: 50, tooFast: true });
+    for (const likes of [0, 201, 2.5, '5', undefined]) {
+      expect((await post({ likes })).status).toBe(400);
     }
-    expect(room.likes).toEqual([5, 30]);
+    expect(room.likes).toEqual([20, 200]);
   });
 
   it("answers a room error with the room's status code", async () => {

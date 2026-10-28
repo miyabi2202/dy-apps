@@ -5,6 +5,7 @@ import { BROWSER_ARGS, hideAutomation, USER_AGENT } from './chrome';
 import { decodeFrame, messageRoomId, type RawProtoMessage } from './douyin/proto';
 import type { RoomMeta } from '@dy-apps/room-feed-protocol';
 import { parseRoomMeta } from './douyin/room-meta';
+import { LikeTally } from './like-tally';
 import { browserCookies } from './login-file';
 import { RoomEndedError } from './room';
 
@@ -31,8 +32,11 @@ export interface RoomPage {
   typeChat(text: string): Promise<void>;
   /** The player as a JPEG. */
   screenshot(): Promise<Uint8Array>;
-  /** Holds the like key on the player for `ms`, or until Douyin says 手速太快了. */
-  holdLike(ms: number): Promise<{ heldMs: number; tooFast: boolean }>;
+  /**
+   * Holds the like key on the player until about `likes` likes have gone, or Douyin says 手速太快了:
+   * about how many went, and how long it held.
+   */
+  holdLike(likes: number): Promise<{ liked: number; heldMs: number; tooFast: boolean }>;
   close(): Promise<void>;
 }
 
@@ -41,10 +45,14 @@ export type OpenRoomPage = (roomId: string, handlers: RoomPageHandlers) => Promi
 /** The chat box: Douyin's Slate editor, found by attributes that survive its class-name hashing. */
 const CHAT_INPUT = '[data-e2e="live-chatting"] [data-slate-editor="true"][contenteditable="true"]';
 
-/** The player's stream request: FLV or HLS. */
 /** How often a held key sends keydown again, about as often as a held key repeats. */
 const LIKE_REPEAT_MS = 100;
+/** How many likes a second of holding gives, as measured on 2026-10-29: for when the counter doesn't show. */
+const GUESSED_LIKES_PER_SECOND = 5;
+/** The longest one like holds the key, whatever the counter says. */
+const MAX_LIKE_MS = 60_000;
 
+/** The player's stream request: FLV or HLS. */
 const STREAM_URL = /^https?:\/\/[^/]+\/.+\.(flv|m3u8)(\?|$)/;
 
 /** The part of webcast/room/web/enter/'s answer we read. */
@@ -367,34 +375,60 @@ class LivePage implements RoomPage {
   }
 
   /**
-   * Holds Douyin's like key (z) for `ms`, as a held key does, a keydown every LIKE_REPEAT_MS,
-   * and lets go at once when the page says 手速太快了: Douyin's limit, a hard stop. It clicks the
+   * Holds Douyin's like key (z), as a held key does, a keydown every LIKE_REPEAT_MS, until the
+   * counter by the heart has added up to `likes` (see LikeTally), and lets go at once when the
+   * page says 手速太快了: Douyin's limit, a hard stop. Without a counter, it guesses from the time
+   * held (GUESSED_LIKES_PER_SECOND); either way, never longer than MAX_LIKE_MS. It clicks the
    * player first, so the keys go to it, not to the chat box (where they'd be typed).
    */
-  async holdLike(ms: number): Promise<{ heldMs: number; tooFast: boolean }> {
+  async holdLike(likes: number): Promise<{ liked: number; heldMs: number; tooFast: boolean }> {
     const box = await this.playerBox();
     if (box) {
       await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     } else {
       await this.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     }
+    const tally = new LikeTally(await this.likeCounter());
     const { keyboard } = this.page;
     const start = Date.now();
+    const liked = (heldMs: number) =>
+      tally.counting ? tally.count : Math.round((heldMs / 1000) * GUESSED_LIKES_PER_SECOND);
     let tooFast = false;
     await keyboard.down('z');
     try {
-      while (Date.now() - start < ms) {
-        await this.page.waitForTimeout(Math.min(LIKE_REPEAT_MS, ms - (Date.now() - start)));
+      while (liked(Date.now() - start) < likes && Date.now() - start < MAX_LIKE_MS) {
+        await this.page.waitForTimeout(LIKE_REPEAT_MS);
         if (await this.saysTooFast()) {
           tooFast = true;
           break;
         }
+        tally.see(await this.likeCounter());
         await keyboard.down('z');
       }
     } finally {
       await keyboard.up('z').catch(() => {});
     }
-    return { heldMs: Date.now() - start, tooFast };
+    const heldMs = Date.now() - start;
+    // The likes of the last keydowns may show only now.
+    tally.see(await this.likeCounter());
+    return { liked: liked(heldMs), heldMs, tooFast };
+  }
+
+  /**
+   * The number on Douyin's like counter, the 「x<N>」 by the heart while liking (a span in an
+   * element reading x and it), or null when it doesn't show. Found by its text: the class names
+   * are hashed.
+   */
+  private likeCounter(): Promise<number | null> {
+    return this.page
+      .evaluate(() => {
+        for (const span of Array.from(document.querySelectorAll('span'))) {
+          const shown = /^[x×]\s*(\d+)$/.exec(span.parentElement?.textContent?.trim() ?? '');
+          if (shown && span.textContent?.trim() === shown[1]) return Number(shown[1]);
+        }
+        return null;
+      })
+      .catch(() => null);
   }
 
   /** Whether the page shows Douyin's 手速太快了, its notice for liking too fast. */
