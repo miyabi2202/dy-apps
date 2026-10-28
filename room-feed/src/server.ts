@@ -2,8 +2,10 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { WebSocket, WebSocketServer } from 'ws';
 import {
   EVENT_TYPES,
+  MAX_LIKE_SECONDS,
   type ChatAnswer,
   type ErrorAnswer,
+  type LikeAnswer,
   type EventType,
   type RoomInfoAnswer,
   type RoomStatus,
@@ -15,7 +17,15 @@ import { RoomError, type Room } from './room';
 
 export type ServedRoom = Pick<
   Room,
-  'roomId' | 'info' | 'onEvent' | 'onStatus' | 'onGone' | 'sendChat' | 'streamUrl' | 'screenshot'
+  | 'roomId'
+  | 'info'
+  | 'onEvent'
+  | 'onStatus'
+  | 'onGone'
+  | 'sendChat'
+  | 'like'
+  | 'streamUrl'
+  | 'screenshot'
 >;
 
 export interface ServerOptions {
@@ -47,7 +57,7 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   }
 }
 
-type Answer = RoomInfoAnswer | ChatAnswer | StreamAnswer | ErrorAnswer;
+type Answer = RoomInfoAnswer | ChatAnswer | LikeAnswer | StreamAnswer | ErrorAnswer;
 
 function sendJson(res: ServerResponse, status: number, body: Answer): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -63,6 +73,8 @@ function errorMessage(e: unknown): string {
  * - `ws://…/ws?roomId=<id>&types=chat,gift`: the room's events and status frames
  * - `GET /api/rooms/<id>`: the room's status, its streamer and the login's expiry
  * - `POST /api/rooms/<id>/chat` `{ text }`: send a chat as the logged-in account
+ * - `POST /api/rooms/<id>/like` `{ seconds }`: hold the like key (z) on the player that long, or
+ *   until Douyin says 手速太快了
  * - `GET /api/rooms/<id>/stream`: the URL of the stream the page plays
  * - `GET /api/rooms/<id>/screenshot`: the player as a JPEG
  * Asking for another room is an error that names the room this room-feed serves.
@@ -81,7 +93,9 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost');
-    const match = /^\/api\/rooms\/(\d+)(\/chat|\/stream|\/screenshot)?\/?$/.exec(url.pathname);
+    const match = /^\/api\/rooms\/(\d+)(\/chat|\/like|\/stream|\/screenshot)?\/?$/.exec(
+      url.pathname,
+    );
     if (!match) return sendJson(res, 404, { error: '没有这个接口' });
     const [, roomId = '', action = ''] = match;
     if (roomId !== room.roomId) return sendJson(res, 404, { error: otherRoom(roomId) });
@@ -102,6 +116,16 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
           if (!trimmed) return sendJson(res, 400, { error: 'text 不能为空' });
           const { echoed } = await room.sendChat(trimmed);
           const answer: ChatAnswer = { ok: true, echoed };
+          return sendJson(res, 200, answer);
+        }
+        case 'POST /like': {
+          const { seconds } = await readJson(req);
+          if (typeof seconds !== 'number' || !(seconds > 0 && seconds <= MAX_LIKE_SECONDS)) {
+            return sendJson(res, 400, {
+              error: `seconds 要是 0 到 ${MAX_LIKE_SECONDS} 之间的秒数`,
+            });
+          }
+          const answer: LikeAnswer = { ok: true, ...(await room.like(seconds)) };
           return sendJson(res, 200, answer);
         }
         case 'GET /stream': {

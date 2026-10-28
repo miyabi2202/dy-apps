@@ -31,6 +31,8 @@ export interface RoomPage {
   typeChat(text: string): Promise<void>;
   /** The player as a JPEG. */
   screenshot(): Promise<Uint8Array>;
+  /** Holds the like key on the player for `ms`, or until Douyin says 手速太快了. */
+  holdLike(ms: number): Promise<{ heldMs: number; tooFast: boolean }>;
   close(): Promise<void>;
 }
 
@@ -40,6 +42,9 @@ export type OpenRoomPage = (roomId: string, handlers: RoomPageHandlers) => Promi
 const CHAT_INPUT = '[data-e2e="live-chatting"] [data-slate-editor="true"][contenteditable="true"]';
 
 /** The player's stream request: FLV or HLS. */
+/** How often a held key sends keydown again, about as often as a held key repeats. */
+const LIKE_REPEAT_MS = 100;
+
 const STREAM_URL = /^https?:\/\/[^/]+\/.+\.(flv|m3u8)(\?|$)/;
 
 /** The part of webcast/room/web/enter/'s answer we read. */
@@ -352,8 +357,57 @@ class LivePage implements RoomPage {
 
   /** Just the player: the page's largest video, else its largest canvas, else the whole page. */
   async screenshot(): Promise<Uint8Array> {
+    const clip = await this.playerBox();
+    return this.page.screenshot({
+      type: 'jpeg',
+      quality: 80,
+      timeout: 10_000,
+      ...(clip ? { clip } : {}),
+    });
+  }
+
+  /**
+   * Holds Douyin's like key (z) for `ms`, as a held key does, a keydown every LIKE_REPEAT_MS,
+   * and lets go at once when the page says 手速太快了: Douyin's limit, a hard stop. It clicks the
+   * player first, so the keys go to it, not to the chat box (where they'd be typed).
+   */
+  async holdLike(ms: number): Promise<{ heldMs: number; tooFast: boolean }> {
+    const box = await this.playerBox();
+    if (box) {
+      await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    } else {
+      await this.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    }
+    const { keyboard } = this.page;
+    const start = Date.now();
+    let tooFast = false;
+    await keyboard.down('z');
+    try {
+      while (Date.now() - start < ms) {
+        await this.page.waitForTimeout(Math.min(LIKE_REPEAT_MS, ms - (Date.now() - start)));
+        if (await this.saysTooFast()) {
+          tooFast = true;
+          break;
+        }
+        await keyboard.down('z');
+      }
+    } finally {
+      await keyboard.up('z').catch(() => {});
+    }
+    return { heldMs: Date.now() - start, tooFast };
+  }
+
+  /** Whether the page shows Douyin's 手速太快了, its notice for liking too fast. */
+  private saysTooFast(): Promise<boolean> {
+    return this.page
+      .evaluate(() => document.body.innerText.includes('手速太快了'))
+      .catch(() => false);
+  }
+
+  /** Where the player is: the page's largest video, else its largest canvas; null for neither. */
+  private playerBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
     // No named functions in here: tsx (esbuild's keepNames) would add a __name the page lacks.
-    const clip = await this.page.evaluate(() => {
+    return this.page.evaluate(() => {
       for (const selector of ['video', 'canvas']) {
         let best: { x: number; y: number; width: number; height: number } | null = null;
         for (const el of document.querySelectorAll(selector)) {
@@ -370,12 +424,6 @@ class LivePage implements RoomPage {
         if (best && best.width * best.height > innerWidth * innerHeight * 0.1) return best;
       }
       return null;
-    });
-    return this.page.screenshot({
-      type: 'jpeg',
-      quality: 80,
-      timeout: 10_000,
-      ...(clip ? { clip } : {}),
     });
   }
 

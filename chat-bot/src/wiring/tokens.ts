@@ -72,7 +72,9 @@ export const ENV = token<{ JEV_API_KEY?: string }>('env');
 
 // adapters.ts: the outside world, which a test replaces.
 export const ROOM_API =
-  token<Pick<RoomFeedApi, 'sendChat' | 'streamUrl' | 'streamer' | 'screenshot'>>('roomApi');
+  token<Pick<RoomFeedApi, 'sendChat' | 'like' | 'streamUrl' | 'streamer' | 'screenshot'>>(
+    'roomApi',
+  );
 export const ROOM_EVENTS = token<RoomEvents>('roomEvents');
 export const SPAWN_WORKER = token<SpawnWorker>('spawnWorker');
 /** `claude -p` for this room. */

@@ -8,6 +8,7 @@ class FakeRoom implements ServedRoom {
   readonly roomId = '123';
   status: RoomStatus = 'connecting';
   chats: string[] = [];
+  likes: number[] = [];
   private readonly eventListeners = new Set<(event: RoomEvent) => void>();
   private readonly statusListeners = new Set<(status: RoomStatus) => void>();
   private readonly goneListeners = new Set<(why: string, reason: RoomGoneReason) => void>();
@@ -34,6 +35,10 @@ class FakeRoom implements ServedRoom {
   sendChat(text: string) {
     this.chats.push(text);
     return Promise.resolve({ echoed: true });
+  }
+  like(seconds: number) {
+    this.likes.push(seconds);
+    return Promise.resolve({ heldMs: seconds * 1000, tooFast: seconds > 10 });
   }
   streamUrl(): string | null {
     if (this.status !== 'live') throw new RoomError('直播间的弹幕连接还没建立', 409);
@@ -153,6 +158,22 @@ describe('the HTTP API', () => {
     expect(await (await post('  hi ')).json()).toEqual({ ok: true, echoed: true });
     expect((await post(' ')).status).toBe(400);
     expect(room.chats).toEqual(['hi']);
+  });
+
+  it('holds the like key for the seconds asked, from 0 up to a minute', async () => {
+    const post = (body: unknown) =>
+      fetch(`http://${base}/api/rooms/123/like`, { method: 'POST', body: JSON.stringify(body) });
+
+    expect(await (await post({ seconds: 5 })).json()).toEqual({
+      ok: true,
+      heldMs: 5000,
+      tooFast: false,
+    });
+    expect(await (await post({ seconds: 30 })).json()).toMatchObject({ tooFast: true });
+    for (const seconds of [0, 61, '5', undefined]) {
+      expect((await post({ seconds })).status).toBe(400);
+    }
+    expect(room.likes).toEqual([5, 30]);
   });
 
   it("answers a room error with the room's status code", async () => {

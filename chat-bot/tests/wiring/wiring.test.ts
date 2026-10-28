@@ -95,6 +95,7 @@ function build(
         sent.push(text);
         return Promise.resolve({ echoed: true });
       },
+      like: (seconds: number) => Promise.resolve({ heldMs: seconds * 1000, tooFast: false }),
       streamUrl: () => Promise.resolve('https://stream/live.flv'),
       streamer: () => Promise.resolve(null),
       screenshot: () => Promise.resolve(new Uint8Array()),
@@ -154,6 +155,7 @@ const ALL_COMMANDS = [
   '截图',
   '识歌',
   '识别背景音乐',
+  '点赞',
   '解题',
   '自动识歌',
   '识别恶意言论',
@@ -412,6 +414,7 @@ test('without speech, Codex or Jev the tools server still has the admin-only set
     'set_thanks_threshold',
     'update_memory',
     'set_screenshots',
+    'press_like',
     'ask_about_puzzle',
   ]);
   app.stop();

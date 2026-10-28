@@ -55,6 +55,10 @@ class FakePage implements RoomPage {
   screenshot() {
     return Promise.resolve(new Uint8Array([0xff, 0xd8]));
   }
+  holdLike(ms: number) {
+    this.typed.push(`<z ${ms}>`);
+    return Promise.resolve({ heldMs: ms, tooFast: false });
+  }
   close() {
     this.closed = true;
     return Promise.resolve();
@@ -256,5 +260,24 @@ describe('Room', () => {
     expect(page.typed).toEqual(['第一条', '第二条']);
     await clock.advance(8_000);
     await expect(second).resolves.toEqual({ echoed: false });
+  });
+
+  it('holds the like key in turn with the chats, as both use the keyboard, and not before the room is live', async () => {
+    const { clock, pages, room } = setup();
+    room.start();
+    await clock.advance(0);
+    await expect(room.like(5)).rejects.toMatchObject({ statusCode: 409 });
+    const page = pages[0]!;
+    page.handlers.onPush([]);
+
+    const sent = room.sendChat('第一条');
+    const liked = room.like(5);
+    await clock.advance(0);
+    // The like waits for the chat to finish, echo and all.
+    expect(page.typed).toEqual(['第一条']);
+    page.handlers.onPush([chat('9', '第一条')]);
+    await sent;
+    await expect(liked).resolves.toEqual({ heldMs: 5000, tooFast: false });
+    expect(page.typed).toEqual(['第一条', '<z 5000>']);
   });
 });

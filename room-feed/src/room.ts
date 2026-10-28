@@ -154,6 +154,16 @@ export class Room {
     return run;
   }
 
+  /**
+   * Holds the like key for `seconds` (see RoomPage.holdLike). Queued with the chats: both use the
+   * page's keyboard, and a z held while a chat is typed would go into the chat box.
+   */
+  like(seconds: number): Promise<{ heldMs: number; tooFast: boolean }> {
+    const run = this.chatQueue.then(() => this.livePage().holdLike(seconds * 1000));
+    this.chatQueue = run.catch(() => {});
+    return run;
+  }
+
   streamUrl(): string | null {
     return this.livePage().streamUrl();
   }

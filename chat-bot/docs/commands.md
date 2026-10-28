@@ -14,6 +14,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/截图 
 | `/截图 <0\|1>`         | `set_screenshots`           | Send Claude the live video or not                                                              | yes         | 0           |
 | `/识歌 [提示]`         | `identify_song`             | Name the song the streamer sings, from its lyrics                                              | no          | –           |
 | `/识别背景音乐`        | `identify_bgm`              | Name the recording playing, from its sound                                                     | no          | –           |
+| `/点赞 [次数]`         | `press_like`                | Likes the room as the bot's account, 100 unless told, up to 1200                               | yes         | –           |
 | `/解题 [问题]`         | `ask_about_puzzle`          | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | no          | –           |
 | `/自动识歌 <0\|1>`     | `set_auto_song_id`          | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
 | `/识别恶意言论 <0\|1>` | `set_malice_watch`          | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
@@ -137,6 +138,10 @@ Has the bot name the songs the streamer sings without anyone asking, as `/识歌
 → 这首是《ひとつのハートで》，原唱三重野瞳！
 ```
 
+### /点赞
+
+Likes the room as the bot's account, for admins only: `/点赞 300` gives 300 likes, `/点赞` 100 (up to 1200). Asked in words (「帮我点点赞」), Claude calls the tool `press_like`. It asks room-feed (`POST /api/rooms/<id>/like {seconds}`) to hold Douyin's like key, z, on the live video: room-feed clicks the player (so the key doesn't go to the chat box), then holds z, a keydown every 100 ms as a held key repeats, a second for every 20 likes (`LIKES_PER_SECOND` in `src/mcp/press-like.ts`), at most 60 seconds (`MAX_LIKE_SECONDS`). When the page says 手速太快了, Douyin's limit, it lets go at once. It takes turns with the chats, which use the same keyboard. A typed `/点赞` says nothing in the room; the log has `liked {asker, likes, liked, heldMs, tooFast}` (`liked` is what the time held comes to), or `could not like`.
+
 ### /解题
 
 Answers a question about the math, logic or figure puzzle on the screen (the answer, a hint without the answer, where an attempt went wrong, how one step goes), for anyone. `/解题 问题` calls the tool `ask_about_puzzle` directly (with no question, it wants the answer); asked in words, Claude calls it for such questions and says 「稍等」 meanwhile. The tool takes a screenshot at once, even while `/截图` has them off, and starts Codex's `gpt-6-astra` in the background (no web search, with the `zoom` tool for a closer look at small figures and text) with its own prompt `solve.md` (a room's own `solve.md` overrides it) and the streamer's recent words. How hard it thinks is the room's `solveEffort`: `"medium"` takes up to 6 minutes, `"high"` up to 10; it's read on each call, from `room_config.json` only (no command sets it). The tool returns `started: true` at once, and the bot sends Codex's answer to the asker itself, with an @, when it comes (a typed `/解题` says nothing until then); if Codex fails, or has nothing to say, the asker is told so (`puzzle-failed` and `puzzle-no-answer` in `wording.md`). The prompt has it check several rules against every figure before it answers, and say so when two rules fit or it can't tell. On three test puzzles astra was right every time, in 13–43 seconds (zooming only into the blurry live screenshot), where Claude Opus and Fable (even with a zoom tool) were slower and sometimes wrong. The log has `puzzle answered` (`effort`, `ms`) and `could not answer about the puzzle`.
@@ -259,6 +264,7 @@ Each tool is a `BotTool` in `src/mcp/`; `src/wiring/mcp.ts` lists them, in the o
 | `set_screenshots`          | `onOffTool` (`src/mcp/setting-tools.ts`), listed in `src/wiring/mcp.ts`  |
 | `identify_song`            | `src/mcp/identify-song.ts`                                               |
 | `identify_bgm`             | `src/mcp/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`      |
+| `press_like`               | `src/mcp/press-like.ts`, which asks room-feed's `POST …/like`            |
 | `ask_about_puzzle`         | `src/mcp/ask-about-puzzle.ts`                                            |
 | `set_auto_song_id`         | `onOffTool`, listed in `src/wiring/mcp.ts`                               |
 | `set_malice_watch`         | `onOffTool`, listed in `src/wiring/mcp.ts`                               |

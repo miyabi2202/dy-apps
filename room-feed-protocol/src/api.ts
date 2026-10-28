@@ -46,6 +46,21 @@ export interface ChatAnswer {
   echoed: boolean;
 }
 
+/** The longest one like may hold the key, in seconds. */
+export const MAX_LIKE_SECONDS = 60;
+
+/** `POST /api/rooms/<id>/like`'s body: how long to hold Douyin's like key (z), in seconds, up to MAX_LIKE_SECONDS. */
+export interface LikeRequest {
+  seconds: number;
+}
+
+/** `POST /api/rooms/<id>/like`: how long the key was held, and whether Douyin's 手速太快了 cut it short. */
+export interface LikeAnswer {
+  ok: true;
+  heldMs: number;
+  tooFast: boolean;
+}
+
 /** `GET /api/rooms/<id>/stream`: the FLV or HLS URL the room page's player pulls. */
 export interface StreamAnswer {
   url: string;
@@ -89,7 +104,7 @@ export function eventsUrl(port: number, roomId: string, types: readonly EventTyp
 export function roomUrl(
   port: number,
   roomId: string,
-  action?: 'chat' | 'stream' | 'screenshot',
+  action?: 'chat' | 'like' | 'stream' | 'screenshot',
 ): string {
   return `http://localhost:${port}/api/rooms/${roomId}${action ? `/${action}` : ''}`;
 }

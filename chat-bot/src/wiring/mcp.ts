@@ -5,6 +5,7 @@ import { declarativeTools } from '../mcp/declarative-tools';
 import { identifyBgmTool } from '../mcp/identify-bgm';
 import { identifySongTool } from '../mcp/identify-song';
 import { BotMcpServer } from '../mcp/server';
+import { pressLikeTool } from '../mcp/press-like';
 import { numberTool, onOffTool } from '../mcp/setting-tools';
 import { setThanksThresholdTool } from '../mcp/set-thanks-threshold';
 import { updateMemoryTool } from '../mcp/update-memory';
@@ -26,6 +27,7 @@ import {
   PACKAGE_DIR,
   PROMPT,
   ROOM,
+  ROOM_API,
   ROOM_CONFIG,
   ROOM_DIR,
   SETTINGS,
@@ -148,6 +150,7 @@ export function registerMcp(container: Container): void {
             ]
           : []),
         ...(transcriber ? [identifyBgmTool(() => transcriber.identifyMusic(), log)] : []),
+        pressLikeTool(c.resolve(ROOM_API).like, log),
         askAboutPuzzleTool({
           ask: c.resolve(ASK_SOLVE),
           settings: c.resolve(SETTINGS),
