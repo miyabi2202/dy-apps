@@ -1,4 +1,3 @@
-import { MAX_LIKE_SECONDS } from '@dy-apps/room-feed-protocol';
 import { errorMessage } from '../core/errors';
 import type { BotTool, Log, PressLike } from '../app/ports';
 
@@ -8,8 +7,8 @@ const LIKES_PER_SECOND = 20;
 const EXTRA_SECONDS = 1;
 /** How many likes it gives when no number is given. */
 const DEFAULT_LIKES = 100;
-/** The most it gives at once: as long as room-feed holds the key, less the extra second. */
-const MAX_LIKES = (MAX_LIKE_SECONDS - EXTRA_SECONDS) * LIKES_PER_SECOND;
+/** The most it gives at once: 26 s held, well within room-feed's MAX_LIKE_SECONDS. */
+const MAX_LIKES = 500;
 
 /**
  * `press_like`: gives the room some likes (100 unless told) as the bot's account, by holding

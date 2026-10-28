@@ -34,12 +34,12 @@ test('says how many it gave when 手速太快了 stopped it early', async () => 
   });
 });
 
-test('/点赞 takes a whole number of likes up to 1180, or none for 100, and says nothing', () => {
+test('/点赞 takes a whole number of likes up to 500, or none for 100, and says nothing', () => {
   const [command] = setup().tool.commands!;
   expect(command!.name).toBe('点赞');
   expect(command!.parse('')).toEqual({ args: { likes: 100 } });
   expect(command!.parse(' 300 ')).toEqual({ args: { likes: 300 } });
-  for (const bad of ['0', '1181', '2.5', '很多']) {
+  for (const bad of ['0', '501', '2.5', '很多']) {
     expect(command!.parse(bad)).toHaveProperty('usage');
   }
   expect(command!.say({ text: '{}' }, {})).toBe('');
