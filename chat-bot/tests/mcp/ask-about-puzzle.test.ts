@@ -107,10 +107,9 @@ test('a question that is not text is an error, and Codex is not asked', async ()
   expect(asked).toEqual([]);
 });
 
-test('/解题 passes what follows as the question and says nothing until the answer comes; admin-only', () => {
+test('/解题 passes what follows as the question and says nothing until the answer comes', () => {
   const { tool } = setup();
   const [command] = tool.commands!;
-  expect(tool.adminOnly).toBe(true);
   expect(command!.name).toBe('解题');
   expect(command!.parse('这题选什么')).toEqual({ args: { question: '这题选什么' } });
   expect(command!.parse('')).toEqual({ args: { question: '' } });

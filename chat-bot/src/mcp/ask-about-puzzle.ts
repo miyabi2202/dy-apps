@@ -35,7 +35,7 @@ export interface AskAboutPuzzleOptions {
  * attempt went wrong), with a fresh screenshot and the streamer's recent words, from solve.md, by
  * Codex. It only starts that: Codex takes 15 s to minutes and Claude answers one mention at a time,
  * so the tool returns at once and the bot sends Codex's answer to the asker itself when it comes.
- * Admin-only. `/解题 问题` calls it directly.
+ * Anyone may ask. `/解题 问题` calls it directly.
  */
 export function askAboutPuzzleTool(
   options: AskAboutPuzzleOptions,
@@ -93,7 +93,6 @@ export function askAboutPuzzleTool(
     name: 'ask_about_puzzle',
     description:
       '回答关于直播画面上那道题（数学、逻辑、图形推理题）的任何具体问题：答案是什么、有什么思路、提示一下但别剧透、「我这么做哪里错了」、某一步怎么算。别自己做题，调用它；它会自己截图、看主播刚说的话，做完以后由程序把答案发给提问的人，你只要回一句稍等。不是在问怎么解题的别调用：聊天、评价题目难不难、嫌题简单、让你念出屏幕上的字。',
-    adminOnly: true,
     inputSchema: {
       type: 'object',
       properties: {

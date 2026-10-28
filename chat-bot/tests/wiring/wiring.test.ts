@@ -366,7 +366,12 @@ test('the tools server starts with the bot, serves its tools (an admin the admin
   bot.workerReady();
   await started;
   const session = bot.container.resolve(MCP_SERVER).open({ asker: 'a', question: '' })!;
-  expect(session.access.tools).toEqual(['update_memory', 'identify_song', 'identify_bgm']);
+  expect(session.access.tools).toEqual([
+    'update_memory',
+    'identify_song',
+    'identify_bgm',
+    'ask_about_puzzle',
+  ]);
   const admin = bot.container.resolve(MCP_SERVER).open({ asker: 'a', question: '', admin: true })!;
   expect(admin.access.tools).toEqual(
     expect.arrayContaining(['set_thanks_threshold', 'identify_song', 'identify_bgm']),
@@ -390,12 +395,15 @@ test('a tools port that is taken stops the start', async () => {
   }
 });
 
-test('without speech, Codex or Jev the tools server still has the admin-only settings, and nothing for anyone else', async () => {
+test('without speech, Codex or Jev the tools server still has the admin-only settings, and only memory and the puzzle for anyone else', async () => {
   const bot = build(['--mcp-port', '0', '--no-asr', '--codex', ''], {});
   const app = bot.container.resolve(APP);
   await app.start();
   const server = bot.container.resolve(MCP_SERVER);
-  expect(server.open({ asker: 'a', question: '' })!.access.tools).toEqual(['update_memory']);
+  expect(server.open({ asker: 'a', question: '' })!.access.tools).toEqual([
+    'update_memory',
+    'ask_about_puzzle',
+  ]);
   expect(server.open({ asker: 'a', question: '', admin: true })!.access.tools).toEqual([
     'set_auto_reply_threshold',
     'set_auto_reply_interval',
