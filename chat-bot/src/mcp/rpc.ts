@@ -89,6 +89,7 @@ export async function handleRpc(message: RpcMessage, session: Session): Promise<
               tool: name,
               ms: session.now() - start,
               isError: settled.isError === true,
+              ...(settled.silent && { silent: true }),
             });
             return settled;
           });

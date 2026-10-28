@@ -1,5 +1,12 @@
 import { MentionAnswerer, type Mention } from '../../../src/app/replies/mention-answerer';
-import type { Admins, BotTools, Question, ToolContext, ToolSession } from '../../../src/app/ports';
+import type {
+  Admins,
+  BotTools,
+  Question,
+  ToolCall,
+  ToolContext,
+  ToolSession,
+} from '../../../src/app/ports';
 import { fakeRoom } from '../../support/fake-room';
 import { NOW, fakeOutbox, silentLog } from '../../support/fakes';
 
@@ -10,6 +17,7 @@ function setup(
     use?: string[];
     fail?: boolean;
     admins?: Admins;
+    calls?: ToolCall[];
   } = {},
 ) {
   const { outbox, sent } = fakeOutbox();
@@ -24,7 +32,7 @@ function setup(
       const session: ToolSession = {
         access: { url: 'http://127.0.0.1:1/mcp', token: 't', tools: ['identify_song'] },
         used: () => [...used],
-        calls: () => [],
+        calls: () => options.calls ?? [],
         close: () => void events.push('close'),
       };
       return session;
@@ -73,6 +81,19 @@ test('the session is closed when answering fails, and opened with a 私密 viewe
 
   expect(opened).toEqual([{ asker: '苦***', userId, question: '这是什么歌', admin: false }]);
   expect(events).toEqual(['open', 'close']);
+  expect(sent).toEqual([]);
+});
+
+test('after a tool with a silent result (likes) the bot sends nothing, whatever Claude says', async () => {
+  const { ask, sent } = setup({
+    answer: JSON.stringify({
+      message: '100个赞已送达',
+      others: [{ to: '小红', message: '点好了' }],
+    }),
+    calls: [{ tool: 'press_like', ms: 6000, isError: false, silent: true }],
+  });
+  await ask({ asker: '雅', question: '帮主播点点赞' });
+
   expect(sent).toEqual([]);
 });
 

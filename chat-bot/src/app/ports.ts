@@ -141,6 +141,8 @@ export interface ToolContext {
 export interface ToolResult {
   text: string;
   isError?: boolean;
+  /** The bot says nothing more to this question, whatever Claude answers (press_like's likes). */
+  silent?: true;
 }
 
 /** A `/` command that calls a tool directly, with no model, as `@机器人/自动谢礼 100` does. */
@@ -184,6 +186,8 @@ export interface ToolCall {
   tool: string;
   ms: number;
   isError: boolean;
+  /** Its result was silent: the answer isn't sent. */
+  silent?: true;
 }
 
 /** One question's tools, open until `close()`. */

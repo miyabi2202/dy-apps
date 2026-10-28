@@ -238,6 +238,14 @@ export class MentionAnswerer {
         ...(mention.unprompted && { unprompted: mention.unprompted }),
         ...(calls.length && { tools: calls }),
       });
+      // A tool that did what was asked, to be done in silence (likes), has the last word: nothing.
+      if (calls.some((call) => call.silent)) {
+        log.info('silent after a tool', {
+          asker: mention.asker,
+          tools: calls.filter((call) => call.silent).map((call) => call.tool),
+        });
+        return;
+      }
       const answer = parseMentionAnswer(raw).message;
       // Each of the others gets a message of their own, after the asker's. An answer may have
       // them (「跟杨叔打个招呼」), and then says nothing to the asker.

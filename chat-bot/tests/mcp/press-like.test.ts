@@ -16,7 +16,11 @@ function setup(cutMs = Infinity) {
 
 test('holds the key a second for every 20 likes and one more, 100 likes unless told, and says how many it gave', async () => {
   const { tool, held } = setup();
-  expect(JSON.parse((await tool.call({ likes: 40 }, context)).text)).toEqual({
+  const result = await tool.call({ likes: 40 }, context);
+  // Silent: the bot sends nothing back, and Claude is told the program has answered.
+  expect(result.silent).toBe(true);
+  expect(JSON.parse(result.text)).toEqual({
+    sent: true,
     asked: 40,
     liked: 40,
     stoppedByTooFast: false,
@@ -28,6 +32,7 @@ test('holds the key a second for every 20 likes and one more, 100 likes unless t
 test('says how many it gave when 手速太快了 stopped it early', async () => {
   const { tool } = setup(2500);
   expect(JSON.parse((await tool.call({ likes: 100 }, context)).text)).toEqual({
+    sent: true,
     asked: 100,
     liked: 30,
     stoppedByTooFast: true,
