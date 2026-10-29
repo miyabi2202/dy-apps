@@ -452,7 +452,8 @@ class LivePage implements RoomPage {
    * turns with 「今日任务」; when the streamer isn't followed yet, 「关注」 shows in its place and is
    * clicked first. Then the panel is opened, up to FANS_PANEL_TRIES times (see tryFansPanel): a
    * 「我知道了」 notice that doesn't go away when clicked can keep it from the 灯牌, and a panel
-   * opened again may not show it. It joins the 粉丝团 at most once, over all the tries.
+   * opened again may not show it. Joining the 粉丝团 closes the panel, so it's opened again at once,
+   * and that opening isn't counted as a try; it joins at most once.
    */
   async sendFansLamp(): Promise<'sent' | 'already'> {
     await this.closeFansPanel();
@@ -464,9 +465,11 @@ class LivePage implements RoomPage {
       .filter({ has: this.page.locator('[filter*="fansIconBg"]') })
       .first();
     const state = { joined: false };
-    for (let i = 0; i < FANS_PANEL_TRIES; i++) {
+    for (let tries = 0; tries < FANS_PANEL_TRIES;) {
       const result = await this.tryFansPanel(fans, state);
+      if (result === 'joined') continue;
       if (result) return result;
+      tries++;
     }
     throw new Error('粉丝团面板里没找到送灯牌');
   }
@@ -474,16 +477,16 @@ class LivePage implements RoomPage {
   /**
    * Opens the 粉丝团 panel once, for FANS_PANEL_MS at most. The panel (Lynx, in a frame of its own)
    * may open on a 「我知道了」 notice, closed whenever it shows; to a viewer not in the 粉丝团 yet it
-   * offers FANS_JOIN_BUTTON (1 diamond), clicked unless `state.joined`; then it has
-   * FANS_LAMP_BUTTON to click, or FANS_LAMP_SENT when today's is already sent (`sent` if it was
-   * joining that sent it). Null when it showed neither in time. The panel is closed afterwards, by
+   * offers FANS_JOIN_BUTTON (1 diamond), clicked unless `state.joined`, which closes the panel
+   * (`joined`); then it has FANS_LAMP_BUTTON to click, or FANS_LAMP_SENT when today's is already
+   * sent (`sent` if it was joining that sent it). Null when it showed neither in time. The panel is closed afterwards, by
    * its ×: Escape doesn't close it, and a panel left open would make the next click on 粉丝团
    * close it instead.
    */
   private async tryFansPanel(
     fans: Locator,
     state: { joined: boolean },
-  ): Promise<'sent' | 'already' | null> {
+  ): Promise<'sent' | 'already' | 'joined' | null> {
     await fans.click({ timeout: 15_000 });
     try {
       const until = Date.now() + FANS_PANEL_MS;
@@ -502,7 +505,7 @@ class LivePage implements RoomPage {
           if (!state.joined && (await join.count().catch(() => 0))) {
             await join.first().click();
             state.joined = true;
-            continue;
+            return 'joined';
           }
           const send = frame.locator('x-text').filter({ hasText: FANS_LAMP_BUTTON });
           if (await send.count().catch(() => 0)) {
