@@ -78,6 +78,8 @@ export class Room {
   private failures = 0;
   private cancelTimer: Cancel | null = null;
   private stopped = false;
+  /** Set when the room has ended or shown another room: the gone listeners have been told. */
+  private ended = false;
   private readonly seen = new RecentIds(200_000);
   private readonly eventListeners = new Set<(event: RoomEvent) => void>();
   private readonly statusListeners = new Set<(status: RoomStatus) => void>();
@@ -246,7 +248,13 @@ export class Room {
     this.cancelTimer = this.schedule(() => void this.connect(), delay);
   }
 
+  /**
+   * Stops the room for good and tells the gone listeners, once: whatever else says the room is
+   * over after that (a stream end and a wrong-room message together) is told to no one twice.
+   */
   private async end(why: string, reason: RoomGoneReason): Promise<void> {
+    if (this.ended) return;
+    this.ended = true;
     this.log(`[room-feed] ${why}，不再重新打开直播间`);
     await this.stop();
     for (const listener of this.goneListeners) listener(why, reason);

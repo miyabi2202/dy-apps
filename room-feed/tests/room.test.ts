@@ -1,6 +1,6 @@
 import protobuf from 'protobufjs';
 import type { RawProtoMessage } from '../src/douyin/proto';
-import type { RoomEvent, RoomStatus } from '@dy-apps/room-feed-protocol';
+import type { RoomEvent, RoomGoneReason, RoomStatus } from '@dy-apps/room-feed-protocol';
 import { RoomEndedError, RoomError } from '../src/errors';
 import { Room } from '../src/room';
 import type { RoomPage, RoomPageHandlers } from '../src/room-page';
@@ -221,6 +221,21 @@ describe('Room', () => {
     expect(statuses).toEqual(['live']);
     await clock.advance(10 * 60_000);
     expect(pages).toHaveLength(1);
+  });
+
+  it('tells the gone listeners once, whatever else says the room is over after', async () => {
+    const { clock, pages, room, gone, log } = setup();
+    room.start();
+    await clock.advance(0);
+    pages[0]!.handlers.onPush([]);
+    pages[0]!.handlers.onWrongRoom('收到了别的直播间的弹幕');
+    // The handlers go quiet once the room has stopped, so the second word is told to `end` itself.
+    const ending = room as unknown as { end(why: string, reason: RoomGoneReason): Promise<void> };
+    await ending.end('直播已结束', 'ended');
+    await clock.advance(0);
+
+    expect(gone).toEqual(['wrongRoom']);
+    expect(log.filter((line) => line.includes('不再重新打开直播间'))).toHaveLength(1);
   });
 
   it('ignores an old page once it has been replaced', async () => {
