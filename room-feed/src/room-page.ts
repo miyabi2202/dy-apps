@@ -11,6 +11,21 @@ import {
   type Entered,
 } from './douyin/enter-answer';
 import type { FansLampAnswer, LikeAnswer, RoomMeta } from '@dy-apps/room-feed-protocol';
+import {
+  CHAT_INPUT,
+  CLOSE_ICON,
+  FANS_ICON,
+  FANS_JOIN_BUTTON,
+  FANS_LAMP_BUTTON,
+  FANS_LAMP_SENT,
+  FOLLOW_BUTTON,
+  NOTICE_OK_TEXT,
+  PANEL_TEXT,
+  PLAYER_CLICK,
+  RIGHT_PANEL_CLOSE_SVG,
+  ROOM_INFO_BAR,
+  VIEWPORT,
+} from './douyin/page-map';
 import { parseRoomMeta } from './douyin/room-meta';
 import { LikeTally } from './like-tally';
 import { browserCookies } from './login-file';
@@ -55,9 +70,6 @@ export interface RoomPage {
 
 export type OpenRoomPage = (roomId: string, handlers: RoomPageHandlers) => Promise<RoomPage>;
 
-/** The chat box: Douyin's Slate editor, found by attributes that survive its class-name hashing. */
-const CHAT_INPUT = '[data-e2e="live-chatting"] [data-slate-editor="true"][contenteditable="true"]';
-
 /** How often a held key sends keydown again, about as often as a held key repeats. */
 const LIKE_REPEAT_MS = 100;
 /** How many likes a second of holding gives, as measured on 2026-10-29: for when the counter doesn't show. */
@@ -73,13 +85,6 @@ const CLICK_PAUSE_JITTER_MS = 1000;
 const FANS_PANEL_MS = 20_000;
 /** How many times the panel is opened before giving up: a fresh one may not be stuck on a notice. */
 const FANS_PANEL_TRIES = 2;
-/** The 粉丝团 panel's button that sends the 灯牌 (its words differ between accounts). */
-const FANS_LAMP_BUTTON = /^(送灯牌|送出粉丝灯牌)$/;
-/** The panel's button for joining the 粉丝团 (1 diamond), shown instead of the 灯牌 to a viewer not in it yet. */
-const FANS_JOIN_BUTTON = /^加入粉丝团$/;
-/** The panel's line once today's 灯牌 is sent: 「今日第7位送灯牌，连续3天」. */
-const FANS_LAMP_SENT = /今日第\d+位送灯牌/;
-
 /** Whether the 粉丝团 panel in `frame` says today's 灯牌 is sent. */
 async function sentLamp(frame: Frame): Promise<boolean> {
   return (
@@ -114,7 +119,7 @@ export class ChromeRooms {
     const browser = await this.launch();
     const context = await browser.newContext({
       userAgent: USER_AGENT,
-      viewport: { width: 1440, height: 900 },
+      viewport: VIEWPORT,
       locale: 'zh-CN',
     });
     try {
@@ -197,7 +202,7 @@ class LivePage implements RoomPage {
     }
     await page.waitForTimeout(2500);
     // A headless player starts, and the chat socket opens, only after a click.
-    await page.mouse.click(720, 450).catch(() => {});
+    await page.mouse.click(PLAYER_CLICK.x, PLAYER_CLICK.y).catch(() => {});
     await live.checkLive();
     return live;
   }
@@ -419,11 +424,11 @@ class LivePage implements RoomPage {
    */
   async sendFansLamp(): Promise<FansLampAnswer['result']> {
     await this.closeFansPanel();
-    const bar = this.page.locator('#room_info_bar');
+    const bar = this.page.locator(ROOM_INFO_BAR);
     await this.followStreamer(bar);
     const fans = bar
       .locator('button')
-      .filter({ has: this.page.locator('[filter*="fansIconBg"]') })
+      .filter({ has: this.page.locator(FANS_ICON) })
       .first();
     await this.joinFansClub(fans);
     return this.sendLamp(fans);
@@ -431,7 +436,7 @@ class LivePage implements RoomPage {
 
   /** Step 1: clicks the header's 「关注」, which shows only while the streamer isn't followed. */
   private async followStreamer(bar: Locator): Promise<void> {
-    const follow = bar.locator('button').filter({ hasText: /^关注/ }).first();
+    const follow = bar.locator('button').filter({ hasText: FOLLOW_BUTTON }).first();
     if (!(await follow.isVisible().catch(() => false))) return;
     await this.pauseBeforeClick();
     await follow.click();
@@ -444,7 +449,7 @@ class LivePage implements RoomPage {
    */
   private async joinFansClub(fans: Locator): Promise<void> {
     await this.inFansPanel(fans, async (frame) => {
-      const join = frame.locator('x-text').filter({ hasText: FANS_JOIN_BUTTON });
+      const join = frame.locator(PANEL_TEXT).filter({ hasText: FANS_JOIN_BUTTON });
       if (await join.count().catch(() => 0)) {
         await this.pauseBeforeClick();
         await join.first().click();
@@ -463,7 +468,7 @@ class LivePage implements RoomPage {
     for (let i = 0; i < FANS_PANEL_TRIES; i++) {
       const result = await this.inFansPanel(fans, async (frame) => {
         if (await sentLamp(frame)) return 'already' as const;
-        const send = frame.locator('x-text').filter({ hasText: FANS_LAMP_BUTTON });
+        const send = frame.locator(PANEL_TEXT).filter({ hasText: FANS_LAMP_BUTTON });
         if (!(await send.count().catch(() => 0))) return null;
         await this.pauseBeforeClick();
         await send.first().click();
@@ -476,7 +481,7 @@ class LivePage implements RoomPage {
 
   /** Whether the panel shows the 灯牌: its button, or that today's is sent. */
   private async showsLamp(frame: Frame): Promise<boolean> {
-    const send = frame.locator('x-text').filter({ hasText: FANS_LAMP_BUTTON });
+    const send = frame.locator(PANEL_TEXT).filter({ hasText: FANS_LAMP_BUTTON });
     return (await send.count().catch(() => 0)) > 0 || sentLamp(frame);
   }
 
@@ -498,7 +503,7 @@ class LivePage implements RoomPage {
       while (Date.now() < until) {
         await this.page.waitForTimeout(500);
         for (const frame of this.page.frames()) {
-          const notice = frame.getByText('我知道了', { exact: true });
+          const notice = frame.getByText(NOTICE_OK_TEXT, { exact: true });
           if (await notice.count().catch(() => 0)) {
             await this.pauseBeforeClick();
             await notice
@@ -528,8 +533,8 @@ class LivePage implements RoomPage {
   /** Clicks the × of the panel on the right (the 粉丝团 one, among others), if one is open. */
   private async closeFansPanel(): Promise<void> {
     const close = this.page
-      .locator('#__living_right_panel_id svg')
-      .filter({ has: this.page.locator('[filter*="close_svg"]') })
+      .locator(RIGHT_PANEL_CLOSE_SVG)
+      .filter({ has: this.page.locator(CLOSE_ICON) })
       .first();
     if (await close.isVisible().catch(() => false)) await close.click().catch(() => {});
   }
