@@ -7,7 +7,7 @@ import type { RoomMeta } from '@dy-apps/room-feed-protocol';
 import { parseRoomMeta } from './douyin/room-meta';
 import { LikeTally } from './like-tally';
 import { browserCookies } from './login-file';
-import { RoomEndedError } from './room';
+import { PageActionError, RoomEndedError } from './errors';
 
 /** What a room page tells the Room. */
 export interface RoomPageHandlers {
@@ -336,9 +336,9 @@ class LivePage implements RoomPage {
     try {
       await this.tryTypeChat(text);
     } catch (e) {
-      const shot = await this.saveShot('chat-failed').catch(() => null);
+      const screenshot = await this.saveShot('chat-failed').catch(() => null);
       const message = e instanceof Error ? e.message : String(e);
-      throw new Error(shot ? `${message}\n截图：${shot}` : message, { cause: e });
+      throw new PageActionError(message, { screenshot, cause: e });
     }
   }
 
@@ -347,7 +347,7 @@ class LivePage implements RoomPage {
     try {
       await input.waitFor({ state: 'visible', timeout: 5000 });
     } catch {
-      throw new Error('找不到弹幕输入框（没有登录、被禁言，或者抖音改版了）');
+      throw new PageActionError('找不到弹幕输入框（没有登录、被禁言，或者抖音改版了）');
     }
     // A popup's mask can cover the box and take the click: a viewer's card, opened when the click
     // that starts the player lands on a streamer's tile in a PK. Typing needs only the focus.
@@ -362,7 +362,7 @@ class LivePage implements RoomPage {
     await this.page.waitForTimeout(500);
     if (await this.chatInputText()) {
       await this.clearChatInput().catch(() => {});
-      throw new Error('回车后输入框没有清空，弹幕可能没有发出（风控、要验证或字数超了）');
+      throw new PageActionError('回车后输入框没有清空，弹幕可能没有发出（风控、要验证或字数超了）');
     }
   }
 
@@ -400,7 +400,7 @@ class LivePage implements RoomPage {
         for (let i = 0; i < [...left].length + 5; i++) await keyboard.press('Backspace');
       }
     }
-    if (await this.chatInputText()) throw new Error('输入框里有删不掉的文字，没有发送');
+    if (await this.chatInputText()) throw new PageActionError('输入框里有删不掉的文字，没有发送');
   }
 
   /** Just the player: the page's largest video, else its largest canvas, else the whole page. */
@@ -529,7 +529,7 @@ class LivePage implements RoomPage {
       });
       if (result) return result;
     }
-    throw new Error('粉丝团面板里没找到送灯牌');
+    throw new PageActionError('粉丝团面板里没找到送灯牌');
   }
 
   /** Whether the panel shows the 灯牌: its button, or that today's is sent. */

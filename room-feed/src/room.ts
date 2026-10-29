@@ -7,20 +7,8 @@ import type {
   RoomMeta,
   RoomStatus,
 } from '@dy-apps/room-feed-protocol';
+import { RoomEndedError, RoomError } from './errors';
 import type { OpenRoomPage, RoomPage } from './room-page';
-
-/** A request the room can't do now, with the HTTP status to answer it with. */
-export class RoomError extends Error {
-  constructor(
-    message: string,
-    readonly statusCode: number,
-  ) {
-    super(message);
-  }
-}
-
-/** What a room page's open throws when the stream has ended (or not started): nothing to wait for. */
-export class RoomEndedError extends Error {}
 
 /** Cancels what `schedule` set up. */
 type Cancel = () => void;

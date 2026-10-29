@@ -14,7 +14,8 @@ import {
   type StreamAnswer,
 } from '@dy-apps/room-feed-protocol';
 import type { SavedLogin } from './login-file';
-import { RoomError, type Room } from './room';
+import { httpStatusOf } from './errors';
+import type { Room } from './room';
 
 export type ServedRoom = Pick<
   Room,
@@ -155,8 +156,7 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
           return sendJson(res, 405, { error: `不支持 ${req.method} ${url.pathname}` });
       }
     } catch (e) {
-      const status = e instanceof RoomError ? e.statusCode : 500;
-      return sendJson(res, status, { error: errorMessage(e) });
+      return sendJson(res, httpStatusOf(e), { error: errorMessage(e) });
     }
   }
 

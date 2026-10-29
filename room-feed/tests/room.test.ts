@@ -1,7 +1,8 @@
 import protobuf from 'protobufjs';
 import type { RawProtoMessage } from '../src/douyin/proto';
 import type { RoomEvent, RoomStatus } from '@dy-apps/room-feed-protocol';
-import { Room, RoomEndedError, RoomError } from '../src/room';
+import { RoomEndedError, RoomError } from '../src/errors';
+import { Room } from '../src/room';
 import type { RoomPage, RoomPageHandlers } from '../src/room-page';
 
 /** A clock that runs scheduled callbacks only when told to. */
