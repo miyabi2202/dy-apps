@@ -41,6 +41,12 @@ connects to it (src/adapters/asr-worker.ts); stop it with Ctrl+C or `pkill -f "t
 The bot can stop it too, by writing `{"quit": true}`: it does when room-feed has gone (the stream
 ended), as it exits itself.
 
+Before the URL, the bot may write `{"singing_voices": "<folder>"}`: a room's singing-voices/ folder,
+clips of the streamer singing live (any audio ffmpeg reads). Their sung sentences, cut as the
+stream's are, make the streamer's singing voice for good (see VoiceSet.pin): without it, the first
+voice heard singing is taken for hers, and a recording she plays first would be. It takes about
+20 s for 10 minutes of clips, the stream waiting meanwhile, and is kept for the next connection.
+
 The bot can also ask what music is playing, by writing `{"music_id": 1}` (any id) as a line to
 stdin: the worker looks up the last 15 s with Shazam (shazamio: the fingerprint is worked out
 here, and only it is sent) and prints `{"music_id": 1, "title": "…", "artist": "…"}`, with both
@@ -327,7 +333,8 @@ class VoiceSet:
     Voices told apart as they come: each voiceprint joins the closest voice heard so far if it's
     close enough (moving that voice's average towards it), or starts a new voice. The streamer is
     the first voice heard, until another has been heard for more than twice as long: a guest heard
-    first is soon corrected, but an even back-and-forth doesn't keep swapping who's who.
+    first is soon corrected, but an even back-and-forth doesn't keep swapping who's who. A voice
+    `pin`ned (a room's saved one) is the streamer's for good instead.
     """
 
     def __init__(self, same_voice: float, new_id):
@@ -337,6 +344,16 @@ class VoiceSet:
         self.seconds: list[float] = []
         self.ids: list[int] = []
         self.host: int | None = None
+        self.pinned = False
+
+    def pin(self, voiceprint: np.ndarray, seconds: float) -> None:
+        """
+        Makes `voiceprint` the streamer's for good (a room's saved voice): the voices heard so far
+        are forgotten, the lines that match it don't move it, and no other voice takes its place,
+        however long it's heard.
+        """
+        self.centroids, self.seconds, self.ids = [voiceprint], [seconds], [self.new_id()]
+        self.host, self.pinned = 0, True
 
     def add(self, voiceprint: np.ndarray, seconds: float) -> tuple[int, bool, float | None]:
         """Which voice `voiceprint` is (its number), whether it's the streamer's, and how close."""
@@ -348,12 +365,13 @@ class VoiceSet:
             self.ids.append(self.new_id())
             voice, similarity = len(self.centroids) - 1, None
         else:
-            weight = self.seconds[best]
-            centroid = self.centroids[best] * weight + voiceprint * seconds
-            self.centroids[best] = centroid / np.linalg.norm(centroid)
+            if not (self.pinned and best == self.host):
+                weight = self.seconds[best]
+                centroid = self.centroids[best] * weight + voiceprint * seconds
+                self.centroids[best] = centroid / np.linalg.norm(centroid)
             self.seconds[best] += seconds
             voice, similarity = best, round(similarities[best], 2)
-        if self.host is None or self.seconds[voice] > 2 * self.seconds[self.host]:
+        if not self.pinned and (self.host is None or self.seconds[voice] > 2 * self.seconds[self.host]):
             self.host = voice
         return self.ids[voice], voice == self.host, similarity
 
@@ -421,6 +439,77 @@ class Voices:
             return None, None, None
         voiceprint = self.voiceprint(audio)
         return (self.singing if is_sung(speech, lang) else self.talking).add(voiceprint, seconds)
+
+    def pin_singing(self, voiceprint: np.ndarray, seconds: float) -> None:
+        """Makes `voiceprint` the streamer's singing voice for good (see VoiceSet.pin)."""
+        self.singing.pin(voiceprint, seconds)
+
+
+# The clips a room's singing-voices/ folder may hold.
+AUDIO_FILES = (".aac", ".m4a", ".mp3", ".wav", ".flac", ".ogg")
+
+
+def read_audio(path: str) -> np.ndarray:
+    """A whole audio file, as the stream is read: mono, RATE, floats."""
+    pcm = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
+                         check=True, capture_output=True).stdout
+    return np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768
+
+
+def saved_voice(folder: str, vad, classify, voiceprint) -> tuple[np.ndarray, float, int] | None:
+    """
+    The streamer's singing voice from the clips in `folder` (a room's singing-voices/, of her
+    singing live): each clip cut into sentences as the stream is (`vad`), and the sung ones
+    (is_sung, by `classify`'s speech score) that are long enough voiceprinted and averaged by
+    length. Its voiceprint, the seconds sung and the sentences used; None without any.
+    """
+    total = np.zeros(0)
+    seconds, used = 0.0, 0
+    for name in sorted(os.listdir(folder)):
+        if not name.lower().endswith(AUDIO_FILES):
+            continue
+        audio = read_audio(os.path.join(folder, name))
+        with contextlib.redirect_stdout(sys.stderr):
+            segments = vad.generate(input=audio, disable_pbar=True)[0]["value"]
+        for beg, end in segments:
+            clip = audio[beg * RATE // 1000 : end * RATE // 1000]
+            length = len(clip) / RATE
+            if length < MIN_VOICE_SECONDS:
+                continue
+            speech, _ = classify(clip)
+            if not is_sung(speech, None):
+                continue
+            weighted = voiceprint(clip) * length
+            total = weighted if not len(total) else total + weighted
+            seconds, used = seconds + length, used + 1
+    if not used:
+        return None
+    return total / np.linalg.norm(total), seconds, used
+
+
+# What saved_voice found, by folder and its files (name, size, time), so a bot reconnecting to the
+# same room doesn't wait for it again.
+saved_voices: dict = {}
+
+
+def load_singing_voices(folder: str, models: tuple) -> None:
+    """Pins the streamer's singing voice from a room's singing-voices/ folder (see saved_voice)."""
+    vad, _, _, _, classify, voices, _ = models
+    try:
+        files = tuple((e.name, e.stat().st_size, e.stat().st_mtime) for e in sorted(os.scandir(folder), key=lambda e: e.name))
+        key = (folder, files)
+        if key not in saved_voices:
+            saved_voices[key] = saved_voice(folder, vad, classify, voices.voiceprint)
+    except (OSError, subprocess.CalledProcessError) as err:
+        log(f"could not read the saved singing voices in {folder}: {err}")
+        return
+    found = saved_voices[key]
+    if found is None:
+        log(f"no sung sentence in {folder}; the first voice to sing is taken for the streamer's")
+        return
+    voiceprint, seconds, used = found
+    voices.pin_singing(voiceprint, seconds)
+    log(f"the streamer's singing voice is the one saved in {folder} ({used} sung sentences, {seconds:.0f} s)")
 
 
 def is_sung(speech: float, lang: str | None) -> bool:
@@ -759,10 +848,13 @@ class Stream:
                     self.ffmpeg.kill()
 
 
-def read_requests(lines, urls: queue.Queue, music: queue.Queue, stream: Stream) -> None:
+def read_requests(lines, urls: queue.Queue, music: queue.Queue, stream: Stream,
+                  singing_voices=lambda folder: None) -> None:
     """
     Reads the bot's `lines` (stdin, or its connection): `{"url": …}` (stop the stream being
     listened to, if any, and listen to this one) goes to `urls`, `{"music_id": …}` to `music`;
+    `{"singing_voices": "<folder>"}` (the room's saved singing voice, sent before the URL) is
+    loaded right here (`singing_voices`), so no stream starts until it's in;
     `{"quit": true}` ends the whole process, `--serve` or not. When
     they end (the bot is gone), puts None on both and stops the stream, so the session ends.
     """
@@ -773,6 +865,8 @@ def read_requests(lines, urls: queue.Queue, music: queue.Queue, stream: Stream) 
                 if "url" in message:
                     urls.put(str(message["url"]))
                     stream.stop()
+                elif "singing_voices" in message:
+                    singing_voices(str(message["singing_voices"]))
                 elif message.get("quit"):
                     # The room's stream is over and the bot is leaving: the service goes too.
                     log("the bot asked the service to quit")
@@ -950,7 +1044,8 @@ def session(lines, models: tuple, recent: collections.deque, realtime: bool,
     urls: queue.Queue = queue.Queue()
     music: queue.Queue = queue.Queue()
     stream = Stream()
-    threading.Thread(target=read_requests, args=(lines, urls, music, stream), daemon=True).start()
+    load = lambda folder: load_singing_voices(folder, models)  # noqa: E731
+    threading.Thread(target=read_requests, args=(lines, urls, music, stream, load), daemon=True).start()
     threading.Thread(target=answer_music_requests, args=(music, recent), daemon=True).start()
     print_line({"ready": True})
     while (url := urls.get()) is not None:

@@ -14,14 +14,17 @@ function fakeWorker(
   onLine: (line: string) => void,
   hear: (url: string) => string[],
   answerMusic: (id: number) => object | undefined = () => undefined,
-): Worker & { urls: string[] } {
+): Worker & { urls: string[]; requests: string[] } {
   let exit: (code: number | null) => void = () => {};
   const urls: string[] = [];
+  const requests: string[] = [];
   void Promise.resolve().then(() => onLine(JSON.stringify({ ready: true })));
   return {
     urls,
+    requests,
     kill: () => exit(null),
     send: (line) => {
+      requests.push(line);
       const request = JSON.parse(line) as { url?: string; music_id?: number };
       if (request.url !== undefined) {
         urls.push(request.url);
@@ -147,6 +150,28 @@ test('is ready once the models load, before any stream; and starts a worker that
   while (spawned < 2) await new Promise((resolve) => setTimeout(resolve, 0));
   transcriber.stop();
   await running;
+});
+
+test("gives each worker the room's saved singing voice before its first stream, when there is one", async () => {
+  for (const folder of ['/data/1/singing-voices', null]) {
+    let worker: ReturnType<typeof fakeWorker> | undefined;
+    const transcriber = new Transcriber({
+      streamUrl: () => Promise.resolve('url-1'),
+      bus: fakeBus(),
+      transcript: new Transcript(),
+      log: silentLog,
+      spawnWorker: ({ onLine }) => (worker = fakeWorker(onLine, () => [])),
+      singingVoices: () => folder,
+      sleep: () => new Promise((resolve) => setTimeout(resolve, 0)),
+    });
+    const running = transcriber.run();
+    while (!worker?.urls.length) await new Promise((resolve) => setTimeout(resolve, 0));
+    transcriber.stop();
+    await running;
+    expect(worker.requests[0]).toBe(
+      folder ? JSON.stringify({ singing_voices: folder }) : JSON.stringify({ url: 'url-1' }),
+    );
+  }
 });
 
 test('stopping with quitService asks the speech service to exit before disconnecting', async () => {

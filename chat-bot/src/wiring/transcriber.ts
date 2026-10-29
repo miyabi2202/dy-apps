@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { Transcriber } from '../app/songs/transcriber';
 import type { Container } from './container';
 import {
@@ -6,6 +8,7 @@ import {
   OPTIONS,
   RECORD,
   ROOM_API,
+  ROOM_DIR,
   SINGING,
   SPAWN_WORKER,
   TRANSCRIBER,
@@ -24,6 +27,10 @@ export function registerTranscriber(container: Container): void {
           singing: c.resolve(SINGING),
           log: c.resolve(LOG),
           spawnWorker: c.resolve(SPAWN_WORKER),
+          singingVoices: () => {
+            const folder = join(c.resolve(ROOM_DIR), 'singing-voices');
+            return existsSync(folder) ? folder : null;
+          },
         })
       : null,
   );
