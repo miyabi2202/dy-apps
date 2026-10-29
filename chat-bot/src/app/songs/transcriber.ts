@@ -21,11 +21,11 @@ export interface TranscriberOptions {
   log: Log;
   spawnWorker: SpawnWorker;
   /**
-   * The room's singing-voices/ folder (clips of the streamer singing live), or null when it has
-   * none: given to each worker before its first stream, which then takes that voice for the
-   * streamer's singing, not the first voice it hears sing.
+   * The room's saved singing voice (singing-voices/voiceprint.npz), or null when it has none:
+   * given to each worker before its first stream, which then takes that voice for the streamer's
+   * singing, not the first voice it hears sing.
    */
-  singingVoices?: () => string | null;
+  singingVoice?: () => string | null;
   /**
    * Wait this long before asking for the stream again when it isn't there, ended soon after it
    * started, or the worker stopped.
@@ -169,10 +169,10 @@ export class Transcriber {
   private async listen(worker: Worker, gone: Promise<'gone'>): Promise<void> {
     const { log } = this.options;
     this.markReady();
-    const singingVoices = this.options.singingVoices?.();
-    if (singingVoices) {
-      log.info('saved singing voice', { folder: singingVoices });
-      worker.send(JSON.stringify({ singing_voices: singingVoices }));
+    const singingVoice = this.options.singingVoice?.();
+    if (singingVoice) {
+      log.info('saved singing voice', { path: singingVoice });
+      worker.send(JSON.stringify({ singing_voice: singingVoice }));
     }
     while (!this.stopped) {
       const url = await this.options.streamUrl().catch((err: unknown) => {

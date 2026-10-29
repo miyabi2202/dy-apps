@@ -41,13 +41,12 @@ connects to it (src/adapters/asr-worker.ts); stop it with Ctrl+C or `pkill -f "t
 The bot can stop it too, by writing `{"quit": true}`: it does when room-feed has gone (the stream
 ended), as it exits itself.
 
-Before the URL, the bot may write `{"singing_voices": "<folder>"}`: a room's singing-voices/ folder,
-clips of the streamer singing live (any audio ffmpeg reads). Their sung sentences, cut as the
-stream's are, make the streamer's singing voice for good (see VoiceSet.pin): without it, the first
-voice heard singing is taken for hers, and a recording she plays first would be. Working it out
-takes about 20 s for 10 minutes of clips, the stream waiting meanwhile, so it's kept in the
-folder (voiceprint.npz) and read from there at once, without the clips, after that: delete it to
-work the voice out again from new clips.
+Before the URL, the bot may write `{"singing_voice": "<path>"}`: a room's saved singing voice,
+`singing-voices/voiceprint.npz`, which is then the streamer's singing voice for good (see
+VoiceSet.pin); without one, the first voice heard singing is taken for hers, and a recording she
+plays first would be. It's made on demand, never by the service: `--save-singing-voice FOLDER`
+works it out from the clips of her singing live in FOLDER (any audio ffmpeg reads), their sung
+sentences cut as the stream's are (about 20 s for 10 minutes of clips), writes it there and exits.
 
 The bot can also ask what music is playing, by writing `{"music_id": 1}` (any id) as a line to
 stdin: the worker looks up the last 15 s with Shazam (shazamio: the fingerprint is worked out
@@ -489,41 +488,42 @@ def saved_voice(folder: str, vad, classify, voiceprint) -> tuple[np.ndarray, flo
     return total / np.linalg.norm(total), seconds, used
 
 
-# Where load_singing_voices keeps what saved_voice found, in the clips' folder, so it's worked out
-# once, not each time the service starts (about 20 s for 10 minutes of clips, unheard meanwhile);
-# once it's there the clips aren't needed.
+# The streamer's saved singing voice, in a room's singing-voices/ folder: made on demand from the
+# clips there (`--save-singing-voice`, see save_singing_voice), never by the service.
 SAVED_VOICE_FILE = "voiceprint.npz"
 
 
-def load_singing_voices(folder: str, models: tuple) -> None:
+def save_singing_voice(folder: str, vad, classify, voiceprint) -> str | None:
     """
-    Pins the streamer's singing voice from a room's singing-voices/ folder: from its
-    SAVED_VOICE_FILE when there is one, without looking at the clips; else worked out from the
-    clips (see saved_voice) and written there. Delete that file to work it out again from new clips.
+    Works out the streamer's singing voice from the clips in `folder` (see saved_voice) and writes
+    it there as SAVED_VOICE_FILE, replacing the one there was; its path, or None when no clip had a
+    sung sentence (nothing written).
     """
-    vad, _, _, _, classify, voices, _ = models
-    cache = os.path.join(folder, SAVED_VOICE_FILE)
-    try:
-        found = None
-        if os.path.exists(cache):
-            with np.load(cache) as saved:
-                found = saved["voiceprint"], float(saved["seconds"]), int(saved["used"])
-        else:
-            found = saved_voice(folder, vad, classify, voices.voiceprint)
-            if found is not None:
-                voiceprint, seconds, used = found
-                with open(f"{cache}.tmp", "wb") as out:
-                    np.savez(out, voiceprint=voiceprint, seconds=seconds, used=used)
-                os.replace(f"{cache}.tmp", cache)
-    except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as err:
-        log(f"could not read the saved singing voices in {folder}: {err}")
-        return
+    found = saved_voice(folder, vad, classify, voiceprint)
     if found is None:
-        log(f"no sung sentence in {folder}; the first voice to sing is taken for the streamer's")
-        return
+        return None
     voiceprint, seconds, used = found
+    path = os.path.join(folder, SAVED_VOICE_FILE)
+    with open(f"{path}.tmp", "wb") as out:
+        np.savez(out, voiceprint=voiceprint, seconds=seconds, used=used)
+    os.replace(f"{path}.tmp", path)
+    log(f"saved the streamer's singing voice to {path} ({used} sung sentences, {seconds:.0f} s)")
+    return path
+
+
+def load_singing_voice(path: str, voices: "Voices") -> None:
+    """
+    Pins the streamer's singing voice to the one saved at `path` (a SAVED_VOICE_FILE); one that
+    can't be read leaves the first voice to sing taken for hers.
+    """
+    try:
+        with np.load(path) as saved:
+            voiceprint, seconds, used = saved["voiceprint"], float(saved["seconds"]), int(saved["used"])
+    except (OSError, ValueError, KeyError) as err:
+        log(f"could not read the saved singing voice {path} ({err}); the first voice to sing is taken for the streamer's")
+        return
     voices.pin_singing(voiceprint, seconds)
-    log(f"the streamer's singing voice is the one saved in {folder} ({used} sung sentences, {seconds:.0f} s)")
+    log(f"the streamer's singing voice is the one saved in {path} ({used} sung sentences, {seconds:.0f} s)")
 
 
 def is_sung(speech: float, lang: str | None) -> bool:
@@ -863,12 +863,12 @@ class Stream:
 
 
 def read_requests(lines, urls: queue.Queue, music: queue.Queue, stream: Stream,
-                  singing_voices=lambda folder: None) -> None:
+                  singing_voice=lambda path: None) -> None:
     """
     Reads the bot's `lines` (stdin, or its connection): `{"url": …}` (stop the stream being
     listened to, if any, and listen to this one) goes to `urls`, `{"music_id": …}` to `music`;
-    `{"singing_voices": "<folder>"}` (the room's saved singing voice, sent before the URL) is
-    loaded right here (`singing_voices`), so no stream starts until it's in;
+    `{"singing_voice": "<path>"}` (the room's saved singing voice, sent before the URL) is loaded
+    right here (`singing_voice`), so no stream starts until it's in;
     `{"quit": true}` ends the whole process, `--serve` or not. When
     they end (the bot is gone), puts None on both and stops the stream, so the session ends.
     """
@@ -879,8 +879,8 @@ def read_requests(lines, urls: queue.Queue, music: queue.Queue, stream: Stream,
                 if "url" in message:
                     urls.put(str(message["url"]))
                     stream.stop()
-                elif "singing_voices" in message:
-                    singing_voices(str(message["singing_voices"]))
+                elif "singing_voice" in message:
+                    singing_voice(str(message["singing_voice"]))
                 elif message.get("quit"):
                     # The room's stream is over and the bot is leaving: the service goes too.
                     log("the bot asked the service to quit")
@@ -1021,7 +1021,12 @@ def main() -> None:
                         help="don't name the backing track on the whole mix (BackingTitles)")
     parser.add_argument("--no-backing-gaps", action="store_true",
                         help="don't measure how loud the backing is around singing (BackingGaps)")
+    parser.add_argument("--save-singing-voice", metavar="FOLDER",
+                        help="work out the streamer's singing voice from the clips in FOLDER (a room's "
+                        f"singing-voices/), write it there as {SAVED_VOICE_FILE} and exit")
     args = parser.parse_args()
+    if args.save_singing_voice:
+        return save_singing_voice_from(args.save_singing_voice, pick_device(args.device))
     add_ons = AddOnFlags(backing_title=not args.no_backing_title, backing_gaps=not args.no_backing_gaps)
 
     # Listening before the models load: a bot that connects meanwhile waits in the backlog for
@@ -1048,6 +1053,17 @@ def main() -> None:
         session(sys.stdin, models, recent, args.realtime, add_ons)
 
 
+def save_singing_voice_from(folder: str, device: str) -> None:
+    """`--save-singing-voice`: loads only the models it takes (VAD, speech score, voiceprints) and saves."""
+    log(f"loading models on {device}")
+    with contextlib.redirect_stdout(sys.stderr):
+        vad = AutoModel(model="fsmn-vad", max_single_segment_time=MAX_SENTENCE_MS, disable_update=True, log_level="ERROR")
+        classify, voiceprint = VoiceClassifier(device), Voiceprints(device)
+    if save_singing_voice(folder, vad, classify, voiceprint) is None:
+        log(f"no sung sentence in the clips in {folder}; nothing saved")
+        sys.exit(1)
+
+
 def session(lines, models: tuple, recent: collections.deque, realtime: bool,
             add_ons: AddOnFlags = AddOnFlags()) -> None:
     """
@@ -1058,7 +1074,7 @@ def session(lines, models: tuple, recent: collections.deque, realtime: bool,
     urls: queue.Queue = queue.Queue()
     music: queue.Queue = queue.Queue()
     stream = Stream()
-    load = lambda folder: load_singing_voices(folder, models)  # noqa: E731
+    load = lambda path: load_singing_voice(path, models[5])  # noqa: E731
     threading.Thread(target=read_requests, args=(lines, urls, music, stream, load), daemon=True).start()
     threading.Thread(target=answer_music_requests, args=(music, recent), daemon=True).start()
     print_line({"ready": True})

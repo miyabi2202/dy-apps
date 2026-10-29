@@ -27,9 +27,9 @@ export function registerTranscriber(container: Container): void {
           singing: c.resolve(SINGING),
           log: c.resolve(LOG),
           spawnWorker: c.resolve(SPAWN_WORKER),
-          singingVoices: () => {
-            const folder = join(c.resolve(ROOM_DIR), 'singing-voices');
-            return existsSync(folder) ? folder : null;
+          singingVoice: () => {
+            const path = join(c.resolve(ROOM_DIR), 'singing-voices', 'voiceprint.npz');
+            return existsSync(path) ? path : null;
           },
         })
       : null,

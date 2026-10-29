@@ -12,7 +12,7 @@ data/<房间号>/
   artifacts/              下载下来、或者手动放进来的资料（歌单之类）
   tools/<工具文件夹>/      这个直播间给某个工具的资料（can-sing/notes.md、can-sing/songs-transformer.js、schedule/hours.md，见「工具」）
   <用户 id>/note.md       机器人记着的这个人的事（见「memory.md」）
-  singing-voices/         主播现场唱歌的录音片段，认她唱歌的声音用（见「主播唱歌的声音」）
+  singing-voices/         主播唱歌的声音 voiceprint.npz，和生成它用的现场唱歌片段（见「主播唱歌的声音」）
   chat/  bot_logs.md  <用户 id>/talk.txt   机器人自己写的，别手改
 ```
 
@@ -285,13 +285,33 @@ Love Story｜Taylor Swift｜英语
 
 语音识别要分清唱歌的是主播、连线的人，还是主播放的录音。没有存好的声音时，它把第一个听到唱歌的声音当成主播的，直到另一个声音唱的时间超过它两倍才换：主播一开播先放了一首歌（比如外放李荣浩的《不将就》），那首录音就成了「主播」，她自己唱的反倒算连线的。
 
-`singing-voices/` 里放几段主播现场唱歌的录音，就固定用她的声音：ffmpeg 能读的格式都行（`.aac`、`.m4a`、`.mp3`、`.wav`……），一共几分钟，最好几首歌、几种语言。只能是她本人现场唱的：不要放她外放的录音、连线的人唱的，有伴奏没关系。录播 `recordings/` 里截出来的就行（`ffmpeg -ss <开始秒数> -t <秒数> -i recordings/stream-….aac -c copy singing-voices/<名字>.aac`）。
+存好主播唱歌的声音 `singing-voices/voiceprint.npz`，就固定用她的：再怎么有别的声音唱也换不掉，和它对得上的句子也不会把它带偏。说话的声音还是照旧，第一个听到的算主播。
 
-机器人每次连上语音识别服务，在给直播流之前把这个文件夹告诉它（日志 `saved singing voice {folder}`）。服务把每段切成句子（和直播一样），用唱歌的那些句子的声纹算出她的声音（十分钟的片段大约 20 秒，这期间还没开始听直播；算好的存成同一个文件夹里的 `voiceprint.npz`，以后直接读它，不再算，也不再看那些片段），从此唱歌的声音只认它：再怎么唱也换不掉，和它对得上的句子也不会把它带偏（服务的输出里有 `the streamer's singing voice is the one saved in …`）。说话的声音还是照旧，第一个听到的算主播。
+### 生成 voiceprint.npz
+
+只在手动运行时生成，机器人和语音识别服务从来不自己生成。
+
+1. 在 `singing-voices/` 里放几段主播现场唱歌的录音：ffmpeg 能读的格式都行（`.aac`、`.m4a`、`.mp3`、`.wav`……），一共几分钟，最好几首歌、几种语言。只能是她本人现场唱的：不要放她外放的录音、连线的人唱的，有伴奏没关系。从录播 `recordings/` 里截就行（在 `data/<房间号>/` 里）：
+
+   ```sh
+   ffmpeg -ss <开始秒数> -t <秒数> -i recordings/stream-….aac -c copy singing-voices/<名字>.aac
+   ```
+
+   截之前先听一遍，确认是她本人现场唱的。几段可以先拼成一个文件一起听（`ffmpeg -f concat`）。
+
+2. 在 `chat-bot/` 里运行（会先加载三个模型，十分钟的片段大约再算 20 秒）：
+
+   ```sh
+   uv run --directory asr transcribe.py --save-singing-voice "$PWD/data/<房间号>/singing-voices"
+   ```
+
+   它把每段切成句子（和直播一样），用唱歌的那些句子的声纹算出她的声音，写成同一个文件夹里的 `voiceprint.npz`（已经有的就替换掉），输出 `saved the streamer's singing voice to … (104 sung sentences, 534 s)`。片段里一句唱的都没有，就什么都不写，退出码是 1。
+
+3. 重启机器人。它每次连上语音识别服务，在给直播流之前把 `voiceprint.npz` 告诉它（日志 `saved singing voice {path}`；服务的输出里有 `the streamer's singing voice is the one saved in …`）。没有这个文件，就还是第一个唱的算主播。
+
+换了、加了或删了片段，重新运行第 2 步再重启机器人。生成之后，片段留着只是为了以后重新生成，删掉也不影响。
 
 2026-10-29 在 416362684969 量过：五段共 12 分钟（中、日、英），她另外两首现场唱的 22 句里 20 句认成她，外放的录音 15 句里 2 句。
-
-换了、加了或删了片段，要删掉 `voiceprint.npz`，再重启机器人，它下次连上时才按新的片段重新算；不删的话一直用旧的。有了 `voiceprint.npz`，片段删掉也不影响。
 
 ## 改了要不要重启
 

@@ -153,7 +153,7 @@ test('is ready once the models load, before any stream; and starts a worker that
 });
 
 test("gives each worker the room's saved singing voice before its first stream, when there is one", async () => {
-  for (const folder of ['/data/1/singing-voices', null]) {
+  for (const path of ['/data/1/singing-voices/voiceprint.npz', null]) {
     let worker: ReturnType<typeof fakeWorker> | undefined;
     const transcriber = new Transcriber({
       streamUrl: () => Promise.resolve('url-1'),
@@ -161,7 +161,7 @@ test("gives each worker the room's saved singing voice before its first stream, 
       transcript: new Transcript(),
       log: silentLog,
       spawnWorker: ({ onLine }) => (worker = fakeWorker(onLine, () => [])),
-      singingVoices: () => folder,
+      singingVoice: () => path,
       sleep: () => new Promise((resolve) => setTimeout(resolve, 0)),
     });
     const running = transcriber.run();
@@ -169,7 +169,7 @@ test("gives each worker the room's saved singing voice before its first stream, 
     transcriber.stop();
     await running;
     expect(worker.requests[0]).toBe(
-      folder ? JSON.stringify({ singing_voices: folder }) : JSON.stringify({ url: 'url-1' }),
+      path ? JSON.stringify({ singing_voice: path }) : JSON.stringify({ url: 'url-1' }),
     );
   }
 });
