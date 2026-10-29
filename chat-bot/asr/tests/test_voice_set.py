@@ -44,3 +44,50 @@ def test_lines_matching_a_saved_voice_dont_move_it():
     voices.pin(HER, 60)
     voices.add(unit(1, 0.9, 0), 600)
     assert np.allclose(voices.centroids[0], HER)
+
+
+class FakeVad:
+    """Cuts every clip into one 3 s sentence."""
+
+    def generate(self, input, disable_pbar=True):
+        return [{"value": [[0, 3000]]}]
+
+
+def write_clip(path, seconds: float = 3.0) -> None:
+    import wave
+
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(16000)
+        out.writeframes((np.sin(np.arange(int(16000 * seconds)) / 10) * 8000).astype(np.int16).tobytes())
+
+
+def test_a_saved_voice_is_worked_out_once_then_read_without_the_clips(tmp_path):
+    from transcribe import SAVED_VOICE_FILE, Voices, load_singing_voices
+
+    made = []
+
+    def voiceprint(audio):
+        made.append(len(audio))
+        return HER
+
+    voices = Voices(0.6, 0.5, voiceprint=voiceprint)
+    models = (FakeVad(), None, None, None, lambda audio: (0.05, 0.9), voices, None)
+    write_clip(tmp_path / "zh-song.wav")
+
+    load_singing_voices(str(tmp_path), models)
+    assert len(made) == 1 and (tmp_path / SAVED_VOICE_FILE).exists()
+    assert voices.singing.pinned and np.allclose(voices.singing.centroids[0], HER)
+
+    # From the saved file: the clips aren't looked at, even when they're gone.
+    (tmp_path / "zh-song.wav").unlink()
+    fresh = Voices(0.6, 0.5, voiceprint=voiceprint)
+    load_singing_voices(str(tmp_path), (*models[:5], fresh, None))
+    assert len(made) == 1 and fresh.singing.pinned and np.allclose(fresh.singing.centroids[0], HER)
+
+    # Deleting it works the voice out again from the clips there.
+    (tmp_path / SAVED_VOICE_FILE).unlink()
+    write_clip(tmp_path / "ja-song.wav")
+    load_singing_voices(str(tmp_path), models)
+    assert len(made) == 2 and (tmp_path / SAVED_VOICE_FILE).exists()

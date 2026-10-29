@@ -44,8 +44,10 @@ ended), as it exits itself.
 Before the URL, the bot may write `{"singing_voices": "<folder>"}`: a room's singing-voices/ folder,
 clips of the streamer singing live (any audio ffmpeg reads). Their sung sentences, cut as the
 stream's are, make the streamer's singing voice for good (see VoiceSet.pin): without it, the first
-voice heard singing is taken for hers, and a recording she plays first would be. It takes about
-20 s for 10 minutes of clips, the stream waiting meanwhile, and is kept for the next connection.
+voice heard singing is taken for hers, and a recording she plays first would be. Working it out
+takes about 20 s for 10 minutes of clips, the stream waiting meanwhile, so it's kept in the
+folder (voiceprint.npz) and read from there at once, without the clips, after that: delete it to
+work the voice out again from new clips.
 
 The bot can also ask what music is playing, by writing `{"music_id": 1}` (any id) as a line to
 stdin: the worker looks up the last 15 s with Shazam (shazamio: the fingerprint is worked out
@@ -487,23 +489,35 @@ def saved_voice(folder: str, vad, classify, voiceprint) -> tuple[np.ndarray, flo
     return total / np.linalg.norm(total), seconds, used
 
 
-# What saved_voice found, by folder and its files (name, size, time), so a bot reconnecting to the
-# same room doesn't wait for it again.
-saved_voices: dict = {}
+# Where load_singing_voices keeps what saved_voice found, in the clips' folder, so it's worked out
+# once, not each time the service starts (about 20 s for 10 minutes of clips, unheard meanwhile);
+# once it's there the clips aren't needed.
+SAVED_VOICE_FILE = "voiceprint.npz"
 
 
 def load_singing_voices(folder: str, models: tuple) -> None:
-    """Pins the streamer's singing voice from a room's singing-voices/ folder (see saved_voice)."""
+    """
+    Pins the streamer's singing voice from a room's singing-voices/ folder: from its
+    SAVED_VOICE_FILE when there is one, without looking at the clips; else worked out from the
+    clips (see saved_voice) and written there. Delete that file to work it out again from new clips.
+    """
     vad, _, _, _, classify, voices, _ = models
+    cache = os.path.join(folder, SAVED_VOICE_FILE)
     try:
-        files = tuple((e.name, e.stat().st_size, e.stat().st_mtime) for e in sorted(os.scandir(folder), key=lambda e: e.name))
-        key = (folder, files)
-        if key not in saved_voices:
-            saved_voices[key] = saved_voice(folder, vad, classify, voices.voiceprint)
-    except (OSError, subprocess.CalledProcessError) as err:
+        found = None
+        if os.path.exists(cache):
+            with np.load(cache) as saved:
+                found = saved["voiceprint"], float(saved["seconds"]), int(saved["used"])
+        else:
+            found = saved_voice(folder, vad, classify, voices.voiceprint)
+            if found is not None:
+                voiceprint, seconds, used = found
+                with open(f"{cache}.tmp", "wb") as out:
+                    np.savez(out, voiceprint=voiceprint, seconds=seconds, used=used)
+                os.replace(f"{cache}.tmp", cache)
+    except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as err:
         log(f"could not read the saved singing voices in {folder}: {err}")
         return
-    found = saved_voices[key]
     if found is None:
         log(f"no sung sentence in {folder}; the first voice to sing is taken for the streamer's")
         return
