@@ -88,6 +88,9 @@ export type PressLike = (
   likes: number,
 ) => Promise<{ liked: number; heldMs: number; tooFast: boolean }>;
 
+/** Sends the streamer today's 粉丝团灯牌 as the bot's account: `already` when it was sent today. */
+export type SendFansLamp = () => Promise<'sent' | 'already'>;
+
 /** A JPEG of the live video. */
 export type Screenshot = () => Promise<Uint8Array>;
 

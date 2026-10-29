@@ -5,6 +5,7 @@ import {
   MAX_LIKES,
   type ChatAnswer,
   type ErrorAnswer,
+  type FansLampAnswer,
   type LikeAnswer,
   type EventType,
   type RoomInfoAnswer,
@@ -24,6 +25,7 @@ export type ServedRoom = Pick<
   | 'onGone'
   | 'sendChat'
   | 'like'
+  | 'sendFansLamp'
   | 'streamUrl'
   | 'screenshot'
 >;
@@ -57,7 +59,8 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   }
 }
 
-type Answer = RoomInfoAnswer | ChatAnswer | LikeAnswer | StreamAnswer | ErrorAnswer;
+type Answer =
+  RoomInfoAnswer | ChatAnswer | LikeAnswer | FansLampAnswer | StreamAnswer | ErrorAnswer;
 
 function sendJson(res: ServerResponse, status: number, body: Answer): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -75,6 +78,7 @@ function errorMessage(e: unknown): string {
  * - `POST /api/rooms/<id>/chat` `{ text }`: send a chat as the logged-in account
  * - `POST /api/rooms/<id>/like` `{ likes }`: hold the like key (z) on the player until about that
  *   many likes have gone, by Douyin's counter, or until Douyin says 手速太快了
+ * - `POST /api/rooms/<id>/fans-lamp`: send today's 粉丝团灯牌 (1 diamond), following first if need be
  * - `GET /api/rooms/<id>/stream`: the URL of the stream the page plays
  * - `GET /api/rooms/<id>/screenshot`: the player as a JPEG
  * Asking for another room is an error that names the room this room-feed serves.
@@ -93,7 +97,7 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost');
-    const match = /^\/api\/rooms\/(\d+)(\/chat|\/like|\/stream|\/screenshot)?\/?$/.exec(
+    const match = /^\/api\/rooms\/(\d+)(\/chat|\/like|\/fans-lamp|\/stream|\/screenshot)?\/?$/.exec(
       url.pathname,
     );
     if (!match) return sendJson(res, 404, { error: '没有这个接口' });
@@ -129,6 +133,10 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
             return sendJson(res, 400, { error: `likes 要是 1 到 ${MAX_LIKES} 的整数` });
           }
           const answer: LikeAnswer = { ok: true, ...(await room.like(likes)) };
+          return sendJson(res, 200, answer);
+        }
+        case 'POST /fans-lamp': {
+          const answer: FansLampAnswer = { ok: true, result: await room.sendFansLamp() };
           return sendJson(res, 200, answer);
         }
         case 'GET /stream': {

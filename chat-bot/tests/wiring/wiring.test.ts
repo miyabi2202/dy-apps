@@ -97,6 +97,7 @@ function build(
       },
       like: (likes: number) =>
         Promise.resolve({ liked: likes, heldMs: likes * 200, tooFast: false }),
+      sendFansLamp: () => Promise.resolve('sent' as const),
       streamUrl: () => Promise.resolve('https://stream/live.flv'),
       streamer: () => Promise.resolve(null),
       screenshot: () => Promise.resolve(new Uint8Array()),
@@ -157,6 +158,7 @@ const ALL_COMMANDS = [
   '识歌',
   '识别背景音乐',
   '点赞',
+  '灯牌',
   '解题',
   '自动识歌',
   '识别恶意言论',
@@ -416,6 +418,7 @@ test('without speech, Codex or Jev the tools server still has the admin-only set
     'update_memory',
     'set_screenshots',
     'press_like',
+    'send_fans_lamp',
     'ask_about_puzzle',
   ]);
   app.stop();

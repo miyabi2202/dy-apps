@@ -65,6 +65,15 @@ export interface LikeAnswer {
   tooFast: boolean;
 }
 
+/**
+ * `POST /api/rooms/<id>/fans-lamp`: `sent` when it sent today's 粉丝团灯牌 (1 diamond), `already`
+ * when today's was sent before.
+ */
+export interface FansLampAnswer {
+  ok: true;
+  result: 'sent' | 'already';
+}
+
 /** `GET /api/rooms/<id>/stream`: the FLV or HLS URL the room page's player pulls. */
 export interface StreamAnswer {
   url: string;
@@ -104,11 +113,11 @@ export function eventsUrl(port: number, roomId: string, types: readonly EventTyp
   return `ws://localhost:${port}/ws?roomId=${roomId}&types=${types.join(',')}`;
 }
 
-/** A room endpoint: the room itself, or its chat, stream or screenshot. */
+/** A room endpoint: the room itself, or its chat, likes, fans lamp, stream or screenshot. */
 export function roomUrl(
   port: number,
   roomId: string,
-  action?: 'chat' | 'like' | 'stream' | 'screenshot',
+  action?: 'chat' | 'like' | 'fans-lamp' | 'stream' | 'screenshot',
 ): string {
   return `http://localhost:${port}/api/rooms/${roomId}${action ? `/${action}` : ''}`;
 }

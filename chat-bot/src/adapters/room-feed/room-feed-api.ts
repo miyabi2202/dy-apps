@@ -3,12 +3,20 @@ import {
   type ChatAnswer,
   type ChatRequest,
   type ErrorAnswer,
+  type FansLampAnswer,
   type LikeAnswer,
   type LikeRequest,
   type RoomInfoAnswer,
   type StreamAnswer,
 } from '@dy-apps/room-feed-protocol';
-import type { FindStreamer, PressLike, Screenshot, SendChat, StreamUrl } from '../../app/ports';
+import type {
+  FindStreamer,
+  PressLike,
+  Screenshot,
+  SendChat,
+  SendFansLamp,
+  StreamUrl,
+} from '../../app/ports';
 
 /**
  * One live room's HTTP API on room-feed: send chat, like, get the stream URL and a screenshot of
@@ -45,6 +53,16 @@ export class RoomFeedApi {
     const body = (await res.json().catch(() => ({}))) as Partial<LikeAnswer & ErrorAnswer>;
     if (!res.ok) throw new Error(body.error ?? `room-feed answered ${res.status}`);
     return { liked: body.liked ?? 0, heldMs: body.heldMs ?? 0, tooFast: body.tooFast === true };
+  };
+
+  /** `POST …/fans-lamp`: sends today's 粉丝团灯牌, answering once the panel says how it went. */
+  readonly sendFansLamp: SendFansLamp = async () => {
+    const res = await this.fetchFn(roomUrl(this.port, this.roomId, 'fans-lamp'), {
+      method: 'POST',
+    });
+    const body = (await res.json().catch(() => ({}))) as Partial<FansLampAnswer & ErrorAnswer>;
+    if (!res.ok || !body.result) throw new Error(body.error ?? `room-feed answered ${res.status}`);
+    return body.result;
   };
 
   /** `GET …/stream`: the FLV or HLS URL the room's player pulls, or null before it starts. */

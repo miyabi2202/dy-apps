@@ -15,6 +15,7 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/截图 
 | `/识歌 [提示]`         | `identify_song`             | Name the song the streamer sings, from its lyrics                                              | no          | –           |
 | `/识别背景音乐`        | `identify_bgm`              | Name the recording playing, from its sound                                                     | no          | –           |
 | `/点赞 [次数]`         | `press_like`                | Likes the room as the bot's account, 100 unless told, up to 200                                | yes         | –           |
+| `/灯牌`                | `send_fans_lamp`            | Sends the streamer today's 粉丝团灯牌 (1 diamond), joining the 粉丝团 if need be               | yes         | –           |
 | `/解题 [问题]`         | `ask_about_puzzle`          | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | no          | –           |
 | `/自动识歌 <0\|1>`     | `set_auto_song_id`          | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
 | `/识别恶意言论 <0\|1>` | `set_malice_watch`          | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
@@ -146,6 +147,12 @@ Liking is done in silence. A typed `/点赞` says nothing; asked in words, the t
 
 The log has `liked {asker, likes, liked, heldMs, tooFast}` (`liked` is what Douyin's counter added up to), or `could not like`.
 
+### /灯牌
+
+Sends the streamer today's 粉丝团灯牌 as the bot's account, for admins only: one 1-diamond 「灯牌」 a day, which also joins the 粉丝团 when the account isn't in it yet. Asked in words (「帮我加个灯牌」「卡灯牌」「加入粉丝团」), Claude calls the tool `send_fans_lamp`. It asks room-feed (`POST /api/rooms/<id>/fans-lamp`), which works the room page like a viewer: it clicks 「关注」 first when the streamer isn't followed yet (untested: the bot's account followed every room it was tried in), then the header's 粉丝团 button, found by its icon since its words take turns with 「今日任务」. The panel (Lynx, in a frame of its own) loads in a few seconds and may open on a 「团等级更新 … 我知道了」 notice, which room-feed closes; then it clicks 「送灯牌」 (「送出粉丝灯牌」 on some accounts), or, when the panel already says 「今日第N位送灯牌」, sends nothing (`already`). It takes turns with the chats and likes, which use the same page.
+
+Either way it's done in silence, like `/点赞`: the bot sends nothing back. It doesn't listen without an @. The log has `fans lamp {asker, result}` (`sent` or `already`), or `could not send the fans lamp`.
+
 ### /解题
 
 Answers a question about the math, logic or figure puzzle on the screen (the answer, a hint without the answer, where an attempt went wrong, how one step goes), for anyone. `/解题 问题` calls the tool `ask_about_puzzle` directly (with no question, it wants the answer); asked in words, Claude calls it for such questions and says 「稍等」 meanwhile. The tool takes a screenshot at once, even while `/截图` has them off, and starts Codex's `gpt-6-astra` in the background (no web search, with the `zoom` tool for a closer look at small figures and text) with its own prompt `solve.md` (a room's own `solve.md` overrides it) and the streamer's recent words. How hard it thinks is the room's `solveEffort`: `"medium"` takes up to 6 minutes, `"high"` up to 10; it's read on each call, from `room_config.json` only (no command sets it). The tool returns `started: true` at once, and the bot sends Codex's answer to the asker itself, with an @, when it comes (a typed `/解题` says nothing until then); if Codex fails, or has nothing to say, the asker is told so (`puzzle-failed` and `puzzle-no-answer` in `wording.md`). The prompt has it check several rules against every figure before it answers, and say so when two rules fit or it can't tell. On three test puzzles astra was right every time, in 13–43 seconds (zooming only into the blurry live screenshot), where Claude Opus and Fable (even with a zoom tool) were slower and sometimes wrong. The log has `puzzle answered` (`effort`, `ms`) and `could not answer about the puzzle`.
@@ -269,6 +276,7 @@ Each tool is a `BotTool` in `src/mcp/`; `src/wiring/mcp.ts` lists them, in the o
 | `identify_song`            | `src/mcp/identify-song.ts`                                               |
 | `identify_bgm`             | `src/mcp/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`      |
 | `press_like`               | `src/mcp/press-like.ts`, which asks room-feed's `POST …/like`            |
+| `send_fans_lamp`           | `src/mcp/fans-lamp.ts`, which asks room-feed's `POST …/fans-lamp`        |
 | `ask_about_puzzle`         | `src/mcp/ask-about-puzzle.ts`                                            |
 | `set_auto_song_id`         | `onOffTool`, listed in `src/wiring/mcp.ts`                               |
 | `set_malice_watch`         | `onOffTool`, listed in `src/wiring/mcp.ts`                               |

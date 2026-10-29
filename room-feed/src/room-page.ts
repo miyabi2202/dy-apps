@@ -37,6 +37,11 @@ export interface RoomPage {
    * about how many went, and how long it held.
    */
   holdLike(likes: number): Promise<{ liked: number; heldMs: number; tooFast: boolean }>;
+  /**
+   * Sends today's 粉丝团灯牌 from the 粉丝团 panel, following the streamer first if need be:
+   * `already` when today's was sent before. Throws when the panel doesn't show either.
+   */
+  sendFansLamp(): Promise<'sent' | 'already'>;
   close(): Promise<void>;
 }
 
@@ -51,6 +56,13 @@ const LIKE_REPEAT_MS = 100;
 const GUESSED_LIKES_PER_SECOND = 5;
 /** The longest one like holds the key, whatever the counter says. */
 const MAX_LIKE_MS = 60_000;
+
+/** How long the 粉丝团 panel may take to load and answer. */
+const FANS_PANEL_MS = 20_000;
+/** The 粉丝团 panel's button that sends the 灯牌 (its words differ between accounts). */
+const FANS_LAMP_BUTTON = /^(送灯牌|送出粉丝灯牌)$/;
+/** The panel's line once today's 灯牌 is sent: 「今日第7位送灯牌，连续3天」. */
+const FANS_LAMP_SENT = /今日第\d+位送灯牌/;
 
 /** The player's stream request: FLV or HLS. */
 const STREAM_URL = /^https?:\/\/[^/]+\/.+\.(flv|m3u8)(\?|$)/;
@@ -429,6 +441,67 @@ class LivePage implements RoomPage {
         return null;
       })
       .catch(() => null);
+  }
+
+  /**
+   * Sends today's 粉丝团灯牌. The header's 粉丝团 button is found by its icon, as its words take
+   * turns with 「今日任务」; when the streamer isn't followed yet, 「关注」 shows in its place and is
+   * clicked first. The panel (Lynx, in a frame of its own) may open on a 「我知道了」 notice, closed
+   * whenever it shows; then it has FANS_LAMP_BUTTON to click, or FANS_LAMP_SENT when today's is
+   * already sent. The panel is closed afterwards, by its ×: Escape doesn't close it, and a panel
+   * left open would make the next click on 粉丝团 close it instead.
+   */
+  async sendFansLamp(): Promise<'sent' | 'already'> {
+    await this.closeFansPanel();
+    const bar = this.page.locator('#room_info_bar');
+    const follow = bar.locator('button').filter({ hasText: /^关注/ }).first();
+    if (await follow.isVisible().catch(() => false)) await follow.click();
+    const fans = bar
+      .locator('button')
+      .filter({ has: this.page.locator('[filter*="fansIconBg"]') })
+      .first();
+    await fans.click({ timeout: 15_000 });
+    try {
+      const until = Date.now() + FANS_PANEL_MS;
+      while (Date.now() < until) {
+        await this.page.waitForTimeout(500);
+        for (const frame of this.page.frames()) {
+          const notice = frame.getByText('我知道了', { exact: true });
+          if (await notice.count().catch(() => 0)) {
+            await notice
+              .first()
+              .click()
+              .catch(() => {});
+            continue;
+          }
+          const send = frame.locator('x-text').filter({ hasText: FANS_LAMP_BUTTON });
+          if (await send.count().catch(() => 0)) {
+            await send.first().click();
+            return 'sent';
+          }
+          if (
+            await frame
+              .getByText(FANS_LAMP_SENT)
+              .count()
+              .catch(() => 0)
+          )
+            return 'already';
+        }
+      }
+      throw new Error('粉丝团面板里没找到送灯牌');
+    } finally {
+      await this.page.waitForTimeout(1500);
+      await this.closeFansPanel();
+    }
+  }
+
+  /** Clicks the × of the panel on the right (the 粉丝团 one, among others), if one is open. */
+  private async closeFansPanel(): Promise<void> {
+    const close = this.page
+      .locator('#__living_right_panel_id svg')
+      .filter({ has: this.page.locator('[filter*="close_svg"]') })
+      .first();
+    if (await close.isVisible().catch(() => false)) await close.click().catch(() => {});
   }
 
   /** Whether the page shows Douyin's 手速太快了, its notice for liking too fast. */

@@ -59,6 +59,10 @@ class FakePage implements RoomPage {
     this.typed.push(`<z ${likes}>`);
     return Promise.resolve({ liked: likes, heldMs: likes * 200, tooFast: false });
   }
+  sendFansLamp() {
+    this.typed.push('<fans lamp>');
+    return Promise.resolve('sent' as const);
+  }
   close() {
     this.closed = true;
     return Promise.resolve();

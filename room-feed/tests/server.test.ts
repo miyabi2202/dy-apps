@@ -44,6 +44,11 @@ class FakeRoom implements ServedRoom {
       tooFast: likes > 50,
     });
   }
+  lamps = 0;
+  sendFansLamp() {
+    this.lamps += 1;
+    return Promise.resolve(this.lamps > 1 ? ('already' as const) : ('sent' as const));
+  }
   streamUrl(): string | null {
     if (this.status !== 'live') throw new RoomError('直播间的弹幕连接还没建立', 409);
     return 'https://pull.example/stream.flv';
@@ -179,6 +184,12 @@ describe('the HTTP API', () => {
       expect((await post({ likes })).status).toBe(400);
     }
     expect(room.likes).toEqual([20, 200]);
+  });
+
+  it("sends the fans lamp, and says when today's was already sent", async () => {
+    const post = () => fetch(`http://${base}/api/rooms/123/fans-lamp`, { method: 'POST' });
+    expect(await (await post()).json()).toEqual({ ok: true, result: 'sent' });
+    expect(await (await post()).json()).toEqual({ ok: true, result: 'already' });
   });
 
   it("answers a room error with the room's status code", async () => {

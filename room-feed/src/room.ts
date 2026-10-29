@@ -164,6 +164,13 @@ export class Room {
     return run;
   }
 
+  /** Sends today's 粉丝团灯牌 (see RoomPage.sendFansLamp), in turn with the chats and likes. */
+  sendFansLamp(): Promise<'sent' | 'already'> {
+    const run = this.chatQueue.then(() => this.livePage().sendFansLamp());
+    this.chatQueue = run.catch(() => {});
+    return run;
+  }
+
   streamUrl(): string | null {
     return this.livePage().streamUrl();
   }
