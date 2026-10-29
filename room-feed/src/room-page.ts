@@ -57,6 +57,10 @@ const GUESSED_LIKES_PER_SECOND = 5;
 /** The longest one like holds the key, whatever the counter says. */
 const MAX_LIKE_MS = 60_000;
 
+/** How long the 灯牌 steps wait between seeing a button and clicking it, as a person would: this, */
+const CLICK_PAUSE_MS = 1000;
+/** plus up to this much more, at random. */
+const CLICK_PAUSE_JITTER_MS = 1000;
 /** How long one opening of the 粉丝团 panel may take to load and answer. */
 const FANS_PANEL_MS = 20_000;
 /** How many times the panel is opened before giving up: a fresh one may not be stuck on a notice. */
@@ -130,6 +134,8 @@ export interface ChromeOptions {
   cookie: () => string | null;
   /** Where a screenshot of the whole page goes when something covers the chat box; none if unset. */
   shotsDir?: string;
+  /** 0 ≤ x < 1, for the pause before each 灯牌 click; Math.random by default. */
+  random?: () => number;
 }
 
 /**
@@ -153,7 +159,13 @@ export class ChromeRooms {
       const cookie = this.options.cookie();
       if (cookie) await context.addCookies(browserCookies(cookie));
       const page = await context.newPage();
-      return await LivePage.open(page, roomId, handlers, this.options.shotsDir);
+      return await LivePage.open(
+        page,
+        roomId,
+        handlers,
+        this.options.shotsDir,
+        this.options.random ?? Math.random,
+      );
     } catch (e) {
       await context.close().catch(() => {});
       throw e;
@@ -199,15 +211,17 @@ class LivePage implements RoomPage {
     private readonly roomId: string,
     private readonly handlers: RoomPageHandlers,
     private readonly shotsDir: string | undefined,
+    private readonly random: () => number,
   ) {}
 
   static async open(
     page: Page,
     roomId: string,
     handlers: RoomPageHandlers,
-    shotsDir?: string,
+    shotsDir: string | undefined,
+    random: () => number,
   ): Promise<LivePage> {
-    const live = new LivePage(page, roomId, handlers, shotsDir);
+    const live = new LivePage(page, roomId, handlers, shotsDir, random);
     await live.watch();
     const response = await page.goto(`https://live.douyin.com/${roomId}`, {
       waitUntil: 'domcontentloaded',
@@ -476,7 +490,9 @@ class LivePage implements RoomPage {
   /** Step 1: clicks the header's 「关注」, which shows only while the streamer isn't followed. */
   private async followStreamer(bar: Locator): Promise<void> {
     const follow = bar.locator('button').filter({ hasText: /^关注/ }).first();
-    if (await follow.isVisible().catch(() => false)) await follow.click();
+    if (!(await follow.isVisible().catch(() => false))) return;
+    await this.pauseBeforeClick();
+    await follow.click();
   }
 
   /**
@@ -488,6 +504,7 @@ class LivePage implements RoomPage {
     await this.inFansPanel(fans, async (frame) => {
       const join = frame.locator('x-text').filter({ hasText: FANS_JOIN_BUTTON });
       if (await join.count().catch(() => 0)) {
+        await this.pauseBeforeClick();
         await join.first().click();
         return 'joined';
       }
@@ -506,6 +523,7 @@ class LivePage implements RoomPage {
         if (await sentLamp(frame)) return 'already' as const;
         const send = frame.locator('x-text').filter({ hasText: FANS_LAMP_BUTTON });
         if (!(await send.count().catch(() => 0))) return null;
+        await this.pauseBeforeClick();
         await send.first().click();
         return 'sent' as const;
       });
@@ -530,6 +548,8 @@ class LivePage implements RoomPage {
     fans: Locator,
     look: (frame: Frame) => Promise<T | null>,
   ): Promise<T | null> {
+    await fans.waitFor({ timeout: 15_000 });
+    await this.pauseBeforeClick();
     await fans.click({ timeout: 15_000 });
     try {
       const until = Date.now() + FANS_PANEL_MS;
@@ -538,6 +558,7 @@ class LivePage implements RoomPage {
         for (const frame of this.page.frames()) {
           const notice = frame.getByText('我知道了', { exact: true });
           if (await notice.count().catch(() => 0)) {
+            await this.pauseBeforeClick();
             await notice
               .first()
               .click()
@@ -553,6 +574,13 @@ class LivePage implements RoomPage {
       await this.page.waitForTimeout(1500);
       await this.closeFansPanel();
     }
+  }
+
+  /** Waits CLICK_PAUSE_MS and up to CLICK_PAUSE_JITTER_MS more, so the 灯牌's clicks aren't instant. */
+  private async pauseBeforeClick(): Promise<void> {
+    await this.page.waitForTimeout(
+      CLICK_PAUSE_MS + Math.floor(this.random() * CLICK_PAUSE_JITTER_MS),
+    );
   }
 
   /** Clicks the × of the panel on the right (the 粉丝团 one, among others), if one is open. */
