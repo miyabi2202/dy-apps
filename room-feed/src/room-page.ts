@@ -1,7 +1,5 @@
-import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { chromium, type Browser, type Frame, type Locator, type Page } from 'playwright-core';
-import { BROWSER_ARGS, hideAutomation, USER_AGENT } from './chrome';
+import type { Frame, Locator, Page } from 'playwright-core';
+import { ChatBox } from './chat-box';
 import { type RawProtoMessage } from './douyin/proto';
 import {
   isEnterOf,
@@ -12,7 +10,6 @@ import {
 } from './douyin/enter-answer';
 import type { FansLampAnswer, LikeAnswer, RoomMeta } from '@dy-apps/room-feed-protocol';
 import {
-  CHAT_INPUT,
   CLOSE_ICON,
   FANS_ICON,
   FANS_JOIN_BUTTON,
@@ -24,12 +21,11 @@ import {
   PLAYER_CLICK,
   RIGHT_PANEL_CLOSE_SVG,
   ROOM_INFO_BAR,
-  VIEWPORT,
 } from './douyin/page-map';
 import { parseRoomMeta } from './douyin/room-meta';
 import { LikeHold } from './like-hold';
-import { browserCookies } from './login-file';
-import { PageActionError, RoomEndedError } from './errors';
+import { PageShots } from './page-shots';
+import { RoomEndedError } from './errors';
 import { FansLamp, type FansLampSurface, type PanelFrame, type PanelTarget } from './fans-lamp';
 import { PushTracker } from './push-tracker';
 
@@ -145,79 +141,13 @@ class PageFansSurface implements FansLampSurface {
   }
 }
 
-export interface ChromeOptions {
-  executablePath: string;
-  headless: boolean;
-  /** The saved login's cookies (`k=v; k=v`), read on every open; null when not logged in. */
-  cookie: () => string | null;
-  /** Where a screenshot of the whole page goes when something covers the chat box; none if unset. */
-  shotsDir?: string;
-  /** 0 ≤ x < 1, for the pause before each 灯牌 click; Math.random by default. */
-  random?: () => number;
-}
-
-/**
- * Opens room pages in one Chrome, started on the first open and again if it dies. Each page
- * gets a fresh context with the saved login, so a reopened page starts clean.
- */
-export class ChromeRooms {
-  private browser: Promise<Browser> | null = null;
-
-  constructor(private readonly options: ChromeOptions) {}
-
-  readonly open: OpenRoomPage = async (roomId, handlers) => {
-    const browser = await this.launch();
-    const context = await browser.newContext({
-      userAgent: USER_AGENT,
-      viewport: VIEWPORT,
-      locale: 'zh-CN',
-    });
-    try {
-      await hideAutomation(context);
-      const cookie = this.options.cookie();
-      if (cookie) await context.addCookies(browserCookies(cookie));
-      const page = await context.newPage();
-      return await LivePage.open(
-        page,
-        roomId,
-        handlers,
-        this.options.shotsDir,
-        this.options.random ?? Math.random,
-      );
-    } catch (e) {
-      await context.close().catch(() => {});
-      throw e;
-    }
-  };
-
-  async close(): Promise<void> {
-    const browser = await this.browser?.catch(() => null);
-    this.browser = null;
-    await browser?.close().catch(() => {});
-  }
-
-  private async launch(): Promise<Browser> {
-    const running = await this.browser?.catch(() => null);
-    if (running?.isConnected()) return running;
-    this.browser = chromium.launch({
-      executablePath: this.options.executablePath,
-      headless: this.options.headless,
-      args: [
-        ...BROWSER_ARGS,
-        '--autoplay-policy=no-user-gesture-required',
-        '--no-sandbox',
-        '--disable-dev-shm-usage',
-        '--mute-audio',
-      ],
-    });
-    return this.browser;
-  }
-}
-
-class LivePage implements RoomPage {
+/** The room page open in Chrome, which `ChromeRooms` opens: the pieces below, wired to the page's events. */
+export class LivePage implements RoomPage {
   private readonly push = new PushTracker(() => this.entered?.innerRoomId);
   private readonly fansLamp: FansLamp;
   private readonly likeHold: LikeHold;
+  private readonly shots: PageShots;
+  private readonly chatBox: ChatBox;
   private closed = false;
   private requestedStream: string | null = null;
   private entered: Entered | null = null;
@@ -229,9 +159,11 @@ class LivePage implements RoomPage {
     private readonly page: Page,
     private readonly roomId: string,
     private readonly handlers: RoomPageHandlers,
-    private readonly shotsDir: string | undefined,
+    shotsDir: string | undefined,
     random: () => number,
   ) {
+    this.shots = new PageShots(page, shotsDir);
+    this.chatBox = new ChatBox(page, (name) => this.shots.save(name));
     this.fansLamp = new FansLamp(new PageFansSurface(page), {
       wait: (ms) => page.waitForTimeout(ms),
       random,
@@ -334,7 +266,7 @@ class LivePage implements RoomPage {
   private async wrongRoom(why: string): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    const shot = await this.saveShot('wrong-room').catch(() => null);
+    const shot = await this.shots.save('wrong-room').catch(() => null);
     this.handlers.onWrongRoom(`${why}，页面在 ${this.page.url()}${shot ? `，截图：${shot}` : ''}`);
   }
 
@@ -342,90 +274,13 @@ class LivePage implements RoomPage {
     return this.requestedStream ?? this.entered?.flvUrl ?? null;
   }
 
-  /**
-   * Sent once the box is empty after Enter; whether Douyin took it, the caller sees from the echo.
-   * When it fails, a picture of the page (a popup's mask, a 禁言 notice) goes with the error.
-   */
-  async typeChat(text: string): Promise<void> {
-    try {
-      await this.tryTypeChat(text);
-    } catch (e) {
-      const screenshot = await this.saveShot('chat-failed').catch(() => null);
-      const message = e instanceof Error ? e.message : String(e);
-      throw new PageActionError(message, { screenshot, cause: e });
-    }
+  /** Typed into the chat box (see ChatBox); with a picture of the page when it fails. */
+  typeChat(text: string): Promise<void> {
+    return this.chatBox.type(text);
   }
 
-  private async tryTypeChat(text: string): Promise<void> {
-    const input = this.page.locator(CHAT_INPUT);
-    try {
-      await input.waitFor({ state: 'visible', timeout: 5000 });
-    } catch {
-      throw new PageActionError('找不到弹幕输入框（没有登录、被禁言，或者抖音改版了）');
-    }
-    // A popup's mask can cover the box and take the click: a viewer's card, opened when the click
-    // that starts the player lands on a streamer's tile in a PK. Typing needs only the focus.
-    await input.click({ timeout: 3000 }).catch(async () => {
-      await this.page.keyboard.press('Escape').catch(() => {});
-      await input.focus();
-    });
-    // What an earlier chat left behind would be sent with this one, so clear it first.
-    await this.clearChatInput();
-    await this.page.keyboard.insertText(text);
-    await this.page.keyboard.press('Enter');
-    await this.page.waitForTimeout(500);
-    if (await this.chatInputText()) {
-      await this.clearChatInput().catch(() => {});
-      throw new PageActionError('回车后输入框没有清空，弹幕可能没有发出（风控、要验证或字数超了）');
-    }
-  }
-
-  /** The whole visible page as a PNG in `shotsDir`; its path, or null with no `shotsDir`. */
-  private async saveShot(name: string): Promise<string | null> {
-    if (!this.shotsDir) return null;
-    await mkdir(this.shotsDir, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const path = join(this.shotsDir, `${stamp}-${name}.png`);
-    await this.page.screenshot({ path, timeout: 10_000 });
-    return path;
-  }
-
-  /** The box's text; an empty editor holds only a zero-width placeholder. */
-  private async chatInputText(): Promise<string> {
-    const text = await this.page.locator(CHAT_INPUT).innerText();
-    return text.replace(/[\u200b\s]/g, '');
-  }
-
-  /**
-   * Slate reacts only to real input, so the keyboard clears the box rather than fill(): select
-   * all and delete, then, if anything's left, Backspace from the end.
-   */
-  private async clearChatInput(): Promise<void> {
-    const { keyboard } = this.page;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const left = await this.chatInputText();
-      if (!left) return;
-      if (attempt === 0) {
-        await keyboard.press('ControlOrMeta+A');
-        await keyboard.press('Backspace');
-      } else {
-        await keyboard.press('ControlOrMeta+ArrowDown');
-        await keyboard.press('End');
-        for (let i = 0; i < [...left].length + 5; i++) await keyboard.press('Backspace');
-      }
-    }
-    if (await this.chatInputText()) throw new PageActionError('输入框里有删不掉的文字，没有发送');
-  }
-
-  /** Just the player: the page's largest video, else its largest canvas, else the whole page. */
-  async screenshot(): Promise<Uint8Array> {
-    const clip = await this.playerBox();
-    return this.page.screenshot({
-      type: 'jpeg',
-      quality: 80,
-      timeout: 10_000,
-      ...(clip ? { clip } : {}),
-    });
+  screenshot(): Promise<Uint8Array> {
+    return this.shots.player();
   }
 
   /**
@@ -438,7 +293,7 @@ class LivePage implements RoomPage {
 
   /** Clicks the middle of the player, or without one lets go of whatever has the focus. */
   private async focusPlayer(): Promise<void> {
-    const box = await this.playerBox();
+    const box = await this.shots.playerBox();
     if (box) {
       await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     } else {
@@ -473,29 +328,6 @@ class LivePage implements RoomPage {
     return this.page
       .evaluate(() => document.body.innerText.includes('手速太快了'))
       .catch(() => false);
-  }
-
-  /** Where the player is: the page's largest video, else its largest canvas; null for neither. */
-  private playerBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
-    // No named functions in here: tsx (esbuild's keepNames) would add a __name the page lacks.
-    return this.page.evaluate(() => {
-      for (const selector of ['video', 'canvas']) {
-        let best: { x: number; y: number; width: number; height: number } | null = null;
-        for (const el of document.querySelectorAll(selector)) {
-          const r = el.getBoundingClientRect();
-          const x = Math.max(r.left, 0);
-          const y = Math.max(r.top, 0);
-          const width = Math.min(r.right, innerWidth) - x;
-          const height = Math.min(r.bottom, innerHeight) - y;
-          if (width > 0 && height > 0 && (!best || width * height > best.width * best.height)) {
-            best = { x, y, width, height };
-          }
-        }
-        // Anything small is an avatar or a gift animation, not the player.
-        if (best && best.width * best.height > innerWidth * innerHeight * 0.1) return best;
-      }
-      return null;
-    });
   }
 
   async close(): Promise<void> {

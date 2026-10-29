@@ -10,7 +10,7 @@ import { parseCliOptions, USAGE } from './cli-options';
 import { login } from './login';
 import { LoginFile } from './login-file';
 import { Room } from './room';
-import { ChromeRooms } from './room-page';
+import { ChromeRooms } from './chrome-rooms';
 import { createRoomFeedServer } from './server';
 
 /** room-feed/data/: the saved login, the login window's Chrome profile and screenshots (not in git). */
