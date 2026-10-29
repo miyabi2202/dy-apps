@@ -27,7 +27,7 @@ import {
   VIEWPORT,
 } from './douyin/page-map';
 import { parseRoomMeta } from './douyin/room-meta';
-import { LikeTally } from './like-tally';
+import { LikeHold } from './like-hold';
 import { browserCookies } from './login-file';
 import { PageActionError, RoomEndedError } from './errors';
 import { FansLamp, type FansLampSurface, type PanelFrame, type PanelTarget } from './fans-lamp';
@@ -70,13 +70,6 @@ export interface RoomPage {
 }
 
 export type OpenRoomPage = (roomId: string, handlers: RoomPageHandlers) => Promise<RoomPage>;
-
-/** How often a held key sends keydown again, about as often as a held key repeats. */
-const LIKE_REPEAT_MS = 100;
-/** How many likes a second of holding gives, as measured on 2026-10-29: for when the counter doesn't show. */
-const GUESSED_LIKES_PER_SECOND = 5;
-/** The longest one like holds the key, whatever the counter says. */
-const MAX_LIKE_MS = 60_000;
 
 /** One frame of the 粉丝团 panel, its targets found by the page map's selectors and texts. */
 class PagePanelFrame implements PanelFrame {
@@ -224,6 +217,7 @@ export class ChromeRooms {
 class LivePage implements RoomPage {
   private readonly push = new PushTracker(() => this.entered?.innerRoomId);
   private readonly fansLamp: FansLamp;
+  private readonly likeHold: LikeHold;
   private closed = false;
   private requestedStream: string | null = null;
   private entered: Entered | null = null;
@@ -242,6 +236,16 @@ class LivePage implements RoomPage {
       wait: (ms) => page.waitForTimeout(ms),
       random,
     });
+    this.likeHold = new LikeHold(
+      {
+        focusPlayer: () => this.focusPlayer(),
+        keyDown: () => page.keyboard.down('z'),
+        keyUp: () => page.keyboard.up('z'),
+        counter: () => this.likeCounter(),
+        saysTooFast: () => this.saysTooFast(),
+      },
+      { wait: (ms) => page.waitForTimeout(ms) },
+    );
   }
 
   static async open(
@@ -425,43 +429,21 @@ class LivePage implements RoomPage {
   }
 
   /**
-   * Holds Douyin's like key (z), as a held key does, a keydown every LIKE_REPEAT_MS, until the
-   * counter by the heart has added up to `likes` (see LikeTally), and lets go at once when the
-   * page says 手速太快了: Douyin's limit, a hard stop. Without a counter, it guesses from the time
-   * held (GUESSED_LIKES_PER_SECOND); either way, never longer than MAX_LIKE_MS. It clicks the
+   * Holds Douyin's like key (z) until about `likes` likes have gone (see LikeHold). It clicks the
    * player first, so the keys go to it, not to the chat box (where they'd be typed).
    */
-  async holdLike(likes: number): Promise<Omit<LikeAnswer, 'ok'>> {
+  holdLike(likes: number): Promise<Omit<LikeAnswer, 'ok'>> {
+    return this.likeHold.hold(likes);
+  }
+
+  /** Clicks the middle of the player, or without one lets go of whatever has the focus. */
+  private async focusPlayer(): Promise<void> {
     const box = await this.playerBox();
     if (box) {
       await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     } else {
       await this.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     }
-    const tally = new LikeTally(await this.likeCounter());
-    const { keyboard } = this.page;
-    const start = Date.now();
-    const liked = (heldMs: number) =>
-      tally.counting ? tally.count : Math.round((heldMs / 1000) * GUESSED_LIKES_PER_SECOND);
-    let tooFast = false;
-    await keyboard.down('z');
-    try {
-      while (liked(Date.now() - start) < likes && Date.now() - start < MAX_LIKE_MS) {
-        await this.page.waitForTimeout(LIKE_REPEAT_MS);
-        if (await this.saysTooFast()) {
-          tooFast = true;
-          break;
-        }
-        tally.see(await this.likeCounter());
-        await keyboard.down('z');
-      }
-    } finally {
-      await keyboard.up('z').catch(() => {});
-    }
-    const heldMs = Date.now() - start;
-    // The likes of the last keydowns may show only now.
-    tally.see(await this.likeCounter());
-    return { liked: liked(heldMs), heldMs, tooFast };
   }
 
   /**
