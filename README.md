@@ -84,7 +84,7 @@ lyrics-search/            # @dy-apps/lyrics-search: names a song from sung lines
 room-feed/                # @dy-apps/room-feed: one live room's events, run with tsx (see "room-feed" below)
   src/main.ts             #   entry: `login` or `--room` (cli-options.ts), the real objects wired
   src/room.ts             #   Room: keeps the room page open, reopens it when chat drops, chat queue
-  src/room-page.ts        #   the page in Chrome (Playwright): push frames over CDP, chat box, stream URL, screenshot, likes
+  src/room-page.ts        #   the page in Chrome (Playwright): push frames over CDP, chat box, stream URL, screenshot, likes, fans lamp
   src/like-tally.ts       #   LikeTally: Douyin's like counter added up over one hold
   src/server.ts           #   HTTP + WebSocket for clients
   src/douyin/             #   Douyin's protobuf, its messages turned into events, the streamer from the page
