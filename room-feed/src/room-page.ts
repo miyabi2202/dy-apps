@@ -2,12 +2,20 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { chromium, type Browser, type Frame, type Locator, type Page } from 'playwright-core';
 import { BROWSER_ARGS, hideAutomation, USER_AGENT } from './chrome';
-import { decodeFrame, messageRoomId, type RawProtoMessage } from './douyin/proto';
+import { type RawProtoMessage } from './douyin/proto';
+import {
+  isEnterOf,
+  readEnterAnswer,
+  STREAM_URL,
+  type EnterAnswer,
+  type Entered,
+} from './douyin/enter-answer';
 import type { FansLampAnswer, LikeAnswer, RoomMeta } from '@dy-apps/room-feed-protocol';
 import { parseRoomMeta } from './douyin/room-meta';
 import { LikeTally } from './like-tally';
 import { browserCookies } from './login-file';
 import { PageActionError, RoomEndedError } from './errors';
+import { PushTracker } from './push-tracker';
 
 /** What a room page tells the Room. */
 export interface RoomPageHandlers {
@@ -82,51 +90,6 @@ async function sentLamp(frame: Frame): Promise<boolean> {
   );
 }
 
-/** The player's stream request: FLV or HLS. */
-const STREAM_URL = /^https?:\/\/[^/]+\/.+\.(flv|m3u8)(\?|$)/;
-
-/** The part of webcast/room/web/enter/'s answer we read. */
-interface EnterAnswer {
-  data?: {
-    data?: {
-      id_str?: string;
-      status?: number;
-      stream_url?: { flv_pull_url?: Record<string, string> };
-    }[];
-  };
-}
-
-/** The room as webcast/room/web/enter/ tells it. */
-interface Entered {
-  /** The internal room id push messages carry (not the web one in the URL); '' if missing. */
-  innerRoomId: string;
-  /** The stream has ended, or not started: status 4 (2 is live). */
-  ended: boolean;
-  /** An FLV URL: the lowest quality, since all sound alike; null if none. */
-  flvUrl: string | null;
-}
-
-function readEnterAnswer(body: EnterAnswer): Entered | null {
-  const room = body.data?.data?.[0];
-  if (!room) return null;
-  return { innerRoomId: room.id_str ?? '', ended: room.status === 4, flvUrl: flvUrl(room) };
-}
-
-function flvUrl(room: NonNullable<NonNullable<EnterAnswer['data']>['data']>[number]) {
-  const urls = room.stream_url?.flv_pull_url;
-  if (!urls) return null;
-  for (const quality of ['SD2', 'SD1', 'HD1', 'FULL_HD1']) {
-    if (urls[quality]) return urls[quality];
-  }
-  return Object.values(urls)[0] ?? null;
-}
-
-/** Whether an enter request is for room `roomId`: the page asks again for a room it moves to. */
-function isEnterOf(url: string, roomId: string): boolean {
-  if (!url.includes('/webcast/room/web/enter/')) return false;
-  return new URL(url).searchParams.get('web_rid') === roomId;
-}
-
 export interface ChromeOptions {
   executablePath: string;
   headless: boolean;
@@ -197,8 +160,7 @@ export class ChromeRooms {
 }
 
 class LivePage implements RoomPage {
-  /** WebSockets (CDP request ids) that have sent push frames: chat is down only when all close. */
-  private readonly pushSockets = new Set<string>();
+  private readonly push = new PushTracker(() => this.entered?.innerRoomId);
   private closed = false;
   private requestedStream: string | null = null;
   private entered: Entered | null = null;
@@ -258,34 +220,14 @@ class LivePage implements RoomPage {
   private async watch(): Promise<void> {
     const cdp = await this.page.context().newCDPSession(this.page);
     await cdp.send('Network.enable');
-    // CDP frames don't say which socket's URL they came from, so every frame is tried; those
-    // that aren't Douyin's push frames fail to decode and are skipped.
     cdp.on('Network.webSocketFrameReceived', (params) => {
-      const data = params.response.payloadData;
-      if (!data || this.closed) return;
-      let frame;
-      try {
-        frame = decodeFrame(Buffer.from(data, 'base64'));
-      } catch {
-        return;
-      }
-      if (!frame.push) return;
-      this.pushSockets.add(params.requestId);
-      // Until the enter answer is in, there's nothing to check against.
-      const expected = this.entered?.innerRoomId;
-      const other =
-        expected && frame.messages.map(messageRoomId).find((id) => id && id !== expected);
-      if (other) {
-        void this.wrongRoom(`收到了别的直播间（${other}）的弹幕，不是本直播间的（${expected}）`);
-        return;
-      }
-      this.handlers.onPush(frame.messages);
+      if (this.closed) return;
+      const decision = this.push.frame(params.requestId, params.response.payloadData);
+      if (decision.kind === 'push') this.handlers.onPush(decision.messages);
+      else if (decision.kind === 'wrongRoom') void this.wrongRoom(decision.why);
     });
     cdp.on('Network.webSocketClosed', (params) => {
-      // The page's other sockets don't matter; chat is down when every push socket has closed.
-      if (this.pushSockets.delete(params.requestId) && this.pushSockets.size === 0) {
-        this.fail('弹幕连接断开');
-      }
+      if (this.push.closed(params.requestId)) this.fail('弹幕连接断开');
     });
     this.page.on('close', () => this.fail('直播间页面被关闭'));
 
