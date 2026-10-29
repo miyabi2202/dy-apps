@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { chromium, type Browser, type Locator, type Page } from 'playwright-core';
+import { chromium, type Browser, type Frame, type Locator, type Page } from 'playwright-core';
 import { BROWSER_ARGS, hideAutomation, USER_AGENT } from './chrome';
 import { decodeFrame, messageRoomId, type RawProtoMessage } from './douyin/proto';
 import type { RoomMeta } from '@dy-apps/room-feed-protocol';
@@ -67,6 +67,16 @@ const FANS_LAMP_BUTTON = /^(送灯牌|送出粉丝灯牌)$/;
 const FANS_JOIN_BUTTON = /^加入粉丝团$/;
 /** The panel's line once today's 灯牌 is sent: 「今日第7位送灯牌，连续3天」. */
 const FANS_LAMP_SENT = /今日第\d+位送灯牌/;
+
+/** Whether the 粉丝团 panel in `frame` says today's 灯牌 is sent. */
+async function sentLamp(frame: Frame): Promise<boolean> {
+  return (
+    (await frame
+      .getByText(FANS_LAMP_SENT)
+      .count()
+      .catch(() => 0)) > 0
+  );
+}
 
 /** The player's stream request: FLV or HLS. */
 const STREAM_URL = /^https?:\/\/[^/]+\/.+\.(flv|m3u8)(\?|$)/;
@@ -448,45 +458,78 @@ class LivePage implements RoomPage {
   }
 
   /**
-   * Sends today's 粉丝团灯牌. The header's 粉丝团 button is found by its icon, as its words take
-   * turns with 「今日任务」; when the streamer isn't followed yet, 「关注」 shows in its place and is
-   * clicked first. Then the panel is opened, up to FANS_PANEL_TRIES times (see tryFansPanel): a
-   * 「我知道了」 notice that doesn't go away when clicked can keep it from the 灯牌, and a panel
-   * opened again may not show it. Joining the 粉丝团 closes the panel, so it's opened again at once,
-   * and that opening isn't counted as a try; it joins at most once.
+   * Sends today's 粉丝团灯牌, in three steps, each skipped when it's done already: follows the
+   * streamer, joins the 粉丝团, sends the 灯牌. `already` when today's was sent before.
    */
   async sendFansLamp(): Promise<'sent' | 'already'> {
     await this.closeFansPanel();
     const bar = this.page.locator('#room_info_bar');
-    const follow = bar.locator('button').filter({ hasText: /^关注/ }).first();
-    if (await follow.isVisible().catch(() => false)) await follow.click();
+    await this.followStreamer(bar);
     const fans = bar
       .locator('button')
       .filter({ has: this.page.locator('[filter*="fansIconBg"]') })
       .first();
-    const state = { joined: false };
-    for (let tries = 0; tries < FANS_PANEL_TRIES;) {
-      const result = await this.tryFansPanel(fans, state);
-      if (result === 'joined') continue;
+    await this.joinFansClub(fans);
+    return this.sendLamp(fans);
+  }
+
+  /** Step 1: clicks the header's 「关注」, which shows only while the streamer isn't followed. */
+  private async followStreamer(bar: Locator): Promise<void> {
+    const follow = bar.locator('button').filter({ hasText: /^关注/ }).first();
+    if (await follow.isVisible().catch(() => false)) await follow.click();
+  }
+
+  /**
+   * Step 2: joins the 粉丝团 (1 diamond) when its panel offers FANS_JOIN_BUTTON, which closes the
+   * panel; a member's panel shows the 灯牌 instead, and there's nothing to do. A panel that shows
+   * neither in time is left to step 3.
+   */
+  private async joinFansClub(fans: Locator): Promise<void> {
+    await this.inFansPanel(fans, async (frame) => {
+      const join = frame.locator('x-text').filter({ hasText: FANS_JOIN_BUTTON });
+      if (await join.count().catch(() => 0)) {
+        await join.first().click();
+        return 'joined';
+      }
+      return (await this.showsLamp(frame)) ? 'member' : null;
+    });
+  }
+
+  /**
+   * Step 3: clicks FANS_LAMP_BUTTON, or answers `already` when the panel says FANS_LAMP_SENT (the
+   * button is gone then, and the 灯牌's line greyed out). Up to FANS_PANEL_TRIES openings: a
+   * 「我知道了」 notice that doesn't go away can keep one from the 灯牌.
+   */
+  private async sendLamp(fans: Locator): Promise<'sent' | 'already'> {
+    for (let i = 0; i < FANS_PANEL_TRIES; i++) {
+      const result = await this.inFansPanel(fans, async (frame) => {
+        if (await sentLamp(frame)) return 'already' as const;
+        const send = frame.locator('x-text').filter({ hasText: FANS_LAMP_BUTTON });
+        if (!(await send.count().catch(() => 0))) return null;
+        await send.first().click();
+        return 'sent' as const;
+      });
       if (result) return result;
-      tries++;
     }
     throw new Error('粉丝团面板里没找到送灯牌');
   }
 
+  /** Whether the panel shows the 灯牌: its button, or that today's is sent. */
+  private async showsLamp(frame: Frame): Promise<boolean> {
+    const send = frame.locator('x-text').filter({ hasText: FANS_LAMP_BUTTON });
+    return (await send.count().catch(() => 0)) > 0 || sentLamp(frame);
+  }
+
   /**
-   * Opens the 粉丝团 panel once, for FANS_PANEL_MS at most. The panel (Lynx, in a frame of its own)
-   * may open on a 「我知道了」 notice, closed whenever it shows; to a viewer not in the 粉丝团 yet it
-   * offers FANS_JOIN_BUTTON (1 diamond), clicked unless `state.joined`, which closes the panel
-   * (`joined`); then it has FANS_LAMP_BUTTON to click, or FANS_LAMP_SENT when today's is already
-   * sent (`sent` if it was joining that sent it). Null when it showed neither in time. The panel is closed afterwards, by
-   * its ×: Escape doesn't close it, and a panel left open would make the next click on 粉丝团
-   * close it instead.
+   * Opens the 粉丝团 panel and asks `look` of each of its frames (it's Lynx, in a frame of its own)
+   * every half second, for FANS_PANEL_MS at most, closing a 「我知道了」 notice whenever one shows:
+   * what `look` found, or null. The panel is closed afterwards, by its ×: Escape doesn't close it,
+   * and a panel left open would make the next click on 粉丝团 close it instead.
    */
-  private async tryFansPanel(
+  private async inFansPanel<T>(
     fans: Locator,
-    state: { joined: boolean },
-  ): Promise<'sent' | 'already' | 'joined' | null> {
+    look: (frame: Frame) => Promise<T | null>,
+  ): Promise<T | null> {
     await fans.click({ timeout: 15_000 });
     try {
       const until = Date.now() + FANS_PANEL_MS;
@@ -501,24 +544,8 @@ class LivePage implements RoomPage {
               .catch(() => {});
             continue;
           }
-          const join = frame.locator('x-text').filter({ hasText: FANS_JOIN_BUTTON });
-          if (!state.joined && (await join.count().catch(() => 0))) {
-            await join.first().click();
-            state.joined = true;
-            return 'joined';
-          }
-          const send = frame.locator('x-text').filter({ hasText: FANS_LAMP_BUTTON });
-          if (await send.count().catch(() => 0)) {
-            await send.first().click();
-            return 'sent';
-          }
-          if (
-            await frame
-              .getByText(FANS_LAMP_SENT)
-              .count()
-              .catch(() => 0)
-          )
-            return state.joined ? 'sent' : 'already';
+          const found = await look(frame);
+          if (found !== null) return found;
         }
       }
       return null;
