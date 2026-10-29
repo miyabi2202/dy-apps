@@ -58,7 +58,7 @@ const GUESSED_LIKES_PER_SECOND = 5;
 const MAX_LIKE_MS = 60_000;
 
 /** How long the 粉丝团 panel may take to load and answer. */
-const FANS_PANEL_MS = 20_000;
+const FANS_PANEL_MS = 40_000;
 /** The 粉丝团 panel's button that sends the 灯牌 (its words differ between accounts). */
 const FANS_LAMP_BUTTON = /^(送灯牌|送出粉丝灯牌)$/;
 /** The panel's button for joining the 粉丝团 (1 diamond), shown instead of the 灯牌 to a viewer not in it yet. */
