@@ -1,4 +1,5 @@
 import { errorMessage } from '../../core/errors';
+import { fillTemplate } from '../../core/prompts/template';
 import { parseJsonObject } from '../../core/replies/json-answer';
 import {
   chattersOf,
@@ -114,7 +115,7 @@ export class RememberChat {
       )
       .join('\n\n');
     const answer = await this.ask(
-      fill(notesPrompt(), { viewers, noteLimit: NOTE_LIMIT }),
+      fillTemplate(notesPrompt(), { viewers, noteLimit: NOTE_LIMIT }, { fillWhen: 'present' }),
       NOTE_CHANGES_SCHEMA,
       'notes',
     );
@@ -146,13 +147,17 @@ export class RememberChat {
     const { memory, roomPrompt, streamerId } = this.options;
     const streamer = streamerId();
     const answer = await this.ask(
-      fill(roomPrompt(), {
-        memory: memory.room().trim() || '（无）',
-        streamerNote: (streamer && memory.note(streamer).trim()) || '（无）',
-        digest: digestText(lines, { maxChars: 60_000 }),
-        roomLimit: ROOM_MEMORY_LIMIT,
-        noteLimit: NOTE_LIMIT,
-      }),
+      fillTemplate(
+        roomPrompt(),
+        {
+          memory: memory.room().trim() || '（无）',
+          streamerNote: (streamer && memory.note(streamer).trim()) || '（无）',
+          digest: digestText(lines, { maxChars: 60_000 }),
+          roomLimit: ROOM_MEMORY_LIMIT,
+          noteLimit: NOTE_LIMIT,
+        },
+        { fillWhen: 'present' },
+      ),
       ROOM_CHANGES_SCHEMA,
       'room',
     );
@@ -216,11 +221,4 @@ export class RememberChat {
     }
     return done.made.length;
   }
-}
-
-/** `template` with each `{{key}}` in `values` filled in; others stay as they are. */
-function fill(template: string, values: Readonly<Record<string, string | number>>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) =>
-    key in values ? String(values[key]) : match,
-  );
 }

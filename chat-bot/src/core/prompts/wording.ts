@@ -1,3 +1,5 @@
+import { fillTemplate } from './template';
+
 /**
  * Piece `name` of the wording file (see wording.md), `{{key}}` in it filled in from `values`; a
  * key not given stays as it is.
@@ -20,6 +22,6 @@ export function wordingOf(read: () => string): Wording {
   return (name, values = {}) => {
     const section = wordingSections(read()).get(name);
     if (section === undefined) throw new Error(`wording.md has no section "${name}"`);
-    return section.replace(/\{\{(\w+)\}\}/g, (match, key: string) => String(values[key] ?? match));
+    return fillTemplate(section, values);
   };
 }

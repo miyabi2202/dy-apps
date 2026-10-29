@@ -3,6 +3,7 @@ import { clock } from '../prompts/local-time';
 import type { Heard } from '../prompts/prompt';
 import { readMark } from '../chat/reading';
 import type { RoomLine } from '../chat/relevance';
+import { fillTemplate } from '../prompts/template';
 import type { Wording } from '../prompts/wording';
 
 /** One numbered line and how sure the picker is that the bot should answer it now. */
@@ -114,7 +115,7 @@ export function pickPrompt(
     botTalk: values.botTalk.trim() || '（暂无）',
     readMark: readMark('某人'),
   };
-  return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => all[key] ?? match);
+  return fillTemplate(template, all);
 }
 
 /** What the bot heard someone say to or about it without an @, to answer unprompted. */

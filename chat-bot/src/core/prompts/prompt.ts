@@ -1,6 +1,7 @@
 import { clock, localDate, machineTimeZone, retimeLines, timeZoneName } from './local-time';
 import type { GiftLine } from '../chat/recent-gifts';
 import type { ChatLine } from '../chat/room-events';
+import { fillTemplate } from './template';
 import type { Wording } from './wording';
 import { isGuest, isPlayed, isSung, type TranscriptLine } from '../songs/transcript';
 
@@ -209,7 +210,7 @@ export function buildPrompt(template: string, input: PromptInput): string {
     settings: settings ? settingsText(settings) : '',
     forbiddenTopics: input.forbiddenTopics?.trim() ?? '',
   };
-  return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => values[key] ?? match);
+  return fillTemplate(template, values);
 }
 
 /** `history` as `昵称: 内容` lines, and `gifts` among them by time as `昵称: （送出 玫瑰×1，1钻）`. */
