@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { chromium, type Browser, type Frame, type Locator, type Page } from 'playwright-core';
 import { BROWSER_ARGS, hideAutomation, USER_AGENT } from './chrome';
 import { decodeFrame, messageRoomId, type RawProtoMessage } from './douyin/proto';
-import type { RoomMeta } from '@dy-apps/room-feed-protocol';
+import type { FansLampAnswer, LikeAnswer, RoomMeta } from '@dy-apps/room-feed-protocol';
 import { parseRoomMeta } from './douyin/room-meta';
 import { LikeTally } from './like-tally';
 import { browserCookies } from './login-file';
@@ -36,12 +36,12 @@ export interface RoomPage {
    * Holds the like key on the player until about `likes` likes have gone, or Douyin says 手速太快了:
    * about how many went, and how long it held.
    */
-  holdLike(likes: number): Promise<{ liked: number; heldMs: number; tooFast: boolean }>;
+  holdLike(likes: number): Promise<Omit<LikeAnswer, 'ok'>>;
   /**
    * Sends today's 粉丝团灯牌 from the 粉丝团 panel, following the streamer first if need be:
    * `already` when today's was sent before. Throws when the panel doesn't show either.
    */
-  sendFansLamp(): Promise<'sent' | 'already'>;
+  sendFansLamp(): Promise<FansLampAnswer['result']>;
   close(): Promise<void>;
 }
 
@@ -421,7 +421,7 @@ class LivePage implements RoomPage {
    * held (GUESSED_LIKES_PER_SECOND); either way, never longer than MAX_LIKE_MS. It clicks the
    * player first, so the keys go to it, not to the chat box (where they'd be typed).
    */
-  async holdLike(likes: number): Promise<{ liked: number; heldMs: number; tooFast: boolean }> {
+  async holdLike(likes: number): Promise<Omit<LikeAnswer, 'ok'>> {
     const box = await this.playerBox();
     if (box) {
       await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -475,7 +475,7 @@ class LivePage implements RoomPage {
    * Sends today's 粉丝团灯牌, in three steps, each skipped when it's done already: follows the
    * streamer, joins the 粉丝团, sends the 灯牌. `already` when today's was sent before.
    */
-  async sendFansLamp(): Promise<'sent' | 'already'> {
+  async sendFansLamp(): Promise<FansLampAnswer['result']> {
     await this.closeFansPanel();
     const bar = this.page.locator('#room_info_bar');
     await this.followStreamer(bar);
@@ -517,7 +517,7 @@ class LivePage implements RoomPage {
    * button is gone then, and the 灯牌's line greyed out). Up to FANS_PANEL_TRIES openings: a
    * 「我知道了」 notice that doesn't go away can keep one from the 灯牌.
    */
-  private async sendLamp(fans: Locator): Promise<'sent' | 'already'> {
+  private async sendLamp(fans: Locator): Promise<FansLampAnswer['result']> {
     for (let i = 0; i < FANS_PANEL_TRIES; i++) {
       const result = await this.inFansPanel(fans, async (frame) => {
         if (await sentLamp(frame)) return 'already' as const;

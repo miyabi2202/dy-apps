@@ -113,11 +113,12 @@ export function eventsUrl(port: number, roomId: string, types: readonly EventTyp
   return `ws://localhost:${port}/ws?roomId=${roomId}&types=${types.join(',')}`;
 }
 
+/** The actions a room has below its own address: `/api/rooms/<id>/<action>`. */
+export const ROOM_ACTIONS = ['chat', 'like', 'fans-lamp', 'stream', 'screenshot'] as const;
+
+export type RoomAction = (typeof ROOM_ACTIONS)[number];
+
 /** A room endpoint: the room itself, or its chat, likes, fans lamp, stream or screenshot. */
-export function roomUrl(
-  port: number,
-  roomId: string,
-  action?: 'chat' | 'like' | 'fans-lamp' | 'stream' | 'screenshot',
-): string {
+export function roomUrl(port: number, roomId: string, action?: RoomAction): string {
   return `http://localhost:${port}/api/rooms/${roomId}${action ? `/${action}` : ''}`;
 }

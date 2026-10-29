@@ -1,6 +1,8 @@
 import { normalize } from './douyin/normalize';
 import { isStreamEnd, type RawProtoMessage } from './douyin/proto';
 import type {
+  FansLampAnswer,
+  LikeAnswer,
   RoomEvent,
   RoomGoneReason,
   RoomInfoAnswer,
@@ -9,6 +11,7 @@ import type {
 } from '@dy-apps/room-feed-protocol';
 import { RoomEndedError, RoomError } from './errors';
 import type { OpenRoomPage, RoomPage } from './room-page';
+import { SerialQueue } from './serial-queue';
 
 /** Cancels what `schedule` set up. */
 type Cancel = () => void;
@@ -79,7 +82,8 @@ export class Room {
   private readonly eventListeners = new Set<(event: RoomEvent) => void>();
   private readonly statusListeners = new Set<(status: RoomStatus) => void>();
   private readonly goneListeners = new Set<(why: string, reason: RoomGoneReason) => void>();
-  private chatQueue: Promise<unknown> = Promise.resolve();
+  /** Chats, likes and 灯牌 go one at a time: they share the page's keyboard and mouse. */
+  private readonly queue = new SerialQueue();
   private lastChatAt = -Infinity;
 
   constructor(options: RoomOptions) {
@@ -137,26 +141,20 @@ export class Room {
    * whether it came back in the push stream, which is how we know Douyin took it.
    */
   sendChat(text: string): Promise<{ echoed: boolean }> {
-    const run = this.chatQueue.then(() => this.doSendChat(text));
-    this.chatQueue = run.catch(() => {});
-    return run;
+    return this.queue.run(() => this.doSendChat(text));
   }
 
   /**
    * Gives about `likes` likes by holding the like key (see RoomPage.holdLike). Queued with the
    * chats: both use the page's keyboard, and a z held while a chat is typed would go into the chat box.
    */
-  like(likes: number): Promise<{ liked: number; heldMs: number; tooFast: boolean }> {
-    const run = this.chatQueue.then(() => this.livePage().holdLike(likes));
-    this.chatQueue = run.catch(() => {});
-    return run;
+  like(likes: number): Promise<Omit<LikeAnswer, 'ok'>> {
+    return this.queue.run(() => this.livePage().holdLike(likes));
   }
 
   /** Sends today's 粉丝团灯牌 (see RoomPage.sendFansLamp), in turn with the chats and likes. */
-  sendFansLamp(): Promise<'sent' | 'already'> {
-    const run = this.chatQueue.then(() => this.livePage().sendFansLamp());
-    this.chatQueue = run.catch(() => {});
-    return run;
+  sendFansLamp(): Promise<FansLampAnswer['result']> {
+    return this.queue.run(() => this.livePage().sendFansLamp());
   }
 
   streamUrl(): string | null {

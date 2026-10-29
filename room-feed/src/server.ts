@@ -3,6 +3,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import {
   EVENT_TYPES,
   MAX_LIKES,
+  ROOM_ACTIONS,
   type ChatAnswer,
   type ErrorAnswer,
   type FansLampAnswer,
@@ -60,6 +61,11 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   }
 }
 
+/** `/api/rooms/<id>` with an optional action, and an optional trailing slash. */
+const routePattern = new RegExp(
+  `^/api/rooms/(\\d+)(${ROOM_ACTIONS.map((action) => `/${action}`).join('|')})?/?$`,
+);
+
 type Answer =
   RoomInfoAnswer | ChatAnswer | LikeAnswer | FansLampAnswer | StreamAnswer | ErrorAnswer;
 
@@ -98,9 +104,7 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost');
-    const match = /^\/api\/rooms\/(\d+)(\/chat|\/like|\/fans-lamp|\/stream|\/screenshot)?\/?$/.exec(
-      url.pathname,
-    );
+    const match = routePattern.exec(url.pathname);
     if (!match) return sendJson(res, 404, { error: '没有这个接口' });
     const [, roomId = '', action = ''] = match;
     if (roomId !== room.roomId) return sendJson(res, 404, { error: otherRoom(roomId) });
