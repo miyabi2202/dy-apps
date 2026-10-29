@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { livePrompt } from '../adapters/files/prompt-files';
-import { ChatBot } from '../app/replies/chat-bot';
+import { ChatBot, isAdmin } from '../app/replies/chat-bot';
+import { ToolRunner } from '../app/tools/tool-runner';
 import { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { Container } from './container';
 import {
@@ -17,6 +18,7 @@ import {
   OUTBOX,
   PROMPTS_DIR,
   ROOM,
+  TOOL_RUNNER,
   TOOLS,
   USER_TALK,
 } from './tokens';
@@ -47,6 +49,19 @@ export function registerBot(container: Container): void {
         admins: c.resolve(ADMINS),
       });
     })
+    // Runs the tools a mention names with a `/`.
+    .register(TOOL_RUNNER, (c) => {
+      const admins = c.resolve(ADMINS);
+      return new ToolRunner({
+        tools: c.resolve(TOOLS),
+        outbox: c.resolve(OUTBOX),
+        room: c.resolve(ROOM),
+        log: c.resolve(LOG),
+        isAdmin: (userId) => isAdmin(admins, userId),
+        adminNames: c.resolve(BOT_CONFIG).adminNames,
+        maxReplyLength: c.resolve(OPTIONS).maxReplyLength,
+      });
+    })
     // Decides what a mention is (a question, or a tool's `/` command).
     .register(
       BOT,
@@ -62,6 +77,7 @@ export function registerBot(container: Container): void {
           adminNames: c.resolve(BOT_CONFIG).adminNames,
           tools: c.resolve(TOOLS),
           maxReplyLength: c.resolve(OPTIONS).maxReplyLength,
+          toolRunner: c.resolve(TOOL_RUNNER),
         }),
     );
 }

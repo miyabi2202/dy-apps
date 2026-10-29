@@ -12,6 +12,7 @@ import type { BotConfig } from '../adapters/files/config-file';
 import type { AutoReply } from '../app/replies/auto-reply';
 import type { AutoSongId } from '../app/songs/auto-song-id';
 import type { ChatBot } from '../app/replies/chat-bot';
+import type { ToolRunner } from '../app/tools/tool-runner';
 import type { EventBus } from '../app/event-bus';
 import type { GiftThanker } from '../app/replies/gift-thanker';
 import type { MaliceWatch } from '../app/replies/malice-watch';
@@ -165,6 +166,7 @@ export const MCP_SERVER = token<BotMcpServer>('mcpServer');
 
 // bot.ts: the mentions' answerer and the bot.
 export const ANSWERER = token<MentionAnswerer>('answerer');
+export const TOOL_RUNNER = token<ToolRunner>('toolRunner');
 export const BOT = token<ChatBot>('bot');
 
 // app.ts: everything, started and stopped.

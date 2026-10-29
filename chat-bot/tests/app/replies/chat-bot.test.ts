@@ -1,4 +1,4 @@
-import { ChatBot } from '../../../src/app/replies/chat-bot';
+import { ChatBot, type ChatBotOptions } from '../../../src/app/replies/chat-bot';
 import { MentionAnswerer } from '../../../src/app/replies/mention-answerer';
 import { RoomFeed } from '../../../src/app/room/room-feed';
 import { newSession, type Session } from '../../../src/mcp/rpc';
@@ -33,6 +33,7 @@ interface SetupOptions {
   /** Instead of the real answerer. */
   answerer?: Pick<MentionAnswerer, 'ask' | 'idle'>;
   now?: () => number;
+  toolRunner?: ChatBotOptions['toolRunner'];
   screenshot?: boolean;
   log?: Log;
 }
@@ -115,6 +116,7 @@ function setup(options: SetupOptions = {}) {
     admins: new Set(options.admins),
     tools,
     now: options.now,
+    toolRunner: options.toolRunner,
     adminNames: '雅',
   });
   bot.start();
@@ -343,4 +345,24 @@ test("a tool's guidance comes back to Claude, who answers in the same turn", asy
   expect(prompts).toEqual(['阿明: 虾虾会唱晴天吗']);
   expect(questions[0]?.botTools?.tools).toEqual(['can_sing']);
   expect(sent).toEqual(['@阿明 会唱']);
+});
+
+test('runs a / command with the tool runner it is given, and waits for it in idle', async () => {
+  const calls: { name: string; admin: boolean }[] = [];
+  let finished = false;
+  const { settle, say, prompts } = setup({
+    toolRunner: {
+      run: (_chat, call, admin) => calls.push({ name: call.name, admin }),
+      idle: () => {
+        finished = true;
+        return Promise.resolve();
+      },
+    },
+  });
+  say(chat('阿明', '@小助手 /截图 1', [{ text: '@小助手', userId: 'bot-1' }]));
+  await settle();
+
+  expect(calls).toEqual([{ name: '截图', admin: false }]);
+  expect(finished).toBe(true);
+  expect(prompts).toEqual([]);
 });

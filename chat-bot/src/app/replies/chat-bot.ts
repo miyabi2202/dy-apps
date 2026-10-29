@@ -31,6 +31,13 @@ export interface ChatBotOptions {
   /** Who may run admin-only commands, as viewers know them: 「只有主播和…才可以」. */
   adminNames?: string;
   now?: () => number;
+  /** Runs the commands; one made from the options above by default. */
+  toolRunner?: Pick<ToolRunner, 'run' | 'idle'>;
+}
+
+/** Whether `userId` is one of `admins`. */
+export function isAdmin(admins: Admins | undefined, userId: string | undefined): boolean {
+  return userId !== undefined && !!admins?.has(userId);
 }
 
 /**
@@ -38,19 +45,21 @@ export interface ChatBotOptions {
  * first, a tool's command (`/识歌`), which the ToolRunner runs.
  */
 export class ChatBot {
-  private readonly toolRunner: ToolRunner;
+  private readonly toolRunner: Pick<ToolRunner, 'run' | 'idle'>;
 
   constructor(private readonly options: ChatBotOptions) {
-    this.toolRunner = new ToolRunner({
-      tools: options.tools ?? (() => []),
-      outbox: options.outbox,
-      room: options.room,
-      log: options.log,
-      isAdmin: (userId) => this.isAdmin(userId),
-      adminNames: options.adminNames,
-      maxReplyLength: options.maxReplyLength,
-      now: options.now,
-    });
+    this.toolRunner =
+      options.toolRunner ??
+      new ToolRunner({
+        tools: options.tools ?? (() => []),
+        outbox: options.outbox,
+        room: options.room,
+        log: options.log,
+        isAdmin: (userId) => this.isAdmin(userId),
+        adminNames: options.adminNames,
+        maxReplyLength: options.maxReplyLength,
+        now: options.now,
+      });
   }
 
   start(): void {
@@ -141,7 +150,7 @@ export class ChatBot {
   }
 
   private isAdmin(userId: string | undefined): boolean {
-    return userId !== undefined && !!this.options.admins?.has(userId);
+    return isAdmin(this.options.admins, userId);
   }
 
   /** Hands a mention to the answerer. */
