@@ -30,6 +30,7 @@ import { parseRoomMeta } from './douyin/room-meta';
 import { LikeTally } from './like-tally';
 import { browserCookies } from './login-file';
 import { PageActionError, RoomEndedError } from './errors';
+import { FansLamp, type FansLampSurface, type PanelFrame, type PanelTarget } from './fans-lamp';
 import { PushTracker } from './push-tracker';
 
 /** What a room page tells the Room. */
@@ -77,22 +78,78 @@ const GUESSED_LIKES_PER_SECOND = 5;
 /** The longest one like holds the key, whatever the counter says. */
 const MAX_LIKE_MS = 60_000;
 
-/** How long the 灯牌 steps wait between seeing a button and clicking it, as a person would: this, */
-const CLICK_PAUSE_MS = 1000;
-/** plus up to this much more, at random. */
-const CLICK_PAUSE_JITTER_MS = 1000;
-/** How long one opening of the 粉丝团 panel may take to load and answer. */
-const FANS_PANEL_MS = 20_000;
-/** How many times the panel is opened before giving up: a fresh one may not be stuck on a notice. */
-const FANS_PANEL_TRIES = 2;
-/** Whether the 粉丝团 panel in `frame` says today's 灯牌 is sent. */
-async function sentLamp(frame: Frame): Promise<boolean> {
-  return (
-    (await frame
-      .getByText(FANS_LAMP_SENT)
-      .count()
-      .catch(() => 0)) > 0
-  );
+/** One frame of the 粉丝团 panel, its targets found by the page map's selectors and texts. */
+class PagePanelFrame implements PanelFrame {
+  constructor(private readonly frame: Frame) {}
+
+  async has(target: PanelTarget): Promise<boolean> {
+    return (
+      (await this.find(target)
+        .count()
+        .catch(() => 0)) > 0
+    );
+  }
+
+  click(target: PanelTarget): Promise<void> {
+    return this.find(target).first().click();
+  }
+
+  private find(target: PanelTarget): Locator {
+    switch (target) {
+      case 'notice':
+        return this.frame.getByText(NOTICE_OK_TEXT, { exact: true });
+      case 'join':
+        return this.frame.locator(PANEL_TEXT).filter({ hasText: FANS_JOIN_BUTTON });
+      case 'send':
+        return this.frame.locator(PANEL_TEXT).filter({ hasText: FANS_LAMP_BUTTON });
+      case 'sent':
+        return this.frame.getByText(FANS_LAMP_SENT);
+    }
+  }
+}
+
+/** The Playwright side of the 灯牌 steps: Douyin's page, as the page map describes it. */
+class PageFansSurface implements FansLampSurface {
+  private readonly follow: Locator;
+  private readonly fans: Locator;
+
+  constructor(private readonly page: Page) {
+    const bar = page.locator(ROOM_INFO_BAR);
+    this.follow = bar.locator('button').filter({ hasText: FOLLOW_BUTTON }).first();
+    this.fans = bar
+      .locator('button')
+      .filter({ has: page.locator(FANS_ICON) })
+      .first();
+  }
+
+  followVisible(): Promise<boolean> {
+    return this.follow.isVisible().catch(() => false);
+  }
+
+  clickFollow(): Promise<void> {
+    return this.follow.click();
+  }
+
+  waitForPanelButton(): Promise<void> {
+    return this.fans.waitFor({ timeout: 15_000 });
+  }
+
+  openPanel(): Promise<void> {
+    return this.fans.click({ timeout: 15_000 });
+  }
+
+  panelFrames(): PanelFrame[] {
+    return this.page.frames().map((frame) => new PagePanelFrame(frame));
+  }
+
+  /** Clicks the × of the panel on the right (the 粉丝团 one, among others), if one is open. */
+  async closePanel(): Promise<void> {
+    const close = this.page
+      .locator(RIGHT_PANEL_CLOSE_SVG)
+      .filter({ has: this.page.locator(CLOSE_ICON) })
+      .first();
+    if (await close.isVisible().catch(() => false)) await close.click().catch(() => {});
+  }
 }
 
 export interface ChromeOptions {
@@ -166,6 +223,7 @@ export class ChromeRooms {
 
 class LivePage implements RoomPage {
   private readonly push = new PushTracker(() => this.entered?.innerRoomId);
+  private readonly fansLamp: FansLamp;
   private closed = false;
   private requestedStream: string | null = null;
   private entered: Entered | null = null;
@@ -178,8 +236,13 @@ class LivePage implements RoomPage {
     private readonly roomId: string,
     private readonly handlers: RoomPageHandlers,
     private readonly shotsDir: string | undefined,
-    private readonly random: () => number,
-  ) {}
+    random: () => number,
+  ) {
+    this.fansLamp = new FansLamp(new PageFansSurface(page), {
+      wait: (ms) => page.waitForTimeout(ms),
+      random,
+    });
+  }
 
   static async open(
     page: Page,
@@ -418,125 +481,9 @@ class LivePage implements RoomPage {
       .catch(() => null);
   }
 
-  /**
-   * Sends today's 粉丝团灯牌, in three steps, each skipped when it's done already: follows the
-   * streamer, joins the 粉丝团, sends the 灯牌. `already` when today's was sent before.
-   */
-  async sendFansLamp(): Promise<FansLampAnswer['result']> {
-    await this.closeFansPanel();
-    const bar = this.page.locator(ROOM_INFO_BAR);
-    await this.followStreamer(bar);
-    const fans = bar
-      .locator('button')
-      .filter({ has: this.page.locator(FANS_ICON) })
-      .first();
-    await this.joinFansClub(fans);
-    return this.sendLamp(fans);
-  }
-
-  /** Step 1: clicks the header's 「关注」, which shows only while the streamer isn't followed. */
-  private async followStreamer(bar: Locator): Promise<void> {
-    const follow = bar.locator('button').filter({ hasText: FOLLOW_BUTTON }).first();
-    if (!(await follow.isVisible().catch(() => false))) return;
-    await this.pauseBeforeClick();
-    await follow.click();
-  }
-
-  /**
-   * Step 2: joins the 粉丝团 (1 diamond) when its panel offers FANS_JOIN_BUTTON, which closes the
-   * panel; a member's panel shows the 灯牌 instead, and there's nothing to do. A panel that shows
-   * neither in time is left to step 3.
-   */
-  private async joinFansClub(fans: Locator): Promise<void> {
-    await this.inFansPanel(fans, async (frame) => {
-      const join = frame.locator(PANEL_TEXT).filter({ hasText: FANS_JOIN_BUTTON });
-      if (await join.count().catch(() => 0)) {
-        await this.pauseBeforeClick();
-        await join.first().click();
-        return 'joined';
-      }
-      return (await this.showsLamp(frame)) ? 'member' : null;
-    });
-  }
-
-  /**
-   * Step 3: clicks FANS_LAMP_BUTTON, or answers `already` when the panel says FANS_LAMP_SENT (the
-   * button is gone then, and the 灯牌's line greyed out). Up to FANS_PANEL_TRIES openings: a
-   * 「我知道了」 notice that doesn't go away can keep one from the 灯牌.
-   */
-  private async sendLamp(fans: Locator): Promise<FansLampAnswer['result']> {
-    for (let i = 0; i < FANS_PANEL_TRIES; i++) {
-      const result = await this.inFansPanel(fans, async (frame) => {
-        if (await sentLamp(frame)) return 'already' as const;
-        const send = frame.locator(PANEL_TEXT).filter({ hasText: FANS_LAMP_BUTTON });
-        if (!(await send.count().catch(() => 0))) return null;
-        await this.pauseBeforeClick();
-        await send.first().click();
-        return 'sent' as const;
-      });
-      if (result) return result;
-    }
-    throw new PageActionError('粉丝团面板里没找到送灯牌');
-  }
-
-  /** Whether the panel shows the 灯牌: its button, or that today's is sent. */
-  private async showsLamp(frame: Frame): Promise<boolean> {
-    const send = frame.locator(PANEL_TEXT).filter({ hasText: FANS_LAMP_BUTTON });
-    return (await send.count().catch(() => 0)) > 0 || sentLamp(frame);
-  }
-
-  /**
-   * Opens the 粉丝团 panel and asks `look` of each of its frames (it's Lynx, in a frame of its own)
-   * every half second, for FANS_PANEL_MS at most, closing a 「我知道了」 notice whenever one shows:
-   * what `look` found, or null. The panel is closed afterwards, by its ×: Escape doesn't close it,
-   * and a panel left open would make the next click on 粉丝团 close it instead.
-   */
-  private async inFansPanel<T>(
-    fans: Locator,
-    look: (frame: Frame) => Promise<T | null>,
-  ): Promise<T | null> {
-    await fans.waitFor({ timeout: 15_000 });
-    await this.pauseBeforeClick();
-    await fans.click({ timeout: 15_000 });
-    try {
-      const until = Date.now() + FANS_PANEL_MS;
-      while (Date.now() < until) {
-        await this.page.waitForTimeout(500);
-        for (const frame of this.page.frames()) {
-          const notice = frame.getByText(NOTICE_OK_TEXT, { exact: true });
-          if (await notice.count().catch(() => 0)) {
-            await this.pauseBeforeClick();
-            await notice
-              .first()
-              .click()
-              .catch(() => {});
-            continue;
-          }
-          const found = await look(frame);
-          if (found !== null) return found;
-        }
-      }
-      return null;
-    } finally {
-      await this.page.waitForTimeout(1500);
-      await this.closeFansPanel();
-    }
-  }
-
-  /** Waits CLICK_PAUSE_MS and up to CLICK_PAUSE_JITTER_MS more, so the 灯牌's clicks aren't instant. */
-  private async pauseBeforeClick(): Promise<void> {
-    await this.page.waitForTimeout(
-      CLICK_PAUSE_MS + Math.floor(this.random() * CLICK_PAUSE_JITTER_MS),
-    );
-  }
-
-  /** Clicks the × of the panel on the right (the 粉丝团 one, among others), if one is open. */
-  private async closeFansPanel(): Promise<void> {
-    const close = this.page
-      .locator(RIGHT_PANEL_CLOSE_SVG)
-      .filter({ has: this.page.locator(CLOSE_ICON) })
-      .first();
-    if (await close.isVisible().catch(() => false)) await close.click().catch(() => {});
+  /** See FansLamp: the steps are there, this page is what they click on. */
+  sendFansLamp(): Promise<FansLampAnswer['result']> {
+    return this.fansLamp.send();
   }
 
   /** Whether the page shows Douyin's 手速太快了, its notice for liking too fast. */
