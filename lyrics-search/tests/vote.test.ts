@@ -26,6 +26,24 @@ describe('vote', () => {
     expect(hitsBy.get('乙乙')?.map((h) => h.title)).toEqual(['乙乙', '乙乙 (TV Size)']);
   });
 
+  it('counts 「work-song」 as the song other hits name alone, not the work before the dash', () => {
+    const { ranked, hitsBy } = vote([
+      [
+        hit('盗墓笔记-步戏', '五音Jw'),
+        hit('步戏', '五音Jw'),
+        hit('步戏（Cover 五音Jw）', '岚之调'),
+      ],
+      [hit('盗墓笔记-步戏', '五音Jw'), hit('步戏', '五音Jw')],
+    ]);
+    expect(ranked).toEqual([['步戏', 2]]);
+    expect(hitsBy.get('步戏')?.[0]).toEqual(hit('步戏', '五音Jw'));
+  });
+
+  it('keeps a dashed title as it is when no part of it is named alone', () => {
+    expect(vote([[hit('盗墓笔记-步戏')]]).ranked).toEqual([['盗墓笔记', 1]]);
+    expect(vote([[hit('晴天 - DJ版'), hit('晴天')]]).ranked).toEqual([['晴天', 1]]);
+  });
+
   it('skips titles that normalise to nothing', () => {
     expect(vote([[hit('（伴奏）')]]).ranked).toEqual([]);
   });
