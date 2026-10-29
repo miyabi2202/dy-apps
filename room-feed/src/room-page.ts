@@ -61,6 +61,8 @@ const MAX_LIKE_MS = 60_000;
 const FANS_PANEL_MS = 20_000;
 /** The 粉丝团 panel's button that sends the 灯牌 (its words differ between accounts). */
 const FANS_LAMP_BUTTON = /^(送灯牌|送出粉丝灯牌)$/;
+/** The panel's button for joining the 粉丝团 (1 diamond), shown instead of the 灯牌 to a viewer not in it yet. */
+const FANS_JOIN_BUTTON = /^加入粉丝团$/;
 /** The panel's line once today's 灯牌 is sent: 「今日第7位送灯牌，连续3天」. */
 const FANS_LAMP_SENT = /今日第\d+位送灯牌/;
 
@@ -447,8 +449,9 @@ class LivePage implements RoomPage {
    * Sends today's 粉丝团灯牌. The header's 粉丝团 button is found by its icon, as its words take
    * turns with 「今日任务」; when the streamer isn't followed yet, 「关注」 shows in its place and is
    * clicked first. The panel (Lynx, in a frame of its own) may open on a 「我知道了」 notice, closed
-   * whenever it shows; then it has FANS_LAMP_BUTTON to click, or FANS_LAMP_SENT when today's is
-   * already sent. The panel is closed afterwards, by its ×: Escape doesn't close it, and a panel
+   * whenever it shows; to a viewer not in the 粉丝团 yet it offers FANS_JOIN_BUTTON (1 diamond),
+   * clicked once; then it has FANS_LAMP_BUTTON to click, or FANS_LAMP_SENT when today's is
+   * already sent (`sent` if it was joining that sent it). The panel is closed afterwards, by its ×: Escape doesn't close it, and a panel
    * left open would make the next click on 粉丝团 close it instead.
    */
   async sendFansLamp(): Promise<'sent' | 'already'> {
@@ -461,6 +464,7 @@ class LivePage implements RoomPage {
       .filter({ has: this.page.locator('[filter*="fansIconBg"]') })
       .first();
     await fans.click({ timeout: 15_000 });
+    let joined = false;
     try {
       const until = Date.now() + FANS_PANEL_MS;
       while (Date.now() < until) {
@@ -474,6 +478,12 @@ class LivePage implements RoomPage {
               .catch(() => {});
             continue;
           }
+          const join = frame.locator('x-text').filter({ hasText: FANS_JOIN_BUTTON });
+          if (!joined && (await join.count().catch(() => 0))) {
+            await join.first().click();
+            joined = true;
+            continue;
+          }
           const send = frame.locator('x-text').filter({ hasText: FANS_LAMP_BUTTON });
           if (await send.count().catch(() => 0)) {
             await send.first().click();
@@ -485,7 +495,7 @@ class LivePage implements RoomPage {
               .count()
               .catch(() => 0)
           )
-            return 'already';
+            return joined ? 'sent' : 'already';
         }
       }
       throw new Error('粉丝团面板里没找到送灯牌');

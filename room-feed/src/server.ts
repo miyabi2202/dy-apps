@@ -78,7 +78,7 @@ function errorMessage(e: unknown): string {
  * - `POST /api/rooms/<id>/chat` `{ text }`: send a chat as the logged-in account
  * - `POST /api/rooms/<id>/like` `{ likes }`: hold the like key (z) on the player until about that
  *   many likes have gone, by Douyin's counter, or until Douyin says 手速太快了
- * - `POST /api/rooms/<id>/fans-lamp`: send today's 粉丝团灯牌 (1 diamond), following first if need be
+ * - `POST /api/rooms/<id>/fans-lamp`: send today's 粉丝团灯牌 (1 diamond), following and joining the 粉丝团 first if need be
  * - `GET /api/rooms/<id>/stream`: the URL of the stream the page plays
  * - `GET /api/rooms/<id>/screenshot`: the player as a JPEG
  * Asking for another room is an error that names the room this room-feed serves.
