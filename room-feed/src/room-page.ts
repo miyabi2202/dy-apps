@@ -1,5 +1,5 @@
 import type { Frame, Locator, Page } from 'playwright-core';
-import { ChatBox } from './chat-box';
+import { ChatBox, type ChatSurface } from './chat-box';
 import { type RawProtoMessage } from './douyin/proto';
 import {
   isEnterOf,
@@ -15,6 +15,7 @@ import type {
   RoomMeta,
 } from '@dy-apps/room-feed-protocol';
 import {
+  CHAT_INPUT,
   CLOSE_ICON,
   DIAMOND_BALANCE,
   FANS_ICON,
@@ -166,6 +167,50 @@ class PageFansSurface implements FansLampSurface {
   }
 }
 
+/** The Playwright side of the chat box: Douyin's Slate editor, as the page map describes it. */
+class PageChatSurface implements ChatSurface {
+  private readonly box: Locator;
+
+  constructor(private readonly page: Page) {
+    this.box = page.locator(CHAT_INPUT);
+  }
+
+  waitForBox(): Promise<void> {
+    return this.box.waitFor({ state: 'visible', timeout: 5000 });
+  }
+
+  async clickBox(): Promise<void> {
+    // A popup's mask can cover the box and take the click: a viewer's card, opened when the click
+    // that starts the player lands on a streamer's tile in a PK. Typing needs only the focus.
+    await this.box.click({ timeout: 3000 }).catch(async () => {
+      await this.page.keyboard.press('Escape').catch(() => {});
+      await this.box.focus();
+    });
+  }
+
+  async text(): Promise<string> {
+    const text = await this.box.innerText();
+    return text.replace(/[\u200b\s]/g, '');
+  }
+
+  async selectAllAndDelete(): Promise<void> {
+    await this.page.keyboard.press('ControlOrMeta+A');
+    await this.page.keyboard.press('Backspace');
+  }
+
+  async backspaceFromEnd(times: number): Promise<void> {
+    const { keyboard } = this.page;
+    await keyboard.press('ControlOrMeta+ArrowDown');
+    await keyboard.press('End');
+    for (let i = 0; i < times; i++) await keyboard.press('Backspace');
+  }
+
+  async typeAndSend(text: string): Promise<void> {
+    await this.page.keyboard.insertText(text);
+    await this.page.keyboard.press('Enter');
+  }
+}
+
 /** The diamonds by the gift bar's 充值, or null when they don't show. */
 async function readBalance(page: Page): Promise<number | null> {
   const text = await page
@@ -278,6 +323,7 @@ export class LivePage implements RoomPage {
   private readonly likeHold: LikeHold;
   private readonly shots: PageShots;
   private readonly chatBox: ChatBox;
+  private readonly pace: Pace;
   private closed = false;
   private requestedStream: string | null = null;
   private entered: Entered | null = null;
@@ -293,21 +339,28 @@ export class LivePage implements RoomPage {
     random: () => number,
   ) {
     this.shots = new PageShots(page, shotsDir);
-    this.chatBox = new ChatBox(page, (name) => this.shots.save(name));
     // One pace for every step on the page: wait for the target, pause, act.
     const pace = new Pace({ wait: (ms) => page.waitForTimeout(ms), random });
+    this.pace = pace;
+    this.chatBox = new ChatBox(new PageChatSurface(page), {
+      pace,
+      screenshot: (name) => this.shots.save(name),
+    });
     this.fansLamp = new FansLamp(new PageFansSurface(page), { pace });
     this.gifts = new PageGiftSurface(page);
     this.heartGift = new HeartGift(this.gifts, { pace });
     this.likeHold = new LikeHold(
       {
-        focusPlayer: () => this.focusPlayer(),
+        playerShown: async () => (await this.shots.playerBox()) !== null,
+        clickPlayer: () => this.clickPlayer(),
+        blurFocus: () =>
+          page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur()),
         keyDown: () => page.keyboard.down('z'),
         keyUp: () => page.keyboard.up('z'),
         counter: () => this.likeCounter(),
         saysTooFast: () => this.saysTooFast(),
       },
-      { wait: (ms) => page.waitForTimeout(ms) },
+      { pace },
     );
   }
 
@@ -331,8 +384,11 @@ export class LivePage implements RoomPage {
       // No title yet: carry on anyway.
     }
     await page.waitForTimeout(2500);
-    // A headless player starts, and the chat socket opens, only after a click.
-    await page.mouse.click(PLAYER_CLICK.x, PLAYER_CLICK.y).catch(() => {});
+    // A headless player starts, and the chat socket opens, only after a click: the page has
+    // settled (its title, then 2.5 s), so it's a step after a pause like any other.
+    await live.pace.afterSeen(() =>
+      page.mouse.click(PLAYER_CLICK.x, PLAYER_CLICK.y).catch(() => {}),
+    );
     await live.checkLive();
     return live;
   }
@@ -422,14 +478,10 @@ export class LivePage implements RoomPage {
     return this.likeHold.hold(likes);
   }
 
-  /** Clicks the middle of the player, or without one lets go of whatever has the focus. */
-  private async focusPlayer(): Promise<void> {
+  /** Clicks the middle of the player (if it's still there). */
+  private async clickPlayer(): Promise<void> {
     const box = await this.shots.playerBox();
-    if (box) {
-      await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    } else {
-      await this.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    }
+    if (box) await this.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   }
 
   /**

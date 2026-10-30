@@ -87,7 +87,7 @@ room-feed/                # @dy-apps/room-feed: one live room's events, run with
   src/room-page.ts        #   the page in Chrome (Playwright): push frames over CDP, chat box, stream URL, screenshot, likes, fans lamp, 小心心, balance
   src/like-tally.ts       #   LikeTally: Douyin's like counter added up over one hold
   src/heart-gift.ts       #   HeartGift: one 小心心 from the gift panel (更多 → search), checked by the balance
-  src/pace.ts             #   Pace: every click and typing waits for its target, pauses 1–2 s, then acts
+  src/pace.ts             #   Pace: every click and typing waits for its target, pauses 500–1000 ms, then acts (AGENTS.md)
   src/right-panel.ts      #   closeRightPanel: the right panel's ×, as a paced step
   src/server.ts           #   HTTP + WebSocket for clients
   src/douyin/             #   Douyin's protobuf, its messages turned into events, the streamer from the page

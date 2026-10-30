@@ -93,32 +93,32 @@ function setup(diamonds: number | null, options?: ConstructorParameters<typeof F
 const steps = (log: string[]) => log.filter((line) => !/^wait \d/.test(line));
 
 describe('HeartGift', () => {
-  it('waits for each target, pauses 1 s plus the random part, then acts: 更多, search, typing, the result', async () => {
+  it('waits for each target, pauses 500 ms plus the random part, then acts: 更多, search, typing, the result', async () => {
     const { heart, log } = setup(11);
     expect(await heart.send()).toEqual({ result: 'sent', diamondsLeft: 10 });
     expect(log.slice(0, 13)).toEqual([
       'wait for 更多',
-      'wait 1250',
+      'wait 625',
       'click 更多',
       'wait for panel',
       'wait for search icon',
-      'wait 1250',
+      'wait 625',
       'click search icon',
       'wait for search box',
-      'wait 1250',
+      'wait 625',
       'type 小心心',
       'wait for 小心心',
-      'wait 1250',
+      'wait 625',
       'click 小心心',
     ]);
     // The diamond went at the first look; the panel settles, then its × after a pause.
-    expect(log.slice(13)).toEqual(['wait 500', 'wait 1500', 'wait 1250', 'close panel']);
+    expect(log.slice(13)).toEqual(['wait 500', 'wait 1500', 'wait 625', 'close panel']);
   });
 
   it('closes a panel left open first, as a step of its own', async () => {
     const { heart, log } = setup(5, { panelOpen: true });
     await heart.send();
-    expect(log.slice(0, 3)).toEqual(['wait 1250', 'close panel', 'wait for 更多']);
+    expect(log.slice(0, 3)).toEqual(['wait 625', 'close panel', 'wait for 更多']);
   });
 
   it('types into the search box straight away when it is still open from the last time', async () => {

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-See the [README](README.md) for layout and commands. To start or stop the live-room chat bot for the user, follow [chat-bot/AGENTS.md](chat-bot/AGENTS.md).
+See the [README](README.md) for layout and commands. To start or stop the live-room chat bot for the user, follow [chat-bot/AGENTS.md](chat-bot/AGENTS.md). Before changing how room-feed clicks or types on Douyin's page, read [room-feed/AGENTS.md](room-feed/AGENTS.md).
 
 ## Code splitting
 

@@ -154,7 +154,7 @@ describe('FansLamp', () => {
     expect(log.filter((line) => line === 'open panel')).toHaveLength(3);
     expect(log.filter((line) => line === 'click notice').length).toBeGreaterThan(1);
     // Then the settling, the pause before the × and the ×.
-    expect(log.slice(-4)).toEqual(['click send', 'wait 1500', 'wait 1500', 'close panel']);
+    expect(log.slice(-4)).toEqual(['click send', 'wait 1500', 'wait 750', 'close panel']);
     // The stuck opening went on for its 20 s before the next one.
     expect(elapsed()).toBeGreaterThanOrEqual(20_000);
   });
@@ -173,14 +173,14 @@ describe('FansLamp', () => {
     expect(log.filter((line) => line === 'close panel')).toHaveLength(3);
   });
 
-  it('waits 1 s plus the random part before every click, the × too, and closes the panel after each opening', async () => {
+  it('waits 500 ms plus the random part before every click, the × too, and closes the panel after each opening', async () => {
     const { lamp, log } = setup([{ frames: [['notice', 'join']] }, { frames: [['send']] }], {
       followShown: true,
       random: 0.25,
     });
     await lamp.send();
     log.forEach((line, i) => {
-      if (/^(click|open|close)/.test(line)) expect(log[i - 1]).toBe('wait 1250');
+      if (/^(click|open|close)/.test(line)) expect(log[i - 1]).toBe('wait 625');
     });
     expect(clicks(log)).toEqual([
       'click follow',
@@ -191,7 +191,7 @@ describe('FansLamp', () => {
       'click send',
     ]);
     // Each opening is left 1.5 s after its last look, then its × clicked after the pause.
-    expect(log.join('\n')).toContain('wait 1500\nwait 1250\nclose panel');
+    expect(log.join('\n')).toContain('wait 1500\nwait 625\nclose panel');
   });
 
   it('does nothing with fewer than 2 diamonds, not even following: notEnough', async () => {
@@ -211,6 +211,6 @@ describe('FansLamp', () => {
     const { lamp, log } = setup([{ frames: [['join']] }, { frames: [['send']] }]);
     await lamp.send();
     // No panel is open at first, so there's nothing to close.
-    expect(log.slice(0, 3)).toEqual(['wait for panel button', 'wait 1500', 'open panel']);
+    expect(log.slice(0, 3)).toEqual(['wait for panel button', 'wait 750', 'open panel']);
   });
 });

@@ -1,7 +1,7 @@
 /** How long a step pauses between its target showing and acting on it, as a person would: this, */
-const PAUSE_MS = 1000;
+const PAUSE_MS = 500;
 /** plus up to this much more, at random. */
-const PAUSE_JITTER_MS = 1000;
+const PAUSE_JITTER_MS = 500;
 
 export interface PaceOptions {
   /** Waits this many ms; setTimeout by default. */
@@ -12,7 +12,7 @@ export interface PaceOptions {
 
 /**
  * How room-feed works Douyin's page, one step at a time, as a person would: wait for what the
- * step acts on to show, pause 1–2 s (at random), then act (a click, typing). Never act before the
+ * step acts on to show, pause 500–1000 ms (at random), then act (a click, typing). Never act before the
  * target is seen, and never act the moment it is.
  */
 export class Pace {

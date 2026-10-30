@@ -13,13 +13,13 @@ function setup(random = 0.5) {
 }
 
 describe('Pace', () => {
-  it('waits for the target, pauses 1 s plus up to 1 s more at random, then acts', async () => {
+  it('waits for the target, pauses 500 ms plus up to 500 ms more at random, then acts', async () => {
     const { pace, log } = setup(0.5);
     await pace.step(
       () => Promise.resolve(void log.push('ready')),
       () => Promise.resolve(void log.push('act')),
     );
-    expect(log).toEqual(['ready', 'wait 1500', 'act']);
+    expect(log).toEqual(['ready', 'wait 750', 'act']);
   });
 
   it('neither pauses nor acts when the target never shows', async () => {
@@ -33,10 +33,10 @@ describe('Pace', () => {
     expect(log).toEqual([]);
   });
 
-  it('pauses before acting on a target just seen, between 1 and 2 s', async () => {
+  it('pauses before acting on a target just seen, between 500 and 1000 ms', async () => {
     for (const [random, ms] of [
-      [0, 1000],
-      [0.999, 1999],
+      [0, 500],
+      [0.999, 999],
     ] as const) {
       const { pace, log } = setup(random);
       await pace.afterSeen(() => Promise.resolve(void log.push('act')));

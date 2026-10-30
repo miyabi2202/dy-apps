@@ -1,5 +1,6 @@
 import type { LikeAnswer } from '@dy-apps/room-feed-protocol';
 import { LikeTally } from './like-tally';
+import { Pace } from './pace';
 
 /** How often a held key sends keydown again, about as often as a held key repeats. */
 const LIKE_REPEAT_MS = 100;
@@ -10,8 +11,12 @@ const MAX_LIKE_MS = 60_000;
 
 /** The page, as far as holding the like key needs it. */
 export interface LikeSurface {
-  /** Clicks the player, so the keys go to it and not to the chat box (where they'd be typed). */
-  focusPlayer(): Promise<void>;
+  /** Whether the player shows. */
+  playerShown(): Promise<boolean>;
+  /** Clicks the middle of the player, so the keys go to it and not to the chat box (where they'd be typed). */
+  clickPlayer(): Promise<void>;
+  /** Without a player: lets go of whatever has the focus (the chat box, say). */
+  blurFocus(): Promise<void>;
   /** Presses the like key (again, if it's down: a held key repeats keydown). */
   keyDown(): Promise<void>;
   keyUp(): Promise<void>;
@@ -24,8 +29,8 @@ export interface LikeSurface {
 export interface LikeHoldOptions {
   /** Date.now by default. */
   now?: () => number;
-  /** Waits this many ms; setTimeout by default. */
-  wait?: (ms: number) => Promise<void>;
+  /** How the click on the player and the first press are paced, and the key repeats timed; real timers by default. */
+  pace?: Pace;
 }
 
 /**
@@ -33,33 +38,38 @@ export interface LikeHoldOptions {
  * by the heart has added up to `likes` (see LikeTally), and lets go at once when the page says
  * 手速太快了: Douyin's limit, a hard stop. Without a counter, it guesses from the time held
  * (GUESSED_LIKES_PER_SECOND); either way, never longer than MAX_LIKE_MS. The key is let go of
- * whatever happens.
+ * whatever happens. Before it, two Pace steps: the player seen, a pause, the click on it; a pause,
+ * the first press. The repeats that follow are the hold itself, not steps.
  */
 export class LikeHold {
   private readonly now: () => number;
-  private readonly wait: (ms: number) => Promise<void>;
+  private readonly pace: Pace;
 
   constructor(
     private readonly surface: LikeSurface,
     options: LikeHoldOptions = {},
   ) {
     this.now = options.now ?? Date.now;
-    this.wait = options.wait ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.pace = options.pace ?? new Pace();
   }
 
   /** About how many likes went, how long the key was held, and whether 手速太快了 cut it short. */
   async hold(likes: number): Promise<Omit<LikeAnswer, 'ok'>> {
-    const { surface } = this;
-    await surface.focusPlayer();
+    const { surface, pace } = this;
+    if (await surface.playerShown()) await pace.afterSeen(() => surface.clickPlayer());
+    else await surface.blurFocus();
     const tally = new LikeTally(await surface.counter());
-    const start = this.now();
     const liked = (heldMs: number) =>
       tally.counting ? tally.count : Math.round((heldMs / 1000) * GUESSED_LIKES_PER_SECOND);
     let tooFast = false;
-    await surface.keyDown();
+    let start = this.now();
     try {
+      await pace.afterSeen(() => {
+        start = this.now();
+        return surface.keyDown();
+      });
       while (liked(this.now() - start) < likes && this.now() - start < MAX_LIKE_MS) {
-        await this.wait(LIKE_REPEAT_MS);
+        await pace.wait(LIKE_REPEAT_MS);
         if (await surface.saysTooFast()) {
           tooFast = true;
           break;
