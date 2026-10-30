@@ -5,6 +5,7 @@ description = "Live transcription worker for the chat bot: ffmpeg + fsmn-vad + F
 requires-python = ">=3.11,<3.14"
 dependencies = [
   "audioop-lts>=0.2.2 ; python_full_version >= '3.13'",
+  "certifi>=2026.7.22",
   "demucs>=4.0",
   "fireredasr2s",
   "funasr>=1.2",

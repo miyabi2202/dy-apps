@@ -95,7 +95,15 @@ import threading
 import time
 import wave
 
-import numpy as np
+import certifi
+
+# python.org's Python on macOS has no certificates of its own until its Install Certificates
+# runs, so every HTTPS call (Shazam, model downloads) failed with CERTIFICATE_VERIFY_FAILED:
+# certifi's are used, unless the machine names its own. Before the imports below: aiohttp
+# (through shazamio) reads them once, as it's imported.
+os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+
+import numpy as np  # noqa: E402 (and the imports after it: they come after the line above)
 import torch
 import torchaudio.compliance.kaldi as kaldi
 import torchaudio.functional as AF

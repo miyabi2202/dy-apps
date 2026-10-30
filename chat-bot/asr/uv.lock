@@ -611,6 +611,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
+    { name = "certifi" },
     { name = "demucs" },
     { name = "fireredasr2s" },
     { name = "funasr" },
@@ -633,6 +634,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'", specifier = ">=0.2.2" },
+    { name = "certifi", specifier = ">=2026.7.22" },
     { name = "demucs", specifier = ">=4.0" },
     { name = "fireredasr2s", git = "https://github.com/FireRedTeam/FireRedASR2S?rev=4e7d9aaf4482a47cec1724807026b9b151926eb5" },
     { name = "funasr", specifier = ">=1.2" },
