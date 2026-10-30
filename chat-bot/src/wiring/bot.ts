@@ -18,6 +18,7 @@ import {
   OUTBOX,
   PROMPTS_DIR,
   ROOM,
+  ROOM_CONFIG,
   TOOL_RUNNER,
   TOOLS,
   USER_TALK,
@@ -47,6 +48,8 @@ export function registerBot(container: Container): void {
         // while they are made: no cycle.
         tools: c.resolve(MCP_SERVER),
         admins: c.resolve(ADMINS),
+        streamerId: () =>
+          c.resolve(ADMINS).current()?.uid ?? c.resolve(ROOM_CONFIG)().streamer?.uid,
       });
     })
     // Runs the tools a mention names with a `/`.

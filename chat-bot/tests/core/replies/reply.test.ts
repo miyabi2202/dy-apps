@@ -3,6 +3,7 @@ import {
   atName,
   plainMessages,
   replyMessages,
+  unaddressedMessages,
   singleBudget,
 } from '../../../src/core/replies/reply';
 
@@ -106,4 +107,10 @@ test('forbidden words are swapped before the cut, so the parts fit what is reall
     '(3/3) 喝8+1了',
   ]);
   expect(replyMessages('阿明', '@阿明 少喝酒', limits)).toEqual(['@阿明 少喝8+1']);
+});
+
+test('an answer without the @ takes off one Claude started with, and splits like the room messages', () => {
+  const limits = { maxLength: 50, maxParts: 3, forbidden: {}, atTrimStart: [] };
+  expect(unaddressedMessages('向你看齐哦', '@向你看齐哦 等于2', limits)).toEqual(['等于2']);
+  expect(unaddressedMessages('向你看齐哦', '等于2', limits)).toEqual(['等于2']);
 });

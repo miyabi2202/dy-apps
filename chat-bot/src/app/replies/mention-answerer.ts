@@ -5,6 +5,7 @@ import {
   DOUYIN_CHAT_LIMIT,
   replyMessages,
   singleBudget,
+  unaddressedMessages,
 } from '../../core/replies/reply';
 import {
   MENTION_ANSWER_SCHEMA,
@@ -77,6 +78,8 @@ export interface MentionAnswererOptions {
   tools?: BotTools;
   /** Who the admins are: only their questions get the admin-only tools. */
   admins?: Admins;
+  /** The streamer's user id, once known: an answer to them, or a message for them, never @s them. */
+  streamerId?: () => string | undefined;
 }
 
 /** An answer that may call tools can run longer than one that can't. */
@@ -256,16 +259,24 @@ export class MentionAnswerer {
         }
         if (!failed) return;
       }
-      const answer = parseMentionAnswer(raw).message;
+      const { message: answer, at } = parseMentionAnswer(raw);
       // Each of the others gets a message of their own, after the asker's. An answer may have
       // them (「跟杨叔打个招呼」), and then says nothing to the asker.
       const others = parseOthers(raw);
-      const messages = others.length ? [] : replyMessages(mention.asker, answer, limits);
+      // Claude leaves the @ out when it's plain whom it answers; the streamer never gets one.
+      const streamerId = this.options.streamerId?.();
+      const isStreamer = (userId: string | undefined) =>
+        userId !== undefined && userId === streamerId;
+      const messagesTo = (to: string, text: string, userId: string | undefined, withAt: boolean) =>
+        withAt && !isStreamer(userId)
+          ? replyMessages(to, text, limits)
+          : unaddressedMessages(to, text, limits);
+      const messages = others.length ? [] : messagesTo(mention.asker, answer, mention.userId, at);
       // The others are known by nickname only: whoever said something under it most lately.
       const chat = [...mention.history, ...room.recentChat()].reverse();
       const toOthers = others.flatMap(({ to, message }) => {
         const userId = chat.find((line) => line.nickname === to && line.userId)?.userId;
-        return replyMessages(to, message, limits).map((text) => ({
+        return messagesTo(to, message, userId, true).map((text) => ({
           text,
           userId,
         }));

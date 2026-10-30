@@ -95,18 +95,7 @@ export function answerBudget(asker: string, limits: ReplyLimits): number {
  */
 export function replyMessages(asker: string, answer: string, limits: ReplyLimits): string[] {
   const short = shortTag(asker, limits.atTrimStart);
-  const tags = [`@${asker}`, short];
-  let text = oneLine(answer);
-  // Claude sees the bot's earlier `@…` replies in the chat and often starts with the @ itself,
-  // with the whole name or the short one.
-  for (
-    let tag = tags.find((t) => text.startsWith(t));
-    tag;
-    tag = tags.find((t) => text.startsWith(t))
-  ) {
-    text = text.slice(tag.length).trim();
-  }
-  text = withoutForbidden(text, limits.forbidden);
+  const text = withoutForbidden(withoutTag(asker, oneLine(answer), limits), limits.forbidden);
   if (!text) return [];
 
   const single = oneMessage(asker, text, limits.maxLength, limits.atTrimStart);
@@ -158,6 +147,35 @@ function oneLine(answer: string): string {
   const message = marked(answer);
   const body = message.split(/\n\s*(?:Sources|来源)\s*[:：]/)[0] ?? '';
   return body.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Claude's answer to `asker` without the @ (it's plain whom it answers, or they're the streamer):
+ * as plainMessages, with an @ of theirs Claude started with taken off.
+ */
+export function unaddressedMessages(asker: string, answer: string, limits: ReplyLimits): string[] {
+  return plainMessages(withoutTag(asker, oneLine(answer), limits), limits);
+}
+
+/**
+ * `text` without the `@asker`s it starts with: Claude sees the bot's earlier `@…` replies in the
+ * chat and often starts with the @ itself, with the whole name or the short one.
+ */
+function withoutTag(
+  asker: string,
+  text: string,
+  { atTrimStart }: Pick<ReplyLimits, 'atTrimStart'>,
+): string {
+  const tags = [`@${asker}`, shortTag(asker, atTrimStart)];
+  let rest = text;
+  for (
+    let tag = tags.find((t) => rest.startsWith(t));
+    tag;
+    tag = tags.find((t) => rest.startsWith(t))
+  ) {
+    rest = rest.slice(tag.length).trim();
+  }
+  return rest;
 }
 
 /**

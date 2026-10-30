@@ -18,6 +18,7 @@ function setup(
     fail?: boolean;
     admins?: Admins;
     calls?: ToolCall[];
+    streamerId?: string;
   } = {},
 ) {
   const { outbox, sent } = fakeOutbox();
@@ -52,6 +53,7 @@ function setup(
     promptTemplate: () => '{{question}}',
     tools,
     admins: options.admins,
+    streamerId: () => options.streamerId,
   });
   const ask = async (mention: Partial<Mention> = {}) => {
     answerer.ask({ asker: '阿明', question: '在吗', history: [], ...mention });
@@ -125,6 +127,44 @@ test('a tool that failed beside silent likes still gets Claude telling why', asy
   await ask({ asker: '雅', question: '先点赞，再送个小心心' });
 
   expect(sent).toEqual(['@雅 小心心刚送过，过 4 分钟再来']);
+});
+
+test('Claude leaves the @ out when it is plain whom it answers', async () => {
+  const { ask, sent } = setup({
+    answer: JSON.stringify({ message: '在的在的', at: false, others: [] }),
+  });
+  await ask({ asker: '阿明', userId: 'u-阿明' });
+  expect(sent).toEqual(['在的在的']);
+});
+
+test('the streamer is never @ed, whatever Claude says: answering her, or a message for her', async () => {
+  const toHer = setup({
+    answer: JSON.stringify({ message: '唱得真好', at: true, others: [] }),
+    streamerId: 'u-虾',
+  });
+  await toHer.ask({ asker: '虾虾', userId: 'u-虾' });
+  expect(toHer.sent).toEqual(['唱得真好']);
+
+  const forHer = setup({
+    answer: JSON.stringify({
+      message: '',
+      at: true,
+      others: [
+        { to: '虾虾', message: '雅说你今天好看' },
+        { to: '雅', message: '帮你说啦' },
+      ],
+    }),
+    streamerId: 'u-虾',
+  });
+  await forHer.ask({
+    asker: '雅',
+    userId: 'u-雅',
+    history: [
+      { ts: 0, nickname: '虾虾', userId: 'u-虾', content: '大家好' },
+      { ts: 1, nickname: '雅', userId: 'u-雅', content: '帮我夸夸主播' },
+    ],
+  });
+  expect(forHer.sent).toEqual(['雅说你今天好看', '@雅 帮你说啦']);
 });
 
 test('the session is told whether the asker is an admin', async () => {

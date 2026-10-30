@@ -4,6 +4,8 @@ import { parseJsonObject } from './json-answer';
 export interface MentionAnswer {
   /** The reply to send. */
   message: string;
+  /** Whether it goes with an @ of the asker; false when it's plain whom it answers. True when Claude didn't say. */
+  at: boolean;
 }
 
 /**
@@ -52,16 +54,21 @@ export function parseOthers(text: string): OtherMessage[] {
 }
 
 /**
- * The JSON Schema MentionAnswer follows (strict: every field required, no others), with `others`
- * for when they ask the bot to say something to someone else.
+ * The JSON Schema MentionAnswer follows (strict: every field required, no others), with `at`, whether
+ * the reply @s the asker, and `others` for when they ask the bot to say something to someone else.
  */
 export const MENTION_ANSWER_SCHEMA = {
   type: 'object',
   properties: {
     message: { type: 'string', description: '回给提问的人的话，不用回就是空字符串' },
+    at: {
+      type: 'boolean',
+      description:
+        '这条回复要不要 @ 提问的人：一看就知道在回谁（TA 刚说完、没别人插话）就 false，不然 true',
+    },
     others: OTHERS,
   },
-  required: ['message', 'others'],
+  required: ['message', 'at', 'others'],
   additionalProperties: false,
 } as const;
 
@@ -70,6 +77,10 @@ export const MENTION_ANSWER_SCHEMA = {
  * taken as the message itself.
  */
 export function parseMentionAnswer(text: string): MentionAnswer {
-  const message = parseJsonObject(text)?.message;
-  return { message: typeof message === 'string' ? message : text };
+  const json = parseJsonObject(text);
+  const message = json?.message;
+  return {
+    message: typeof message === 'string' ? message : text,
+    at: json?.at !== false,
+  };
 }
