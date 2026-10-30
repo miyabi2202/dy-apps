@@ -148,6 +148,11 @@ export interface ToolResult {
   isError?: boolean;
   /** The bot says nothing more to this question, whatever Claude answers (press_like's likes). */
   silent?: true;
+  /**
+   * With `silent`: what the bot says to the asker itself instead (「钻石不够送小心心」), even when
+   * another tool was silent too.
+   */
+  say?: string;
 }
 
 /** A `/` command that calls a tool directly, with no model, as `@机器人/自动谢礼 100` does. */
@@ -193,6 +198,8 @@ export interface ToolCall {
   isError: boolean;
   /** Its result was silent: the answer isn't sent. */
   silent?: true;
+  /** What its result had the bot say instead (see ToolResult.say). */
+  say?: string;
 }
 
 /** One question's tools, open until `close()`. */

@@ -110,7 +110,9 @@ export class ToolRunner {
             ok: !result.isError,
             ms: now() - start,
           });
-          const reply = result.isError ? result.text : command.say(result, parsed.args);
+          const reply = result.isError
+            ? result.text
+            : (result.say ?? command.say(result, parsed.args));
           if (reply) this.say(asker, reply);
         },
         (err: unknown) => {

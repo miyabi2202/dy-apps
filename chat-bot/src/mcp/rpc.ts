@@ -90,6 +90,7 @@ export async function handleRpc(message: RpcMessage, session: Session): Promise<
               ms: session.now() - start,
               isError: settled.isError === true,
               ...(settled.silent && { silent: true }),
+              ...(settled.say !== undefined && { say: settled.say }),
             });
             return settled;
           });

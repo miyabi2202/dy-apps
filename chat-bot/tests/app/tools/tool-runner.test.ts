@@ -173,3 +173,14 @@ test('calls the tool as a direct command, with who asked, and logs it with how l
     ms: 40,
   });
 });
+
+test("a result that says something itself (too few diamonds) is the reply, not the command's own", async () => {
+  const heart = tool('send_heart', '小心心', {
+    call: () => Promise.resolve({ text: '{"sent":false}', silent: true, say: '钻石不够送小心心' }),
+    say: () => '',
+  });
+  const { type, sent } = setup([heart]);
+  await type('阿明', '小心心');
+
+  expect(sent).toEqual(['@阿明 钻石不够送小心心']);
+});

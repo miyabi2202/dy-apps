@@ -238,12 +238,19 @@ export class MentionAnswerer {
         ...(mention.unprompted && { unprompted: mention.unprompted }),
         ...(calls.length && { tools: calls }),
       });
-      // A tool that did what was asked, to be done in silence (likes), has the last word: nothing.
+      // A tool that did what was asked, to be done in silence (likes), has the last word: nothing,
+      // but what a tool says itself (「钻石不够送小心心」), once each.
       if (calls.some((call) => call.silent)) {
         log.info('silent after a tool', {
           asker: mention.asker,
           tools: calls.filter((call) => call.silent).map((call) => call.tool),
         });
+        const says = new Set(calls.flatMap((call) => (call.silent && call.say ? [call.say] : [])));
+        for (const said of says) {
+          for (const text of replyMessages(mention.asker, said, limits)) {
+            outbox.push({ kind: 'reply', text });
+          }
+        }
         return;
       }
       const answer = parseMentionAnswer(raw).message;

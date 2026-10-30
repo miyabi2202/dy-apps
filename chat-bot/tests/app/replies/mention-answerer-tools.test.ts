@@ -97,6 +97,23 @@ test('after a tool with a silent result (likes) the bot sends nothing, whatever 
   expect(sent).toEqual([]);
 });
 
+test('a silent tool that says something itself (too few diamonds) is the only message, once, even after silent likes', async () => {
+  const lamp = {
+    tool: 'send_fans_lamp',
+    ms: 300,
+    isError: true,
+    silent: true,
+    say: '钻石不够点灯牌',
+  } as const;
+  const { ask, sent } = setup({
+    answer: JSON.stringify({ message: '赞点好了，灯牌也加上了' }),
+    calls: [{ tool: 'press_like', ms: 6000, isError: false, silent: true }, lamp, lamp],
+  });
+  await ask({ asker: '雅', question: '先点赞，再加个灯牌' });
+
+  expect(sent).toEqual(['@雅 钻石不够点灯牌']);
+});
+
 test('the session is told whether the asker is an admin', async () => {
   const { ask, opened } = setup({ admins: { has: (userId) => userId === 'u-雅' } });
   await ask({ asker: '雅', userId: 'u-雅' });
