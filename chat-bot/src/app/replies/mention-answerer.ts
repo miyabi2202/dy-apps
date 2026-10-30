@@ -240,7 +240,7 @@ export class MentionAnswerer {
       });
       // A tool that did what was asked, to be done in silence (likes), has the last word: nothing,
       // but what a tool says itself (「钻石不够送小心心」), once each; and Claude's answer when
-      // another tool failed, since it tells why (「小心心 5 分钟只能送一次」).
+      // another tool failed, since it tells why (「小心心 4 分钟只能送一次」).
       if (calls.some((call) => call.silent)) {
         const failed = calls.some((call) => call.isError && !call.silent);
         log.info('silent after a tool', {

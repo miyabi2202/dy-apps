@@ -113,3 +113,33 @@ test('an admin-only tool is listed and run only in an admin’s session', async 
   expect(refused.result.isError).toBe(true);
   expect(ran).toEqual([]);
 });
+
+test('a tool its setting switches off is neither listed nor run, for anyone, while it is off', async () => {
+  let on = false;
+  const ran: string[] = [];
+  const happy: BotTool = {
+    name: 'send_happy_heart',
+    description: '',
+    inputSchema: {},
+    offered: () => on,
+    call: () => {
+      ran.push('send_happy_heart');
+      return Promise.resolve({ text: 'ok' });
+    },
+  };
+  const names = async () => {
+    const answer = (await handleRpc(
+      { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+      newSession({ asker: 'a', question: '', admin: true }, [happy]),
+    )) as { result: { tools: { name: string }[] } };
+    return answer.result.tools.map(({ name }) => name);
+  };
+  expect(await names()).toEqual([]);
+  await handleRpc(
+    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'send_happy_heart' } },
+    newSession({ asker: 'a', question: '', admin: true }, [happy]),
+  );
+  expect(ran).toEqual([]);
+  on = true;
+  expect(await names()).toEqual(['send_happy_heart']);
+});

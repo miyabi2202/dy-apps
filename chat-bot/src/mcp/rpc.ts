@@ -9,7 +9,8 @@ export interface RpcMessage {
 }
 
 /**
- * One question's tools: who it's for, the tools it may call (an admin-only one only for an admin),
+ * One question's tools: who it's for, the tools it may call (an admin-only one only for an admin,
+ * one switched off by its setting for nobody),
  * what each tool answered (a tool runs at most once per
  * question, so a repeated call returns the first result, which caps what a slow one such as the
  * song search can cost), and the order they were called in.
@@ -30,7 +31,9 @@ export const newSession = (
   now: () => number = Date.now,
 ): Session => ({
   context,
-  tools: tools.filter((tool) => !tool.adminOnly || context.admin === true),
+  tools: tools.filter(
+    (tool) => (!tool.adminOnly || context.admin === true) && (tool.offered?.() ?? true),
+  ),
   memo: new Map(),
   used: [],
   calls: [],

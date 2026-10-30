@@ -200,6 +200,8 @@ export interface BotTool {
   inputSchema: object;
   /** Offered only when an admin (or the streamer) asks; anyone else's session doesn't have it. */
   adminOnly?: boolean;
+  /** Whether it's offered now (a room setting that switches it on); always, without it. Asked as each question opens. */
+  offered?: () => boolean;
   /** The `/` commands that call it directly, typed after an @ of the bot; usually one, none for a tool only Claude calls. */
   commands?: readonly ToolCommand[];
   /**

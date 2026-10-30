@@ -6,7 +6,9 @@ import { identifyBgmTool } from '../mcp/identify-bgm';
 import { identifySongTool } from '../mcp/identify-song';
 import { BotMcpServer } from '../mcp/server';
 import { fansLampTool } from '../mcp/fans-lamp';
+import { happyHeartTool } from '../mcp/happy-heart';
 import { heartTool } from '../mcp/heart';
+import { HeartGate } from '../app/tools/heart-gate';
 import { pressLikeTool } from '../mcp/press-like';
 import { numberTool, onOffTool } from '../mcp/setting-tools';
 import { setThanksThresholdTool } from '../mcp/set-thanks-threshold';
@@ -70,6 +72,9 @@ export function registerMcp(container: Container): void {
       const autoMessage = c.resolve(AUTO_MESSAGE);
       const autoSongId = c.resolve(AUTO_SONG_ID);
       const maliceWatch = c.resolve(MALICE_WATCH);
+      const settings = c.resolve(SETTINGS);
+      // One clock for every 小心心 (HEART_COOLDOWN_MINUTES), asked for or sent out of happiness.
+      const hearts = new HeartGate(c.resolve(ROOM_API).sendHeart, () => room.now());
       // Made once: a tool may hold options. The function is read hot, for the room's declarative tools.
       // The order is the one the help and docs/commands.md list them in.
       const tools = [
@@ -154,10 +159,11 @@ export function registerMcp(container: Container): void {
         ...(transcriber ? [identifyBgmTool(() => transcriber.identifyMusic(), log)] : []),
         pressLikeTool(c.resolve(ROOM_API).like, log),
         fansLampTool(c.resolve(ROOM_API).sendFansLamp, log),
-        heartTool(c.resolve(ROOM_API).sendHeart, log, { now: () => room.now() }),
+        heartTool(hearts, log),
+        happyHeartTool(hearts, { on: () => settings.get().happyHeart, log }),
         askAboutPuzzleTool({
           ask: c.resolve(ASK_SOLVE),
-          settings: c.resolve(SETTINGS),
+          settings,
           prompt: c.resolve(PROMPT)('solve'),
           room,
           outbox: c.resolve(OUTBOX),
@@ -190,6 +196,15 @@ export function registerMcp(container: Container): void {
               }),
             ]
           : []),
+        onOffTool({
+          name: 'set_happy_heart',
+          command: '开心送心',
+          description:
+            '开关开心送心：开着时，主播让机器人真心开心了（夸它、唱得特别好），它会自己给主播送一个小心心（1 钻，4 分钟最多一个）。',
+          get: () => settings.get().happyHeart,
+          set: (on) => settings.set({ happyHeart: on }),
+          log,
+        }),
       ];
       const roomConfig = c.resolve(ROOM_CONFIG);
       const defined = declarativeTools({

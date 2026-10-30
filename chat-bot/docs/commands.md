@@ -16,10 +16,11 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/截图 
 | `/识别背景音乐`        | `identify_bgm`              | Name the recording playing, from its sound                                                     | no          | –           |
 | `/点赞 [次数]`         | `press_like`                | Likes the room as the bot's account, 200 unless told, up to 200                                | yes         | –           |
 | `/灯牌`                | `send_fans_lamp`            | Sends the streamer today's 粉丝团灯牌 (2 diamonds), joining the 粉丝团 if need be              | yes         | –           |
-| `/小心心`              | `send_heart`                | Sends the streamer one 小心心 (1 diamond), at most one every 5 minutes; the only gift it sends | yes         | –           |
+| `/小心心`              | `send_heart`                | Sends the streamer one 小心心 (1 diamond), at most one every 4 minutes; the only gift it sends | yes         | –           |
 | `/解题 [问题]`         | `ask_about_puzzle`          | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | no          | –           |
 | `/自动识歌 <0\|1>`     | `set_auto_song_id`          | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
 | `/识别恶意言论 <0\|1>` | `set_malice_watch`          | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
+| `/开心送心 <0\|1>`     | `set_happy_heart`           | Lets the bot send the streamer a 小心心 of its own accord when someone makes it happy          | yes         | 0           |
 
 These tools are always on, as far as their feature is: `identify_song` needs speech and Codex, `identify_bgm` speech. Admin-only commands are for admins and the streamer; the others are for anyone. A command that changes a setting writes it to the room's `data/<房间号>/room_config.json` (one field each, in the table below), so it stays after a restart, and the bot reads that file again whenever it changes: editing the field by hand does the same as the command, with no restart. A command-line option only seeds a room's setting the first time, when its `room_config.json` has no such field; after that the file wins, and an option that differs from it is a `setting from room_config, ignoring option` warning at start.
 
@@ -32,6 +33,7 @@ These tools are always on, as far as their feature is: `identify_song` needs spe
 | `/自动谢礼 <钻>`       | `thanksThreshold`            | `99999`    |
 | `/自动识歌 <0\|1>`     | `autoSongId`                 | `false`    |
 | `/识别恶意言论 <0\|1>` | `maliceWatch`                | `false`    |
+| `/开心送心 <0\|1>`     | `happyHeart`                 | `false`    |
 | `/截图 <0\|1>`         | `screenshots`                | `false`    |
 | （无指令，只能改文件） | `solveEffort`                | `"medium"` |
 
@@ -156,7 +158,7 @@ Either way it's done in silence, like `/点赞`: the bot sends nothing back. It 
 
 ### /小心心
 
-Sends the streamer one 小心心 (1 diamond) as the bot's account, for admins only: the only gift the bot sends. Asked in words (「送个小心心」「给主播送个礼物」), Claude calls the tool `send_heart`; one a call, and a tool runs once a question, so 「送三个小心心」 sends one. Asked for another gift (「送个嘉年华」), Claude calls it with that gift in `gift`: nothing is sent, and the tool fails with why (「只能送小心心，送不了嘉年华」), which Claude tells the asker in its own words (`asked for another gift {asker, gift}` in the log). One goes every 5 minutes at most, counted from the last one sent (`HEART_COOLDOWN_MS` in `src/mcp/heart.ts`); sooner, the tool fails with 「小心心 5 分钟只能送一次，还要等 N 分钟」 for Claude to put in its own words (`heart too soon {asker, sinceLastMs}`); a typed `/小心心` gets that line as it is. A failure like these beside a silent tool (「先点赞，再送个小心心」) still gets Claude's answer out. The slot is taken as one starts sending, so two asks at once send one, and given back when nothing went (too few diamonds, a failure); it's kept in the bot's memory, so a restart starts afresh. It asks room-feed (`POST /api/rooms/<id>/heart`), which works the room page like a viewer: it clicks the gift bar's 「更多」 (`data-e2e="gifts-switch"`), the search icon at the end of the gift panel's tabs (skipped when the search box is still open), types 小心心, and clicks the result once: a click on a gift tile sends it at once, and the tile turns into 「连击」 then. The diamonds by 「充值」 (`data-e2e="recharge-btn"`) tell whether it went: with less than one, nothing is clicked, and the bot says 「钻石不够送小心心」 itself (the log has how many are left); when they don't drop within 5 s of the click, it's an error. It takes turns with the chats, likes and 灯牌, which use the same page.
+Sends the streamer one 小心心 (1 diamond) as the bot's account, for admins only: the only gift the bot sends. Asked in words (「送个小心心」「给主播送个礼物」), Claude calls the tool `send_heart`; one a call, and a tool runs once a question, so 「送三个小心心」 sends one. Asked for another gift (「送个嘉年华」), Claude calls it with that gift in `gift`: nothing is sent, and the tool fails with why (「只能送小心心，送不了嘉年华」), which Claude tells the asker in its own words (`asked for another gift {asker, gift}` in the log). One goes every 4 minutes at most, counted from the last one sent (`HEART_COOLDOWN_MS` in `src/app/tools/heart-gate.ts`, the one clock for every 小心心, a `/开心送心` one too); sooner, the tool fails with 「小心心 4 分钟只能送一次，还要等 N 分钟」 for Claude to put in its own words (`heart too soon {asker, waitMs}`); a typed `/小心心` gets that line as it is. A failure like these beside a silent tool (「先点赞，再送个小心心」) still gets Claude's answer out. The slot is taken as one starts sending, so two asks at once send one, and given back when nothing went (too few diamonds, a failure); it's kept in the bot's memory, so a restart starts afresh. It asks room-feed (`POST /api/rooms/<id>/heart`), which works the room page like a viewer: it clicks the gift bar's 「更多」 (`data-e2e="gifts-switch"`), the search icon at the end of the gift panel's tabs (skipped when the search box is still open), types 小心心, and clicks the result once: a click on a gift tile sends it at once, and the tile turns into 「连击」 then. The diamonds by 「充值」 (`data-e2e="recharge-btn"`) tell whether it went: with less than one, nothing is clicked, and the bot says 「钻石不够送小心心」 itself (the log has how many are left); when they don't drop within 5 s of the click, it's an error. It takes turns with the chats, likes and 灯牌, which use the same page.
 
 Sent, it's done in silence, like `/灯牌`; with too few diamonds, the bot says 「钻石不够送小心心」 itself, and Claude says nothing. The log has `sent heart {asker, diamondsLeft}`, or `could not send a heart`.
 
@@ -191,6 +193,17 @@ Watches the chat for malicious messages (insults, attacks on looks or age, and s
 → 已处理识别恶意言论请求
 （不*** 发了「主包是劳女[比心]」）
 → @不*** 检测到恶意言论
+```
+
+### /开心送心
+
+Lets the bot send the streamer a 小心心 (1 diamond) of its own accord, nobody asking, when someone makes it truly happy (praises it, plays along with it; the streamer sings one beautifully). Only the streamer and admins switch it; while it's on, Claude has the tool `send_happy_heart` in anyone's question, viewers' too, and calls it when it judges it's happy, with a line of why. Being asked for one never counts, however it's put (「夸你了快送个心」): the description tells Claude so, and the 4-minute clock caps what talking it into one could cost. Off, nobody has the tool (`offered` on `BotTool`, asked as each question opens). It's the same 小心心 as `/小心心`, on the same 4-minute clock: one sent either way holds the other off for 4 minutes. Nothing is said about it in the room, sent or not: the result only tells Claude to leave it out of its answer, which goes out as usual (it isn't `silent`, so it doesn't mute the answer). Too soon, too few diamonds or a failure, nothing goes and nothing is said. No daily cap; a restart starts the 4 minutes afresh. The log has `happy heart {asker, why, result}` (`sent` with `diamondsLeft`, `tooSoon` with `waitMs`, `notEnough` with `diamonds`), or `could not send a happy heart`.
+
+```text
+@默认关闭 /开心送心 1
+→ 已处理开心送心请求
+（糖果 唱完一首，说「默认关闭你觉得好听吗」）
+→ @糖果 太好听了，副歌那一下我直接起鸡皮疙瘩（and a 小心心 goes, said nowhere）
 ```
 
 ## Tools a room switches on
@@ -273,26 +286,28 @@ The changes are the tool's add / replace / remove, checked the same way (the lim
 
 Each tool is a `BotTool` in `src/mcp/`; `src/wiring/mcp.ts` lists them, in the order the help shows them. The ones a room switches on are folders in `src/mcp/tools/`, built by `src/mcp/declarative-tools.ts` and loaded by `src/adapters/files/tool-files.ts`.
 
-| Tool                       | Defined in                                                               |
-| -------------------------- | ------------------------------------------------------------------------ |
-| `set_auto_reply_threshold` | `numberTool` (`src/mcp/setting-tools.ts`), listed in `src/wiring/mcp.ts` |
-| `set_auto_reply_interval`  | `numberTool`, listed in `src/wiring/mcp.ts`                              |
-| `set_max_reply_parts`      | `numberTool`, listed in `src/wiring/mcp.ts`                              |
-| `set_thanks_threshold`     | `src/mcp/set-thanks-threshold.ts`                                        |
-| `set_screenshots`          | `onOffTool` (`src/mcp/setting-tools.ts`), listed in `src/wiring/mcp.ts`  |
-| `identify_song`            | `src/mcp/identify-song.ts`                                               |
-| `identify_bgm`             | `src/mcp/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`      |
-| `press_like`               | `src/mcp/press-like.ts`, which asks room-feed's `POST …/like`            |
-| `send_fans_lamp`           | `src/mcp/fans-lamp.ts`, which asks room-feed's `POST …/fans-lamp`        |
-| `send_heart`               | `src/mcp/heart.ts`, which asks room-feed's `POST …/heart`                |
-| `ask_about_puzzle`         | `src/mcp/ask-about-puzzle.ts`                                            |
-| `set_auto_song_id`         | `onOffTool`, listed in `src/wiring/mcp.ts`                               |
-| `set_malice_watch`         | `onOffTool`, listed in `src/wiring/mcp.ts`                               |
-| `can_sing`                 | `src/mcp/tools/can-sing/` (`tool.json`, `guidance.md`)                   |
-| `too_easy`                 | `src/mcp/tools/too-easy/` (`tool.json`, `guidance.md`)                   |
-| `wants_topic`              | `src/mcp/tools/wants-topic/` (`tool.json`)                               |
-| `say_one`                  | `src/mcp/tools/say-one/` (`tool.json`)                                   |
-| `schedule`                 | `src/mcp/tools/schedule/` (`tool.json`, `guidance.md`)                   |
+| Tool                       | Defined in                                                                                                     |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `set_auto_reply_threshold` | `numberTool` (`src/mcp/setting-tools.ts`), listed in `src/wiring/mcp.ts`                                       |
+| `set_auto_reply_interval`  | `numberTool`, listed in `src/wiring/mcp.ts`                                                                    |
+| `set_max_reply_parts`      | `numberTool`, listed in `src/wiring/mcp.ts`                                                                    |
+| `set_thanks_threshold`     | `src/mcp/set-thanks-threshold.ts`                                                                              |
+| `set_screenshots`          | `onOffTool` (`src/mcp/setting-tools.ts`), listed in `src/wiring/mcp.ts`                                        |
+| `identify_song`            | `src/mcp/identify-song.ts`                                                                                     |
+| `identify_bgm`             | `src/mcp/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`                                            |
+| `press_like`               | `src/mcp/press-like.ts`, which asks room-feed's `POST …/like`                                                  |
+| `send_fans_lamp`           | `src/mcp/fans-lamp.ts`, which asks room-feed's `POST …/fans-lamp`                                              |
+| `send_heart`               | `src/mcp/heart.ts`, through `HeartGate` (`src/app/tools/heart-gate.ts`), which asks room-feed's `POST …/heart` |
+| `send_happy_heart`         | `src/mcp/happy-heart.ts`, through the same `HeartGate`                                                         |
+| `ask_about_puzzle`         | `src/mcp/ask-about-puzzle.ts`                                                                                  |
+| `set_auto_song_id`         | `onOffTool`, listed in `src/wiring/mcp.ts`                                                                     |
+| `set_malice_watch`         | `onOffTool`, listed in `src/wiring/mcp.ts`                                                                     |
+| `set_happy_heart`          | `onOffTool`, listed in `src/wiring/mcp.ts`                                                                     |
+| `can_sing`                 | `src/mcp/tools/can-sing/` (`tool.json`, `guidance.md`)                                                         |
+| `too_easy`                 | `src/mcp/tools/too-easy/` (`tool.json`, `guidance.md`)                                                         |
+| `wants_topic`              | `src/mcp/tools/wants-topic/` (`tool.json`)                                                                     |
+| `say_one`                  | `src/mcp/tools/say-one/` (`tool.json`)                                                                         |
+| `schedule`                 | `src/mcp/tools/schedule/` (`tool.json`, `guidance.md`)                                                         |
 
 ## Adding one
 

@@ -56,6 +56,7 @@ test('fills in the fields a room_config.json lacks with their defaults, and keep
     thanksThreshold: 99999,
     autoSongId: false,
     maliceWatch: false,
+    happyHeart: false,
     screenshots: false,
     maxReplyParts: 3,
     solveEffort: 'medium',

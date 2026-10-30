@@ -18,6 +18,8 @@ export interface Settings {
   autoSongId: boolean;
   /** Whether it @s viewers who keep posting malicious chat (`/识别恶意言论`). */
   maliceWatch: boolean;
+  /** Whether it may send the streamer a 小心心 of its own accord when she makes it happy (`/开心送心`). */
+  happyHeart: boolean;
   /** Whether prompts get a screenshot of the live video (`/截图`). */
   screenshots: boolean;
   /** The most messages one @'s answer is split into (`/最大回复条数`, `--max-parts`). */
@@ -34,6 +36,7 @@ export const SETTING_DEFAULTS: Readonly<Settings> = {
   thanksThreshold: 99999,
   autoSongId: false,
   maliceWatch: false,
+  happyHeart: false,
   screenshots: false,
   maxReplyParts: 5,
   solveEffort: 'medium',

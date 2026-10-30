@@ -1,3 +1,5 @@
+import type { SendHeart } from '../../src/app/ports';
+import { HeartGate } from '../../src/app/tools/heart-gate';
 import { heartTool } from '../../src/mcp/heart';
 import { silentLog } from '../support/fakes';
 
@@ -6,7 +8,7 @@ const context = { asker: '雅', question: '' };
 test('sends one heart in silence and says how many diamonds are left', async () => {
   let sent = 0;
   const tool = heartTool(
-    () => Promise.resolve({ result: 'sent' as const, diamondsLeft: 10 - ++sent }),
+    new HeartGate(() => Promise.resolve({ result: 'sent' as const, diamondsLeft: 10 - ++sent })),
     silentLog,
   );
   const answer = await tool.call({}, context);
@@ -16,7 +18,10 @@ test('sends one heart in silence and says how many diamonds are left', async () 
 });
 
 test('is admin-only, /小心心 takes nothing after it and says nothing', () => {
-  const tool = heartTool(() => Promise.resolve({ result: 'sent', diamondsLeft: null }), silentLog);
+  const tool = heartTool(
+    new HeartGate(() => Promise.resolve({ result: 'sent', diamondsLeft: null })),
+    silentLog,
+  );
   expect(tool.adminOnly).toBe(true);
   const [command] = tool.commands!;
   expect(command!.name).toBe('小心心');
@@ -26,7 +31,10 @@ test('is admin-only, /小心心 takes nothing after it and says nothing', () => 
 });
 
 test('a room-feed that fails is an error result', async () => {
-  const tool = heartTool(() => Promise.reject(new Error('页面上没找到小心心')), silentLog);
+  const tool = heartTool(
+    new HeartGate(() => Promise.reject(new Error('页面上没找到小心心'))),
+    silentLog,
+  );
   expect(await tool.call({}, context)).toEqual({
     text: '现在送不了小心心，请稍后再试',
     isError: true,
@@ -40,7 +48,7 @@ test('too few diamonds: the bot says so itself, without the numbers, which go to
     info: (message: string, meta?: object) => void logged.push([message, meta]),
   };
   const tool = heartTool(
-    () => Promise.resolve({ result: 'notEnough' as const, diamonds: 0, price: 1 }),
+    new HeartGate(() => Promise.resolve({ result: 'notEnough' as const, diamonds: 0, price: 1 })),
     log,
   );
   expect(await tool.call({}, context)).toEqual({
@@ -54,13 +62,15 @@ test('too few diamonds: the bot says so itself, without the numbers, which go to
 });
 
 /** A tool on a fake clock, whose room-feed answers `answers` in turn (sent, by default). */
-function timed(answers: (() => ReturnType<Parameters<typeof heartTool>[0]>)[] = []) {
+function timed(answers: (() => ReturnType<SendHeart>)[] = []) {
   let time = 0;
   let calls = 0;
   const tool = heartTool(
-    () => answers[calls++]?.() ?? Promise.resolve({ result: 'sent', diamondsLeft: 9 }),
+    new HeartGate(
+      () => answers[calls++]?.() ?? Promise.resolve({ result: 'sent', diamondsLeft: 9 }),
+      () => time,
+    ),
     silentLog,
-    { now: () => time },
   );
   return {
     tool,
@@ -83,17 +93,17 @@ test('any other gift fails, for Claude to say why, sending nothing; a 小心心 
   }
 });
 
-test('one 小心心 in 5 minutes: sooner fails, for Claude to say how many minutes are left, sending nothing', async () => {
+test('one 小心心 in 4 minutes: sooner fails, for Claude to say how many minutes are left, sending nothing', async () => {
   const { tool, sends, later } = timed();
   await tool.call({}, context);
   later(60_000 + 1);
   expect(await tool.call({}, context)).toEqual({
-    text: '小心心 5 分钟只能送一次，还要等 4 分钟，这次没送',
+    text: '小心心 4 分钟只能送一次，还要等 3 分钟，这次没送',
     isError: true,
   });
-  later(4 * 60_000 - 2);
+  later(3 * 60_000 - 2);
   expect((await tool.call({}, context)).text).toBe(
-    '小心心 5 分钟只能送一次，还要等 1 分钟，这次没送',
+    '小心心 4 分钟只能送一次，还要等 1 分钟，这次没送',
   );
   expect(sends()).toBe(1);
   later(1);
@@ -101,19 +111,19 @@ test('one 小心心 in 5 minutes: sooner fails, for Claude to say how many minut
   expect(sends()).toBe(2);
 });
 
-test('an ask while one is sending waits its 5 minutes too', async () => {
+test('an ask while one is sending waits its 4 minutes too', async () => {
   let finish = () => {};
   const { tool, sends } = timed([
     () => new Promise((resolve) => (finish = () => resolve({ result: 'sent', diamondsLeft: 9 }))),
   ]);
   const first = tool.call({}, context);
-  expect((await tool.call({}, context)).text).toContain('5 分钟只能送一次');
+  expect((await tool.call({}, context)).text).toContain('4 分钟只能送一次');
   finish();
   await first;
   expect(sends()).toBe(1);
 });
 
-test('what was not sent (too few diamonds, a failure) does not count towards the 5 minutes', async () => {
+test('what was not sent (too few diamonds, a failure) does not count towards the 4 minutes', async () => {
   const { tool, sends } = timed([
     () => Promise.resolve({ result: 'notEnough', diamonds: 0, price: 1 }),
     () => Promise.reject(new Error('页面上没找到小心心')),

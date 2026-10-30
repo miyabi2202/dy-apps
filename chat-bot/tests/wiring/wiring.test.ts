@@ -22,6 +22,7 @@ import {
   OUTBOX,
   ROOM_API,
   ROOM_EVENTS,
+  SETTINGS,
   SONG_BREAK_SOURCES,
   SONG_ID,
   SPAWN_WORKER,
@@ -164,6 +165,7 @@ const ALL_COMMANDS = [
   '解题',
   '自动识歌',
   '识别恶意言论',
+  '开心送心',
 ];
 
 // Starting runs the auto-reply loop, which waits on a real timer that no one stops after the test.
@@ -423,7 +425,24 @@ test('without speech, Codex or Jev the tools server still has the admin-only set
     'send_fans_lamp',
     'send_heart',
     'ask_about_puzzle',
+    'set_happy_heart',
   ]);
+  app.stop();
+});
+
+test('/开心送心, which only admins have, offers send_happy_heart to anyone while it is on', async () => {
+  const bot = build(['--mcp-port', '0', '--no-asr', '--codex', ''], {});
+  const app = bot.container.resolve(APP);
+  await app.start();
+  const server = bot.container.resolve(MCP_SERVER);
+  const viewer = () => server.open({ asker: 'a', question: '' })!.access.tools;
+  const admin = () => server.open({ asker: 'a', question: '', admin: true })!.access.tools;
+  expect(viewer()).not.toContain('set_happy_heart');
+  expect(admin()).toContain('set_happy_heart');
+  expect(viewer()).not.toContain('send_happy_heart');
+  bot.container.resolve(SETTINGS).set({ happyHeart: true });
+  expect(viewer()).toContain('send_happy_heart');
+  expect(admin()).toContain('send_happy_heart');
   app.stop();
 });
 
