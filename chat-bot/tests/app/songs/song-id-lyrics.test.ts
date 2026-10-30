@@ -218,7 +218,7 @@ test("doesn't tell onNamed a song Codex isn't sure of", async () => {
 });
 
 test('for the room, Codex writes the message for a song the search named, title and all, or the plain one stays', async () => {
-  const written = (reply: string) => {
+  const written = (reply: string, title = '雨爱') => {
     const asked: string[] = [];
     const songId = new SongId({
       prompt: () => '',
@@ -226,7 +226,7 @@ test('for the room, Codex writes the message for a song the search named, title 
         asked.push(prompt);
         return Promise.resolve(reply);
       },
-      lyrics: () => Promise.resolve(guess({ title: '雨爱', artist: '杨丞琳', sure: true })),
+      lyrics: () => Promise.resolve(guess({ title, artist: '杨丞琳', sure: true })),
       found: ({ title, artist }) => `找到了${artist}${title}`,
       known: ({ title }) => `已认出${title}`,
       hookNote: (on) => (on ? '加钩子' : '不提问'),
@@ -243,6 +243,18 @@ test('for the room, Codex writes the message for a song the search named, title 
     answer: { title: '雨爱', message: '杨丞琳的《雨爱》，下雨天必点' },
   });
   expect(own.asked).toEqual(['P\n\n加钩子\n\n已认出雨爱']);
+
+  // The title counts however its letters are written: Shazam's 「Kiss of Death」, Codex's
+  // 「KISS OF DEATH」 or full-width.
+  for (const message of ['杨丞琳的《KISS OF DEATH》', '杨丞琳的《ＫＩＳＳ ＯＦ ＤＥＡＴＨ》']) {
+    const cased = written(
+      JSON.stringify({ message, title: 'Kiss of Death', artist: '杨丞琳', sure: true }),
+      'Kiss of Death',
+    );
+    expect(await cased.songId.identifyLines({ prompt: 'P' }, lines, 'auto')).toMatchObject({
+      answer: { message },
+    });
+  }
 
   for (const reply of [answer('下雨天必点'), '不是 json']) {
     const plain = written(reply);

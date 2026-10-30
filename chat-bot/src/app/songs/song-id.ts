@@ -72,6 +72,15 @@ export interface SongIdOptions {
 /** Why the song is asked about: `/识歌`, /自动识歌 on its own or asking again, or Claude's tool. */
 export type SongIdWhy = 'command' | 'auto' | 'retry' | 'tool';
 
+/**
+ * Whether `message` has the song's `title` in it, however its letters are written: Codex writes
+ * Shazam's 「Kiss of Death」 as 「KISS OF DEATH」 as often as not, or in full-width letters.
+ */
+export function mentionsTitle(message: string, title: string): boolean {
+  const plain = (text: string) => text.normalize('NFKC').toLowerCase();
+  return plain(message).includes(plain(title));
+}
+
 /** What asking about the song came to: too little sung to go on, or the song named (or not). */
 export type SongIdOutcome = { kind: 'early'; text: string } | ({ kind: 'named' } & Named);
 
@@ -256,7 +265,7 @@ export class SongId {
         log,
       );
       const message = value?.message ?? '';
-      const named = message.includes(song.title);
+      const named = mentionsTitle(message, song.title);
       log.info('song message', { title: song.title, hook, message, named });
       return named ? { ...song, message } : song;
     } catch (err) {
