@@ -14,9 +14,23 @@ class FakeSurface implements GiftPanelSurface {
       noResult?: boolean;
       drop?: number;
       panelOpen?: boolean;
+      /** The download popup shows from the start, or once 更多 is clicked. */
+      guide?: 'start' | 'afterMore';
     } = {},
   ) {
     this.open = options.panelOpen === true;
+    this.guide = options.guide === 'start';
+  }
+
+  private guide: boolean;
+
+  guideShown() {
+    return Promise.resolve(this.guide);
+  }
+  clickGuideClose() {
+    this.log.push('close guide');
+    this.guide = false;
+    return Promise.resolve();
   }
 
   closeShown() {
@@ -37,6 +51,7 @@ class FakeSurface implements GiftPanelSurface {
   clickMore() {
     this.log.push('click 更多');
     this.open = true;
+    if (this.options.guide === 'afterMore') this.guide = true;
     return Promise.resolve();
   }
   waitForPanel() {
@@ -119,6 +134,25 @@ describe('HeartGift', () => {
     const { heart, log } = setup(5, { panelOpen: true });
     await heart.send();
     expect(log.slice(0, 3)).toEqual(['wait 625', 'close panel', 'wait for 更多']);
+  });
+
+  it('closes the download popup first when it shows, as a step of its own', async () => {
+    const { heart, log } = setup(5, { guide: 'start' });
+    expect(await heart.send()).toEqual({ result: 'sent', diamondsLeft: 4 });
+    expect(log.slice(0, 3)).toEqual(['wait 625', 'close guide', 'wait for 更多']);
+  });
+
+  it('closes the download popup that shows partway, before the next click', async () => {
+    const { heart, log } = setup(5, { guide: 'afterMore' });
+    expect(await heart.send()).toEqual({ result: 'sent', diamondsLeft: 4 });
+    expect(log.slice(2, 7)).toEqual([
+      'click 更多',
+      'wait for panel',
+      'wait 625',
+      'close guide',
+      'wait for search icon',
+    ]);
+    expect(log.filter((line) => line === 'close guide')).toHaveLength(1);
   });
 
   it('types into the search box straight away when it is still open from the last time', async () => {

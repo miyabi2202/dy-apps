@@ -44,6 +44,12 @@ export const FANS_JOIN_BUTTON = /^加入粉丝团$/;
 /** The panel's line once today's 灯牌 is sent: 「今日第7位送灯牌，连续3天」. */
 export const FANS_LAMP_SENT = /今日第\d+位送灯牌/;
 
+/**
+ * The × of Douyin's 「下载电脑客户端」 popup: the svg beside its download container. The popup is in
+ * the page all along, at 0×0 until it shows.
+ */
+export const DOWNLOAD_GUIDE_CLOSE = ':has(> [data-e2e="download-container"]) > svg';
+
 /** The gift bar's 「更多」, which opens the gift panel on the right. */
 export const GIFTS_MORE = '[data-e2e="gifts-switch"]';
 

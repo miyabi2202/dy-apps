@@ -1,4 +1,5 @@
 import type { FansLampResult } from '@dy-apps/room-feed-protocol';
+import { closeDownloadGuide, type DownloadGuide } from './download-guide';
 import { PageActionError } from './errors';
 import { Pace } from './pace';
 import { closeRightPanel, type RightPanel } from './right-panel';
@@ -29,8 +30,8 @@ export interface PanelFrame {
   click(target: PanelTarget): Promise<void>;
 }
 
-/** The page, as far as the 灯牌 steps need it, the panel on the right among it. */
-export interface FansLampSurface extends RightPanel {
+/** The page, as far as the 灯牌 steps need it, the panel on the right and the download popup among it. */
+export interface FansLampSurface extends RightPanel, DownloadGuide {
   /** The diamonds by the gift bar's 充值, or null when they don't show. */
   balance(): Promise<number | null>;
   /** Whether the header's 「关注」 shows, which it does only while the streamer isn't followed. */
@@ -56,7 +57,8 @@ export interface FansLampOptions {
  * follows the streamer, joins the 粉丝团 (1 diamond), sends the 灯牌. Joining is tried once,
  * however many times the panel is opened. With fewer than LAMP_PRICE diamonds it does nothing
  * and answers `notEnough`; a balance that doesn't show doesn't stop it. Every click is a Pace
- * step: what it clicks seen first, then a pause.
+ * step: what it clicks seen first, then a pause; the download popup is closed before each, if it
+ * shows.
  */
 export class FansLamp {
   private readonly now: () => number;
@@ -76,6 +78,7 @@ export class FansLamp {
     if (diamonds !== null && diamonds < LAMP_PRICE) {
       return { result: 'notEnough', diamonds, price: LAMP_PRICE };
     }
+    await closeDownloadGuide(this.surface, this.pace);
     await closeRightPanel(this.surface, this.pace);
     await this.followStreamer();
     await this.joinFansClub();
@@ -85,6 +88,7 @@ export class FansLamp {
   /** Step 1: clicks the header's 「关注」, which shows only while the streamer isn't followed. */
   private async followStreamer(): Promise<void> {
     if (!(await this.surface.followVisible())) return;
+    await closeDownloadGuide(this.surface, this.pace);
     await this.pace.afterSeen(() => this.surface.clickFollow());
   }
 
@@ -133,6 +137,7 @@ export class FansLamp {
    */
   private async inPanel<T>(look: (frame: PanelFrame) => Promise<T | null>): Promise<T | null> {
     const { surface, pace } = this;
+    await closeDownloadGuide(surface, pace);
     await pace.step(
       () => surface.waitForPanelButton(),
       () => surface.openPanel(),
@@ -141,6 +146,7 @@ export class FansLamp {
       const until = this.now() + FANS_PANEL_MS;
       while (this.now() < until) {
         await pace.wait(PANEL_LOOK_MS);
+        await closeDownloadGuide(surface, pace);
         for (const frame of surface.panelFrames()) {
           if (await frame.has('notice')) {
             await pace.afterSeen(() => frame.click('notice').catch(() => {}));

@@ -1,4 +1,5 @@
 import type { HeartResult } from '@dy-apps/room-feed-protocol';
+import { closeDownloadGuide, type DownloadGuide } from './download-guide';
 import { PageActionError } from './errors';
 import { Pace } from './pace';
 import { closeRightPanel, type RightPanel } from './right-panel';
@@ -15,10 +16,10 @@ const BALANCE_LOOK_MS = 500;
 const PANEL_SETTLE_MS = 1500;
 
 /**
- * The page, as far as sending a 小心心 needs it, the panel on the right among it. Each `waitFor…`
- * throws when what it waits for doesn't show in time.
+ * The page, as far as sending a 小心心 needs it, the panel on the right and the download popup
+ * among it. Each `waitFor…` throws when what it waits for doesn't show in time.
  */
-export interface GiftPanelSurface extends RightPanel {
+export interface GiftPanelSurface extends RightPanel, DownloadGuide {
   /** The diamonds by the gift bar's 充值, or null when they don't show. */
   balance(): Promise<number | null>;
   /** Waits for the gift bar's 「更多」. */
@@ -55,7 +56,8 @@ export interface HeartGiftOptions {
  * typed in, its result clicked, each a Pace step: what it acts on seen first, then a pause. The
  * balance by 充值 tells whether it went: `sent` with the diamonds left, or null when the balance
  * doesn't show; `notEnough`, having done nothing, when there's less than a diamond. Throws when the
- * balance doesn't drop after the click. The panel is closed afterwards.
+ * balance doesn't drop after the click. The panel is closed afterwards. Before each click the
+ * download popup is closed, if it shows.
  */
 export class HeartGift {
   private readonly now: () => number;
@@ -75,24 +77,25 @@ export class HeartGift {
     if (before !== null && before < HEART_PRICE) {
       return { result: 'notEnough', diamonds: before, price: HEART_PRICE };
     }
+    await closeDownloadGuide(surface, pace);
     await closeRightPanel(surface, pace);
-    await pace.step(
+    await this.step(
       () => surface.waitForMore(),
       () => surface.clickMore(),
     );
     try {
       await surface.waitForPanel();
       if (!(await surface.searchShown())) {
-        await pace.step(
+        await this.step(
           () => surface.waitForSearchIcon(),
           () => surface.clickSearchIcon(),
         );
       }
-      await pace.step(
+      await this.step(
         () => surface.waitForSearchBox(),
         () => surface.typeSearch(HEART_GIFT),
       );
-      await pace.step(
+      await this.step(
         () => surface.waitForResult(HEART_GIFT),
         () => surface.clickResult(HEART_GIFT),
       );
@@ -101,6 +104,12 @@ export class HeartGift {
       await pace.wait(PANEL_SETTLE_MS);
       await closeRightPanel(surface, pace);
     }
+  }
+
+  /** A Pace step, with the download popup closed first if it shows. */
+  private async step(ready: () => Promise<void>, act: () => Promise<void>): Promise<void> {
+    await closeDownloadGuide(this.surface, this.pace);
+    await this.pace.step(ready, act);
   }
 
   /** The balance once it's below `before`; null when there's none to watch. */

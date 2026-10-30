@@ -23,7 +23,22 @@ class FakeSurface implements FansLampSurface {
     private readonly openings: Opening[],
     public followShown = false,
     private readonly diamonds: number | null = 10,
-  ) {}
+    /** The download popup: shows from the start, or once the panel is first opened. */
+    private readonly guideWhen?: 'start' | 'afterOpen',
+  ) {
+    this.guide = guideWhen === 'start';
+  }
+
+  private guide: boolean;
+
+  guideShown() {
+    return Promise.resolve(this.guide);
+  }
+  clickGuideClose() {
+    this.log.push('close guide');
+    this.guide = false;
+    return Promise.resolve();
+  }
 
   balance() {
     return Promise.resolve(this.diamonds);
@@ -55,6 +70,7 @@ class FakeSurface implements FansLampSurface {
   openPanel() {
     this.log.push('open panel');
     this.open = true;
+    if (this.guideWhen === 'afterOpen' && this.opened === 0) this.guide = true;
     const opening = this.openings[this.opened++] ?? { frames: [] };
     this.frames = opening.frames.map(
       (targets) => new FakeFrame(this.log, new Set(targets), opening.stuckNotice ?? false, this),
@@ -96,11 +112,17 @@ function setup(
     followShown = false,
     random = 0.5,
     diamonds = 10,
-  }: { followShown?: boolean; random?: number; diamonds?: number | null } = {},
+    guide,
+  }: {
+    followShown?: boolean;
+    random?: number;
+    diamonds?: number | null;
+    guide?: 'start' | 'afterOpen';
+  } = {},
 ) {
   const log: string[] = [];
   let time = 0;
-  const surface = new FakeSurface(log, openings, followShown, diamonds);
+  const surface = new FakeSurface(log, openings, followShown, diamonds, guide);
   const pace = new Pace({
     wait: (ms) => {
       log.push(`wait ${ms}`);
@@ -205,6 +227,24 @@ describe('FansLamp', () => {
       const { lamp } = setup([{ frames: [['send']] }, { frames: [['send']] }], { diamonds });
       expect(await lamp.send()).toEqual({ result: 'sent' });
     }
+  });
+
+  it('closes the download popup first when it shows, as a step of its own', async () => {
+    const { lamp, log } = setup([{ frames: [['send']] }, { frames: [['send']] }], {
+      guide: 'start',
+    });
+    expect(await lamp.send()).toEqual({ result: 'sent' });
+    expect(log.slice(0, 3)).toEqual(['wait 750', 'close guide', 'wait for panel button']);
+    expect(log.filter((line) => line === 'close guide')).toHaveLength(1);
+  });
+
+  it('closes the download popup that shows while the panel is open, before clicking in it', async () => {
+    const { lamp, log } = setup([{ frames: [['send']] }, { frames: [['send']] }], {
+      guide: 'afterOpen',
+    });
+    expect(await lamp.send()).toEqual({ result: 'sent' });
+    expect(log.slice(2, 6)).toEqual(['open panel', 'wait 500', 'wait 750', 'close guide']);
+    expect(log.filter((line) => line === 'close guide')).toHaveLength(1);
   });
 
   it('waits for the button before the first pause and the click that opens the panel', async () => {

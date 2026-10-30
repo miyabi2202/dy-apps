@@ -18,6 +18,7 @@ import {
   CHAT_INPUT,
   CLOSE_ICON,
   DIAMOND_BALANCE,
+  DOWNLOAD_GUIDE_CLOSE,
   FANS_ICON,
   FANS_JOIN_BUTTON,
   FANS_LAMP_BUTTON,
@@ -162,6 +163,14 @@ class PageFansSurface implements FansLampSurface {
     return rightPanelClose(this.page).click({ timeout: 5000 });
   }
 
+  guideShown(): Promise<boolean> {
+    return guideShown(this.page);
+  }
+
+  clickGuideClose(): Promise<void> {
+    return guideClose(this.page).click({ timeout: 5000 });
+  }
+
   balance(): Promise<number | null> {
     return readBalance(this.page);
   }
@@ -237,6 +246,18 @@ function closeShown(page: Page): Promise<boolean> {
     .catch(() => false);
 }
 
+/** The × of the 「下载电脑客户端」 popup. */
+function guideClose(page: Page): Locator {
+  return page.locator(DOWNLOAD_GUIDE_CLOSE).first();
+}
+
+/** Whether the download popup's × shows: the popup is in the page all along, hidden until it shows. */
+function guideShown(page: Page): Promise<boolean> {
+  return guideClose(page)
+    .isVisible()
+    .catch(() => false);
+}
+
 /** How long a 小心心 step waits for what it acts on. */
 const GIFT_WAIT = { timeout: 10_000 };
 
@@ -260,6 +281,14 @@ class PageGiftSurface implements GiftPanelSurface {
 
   clickClose(): Promise<void> {
     return rightPanelClose(this.page).click({ timeout: 5000 });
+  }
+
+  guideShown(): Promise<boolean> {
+    return guideShown(this.page);
+  }
+
+  clickGuideClose(): Promise<void> {
+    return guideClose(this.page).click({ timeout: 5000 });
   }
 
   balance(): Promise<number | null> {
