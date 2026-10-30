@@ -46,6 +46,11 @@ export interface RememberChatOptions {
   batchSize?: number;
   /** How far back the first run reads, with no mark yet. */
   firstRunMs?: number;
+  /**
+   * How long one question may take: 10 minutes by default, more than an answer in the room gets,
+   * since a few days' chat (a thousand lines and more) is a lot to read and nobody waits on it.
+   */
+  timeoutMs?: number;
 }
 
 /** What one run did. */
@@ -189,9 +194,11 @@ export class RememberChat {
     schema: object,
     part: string,
   ): Promise<Record<string, unknown> | null> {
-    const { ask, log } = this.options;
+    const { ask, log, timeoutMs = 600_000 } = this.options;
     try {
-      const answer = parseJsonObject(await ask({ prompt, schema, tools: [], why: part }));
+      const answer = parseJsonObject(
+        await ask({ prompt, schema, tools: [], why: part, timeoutMs }),
+      );
       if (!answer) log.warn('remember got an answer that is not JSON', { part });
       return answer;
     } catch (err) {

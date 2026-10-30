@@ -103,6 +103,8 @@ test("each regular's note gets the changes Claude names for them, the room and s
   expect(asked[0]!.prompt).not.toContain('u-2');
   expect(asked[0]!.prompt).not.toContain('默认关闭');
   expect(asked[0]!.tools).toEqual([]);
+  // A few days' chat is a lot to read: each question gets 10 minutes, not the room's 4.
+  expect(asked.map((q) => q.timeoutMs)).toEqual([600_000, 600_000]);
   expect(asked[1]!.prompt).toContain('今天先唱晴天');
 });
 
