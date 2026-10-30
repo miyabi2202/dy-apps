@@ -114,6 +114,19 @@ test('a silent tool that says something itself (too few diamonds) is the only me
   expect(sent).toEqual(['@雅 钻石不够点灯牌']);
 });
 
+test('a tool that failed beside silent likes still gets Claude telling why', async () => {
+  const { ask, sent } = setup({
+    answer: JSON.stringify({ message: '小心心刚送过，过 4 分钟再来' }),
+    calls: [
+      { tool: 'press_like', ms: 6000, isError: false, silent: true },
+      { tool: 'send_heart', ms: 1, isError: true },
+    ],
+  });
+  await ask({ asker: '雅', question: '先点赞，再送个小心心' });
+
+  expect(sent).toEqual(['@雅 小心心刚送过，过 4 分钟再来']);
+});
+
 test('the session is told whether the asker is an admin', async () => {
   const { ask, opened } = setup({ admins: { has: (userId) => userId === 'u-雅' } });
   await ask({ asker: '雅', userId: 'u-雅' });

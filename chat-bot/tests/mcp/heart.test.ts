@@ -52,3 +52,74 @@ test('too few diamonds: the bot says so itself, without the numbers, which go to
     ['not enough diamonds for a heart', { asker: '雅', diamonds: 0, price: 1 }],
   ]);
 });
+
+/** A tool on a fake clock, whose room-feed answers `answers` in turn (sent, by default). */
+function timed(answers: (() => ReturnType<Parameters<typeof heartTool>[0]>)[] = []) {
+  let time = 0;
+  let calls = 0;
+  const tool = heartTool(
+    () => answers[calls++]?.() ?? Promise.resolve({ result: 'sent', diamondsLeft: 9 }),
+    silentLog,
+    { now: () => time },
+  );
+  return {
+    tool,
+    sends: () => calls,
+    later: (ms: number) => void (time += ms),
+  };
+}
+
+test('any other gift fails, for Claude to say why, sending nothing; a 小心心 or no gift named is sent', async () => {
+  const { tool, sends } = timed();
+  expect(await tool.call({ gift: '嘉年华' }, context)).toEqual({
+    text: '只能送小心心，送不了嘉年华，这次什么都没送',
+    isError: true,
+  });
+  expect(sends()).toBe(0);
+  for (const gift of ['小心心', ' 心心 ', '']) {
+    const { tool: fresh, sends: freshSends } = timed();
+    expect((await fresh.call({ gift }, context)).isError).toBeUndefined();
+    expect(freshSends()).toBe(1);
+  }
+});
+
+test('one 小心心 in 5 minutes: sooner fails, for Claude to say how many minutes are left, sending nothing', async () => {
+  const { tool, sends, later } = timed();
+  await tool.call({}, context);
+  later(60_000 + 1);
+  expect(await tool.call({}, context)).toEqual({
+    text: '小心心 5 分钟只能送一次，还要等 4 分钟，这次没送',
+    isError: true,
+  });
+  later(4 * 60_000 - 2);
+  expect((await tool.call({}, context)).text).toBe(
+    '小心心 5 分钟只能送一次，还要等 1 分钟，这次没送',
+  );
+  expect(sends()).toBe(1);
+  later(1);
+  expect((await tool.call({}, context)).isError).toBeUndefined();
+  expect(sends()).toBe(2);
+});
+
+test('an ask while one is sending waits its 5 minutes too', async () => {
+  let finish = () => {};
+  const { tool, sends } = timed([
+    () => new Promise((resolve) => (finish = () => resolve({ result: 'sent', diamondsLeft: 9 }))),
+  ]);
+  const first = tool.call({}, context);
+  expect((await tool.call({}, context)).text).toContain('5 分钟只能送一次');
+  finish();
+  await first;
+  expect(sends()).toBe(1);
+});
+
+test('what was not sent (too few diamonds, a failure) does not count towards the 5 minutes', async () => {
+  const { tool, sends } = timed([
+    () => Promise.resolve({ result: 'notEnough', diamonds: 0, price: 1 }),
+    () => Promise.reject(new Error('页面上没找到小心心')),
+  ]);
+  expect((await tool.call({}, context)).say).toBe('钻石不够送小心心');
+  expect((await tool.call({}, context)).text).toBe('现在送不了小心心，请稍后再试');
+  expect((await tool.call({}, context)).isError).toBeUndefined();
+  expect(sends()).toBe(3);
+});

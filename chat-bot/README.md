@@ -7,6 +7,7 @@ A bot that sits in a Douyin live room as an ordinary viewer's account and talks 
 - **Answers questions about the room**, such as 「主播会唱晴天吗」 or 「几点开播」, from the room's own files, like its song list and streaming times (tools the room switches on in its `room_config.json`). Viewers just ask in the chat.
 - **Names the songs the streamer sings** (`/识歌`, or every song with `/自动识歌 1`) and says something short about each.
 - **Thanks big givers** with a message about their gift (`/自动谢礼 499`), and **answers questions about the puzzle on screen** (`ask_about_puzzle`, `/解题`).
+- **Likes, lights the 灯牌 and sends gifts** when the streamer or an admin asks: likes the room (`/点赞`), sends today's 粉丝团灯牌 (`/灯牌`, 2 diamonds), and sends a 小心心 (`/小心心`, 1 diamond, at most one every 5 minutes), the only gift it sends: asked for another, it says it can only send a 小心心.
 
 To use it:
 

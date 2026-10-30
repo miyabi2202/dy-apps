@@ -154,7 +154,7 @@ export function registerMcp(container: Container): void {
         ...(transcriber ? [identifyBgmTool(() => transcriber.identifyMusic(), log)] : []),
         pressLikeTool(c.resolve(ROOM_API).like, log),
         fansLampTool(c.resolve(ROOM_API).sendFansLamp, log),
-        heartTool(c.resolve(ROOM_API).sendHeart, log),
+        heartTool(c.resolve(ROOM_API).sendHeart, log, { now: () => room.now() }),
         askAboutPuzzleTool({
           ask: c.resolve(ASK_SOLVE),
           settings: c.resolve(SETTINGS),

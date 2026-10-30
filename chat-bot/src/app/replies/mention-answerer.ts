@@ -239,11 +239,14 @@ export class MentionAnswerer {
         ...(calls.length && { tools: calls }),
       });
       // A tool that did what was asked, to be done in silence (likes), has the last word: nothing,
-      // but what a tool says itself (「钻石不够送小心心」), once each.
+      // but what a tool says itself (「钻石不够送小心心」), once each; and Claude's answer when
+      // another tool failed, since it tells why (「小心心 5 分钟只能送一次」).
       if (calls.some((call) => call.silent)) {
+        const failed = calls.some((call) => call.isError && !call.silent);
         log.info('silent after a tool', {
           asker: mention.asker,
           tools: calls.filter((call) => call.silent).map((call) => call.tool),
+          ...(failed && { answered: 'another tool failed' }),
         });
         const says = new Set(calls.flatMap((call) => (call.silent && call.say ? [call.say] : [])));
         for (const said of says) {
@@ -251,7 +254,7 @@ export class MentionAnswerer {
             outbox.push({ kind: 'reply', text });
           }
         }
-        return;
+        if (!failed) return;
       }
       const answer = parseMentionAnswer(raw).message;
       // Each of the others gets a message of their own, after the asker's. An answer may have
