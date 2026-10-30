@@ -41,8 +41,29 @@ export interface RoomPromptInput {
   botTalk?: string;
   /** How the bot is set up in the room right now. */
   settings?: RoomSettings;
+  /** What the bot's own account wears by its name, from its own latest chat line. */
+  ownBadges?: OwnBadges;
   /** The rules for topics the bot must not take up (forbidden.md's `## Topics`). */
   forbiddenTopics?: string;
+}
+
+/** What the bot's own account wears by its name, as room-feed sends it with its own chat. */
+export interface OwnBadges {
+  /** Its level in the streamer's fan club (the 灯牌 by its name). */
+  fansLevel?: number;
+  /** Its wealth level (财富). */
+  payLevel?: number;
+}
+
+/** `badges` as a line for the prompt, after the settings: empty when there are none. */
+function ownBadgesText({ fansLevel, payLevel }: OwnBadges): string {
+  const worn = [
+    ...(fansLevel ? [`主播的粉丝团灯牌 ${fansLevel} 级`] : []),
+    ...(payLevel ? [`财富等级 ${payLevel} 级`] : []),
+  ];
+  return worn.length
+    ? `你自己这个账号名字旁边挂着：${worn.join('、')}（大家都看得见，随送礼和互动会涨）。`
+    : '';
 }
 
 /**
@@ -207,7 +228,9 @@ export function buildPrompt(template: string, input: PromptInput): string {
     userHistory: retimeLines(userHistory?.trim() ?? '', input.timeZone) || '（暂无）',
     userChat: userChat?.trim() || '（暂无）',
     askerBadges: input.askerBadges?.length ? input.askerBadges.join('、') : '（无）',
-    settings: settings ? settingsText(settings) : '',
+    settings: [settings ? settingsText(settings) : '', ownBadgesText(input.ownBadges ?? {})]
+      .filter(Boolean)
+      .join('\n'),
     forbiddenTopics: input.forbiddenTopics?.trim() ?? '',
   };
   return fillTemplate(template, values);

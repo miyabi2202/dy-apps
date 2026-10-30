@@ -238,6 +238,7 @@ export function registerRoom(container: Container): void {
         settings: c.resolve(SETTINGS),
         chatDir: c.resolve(CHAT_DIR),
         botName: options.botName,
+        botId: options.botId,
         aliases: () => roomConfig().aliases,
         // The song break sources the room has on (room_config.json's songBreaks; all when absent).
         songBreaks: () => roomConfig().songBreaks,

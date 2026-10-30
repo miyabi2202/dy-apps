@@ -5,6 +5,7 @@ import { errorMessage } from '../../core/errors';
 import type { Wording } from '../../core/prompts/wording';
 import {
   buildPrompt,
+  type OwnBadges,
   type PromptDetails,
   type RoomPromptInput,
   type RoomSettings,
@@ -72,6 +73,8 @@ export interface RoomStateOptions {
   timeZone?: () => string;
   /** The bot's own nickname: its messages in the chat don't count as anyone chatting. */
   botName: string;
+  /** The bot's own user id, to find its own chat lines (and what it wears) by; its nickname without it. */
+  botId?: string;
   /**
    * The song break sources the room has on, by name (room_config.json's `songBreaks`), read each
    * time; undefined for all of them.
@@ -104,6 +107,8 @@ export class RoomState {
   private readonly partsSetting: ReturnType<typeof setting<'maxReplyParts'>>;
   /** The parts of the room's settings the features keep, for `{{settings}}`. */
   private readonly settingsParts: (() => SettingsPart)[] = [];
+  /** What the bot's own account wore by its name the last time its own chat was seen. */
+  private ownBadgesSeen: OwnBadges | undefined;
 
   constructor(private readonly options: RoomStateOptions) {
     this.screenshotsSetting = setting(
@@ -238,8 +243,27 @@ export class RoomState {
       limitations: limitations?.(),
       botTalk: botTalk?.recent(),
       settings: this.settings(),
+      ownBadges: this.ownBadges(),
       forbiddenTopics: this.options.forbiddenTopics?.(),
     };
+  }
+
+  /**
+   * What the bot's own account wears by its name (its 灯牌 and wealth level), from its latest
+   * chat line still in the history; once that has scrolled out, what it wore when last seen.
+   */
+  private ownBadges(): OwnBadges | undefined {
+    const { botId } = this.options;
+    const own = [...this.recentChat()]
+      .reverse()
+      .find((line) => (botId ? line.userId === botId : line.nickname === this.botName));
+    if (own) {
+      this.ownBadgesSeen = {
+        ...(own.fansClub?.level && { fansLevel: own.fansClub.level }),
+        ...(own.payLevel && { payLevel: own.payLevel }),
+      };
+    }
+    return this.ownBadgesSeen;
   }
 
   /**

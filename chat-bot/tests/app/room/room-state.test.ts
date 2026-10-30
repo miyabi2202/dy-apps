@@ -130,3 +130,30 @@ test('lists the settings the features gave, each as it is now, and none when non
     screenshots: false,
   });
 });
+
+test("knows what the bot's own account wears from its own latest chat, and keeps it once that scrolls away", () => {
+  const history = new ChatHistory(2);
+  const room = fakeRoom({ history, botId: 'bot-1' });
+  expect(room.promptInput().ownBadges).toBeUndefined();
+
+  const own = { ts: NOW, userId: 'bot-1', nickname: '小助手', content: '到', payLevel: 17 };
+  history.add({ ...own, fansClub: { level: 5 } });
+  history.add({ ...own, fansClub: { level: 6 }, payLevel: 18 });
+  expect(room.promptInput().ownBadges).toEqual({ fansLevel: 6, payLevel: 18 });
+
+  // Someone else's 灯牌 is theirs: only the bot's own line counts.
+  for (const content of ['一', '二']) {
+    history.add({ ts: NOW, userId: 'u-1', nickname: '阿明', content, fansClub: { level: 20 } });
+  }
+  expect(room.promptInput().ownBadges).toEqual({ fansLevel: 6, payLevel: 18 });
+});
+
+test("the prompt tells the bot what it wears by its name, after the settings, and nothing when it doesn't know", () => {
+  const ask = (ownBadges?: { fansLevel?: number; payLevel?: number }) =>
+    fakeRoom().prompt('{{settings}}', { singleLength: 50, maxLength: 50, ownBadges });
+  expect(ask({ fansLevel: 5, payLevel: 17 })).toContain(
+    '你自己这个账号名字旁边挂着：主播的粉丝团灯牌 5 级、财富等级 17 级',
+  );
+  expect(ask({ payLevel: 17 })).toContain('名字旁边挂着：财富等级 17 级');
+  expect(ask()).not.toContain('名字旁边挂着');
+});
