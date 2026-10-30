@@ -65,13 +65,34 @@ export interface LikeAnswer {
   tooFast: boolean;
 }
 
+/** A gift it didn't send because the account has fewer `diamonds` than its `price`: nothing was clicked. */
+export interface NotEnoughDiamonds {
+  result: 'notEnough';
+  diamonds: number;
+  price: number;
+}
+
 /**
- * `POST /api/rooms/<id>/fans-lamp`: `sent` when it sent today's 粉丝团灯牌 (1 diamond), `already`
- * when today's was sent before.
+ * How sending today's 粉丝团灯牌 (2 diamonds) went: `sent`, `already` when today's was sent
+ * before, or `notEnough`.
  */
-export interface FansLampAnswer {
-  ok: true;
-  result: 'sent' | 'already';
+export type FansLampResult = { result: 'sent' } | { result: 'already' } | NotEnoughDiamonds;
+
+/** `POST /api/rooms/<id>/fans-lamp`: how it went. */
+export type FansLampAnswer = { ok: true } & FansLampResult;
+
+/**
+ * How sending one 小心心 (1 diamond) went: `sent`, with the diamonds left (null when the page
+ * didn't show the balance), or `notEnough`.
+ */
+export type HeartResult = { result: 'sent'; diamondsLeft: number | null } | NotEnoughDiamonds;
+
+/** `POST /api/rooms/<id>/heart`: how it went. */
+export type HeartAnswer = { ok: true } & HeartResult;
+
+/** `GET /api/rooms/<id>/balance`: the account's diamonds, as the room page shows them by 充值; null when it doesn't. */
+export interface BalanceAnswer {
+  diamonds: number | null;
 }
 
 /** `GET /api/rooms/<id>/stream`: the FLV or HLS URL the room page's player pulls. */
@@ -114,11 +135,19 @@ export function eventsUrl(port: number, roomId: string, types: readonly EventTyp
 }
 
 /** The actions a room has below its own address: `/api/rooms/<id>/<action>`. */
-export const ROOM_ACTIONS = ['chat', 'like', 'fans-lamp', 'stream', 'screenshot'] as const;
+export const ROOM_ACTIONS = [
+  'chat',
+  'like',
+  'fans-lamp',
+  'heart',
+  'balance',
+  'stream',
+  'screenshot',
+] as const;
 
 export type RoomAction = (typeof ROOM_ACTIONS)[number];
 
-/** A room endpoint: the room itself, or its chat, likes, fans lamp, stream or screenshot. */
+/** A room endpoint: the room itself, or its chat, likes, fans lamp, 小心心, balance, stream or screenshot. */
 export function roomUrl(port: number, roomId: string, action?: RoomAction): string {
   return `http://localhost:${port}/api/rooms/${roomId}${action ? `/${action}` : ''}`;
 }

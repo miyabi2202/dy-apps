@@ -76,7 +76,7 @@ export const ROOM_API =
   token<
     Pick<
       RoomFeedApi,
-      'sendChat' | 'like' | 'sendFansLamp' | 'streamUrl' | 'streamer' | 'screenshot'
+      'sendChat' | 'like' | 'sendFansLamp' | 'sendHeart' | 'streamUrl' | 'streamer' | 'screenshot'
     >
   >('roomApi');
 export const ROOM_EVENTS = token<RoomEvents>('roomEvents');

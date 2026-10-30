@@ -1,7 +1,8 @@
 import { normalize } from './douyin/normalize';
 import { isStreamEnd, type RawProtoMessage } from './douyin/proto';
 import type {
-  FansLampAnswer,
+  FansLampResult,
+  HeartResult,
   LikeAnswer,
   RoomEvent,
   RoomGoneReason,
@@ -155,8 +156,18 @@ export class Room {
   }
 
   /** Sends today's 粉丝团灯牌 (see RoomPage.sendFansLamp), in turn with the chats and likes. */
-  sendFansLamp(): Promise<FansLampAnswer['result']> {
+  sendFansLamp(): Promise<FansLampResult> {
     return this.queue.run(() => this.livePage().sendFansLamp());
+  }
+
+  /** Sends one 小心心 (see RoomPage.sendHeart), in turn with the chats and likes. */
+  sendHeart(): Promise<HeartResult> {
+    return this.queue.run(() => this.livePage().sendHeart());
+  }
+
+  /** The account's diamonds, as the room page shows them; null when it doesn't. Not queued: it only reads. */
+  balance(): Promise<number | null> {
+    return this.livePage().balance();
   }
 
   streamUrl(): string | null {

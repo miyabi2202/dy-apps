@@ -1,9 +1,14 @@
 import {
+  type BalanceAnswer,
   roomUrl,
   type ChatAnswer,
   type ChatRequest,
   type ErrorAnswer,
   type FansLampAnswer,
+  type FansLampResult,
+  type HeartAnswer,
+  type HeartResult,
+  type NotEnoughDiamonds,
   type LikeAnswer,
   type LikeRequest,
   type RoomAction,
@@ -18,13 +23,18 @@ export interface RoomFeedHttpOptions {
   fetch?: typeof fetch;
 }
 
+/** A `notEnough` answer, its numbers 0 when missing. */
+function notEnough(body: Partial<NotEnoughDiamonds>): NotEnoughDiamonds {
+  return { result: 'notEnough', diamonds: body.diamonds ?? 0, price: body.price ?? 0 };
+}
+
 /** The message of a failed answer: room-feed's own, else its status. */
 function failure(res: Response, body: Partial<ErrorAnswer>): Error {
   return new Error(body.error ?? `room-feed answered ${res.status}`);
 }
 
 /**
- * One live room's HTTP API on room-feed (see api.ts): send chat, like, send the 灯牌, get the
+ * One live room's HTTP API on room-feed (see api.ts): send chat, like, send the 灯牌 or a 小心心, get the balance,
  * stream URL, the room's info and a screenshot of the player. A failed call throws room-feed's own
  * message, or `room-feed answered <status>` when it didn't send one.
  */
@@ -58,13 +68,37 @@ export class RoomFeedHttp {
   }
 
   /** `POST …/fans-lamp`: sends today's 粉丝团灯牌, answering once the panel says how it went. */
-  async sendFansLamp(): Promise<FansLampAnswer['result']> {
+  async sendFansLamp(): Promise<FansLampResult> {
     const res = await this.fetchFn(roomUrl(this.port, this.roomId, 'fans-lamp'), {
       method: 'POST',
     });
-    const body = (await res.json().catch(() => ({}))) as Partial<FansLampAnswer & ErrorAnswer>;
-    if (!res.ok || !body.result) throw failure(res, body);
-    return body.result;
+    const body = (await res.json().catch(() => ({}))) as Partial<FansLampAnswer> &
+      Partial<ErrorAnswer>;
+    if (!res.ok) throw failure(res, body);
+    if (body.result === 'sent' || body.result === 'already') return { result: body.result };
+    if (body.result === 'notEnough') return notEnough(body);
+    throw failure(res, body);
+  }
+
+  /** `POST …/heart`: sends one 小心心, answering once the diamond is gone (or there wasn't one). */
+  async sendHeart(): Promise<HeartResult> {
+    const res = await this.fetchFn(roomUrl(this.port, this.roomId, 'heart'), { method: 'POST' });
+    const body = (await res.json().catch(() => ({}))) as Partial<HeartAnswer> &
+      Partial<ErrorAnswer>;
+    if (!res.ok) throw failure(res, body);
+    if (body.result === 'sent') {
+      return { result: 'sent', diamondsLeft: body.diamondsLeft ?? null };
+    }
+    if (body.result === 'notEnough') return notEnough(body);
+    throw failure(res, body);
+  }
+
+  /** `GET …/balance`: the account's diamonds, or null when the page doesn't show them. */
+  async balance(): Promise<number | null> {
+    const res = await this.fetchFn(roomUrl(this.port, this.roomId, 'balance'));
+    const body = (await res.json().catch(() => ({}))) as Partial<BalanceAnswer & ErrorAnswer>;
+    if (!res.ok) throw failure(res, body);
+    return body.diamonds ?? null;
   }
 
   /** `GET …/stream`: the FLV or HLS URL the room's player pulls, or null before it starts. */

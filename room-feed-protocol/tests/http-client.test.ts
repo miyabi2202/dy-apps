@@ -68,9 +68,14 @@ describe('RoomFeedHttp.like', () => {
 describe('RoomFeedHttp.sendFansLamp', () => {
   it('posts without a body and returns the result', async () => {
     const { http, calls } = setup(() => json({ ok: true, result: 'already' }));
-    expect(await http.sendFansLamp()).toBe('already');
+    expect(await http.sendFansLamp()).toEqual({ result: 'already' });
     expect(calls[0]?.url).toBe('http://localhost:8757/api/rooms/123/fans-lamp');
     expect(calls[0]?.init).toEqual({ method: 'POST' });
+  });
+
+  it('returns notEnough with its numbers', async () => {
+    const { http } = setup(() => json({ ok: true, result: 'notEnough', diamonds: 1, price: 2 }));
+    expect(await http.sendFansLamp()).toEqual({ result: 'notEnough', diamonds: 1, price: 2 });
   });
 
   it('throws when the answer fails or has no result', async () => {
@@ -79,6 +84,43 @@ describe('RoomFeedHttp.sendFansLamp', () => {
     );
     await expect(setup(() => json({ ok: true })).http.sendFansLamp()).rejects.toThrow(
       'room-feed answered 200',
+    );
+  });
+});
+
+describe('RoomFeedHttp.sendHeart', () => {
+  it('posts without a body and returns sent with the diamonds left', async () => {
+    const { http, calls } = setup(() => json({ ok: true, result: 'sent', diamondsLeft: 9 }));
+    expect(await http.sendHeart()).toEqual({ result: 'sent', diamondsLeft: 9 });
+    expect(calls[0]?.url).toBe('http://localhost:8757/api/rooms/123/heart');
+    expect(calls[0]?.init).toEqual({ method: 'POST' });
+    const unknown = setup(() => json({ ok: true, result: 'sent', diamondsLeft: null }));
+    expect(await unknown.http.sendHeart()).toEqual({ result: 'sent', diamondsLeft: null });
+  });
+
+  it('returns notEnough with its numbers', async () => {
+    const { http } = setup(() => json({ ok: true, result: 'notEnough', diamonds: 0, price: 1 }));
+    expect(await http.sendHeart()).toEqual({ result: 'notEnough', diamonds: 0, price: 1 });
+  });
+
+  it('throws room-feed’s message when it fails, or the answer has no result', async () => {
+    await expect(
+      setup(() => json({ error: '页面上没找到小心心' }, 500)).http.sendHeart(),
+    ).rejects.toThrow('页面上没找到小心心');
+    await expect(setup(() => json({ ok: true })).http.sendHeart()).rejects.toThrow(
+      'room-feed answered 200',
+    );
+  });
+});
+
+describe('RoomFeedHttp.balance', () => {
+  it('gets the diamonds, null when the page does not show them', async () => {
+    const { http, calls } = setup(() => json({ diamonds: 10 }));
+    expect(await http.balance()).toBe(10);
+    expect(calls[0]?.url).toBe('http://localhost:8757/api/rooms/123/balance');
+    expect(await setup(() => json({ diamonds: null })).http.balance()).toBeNull();
+    await expect(setup(() => json({ error: '还没开播' }, 409)).http.balance()).rejects.toThrow(
+      '还没开播',
     );
   });
 });

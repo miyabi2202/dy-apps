@@ -43,3 +43,21 @@ export const FANS_JOIN_BUTTON = /^加入粉丝团$/;
 
 /** The panel's line once today's 灯牌 is sent: 「今日第7位送灯牌，连续3天」. */
 export const FANS_LAMP_SENT = /今日第\d+位送灯牌/;
+
+/** The gift bar's 「更多」, which opens the gift panel on the right. */
+export const GIFTS_MORE = '[data-e2e="gifts-switch"]';
+
+/** The gift panel on the right, with its tabs (推荐, 背包, …), search and gift tiles. */
+export const GIFT_PANEL = '[data-e2e="__right_gift_panel__"]';
+
+/** The panel's search icon: the extra slot at the end of its tab bar. */
+export const GIFT_SEARCH_ICON = '.semi-tabs-bar-extra svg';
+
+/** The panel's search box (「搜索礼物名称或价格」). */
+export const GIFT_SEARCH_INPUT = 'input';
+
+/** One gift tile in the panel; clicking one sends it at once. */
+export const GIFT_TILE = '.gift_item_gift_grid';
+
+/** The gift bar's 充值 slot, whose text is the account's diamonds. */
+export const DIAMOND_BALANCE = '[data-e2e="recharge-btn"]';

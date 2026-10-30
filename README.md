@@ -84,8 +84,11 @@ lyrics-search/            # @dy-apps/lyrics-search: names a song from sung lines
 room-feed/                # @dy-apps/room-feed: one live room's events, run with tsx (see "room-feed" below)
   src/main.ts             #   entry: `login` or `--room` (cli-options.ts), the real objects wired
   src/room.ts             #   Room: keeps the room page open, reopens it when chat drops, chat queue
-  src/room-page.ts        #   the page in Chrome (Playwright): push frames over CDP, chat box, stream URL, screenshot, likes, fans lamp
+  src/room-page.ts        #   the page in Chrome (Playwright): push frames over CDP, chat box, stream URL, screenshot, likes, fans lamp, 小心心, balance
   src/like-tally.ts       #   LikeTally: Douyin's like counter added up over one hold
+  src/heart-gift.ts       #   HeartGift: one 小心心 from the gift panel (更多 → search), checked by the balance
+  src/pace.ts             #   Pace: every click and typing waits for its target, pauses 1–2 s, then acts
+  src/right-panel.ts      #   closeRightPanel: the right panel's ×, as a paced step
   src/server.ts           #   HTTP + WebSocket for clients
   src/douyin/             #   Douyin's protobuf, its messages turned into events, the streamer from the page
   src/login.ts            #   `login`: a Chrome window to log in, the cookie saved to data/cookie.json
@@ -118,15 +121,17 @@ pnpm room-feed --room <房间号>        # serve that room on port 8757 (--port 
 
 It needs Chrome installed (`--chrome <path>` when it isn't found). Gifts only arrive, and chat can only be sent, when logged in. It serves one room: a client asking for another gets an error naming the room it serves, so two rooms need two room-feeds on different ports. When the chat socket drops, or no push frame comes within a minute (the room isn't live), it reopens the room page by itself.
 
-| Endpoint                         | What                                                                                                                                                           |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ws://…/ws?roomId=<id>&types=…`  | events (`chat`, `gift`, `like`) and `__connecting` / `__connected` / `__ended` status frames                                                                   |
-| `GET /api/rooms/<id>`            | status, the streamer (`meta.uid`, from the room page) and the login's `expiresAt`                                                                              |
-| `POST /api/rooms/<id>/chat`      | `{ text }`: send a chat as the logged-in account; `echoed` once it came back                                                                                   |
-| `POST /api/rooms/<id>/like`      | `{ likes }` (up to 200): hold Douyin's like key (z) on the player until its counter has about that many, letting go early at 手速太快了                        |
-| `POST /api/rooms/<id>/fans-lamp` | send the streamer today's 粉丝团灯牌 (1 diamond) from the 粉丝团 panel, following first if need be: `{ result: 'sent' }`, or `'already'` when today's was sent |
-| `GET /api/rooms/<id>/stream`     | the FLV or HLS URL the page's player pulls (the bot's speech recognition)                                                                                      |
-| `GET /api/rooms/<id>/screenshot` | the player as a JPEG                                                                                                                                           |
+| Endpoint                         | What                                                                                                                                                                                                                                                     |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ws://…/ws?roomId=<id>&types=…`  | events (`chat`, `gift`, `like`) and `__connecting` / `__connected` / `__ended` status frames                                                                                                                                                             |
+| `GET /api/rooms/<id>`            | status, the streamer (`meta.uid`, from the room page) and the login's `expiresAt`                                                                                                                                                                        |
+| `POST /api/rooms/<id>/chat`      | `{ text }`: send a chat as the logged-in account; `echoed` once it came back                                                                                                                                                                             |
+| `POST /api/rooms/<id>/like`      | `{ likes }` (up to 200): hold Douyin's like key (z) on the player until its counter has about that many, letting go early at 手速太快了                                                                                                                  |
+| `POST /api/rooms/<id>/fans-lamp` | send the streamer today's 粉丝团灯牌 (2 diamonds) from the 粉丝团 panel, following first if need be: `{ result: 'sent' }`, `'already'` when today's was sent, or `{ result: 'notEnough', diamonds, price }`, nothing clicked, with fewer than 2 diamonds |
+| `POST /api/rooms/<id>/heart`     | send the streamer one 小心心 (1 diamond) from the gift panel (更多 → search): `{ result: 'sent', diamondsLeft }`, or `{ result: 'notEnough', diamonds, price }`, nothing clicked; an error when the diamonds don't drop                                  |
+| `GET /api/rooms/<id>/balance`    | the account's diamonds, as the room page shows them by 充值: `{ diamonds }`, null when it doesn't show them                                                                                                                                              |
+| `GET /api/rooms/<id>/stream`     | the FLV or HLS URL the page's player pulls (the bot's speech recognition)                                                                                                                                                                                |
+| `GET /api/rooms/<id>/screenshot` | the player as a JPEG                                                                                                                                                                                                                                     |
 
 Every shape here is a type in [`room-feed-protocol/`](room-feed-protocol) (`@dy-apps/room-feed-protocol`), along with the client that reads them (`RoomFeedClient`, `GiftCounter`, `parsePort`, `roomIdFrom`): room-feed sends them, and the site and the chat bot read them through it.
 

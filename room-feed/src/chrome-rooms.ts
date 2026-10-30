@@ -11,7 +11,7 @@ export interface ChromeOptions {
   cookie: () => string | null;
   /** Where a screenshot of the whole page goes when something covers the chat box; none if unset. */
   shotsDir?: string;
-  /** 0 ≤ x < 1, for the pause before each 灯牌 click; Math.random by default. */
+  /** 0 ≤ x < 1, for the pause in each page step (see Pace); Math.random by default. */
   random?: () => number;
 }
 

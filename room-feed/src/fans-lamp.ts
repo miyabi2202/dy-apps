@@ -1,10 +1,10 @@
-import type { FansLampAnswer } from '@dy-apps/room-feed-protocol';
+import type { FansLampResult } from '@dy-apps/room-feed-protocol';
 import { PageActionError } from './errors';
+import { Pace } from './pace';
+import { closeRightPanel, type RightPanel } from './right-panel';
 
-/** How long the 灯牌 steps wait between seeing a button and clicking it, as a person would: this, */
-const CLICK_PAUSE_MS = 1000;
-/** plus up to this much more, at random. */
-const CLICK_PAUSE_JITTER_MS = 1000;
+/** What the 灯牌 costs: with fewer diamonds, nothing is clicked. */
+const LAMP_PRICE = 2;
 /** How long one opening of the 粉丝团 panel may take to load and answer. */
 const FANS_PANEL_MS = 20_000;
 /** How many times the panel is opened before giving up: a fresh one may not be stuck on a notice. */
@@ -29,10 +29,10 @@ export interface PanelFrame {
   click(target: PanelTarget): Promise<void>;
 }
 
-/** The page, as far as the 灯牌 steps need it. */
-export interface FansLampSurface {
-  /** Clicks the × of the panel on the right, if one is open. */
-  closePanel(): Promise<void>;
+/** The page, as far as the 灯牌 steps need it, the panel on the right among it. */
+export interface FansLampSurface extends RightPanel {
+  /** The diamonds by the gift bar's 充值, or null when they don't show. */
+  balance(): Promise<number | null>;
   /** Whether the header's 「关注」 shows, which it does only while the streamer isn't followed. */
   followVisible(): Promise<boolean>;
   clickFollow(): Promise<void>;
@@ -47,44 +47,45 @@ export interface FansLampSurface {
 export interface FansLampOptions {
   /** Date.now by default. */
   now?: () => number;
-  /** Waits this many ms; setTimeout by default. */
-  wait?: (ms: number) => Promise<void>;
-  /** 0 ≤ x < 1, for the pause before each click; Math.random by default. */
-  random?: () => number;
+  /** How each click is paced (wait, pause, act); real timers by default. */
+  pace?: Pace;
 }
 
 /**
- * Sends today's 粉丝团灯牌 in three steps, each skipped when it's done already: follows the
- * streamer, joins the 粉丝团 (1 diamond), sends the 灯牌. Joining is tried once, however many
- * times the panel is opened.
+ * Sends today's 粉丝团灯牌 (2 diamonds) in three steps, each skipped when it's done already:
+ * follows the streamer, joins the 粉丝团 (1 diamond), sends the 灯牌. Joining is tried once,
+ * however many times the panel is opened. With fewer than LAMP_PRICE diamonds it does nothing
+ * and answers `notEnough`; a balance that doesn't show doesn't stop it. Every click is a Pace
+ * step: what it clicks seen first, then a pause.
  */
 export class FansLamp {
   private readonly now: () => number;
-  private readonly wait: (ms: number) => Promise<void>;
-  private readonly random: () => number;
+  private readonly pace: Pace;
 
   constructor(
     private readonly surface: FansLampSurface,
     options: FansLampOptions = {},
   ) {
     this.now = options.now ?? Date.now;
-    this.wait = options.wait ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
-    this.random = options.random ?? Math.random;
+    this.pace = options.pace ?? new Pace();
   }
 
-  /** `already` when today's 灯牌 was sent before; throws when the panel shows neither. */
-  async send(): Promise<FansLampAnswer['result']> {
-    await this.surface.closePanel();
+  /** `already` when today's 灯牌 was sent before, `notEnough` with too few diamonds; throws when the panel shows neither. */
+  async send(): Promise<FansLampResult> {
+    const diamonds = await this.surface.balance();
+    if (diamonds !== null && diamonds < LAMP_PRICE) {
+      return { result: 'notEnough', diamonds, price: LAMP_PRICE };
+    }
+    await closeRightPanel(this.surface, this.pace);
     await this.followStreamer();
     await this.joinFansClub();
-    return this.sendLamp();
+    return { result: await this.sendLamp() };
   }
 
   /** Step 1: clicks the header's 「关注」, which shows only while the streamer isn't followed. */
   private async followStreamer(): Promise<void> {
     if (!(await this.surface.followVisible())) return;
-    await this.pauseBeforeClick();
-    await this.surface.clickFollow();
+    await this.pace.afterSeen(() => this.surface.clickFollow());
   }
 
   /**
@@ -95,8 +96,7 @@ export class FansLamp {
   private async joinFansClub(): Promise<void> {
     await this.inPanel(async (frame) => {
       if (await frame.has('join')) {
-        await this.pauseBeforeClick();
-        await frame.click('join');
+        await this.pace.afterSeen(() => frame.click('join'));
         return 'joined';
       }
       return (await this.showsLamp(frame)) ? 'member' : null;
@@ -108,13 +108,12 @@ export class FansLamp {
    * (the button is gone then, and the 灯牌's line greyed out). Up to FANS_PANEL_TRIES openings: a
    * 「我知道了」 notice that doesn't go away can keep one from the 灯牌.
    */
-  private async sendLamp(): Promise<FansLampAnswer['result']> {
+  private async sendLamp(): Promise<'sent' | 'already'> {
     for (let i = 0; i < FANS_PANEL_TRIES; i++) {
       const result = await this.inPanel(async (frame) => {
         if (await frame.has('sent')) return 'already' as const;
         if (!(await frame.has('send'))) return null;
-        await this.pauseBeforeClick();
-        await frame.click('send');
+        await this.pace.afterSeen(() => frame.click('send'));
         return 'sent' as const;
       });
       if (result) return result;
@@ -130,21 +129,21 @@ export class FansLamp {
   /**
    * Opens the 粉丝团 panel and asks `look` of each of its frames every half second, for
    * FANS_PANEL_MS at most, closing a 「我知道了」 notice whenever one shows: what `look` found, or
-   * null. The panel is closed afterwards, by its ×: Escape doesn't close it, and a panel left
-   * open would make the next click on 粉丝团 close it instead.
+   * null. The panel is closed afterwards (see closeRightPanel).
    */
   private async inPanel<T>(look: (frame: PanelFrame) => Promise<T | null>): Promise<T | null> {
-    await this.surface.waitForPanelButton();
-    await this.pauseBeforeClick();
-    await this.surface.openPanel();
+    const { surface, pace } = this;
+    await pace.step(
+      () => surface.waitForPanelButton(),
+      () => surface.openPanel(),
+    );
     try {
       const until = this.now() + FANS_PANEL_MS;
       while (this.now() < until) {
-        await this.wait(PANEL_LOOK_MS);
-        for (const frame of this.surface.panelFrames()) {
+        await pace.wait(PANEL_LOOK_MS);
+        for (const frame of surface.panelFrames()) {
           if (await frame.has('notice')) {
-            await this.pauseBeforeClick();
-            await frame.click('notice').catch(() => {});
+            await pace.afterSeen(() => frame.click('notice').catch(() => {}));
             continue;
           }
           const found = await look(frame);
@@ -153,13 +152,8 @@ export class FansLamp {
       }
       return null;
     } finally {
-      await this.wait(PANEL_SETTLE_MS);
-      await this.surface.closePanel();
+      await pace.wait(PANEL_SETTLE_MS);
+      await closeRightPanel(surface, pace);
     }
-  }
-
-  /** Waits CLICK_PAUSE_MS and up to CLICK_PAUSE_JITTER_MS more, so the 灯牌's clicks aren't instant. */
-  private async pauseBeforeClick(): Promise<void> {
-    await this.wait(CLICK_PAUSE_MS + Math.floor(this.random() * CLICK_PAUSE_JITTER_MS));
   }
 }

@@ -1,12 +1,14 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import {
+  type BalanceAnswer,
   EVENT_TYPES,
   MAX_LIKES,
   ROOM_ACTIONS,
   type ChatAnswer,
   type ErrorAnswer,
   type FansLampAnswer,
+  type HeartAnswer,
   type LikeAnswer,
   type EventType,
   type RoomInfoAnswer,
@@ -28,6 +30,8 @@ export type ServedRoom = Pick<
   | 'sendChat'
   | 'like'
   | 'sendFansLamp'
+  | 'sendHeart'
+  | 'balance'
   | 'streamUrl'
   | 'screenshot'
 >;
@@ -67,7 +71,14 @@ const routePattern = new RegExp(
 );
 
 type Answer =
-  RoomInfoAnswer | ChatAnswer | LikeAnswer | FansLampAnswer | StreamAnswer | ErrorAnswer;
+  | RoomInfoAnswer
+  | ChatAnswer
+  | LikeAnswer
+  | FansLampAnswer
+  | HeartAnswer
+  | BalanceAnswer
+  | StreamAnswer
+  | ErrorAnswer;
 
 function sendJson(res: ServerResponse, status: number, body: Answer): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -85,7 +96,9 @@ function errorMessage(e: unknown): string {
  * - `POST /api/rooms/<id>/chat` `{ text }`: send a chat as the logged-in account
  * - `POST /api/rooms/<id>/like` `{ likes }`: hold the like key (z) on the player until about that
  *   many likes have gone, by Douyin's counter, or until Douyin says 手速太快了
- * - `POST /api/rooms/<id>/fans-lamp`: send today's 粉丝团灯牌 (1 diamond), following and joining the 粉丝团 first if need be
+ * - `POST /api/rooms/<id>/fans-lamp`: send today's 粉丝团灯牌 (2 diamonds), following and joining the 粉丝团 first if need be
+ * - `POST /api/rooms/<id>/heart`: send one 小心心 (1 diamond) from the gift panel
+ * - `GET /api/rooms/<id>/balance`: the account's diamonds, as the page shows them by 充值
  * - `GET /api/rooms/<id>/stream`: the URL of the stream the page plays
  * - `GET /api/rooms/<id>/screenshot`: the player as a JPEG
  * Asking for another room is an error that names the room this room-feed serves.
@@ -141,7 +154,15 @@ export function createRoomFeedServer(room: ServedRoom, options: ServerOptions): 
           return sendJson(res, 200, answer);
         }
         case 'POST /fans-lamp': {
-          const answer: FansLampAnswer = { ok: true, result: await room.sendFansLamp() };
+          const answer: FansLampAnswer = { ok: true, ...(await room.sendFansLamp()) };
+          return sendJson(res, 200, answer);
+        }
+        case 'POST /heart': {
+          const answer: HeartAnswer = { ok: true, ...(await room.sendHeart()) };
+          return sendJson(res, 200, answer);
+        }
+        case 'GET /balance': {
+          const answer: BalanceAnswer = { diamonds: await room.balance() };
           return sendJson(res, 200, answer);
         }
         case 'GET /stream': {

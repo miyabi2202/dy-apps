@@ -88,8 +88,28 @@ export type PressLike = (
   likes: number,
 ) => Promise<{ liked: number; heldMs: number; tooFast: boolean }>;
 
-/** Sends the streamer today's 粉丝团灯牌 as the bot's account: `already` when it was sent today. */
-export type SendFansLamp = () => Promise<'sent' | 'already'>;
+/** A gift not sent because the account has fewer `diamonds` than its `price`: nothing was clicked. */
+export interface NotEnoughDiamonds {
+  result: 'notEnough';
+  diamonds: number;
+  price: number;
+}
+
+/**
+ * Sends the streamer today's 粉丝团灯牌 (2 diamonds) as the bot's account: `already` when it was
+ * sent today, `notEnough` with too few diamonds.
+ */
+export type SendFansLamp = () => Promise<
+  { result: 'sent' } | { result: 'already' } | NotEnoughDiamonds
+>;
+
+/**
+ * Sends the streamer one 小心心 (1 diamond) as the bot's account: `sent` with the diamonds left
+ * (null when unknown), or `notEnough`.
+ */
+export type SendHeart = () => Promise<
+  { result: 'sent'; diamondsLeft: number | null } | NotEnoughDiamonds
+>;
 
 /** A JPEG of the live video. */
 export type Screenshot = () => Promise<Uint8Array>;

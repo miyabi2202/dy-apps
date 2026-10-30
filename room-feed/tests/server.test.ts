@@ -47,7 +47,20 @@ class FakeRoom implements ServedRoom {
   lamps = 0;
   sendFansLamp() {
     this.lamps += 1;
-    return Promise.resolve(this.lamps > 1 ? ('already' as const) : ('sent' as const));
+    return Promise.resolve(
+      this.lamps > 1 ? { result: 'already' as const } : { result: 'sent' as const },
+    );
+  }
+  diamonds = 3;
+  sendHeart() {
+    if (this.diamonds < 1) {
+      return Promise.resolve({ result: 'notEnough' as const, diamonds: this.diamonds, price: 1 });
+    }
+    this.diamonds -= 1;
+    return Promise.resolve({ result: 'sent' as const, diamondsLeft: this.diamonds });
+  }
+  balance() {
+    return Promise.resolve(this.diamonds);
   }
   streamUrl(): string | null {
     if (this.status !== 'live') throw new RoomError('直播间的弹幕连接还没建立', 409);
@@ -190,6 +203,20 @@ describe('the HTTP API', () => {
     const post = () => fetch(`http://${base}/api/rooms/123/fans-lamp`, { method: 'POST' });
     expect(await (await post()).json()).toEqual({ ok: true, result: 'sent' });
     expect(await (await post()).json()).toEqual({ ok: true, result: 'already' });
+  });
+
+  it('sends a 小心心 and says how many diamonds are left, which the balance then shows', async () => {
+    const res = await fetch(`http://${base}/api/rooms/123/heart`, { method: 'POST' });
+    expect(await res.json()).toEqual({ ok: true, result: 'sent', diamondsLeft: 2 });
+    const balance = await fetch(`http://${base}/api/rooms/123/balance`);
+    expect(await balance.json()).toEqual({ diamonds: 2 });
+  });
+
+  it('answers a 小心心 it had too few diamonds for as notEnough, with the numbers, not an error', async () => {
+    room.diamonds = 0;
+    const res = await fetch(`http://${base}/api/rooms/123/heart`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, result: 'notEnough', diamonds: 0, price: 1 });
   });
 
   it("answers a room error with the room's status code", async () => {

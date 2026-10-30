@@ -14,8 +14,9 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/截图 
 | `/截图 <0\|1>`         | `set_screenshots`           | Send Claude the live video or not                                                              | yes         | 0           |
 | `/识歌 [提示]`         | `identify_song`             | Name the song the streamer sings, from its lyrics                                              | no          | –           |
 | `/识别背景音乐`        | `identify_bgm`              | Name the recording playing, from its sound                                                     | no          | –           |
-| `/点赞 [次数]`         | `press_like`                | Likes the room as the bot's account, 100 unless told, up to 200                                | yes         | –           |
-| `/灯牌`                | `send_fans_lamp`            | Sends the streamer today's 粉丝团灯牌 (1 diamond), joining the 粉丝团 if need be               | yes         | –           |
+| `/点赞 [次数]`         | `press_like`                | Likes the room as the bot's account, 200 unless told, up to 200                                | yes         | –           |
+| `/灯牌`                | `send_fans_lamp`            | Sends the streamer today's 粉丝团灯牌 (2 diamonds), joining the 粉丝团 if need be              | yes         | –           |
+| `/小心心`              | `send_heart`                | Sends the streamer one 小心心 (1 diamond) from the gift panel                                  | yes         | –           |
 | `/解题 [问题]`         | `ask_about_puzzle`          | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | no          | –           |
 | `/自动识歌 <0\|1>`     | `set_auto_song_id`          | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
 | `/识别恶意言论 <0\|1>` | `set_malice_watch`          | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
@@ -149,9 +150,15 @@ The log has `liked {asker, likes, liked, heldMs, tooFast}` (`liked` is what Douy
 
 ### /灯牌
 
-Sends the streamer today's 粉丝团灯牌 as the bot's account, for admins only: one 1-diamond 「灯牌」 a day, which also joins the 粉丝团 when the account isn't in it yet. Asked in words (「帮我加个灯牌」「卡灯牌」「加入粉丝团」), Claude calls the tool `send_fans_lamp`. It asks room-feed (`POST /api/rooms/<id>/fans-lamp`), which works the room page like a viewer: it clicks 「关注」 first when the streamer isn't followed yet (untested: the bot's account followed every room it was tried in), then the header's 粉丝团 button, found by its icon since its words take turns with 「今日任务」. The panel (Lynx, in a frame of its own) loads in a few seconds and may open on a 「团等级更新 … 我知道了」 notice, which room-feed closes; then it clicks 「送灯牌」 (「送出粉丝灯牌」 on some accounts), or, when the panel already says 「今日第N位送灯牌」, sends nothing (`already`). It takes turns with the chats and likes, which use the same page.
+Sends the streamer today's 粉丝团灯牌 as the bot's account, for admins only: one 2-diamond 「灯牌」 a day, which also joins the 粉丝团 when the account isn't in it yet. With fewer than 2 diamonds by 「充值」, room-feed clicks nothing, and the bot says 「钻石不够点灯牌」 itself, even when another tool in the same ask was silent (the log has how many are left). Asked in words (「帮我加个灯牌」「卡灯牌」「加入粉丝团」), Claude calls the tool `send_fans_lamp`. It asks room-feed (`POST /api/rooms/<id>/fans-lamp`), which works the room page like a viewer: it clicks 「关注」 first when the streamer isn't followed yet (untested: the bot's account followed every room it was tried in), then the header's 粉丝团 button, found by its icon since its words take turns with 「今日任务」. The panel (Lynx, in a frame of its own) loads in a few seconds and may open on a 「团等级更新 … 我知道了」 notice, which room-feed closes; then it clicks 「送灯牌」 (「送出粉丝灯牌」 on some accounts), or, when the panel already says 「今日第N位送灯牌」, sends nothing (`already`). It takes turns with the chats and likes, which use the same page.
 
 Either way it's done in silence, like `/点赞`: the bot sends nothing back. It doesn't listen without an @. The log has `fans lamp {asker, result}` (`sent` or `already`), or `could not send the fans lamp`.
+
+### /小心心
+
+Sends the streamer one 小心心 (1 diamond) as the bot's account, for admins only. Asked in words (「送个小心心」), Claude calls the tool `send_heart`; one a call, and a tool runs once a question, so 「送三个小心心」 sends one. It asks room-feed (`POST /api/rooms/<id>/heart`), which works the room page like a viewer: it clicks the gift bar's 「更多」 (`data-e2e="gifts-switch"`), the search icon at the end of the gift panel's tabs (skipped when the search box is still open), types 小心心, and clicks the result once: a click on a gift tile sends it at once, and the tile turns into 「连击」 then. The diamonds by 「充值」 (`data-e2e="recharge-btn"`) tell whether it went: with less than one, nothing is clicked, and the bot says 「钻石不够送小心心」 itself (the log has how many are left); when they don't drop within 5 s of the click, it's an error. It takes turns with the chats, likes and 灯牌, which use the same page.
+
+It's done in silence, like `/灯牌`. The log has `sent heart {asker, diamondsLeft}`, or `could not send a heart`.
 
 ### /解题
 
@@ -277,6 +284,7 @@ Each tool is a `BotTool` in `src/mcp/`; `src/wiring/mcp.ts` lists them, in the o
 | `identify_bgm`             | `src/mcp/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`      |
 | `press_like`               | `src/mcp/press-like.ts`, which asks room-feed's `POST …/like`            |
 | `send_fans_lamp`           | `src/mcp/fans-lamp.ts`, which asks room-feed's `POST …/fans-lamp`        |
+| `send_heart`               | `src/mcp/heart.ts`, which asks room-feed's `POST …/heart`                |
 | `ask_about_puzzle`         | `src/mcp/ask-about-puzzle.ts`                                            |
 | `set_auto_song_id`         | `onOffTool`, listed in `src/wiring/mcp.ts`                               |
 | `set_malice_watch`         | `onOffTool`, listed in `src/wiring/mcp.ts`                               |

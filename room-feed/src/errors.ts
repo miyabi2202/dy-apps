@@ -12,7 +12,7 @@ export class RoomError extends Error {
 export class RoomEndedError extends Error {}
 
 /**
- * What a room page's action (typing a chat, holding the like key, sending the 灯牌) throws when it
+ * What a room page's action (typing a chat, holding the like key, sending the 灯牌 or a 小心心) throws when it
  * doesn't go. With a `screenshot` (the path of a picture of the page, to see what got in the way),
  * the message ends with its path.
  */

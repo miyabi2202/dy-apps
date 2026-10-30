@@ -5,11 +5,13 @@ import type {
   Screenshot,
   SendChat,
   SendFansLamp,
+  SendHeart,
   StreamUrl,
 } from '../../app/ports';
 
 /**
  * One live room's HTTP API on room-feed (see RoomFeedHttp), as the bot's ports: send chat, like,
+ * send the 灯牌 or a 小心心,
  * get the stream URL and a screenshot of the player (once the room is live), and who the
  * streamer is.
  */
@@ -25,6 +27,8 @@ export class RoomFeedApi {
   readonly like: PressLike = (likes) => this.http.like(likes);
 
   readonly sendFansLamp: SendFansLamp = () => this.http.sendFansLamp();
+
+  readonly sendHeart: SendHeart = () => this.http.sendHeart();
 
   readonly streamUrl: StreamUrl = () => this.http.streamUrl();
 

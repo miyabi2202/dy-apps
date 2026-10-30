@@ -8,14 +8,25 @@ import {
   type EnterAnswer,
   type Entered,
 } from './douyin/enter-answer';
-import type { FansLampAnswer, LikeAnswer, RoomMeta } from '@dy-apps/room-feed-protocol';
+import type {
+  FansLampResult,
+  HeartResult,
+  LikeAnswer,
+  RoomMeta,
+} from '@dy-apps/room-feed-protocol';
 import {
   CLOSE_ICON,
+  DIAMOND_BALANCE,
   FANS_ICON,
   FANS_JOIN_BUTTON,
   FANS_LAMP_BUTTON,
   FANS_LAMP_SENT,
   FOLLOW_BUTTON,
+  GIFT_PANEL,
+  GIFT_SEARCH_ICON,
+  GIFT_SEARCH_INPUT,
+  GIFT_TILE,
+  GIFTS_MORE,
   NOTICE_OK_TEXT,
   PANEL_TEXT,
   PLAYER_CLICK,
@@ -27,6 +38,8 @@ import { LikeHold } from './like-hold';
 import { PageShots } from './page-shots';
 import { RoomEndedError } from './errors';
 import { FansLamp, type FansLampSurface, type PanelFrame, type PanelTarget } from './fans-lamp';
+import { HeartGift, type GiftPanelSurface } from './heart-gift';
+import { Pace } from './pace';
 import { PushTracker } from './push-tracker';
 
 /** What a room page tells the Room. */
@@ -59,9 +72,18 @@ export interface RoomPage {
   holdLike(likes: number): Promise<Omit<LikeAnswer, 'ok'>>;
   /**
    * Sends today's 粉丝团灯牌 from the 粉丝团 panel, following the streamer first if need be:
-   * `already` when today's was sent before. Throws when the panel doesn't show either.
+   * `already` when today's was sent before, `notEnough` with too few diamonds. Throws when the
+   * panel doesn't show either.
    */
-  sendFansLamp(): Promise<FansLampAnswer['result']>;
+  sendFansLamp(): Promise<FansLampResult>;
+  /**
+   * Sends the streamer one 小心心 (1 diamond) from the gift panel: `sent` with the diamonds left
+   * (null when the balance doesn't show), or `notEnough`. Throws when it can't, or the balance
+   * doesn't drop.
+   */
+  sendHeart(): Promise<HeartResult>;
+  /** The account's diamonds, by the gift bar's 充值; null when they don't show. */
+  balance(): Promise<number | null>;
   close(): Promise<void>;
 }
 
@@ -131,13 +153,119 @@ class PageFansSurface implements FansLampSurface {
     return this.page.frames().map((frame) => new PagePanelFrame(frame));
   }
 
-  /** Clicks the × of the panel on the right (the 粉丝团 one, among others), if one is open. */
-  async closePanel(): Promise<void> {
-    const close = this.page
-      .locator(RIGHT_PANEL_CLOSE_SVG)
-      .filter({ has: this.page.locator(CLOSE_ICON) })
+  closeShown(): Promise<boolean> {
+    return closeShown(this.page);
+  }
+
+  clickClose(): Promise<void> {
+    return rightPanelClose(this.page).click({ timeout: 5000 });
+  }
+
+  balance(): Promise<number | null> {
+    return readBalance(this.page);
+  }
+}
+
+/** The diamonds by the gift bar's 充值, or null when they don't show. */
+async function readBalance(page: Page): Promise<number | null> {
+  const text = await page
+    .locator(DIAMOND_BALANCE)
+    .first()
+    .innerText({ timeout: 2000 })
+    .catch(() => '');
+  const shown = /^\s*(\d+)\s*$/.exec(text);
+  return shown ? Number(shown[1]) : null;
+}
+
+/** The × of the panel on the right (the 粉丝团 one, the gift one, …). */
+function rightPanelClose(page: Page): Locator {
+  return page
+    .locator(RIGHT_PANEL_CLOSE_SVG)
+    .filter({ has: page.locator(CLOSE_ICON) })
+    .first();
+}
+
+/** Whether the right panel's × shows, which it does while one is open. */
+function closeShown(page: Page): Promise<boolean> {
+  return rightPanelClose(page)
+    .isVisible()
+    .catch(() => false);
+}
+
+/** How long a 小心心 step waits for what it acts on. */
+const GIFT_WAIT = { timeout: 10_000 };
+
+/** The Playwright side of sending a 小心心: the gift bar and panel, as the page map describes them. */
+class PageGiftSurface implements GiftPanelSurface {
+  private readonly more: Locator;
+  private readonly panel: Locator;
+  private readonly searchIcon: Locator;
+  private readonly searchBox: Locator;
+
+  constructor(private readonly page: Page) {
+    this.more = page.locator(GIFTS_MORE).first();
+    this.panel = page.locator(GIFT_PANEL);
+    this.searchIcon = this.panel.locator(GIFT_SEARCH_ICON).first();
+    this.searchBox = this.panel.locator(GIFT_SEARCH_INPUT).first();
+  }
+
+  closeShown(): Promise<boolean> {
+    return closeShown(this.page);
+  }
+
+  clickClose(): Promise<void> {
+    return rightPanelClose(this.page).click({ timeout: 5000 });
+  }
+
+  balance(): Promise<number | null> {
+    return readBalance(this.page);
+  }
+
+  waitForMore(): Promise<void> {
+    return this.more.waitFor({ timeout: 15_000 });
+  }
+
+  clickMore(): Promise<void> {
+    return this.more.click(GIFT_WAIT);
+  }
+
+  waitForPanel(): Promise<void> {
+    return this.panel.waitFor({ timeout: 15_000 });
+  }
+
+  searchShown(): Promise<boolean> {
+    return this.searchBox.isVisible().catch(() => false);
+  }
+
+  waitForSearchIcon(): Promise<void> {
+    return this.searchIcon.waitFor(GIFT_WAIT);
+  }
+
+  clickSearchIcon(): Promise<void> {
+    return this.searchIcon.click(GIFT_WAIT);
+  }
+
+  waitForSearchBox(): Promise<void> {
+    return this.searchBox.waitFor(GIFT_WAIT);
+  }
+
+  typeSearch(text: string): Promise<void> {
+    return this.searchBox.fill(text, GIFT_WAIT);
+  }
+
+  waitForResult(name: string): Promise<void> {
+    return this.result(name).waitFor(GIFT_WAIT);
+  }
+
+  clickResult(name: string): Promise<void> {
+    return this.result(name).click(GIFT_WAIT);
+  }
+
+  private result(name: string): Locator {
+    return this.panel
+      .locator(GIFT_TILE)
+      .filter({ has: this.page.getByText(name, { exact: true }) })
       .first();
-    if (await close.isVisible().catch(() => false)) await close.click().catch(() => {});
   }
 }
 
@@ -145,6 +273,8 @@ class PageFansSurface implements FansLampSurface {
 export class LivePage implements RoomPage {
   private readonly push = new PushTracker(() => this.entered?.innerRoomId);
   private readonly fansLamp: FansLamp;
+  private readonly gifts: PageGiftSurface;
+  private readonly heartGift: HeartGift;
   private readonly likeHold: LikeHold;
   private readonly shots: PageShots;
   private readonly chatBox: ChatBox;
@@ -164,10 +294,11 @@ export class LivePage implements RoomPage {
   ) {
     this.shots = new PageShots(page, shotsDir);
     this.chatBox = new ChatBox(page, (name) => this.shots.save(name));
-    this.fansLamp = new FansLamp(new PageFansSurface(page), {
-      wait: (ms) => page.waitForTimeout(ms),
-      random,
-    });
+    // One pace for every step on the page: wait for the target, pause, act.
+    const pace = new Pace({ wait: (ms) => page.waitForTimeout(ms), random });
+    this.fansLamp = new FansLamp(new PageFansSurface(page), { pace });
+    this.gifts = new PageGiftSurface(page);
+    this.heartGift = new HeartGift(this.gifts, { pace });
     this.likeHold = new LikeHold(
       {
         focusPlayer: () => this.focusPlayer(),
@@ -319,8 +450,17 @@ export class LivePage implements RoomPage {
   }
 
   /** See FansLamp: the steps are there, this page is what they click on. */
-  sendFansLamp(): Promise<FansLampAnswer['result']> {
+  sendFansLamp(): Promise<FansLampResult> {
     return this.fansLamp.send();
+  }
+
+  /** See HeartGift: the steps are there, this page is what they click on. */
+  sendHeart(): Promise<HeartResult> {
+    return this.heartGift.send();
+  }
+
+  balance(): Promise<number | null> {
+    return this.gifts.balance();
   }
 
   /** Whether the page shows Douyin's 手速太快了, its notice for liking too fast. */

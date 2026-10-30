@@ -62,7 +62,14 @@ class FakePage implements RoomPage {
   }
   sendFansLamp() {
     this.typed.push('<fans lamp>');
-    return Promise.resolve('sent' as const);
+    return Promise.resolve({ result: 'sent' as const });
+  }
+  sendHeart() {
+    this.typed.push('<heart>');
+    return Promise.resolve({ result: 'sent' as const, diamondsLeft: 10 });
+  }
+  balance() {
+    return Promise.resolve(10);
   }
   close() {
     this.closed = true;
