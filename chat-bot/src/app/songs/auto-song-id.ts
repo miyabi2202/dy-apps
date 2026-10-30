@@ -175,7 +175,7 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
       log.info('auto song id found nothing sure', { title: answer?.title });
       return;
     }
-    const last = songId.namedAt(answer.title);
+    const last = songId.namedAt(answer.title, answer.artist);
     const messages = plainMessages(answer.message, room.replyLimits(maxLength));
     if (!messages.length || (last !== undefined && room.now() - last < repeatMs)) {
       // Still the song it named: she may move on soon, so it looks again sooner.

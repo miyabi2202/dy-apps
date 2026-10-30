@@ -126,22 +126,27 @@ export class LyricsSearch {
 
   /**
    * NetEase's numbers for the versions of `title`, for a song named another way (by Codex): those
-   * with a singer in `artist` first, then the rest, each in NetEase's order. Empty when there's
+   * with a singer in `artist` first (with their titles that go on past `title`, 「野火 Wildfire」 for
+   * 「野火」), then the rest, each in NetEase's order. Empty when there's
    * none, or NetEase fails or is down.
    */
   async lookup(title: string, artist = ''): Promise<number[]> {
     const key = normaliseTitle(title);
     if (!key) return [];
     const hits = await this.ask(() => this.client.searchTitle(title));
-    const same = (hits ?? []).filter(
-      (hit) => hit.id !== undefined && normaliseTitle(hit.title) === key,
-    );
     const credit = foldArtist(artist);
     const sungBy = (hit: Hit) =>
       hit.artists.some((a) => {
         const singer = foldArtist(a);
         return singer !== '' && credit.includes(singer);
       });
+    // The singer's own version may have more to its title: HOYO-MiX's 「野火」 is 「野火 Wildfire」
+    // on NetEase, and the other 「野火」 are other songs.
+    const same = (hits ?? []).filter((hit) => {
+      if (hit.id === undefined) return false;
+      const hitKey = normaliseTitle(hit.title);
+      return hitKey === key || (hitKey.startsWith(key) && sungBy(hit));
+    });
     return [...same.filter(sungBy), ...same.filter((hit) => !sungBy(hit))].flatMap((hit) =>
       hit.id === undefined ? [] : [hit.id],
     );

@@ -1,4 +1,9 @@
-import { displayTitle, normaliseTitle, type TitleCandidate } from '@dy-apps/lyrics-search';
+import {
+  displayTitle,
+  foldArtist,
+  normaliseTitle,
+  type TitleCandidate,
+} from '@dy-apps/lyrics-search';
 import { parseSongAnswer, SONG_ANSWER_SCHEMA, type SongAnswer } from '../../core/songs/song-answer';
 import { errorMessage } from '../../core/errors';
 import { askJson } from '../models/ask-json';
@@ -111,8 +116,8 @@ const SINGING_LATELY_MS = 15_000;
  * song, with the prompt, and answers in SONG_ANSWER_SCHEMA's shape.
  */
 export class SongId {
-  /** When each song it named was last named, by normalised title (see normaliseTitle). */
-  private readonly named = new Map<string, number>();
+  /** When each song it named was last named, with its singers (foldArtist), by normalised title. */
+  private readonly named = new Map<string, { at: number; artist: string }>();
   /** The last song it told the room, and when. */
   private last: { song: SongAnswer; at: number } | undefined;
 
@@ -255,7 +260,7 @@ export class SongId {
   ): Promise<SongAnswer> {
     const { known, codex, log } = this.options;
     // A song told lately is still being sung: /自动识歌 says nothing, so nothing to write.
-    const told = this.namedAt(song.title);
+    const told = this.namedAt(song.title, song.artist);
     if (!write || !known || (told !== undefined && this.now() - told < TOLD_LATELY_MS)) return song;
     try {
       const { value } = await askJson(
@@ -349,9 +354,26 @@ export class SongId {
     }
   }
 
-  /** When `title` was last told to the room (by /识歌 or on its own), if it was. */
-  namedAt(title: string): number | undefined {
-    return this.named.get(normaliseTitle(title));
+  /**
+   * When `title` was last told to the room (by /识歌 or on its own), if it was. With `artist`, a
+   * title one goes on past the other's counts too when a singer is in both credits: Shazam's
+   * 「野火」 by HOYO-MiX is NetEase's 「野火 Wildfire」 by HOYO-MiX、Jonathan Steingard.
+   */
+  namedAt(title: string, artist = ''): number | undefined {
+    const key = normaliseTitle(title);
+    if (!key) return undefined;
+    const credit = foldArtist(artist);
+    let at: number | undefined;
+    for (const [named, told] of this.named) {
+      const same =
+        named === key ||
+        (credit !== '' &&
+          told.artist !== '' &&
+          (named.startsWith(key) || key.startsWith(named)) &&
+          (credit.includes(told.artist) || told.artist.includes(credit)));
+      if (same && (at === undefined || told.at > at)) at = told.at;
+    }
+    return at;
   }
 
   /** The last song told to the room (by /识歌 or on its own), and when; undefined for none yet. */
@@ -363,7 +385,7 @@ export class SongId {
   told(song: SongAnswer): void {
     if (!song.title || !song.sure) return;
     const at = this.now();
-    this.named.set(normaliseTitle(song.title), at);
+    this.named.set(normaliseTitle(song.title), { at, artist: foldArtist(song.artist) });
     this.last = { song, at };
   }
 }

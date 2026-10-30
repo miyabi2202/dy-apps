@@ -153,6 +153,34 @@ describe('LyricsSearch.lookup', () => {
     expect((await search().lookup('遇萤'))[0]).toBe(37782740);
   });
 
+  it("takes the singer's version whose title goes on past the one asked for", async () => {
+    // NetEase's title search for 野火: HOYO-MiX's is 「野火 Wildfire」, the others' other songs.
+    const song = (id: number, name: string, ...artists: string[]) => ({
+      id,
+      name,
+      ar: artists.map((name) => ({ name })),
+    });
+    const titles = {
+      野火: {
+        code: 200,
+        result: {
+          songs: [
+            song(1981028372, '野火', '戾格'),
+            song(2045806409, '野火 Wildfire', 'HOYO-MiX', 'Jonathan Steingard'),
+            song(2005441063, 'Wildfire (Piano and Violin Version)', 'SYML'),
+            song(3447641779, '野火 Wildfire', '苏昭影'),
+          ],
+        },
+      },
+    };
+    const search = new LyricsSearch({
+      fetch: recordedFetch({ lines: [], responses: {}, titles }),
+      limit: noLimit,
+    });
+    expect(await search.lookup('野火', 'HOYO-MiX')).toEqual([2045806409, 1981028372]);
+    expect(await search.lookup('野火')).toEqual([1981028372]);
+  });
+
   it('is empty when the title search fails', async () => {
     const failing = new LyricsSearch({
       fetch: recordedFetch({ lines: [], responses: {}, titles: {} }),

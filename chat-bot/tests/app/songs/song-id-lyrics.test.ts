@@ -128,6 +128,16 @@ test('knows a song named one way by the way another spells it', () => {
   expect(songId.namedAt('晴天')).toBeDefined();
 });
 
+test('knows a title in two languages for the one in one, by a singer in both credits', () => {
+  const songId = new SongId({ prompt: () => '', codex: () => Promise.resolve(''), log: silentLog });
+  // Shazam's 「野火 (feat. Jonathan Steingard)」, told as 「野火」.
+  songId.told({ message: '', title: '野火', artist: 'HOYO-MiX', sure: true });
+  expect(songId.namedAt('野火 Wildfire', 'HOYO-MiX、Jonathan Steingard')).toBeDefined();
+  // Another singer's 野火, or no singer to go on, is another song.
+  expect(songId.namedAt('野火 Wildfire', '戾格')).toBeUndefined();
+  expect(songId.namedAt('野火 Wildfire')).toBeUndefined();
+});
+
 test('while she sings, Shazam names the song first, without its version tag; otherwise the lyrics', async () => {
   const searched: string[] = [];
   const logged: [string, object | undefined][] = [];
