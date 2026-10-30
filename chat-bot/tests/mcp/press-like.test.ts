@@ -14,7 +14,7 @@ function setup(cut = Infinity) {
   return { tool, asked };
 }
 
-test('asks room-feed for the likes, 100 unless told, and says how many it gave', async () => {
+test('asks room-feed for the likes, 200 unless told, and says how many it gave', async () => {
   const { tool, asked } = setup();
   const result = await tool.call({ likes: 40 }, context);
   // Silent: the bot sends nothing back, and Claude is told the program has answered.
@@ -26,7 +26,7 @@ test('asks room-feed for the likes, 100 unless told, and says how many it gave',
     stoppedByTooFast: false,
   });
   await tool.call({}, context);
-  expect(asked).toEqual([40, 100]);
+  expect(asked).toEqual([40, 200]);
 });
 
 test('says how many it gave when 手速太快了 stopped it early', async () => {
@@ -39,10 +39,10 @@ test('says how many it gave when 手速太快了 stopped it early', async () => 
   });
 });
 
-test('/点赞 takes a whole number of likes up to 200, or none for 100, and says nothing', () => {
+test('/点赞 takes a whole number of likes up to 200, or none for 200, and says nothing', () => {
   const [command] = setup().tool.commands!;
   expect(command!.name).toBe('点赞');
-  expect(command!.parse('')).toEqual({ args: { likes: 100 } });
+  expect(command!.parse('')).toEqual({ args: { likes: 200 } });
   expect(command!.parse(' 200 ')).toEqual({ args: { likes: 200 } });
   for (const bad of ['0', '201', '2.5', '很多']) {
     expect(command!.parse(bad)).toHaveProperty('usage');

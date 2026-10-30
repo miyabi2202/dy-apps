@@ -3,10 +3,10 @@ import { errorMessage } from '../core/errors';
 import type { BotTool, Log, PressLike } from '../app/ports';
 
 /** How many likes it gives when no number is given. */
-const DEFAULT_LIKES = 100;
+const DEFAULT_LIKES = 200;
 
 /**
- * `press_like`: gives the room some likes (100 unless told, up to room-feed's MAX_LIKES) as the
+ * `press_like`: gives the room some likes (200 unless told, up to room-feed's MAX_LIKES) as the
  * bot's account: room-feed holds Douyin's like key (z) on the live video until Douyin's counter
  * has about that many, and lets go early when Douyin says 手速太快了. Admin-only. `/点赞 [次数]` calls it
  * directly. It's done in silence: asked in words, the bot sends nothing back. With auto-reply on,
