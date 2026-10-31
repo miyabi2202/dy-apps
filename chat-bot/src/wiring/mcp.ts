@@ -113,13 +113,15 @@ export function registerMcp(container: Container): void {
         setting('happyHeart'),
       ];
       const roomConfig = c.resolve(ROOM_CONFIG);
+      const admins = c.resolve(ADMINS);
       const defined = declarativeTools({
         definitions: c.resolve(TOOL_DEFINITIONS),
         enabled: () => roomConfig().tools,
-        // Resolved when used: the answerer needs the MCP server, which needs these tools.
+        // Resolved when used, and the one reference that must stay a closure: the answerer needs
+        // the MCP server, which needs these tools (ANSWERER -> MCP_SERVER -> TOOLS -> ANSWERER).
         say: (mention) => c.resolve(ANSWERER).ask(mention),
         room,
-        streamer: () => c.resolve(ADMINS).current(),
+        streamer: () => admins.current(),
         builtInNames: () => tools.map((tool) => tool.name),
         log,
       });

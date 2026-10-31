@@ -1,8 +1,10 @@
 import { AutoMessage } from '../app/replies/auto-message';
 import { AutoReply } from '../app/replies/auto-reply';
 import { GiftThanker } from '../app/replies/gift-thanker';
+import { busFeature } from '../app/feature';
 import type { AskModel } from '../app/ports';
 import type { Container } from './container';
+import type { FeatureRegistry } from './features';
 import {
   ADMINS,
   ASK_CLAUDE,
@@ -28,7 +30,23 @@ import {
  * What the bot says without being @ed: joining in when talked about, thanking big givers, and the
  * room something of its own every so often (auto message).
  */
-export function registerAutoReply(container: Container): void {
+export function registerAutoReply(container: Container, features: FeatureRegistry): void {
+  features
+    .add('auto-reply', (c) => {
+      const autoReply = c.resolve(AUTO_REPLY);
+      return busFeature('auto-reply', c.resolve(BUS), {
+        // A chat matching a tool's listen trigger has auto-reply look now, not at its next check.
+        chat: (chat) => autoReply.hear(chat),
+        heard: (line) => autoReply.hearSpeech(line),
+        // What someone says next, after the bot answered them, goes straight to the picker for a
+        // minute: it's likely a reply.
+        answered: ({ userId }) => autoReply.answered(userId),
+      });
+    })
+    .add('gift-thanks', (c) => {
+      const thanker = c.resolve(THANKER);
+      return busFeature('gift-thanks', c.resolve(BUS), { gift: (gift) => thanker.onGift(gift) });
+    });
   container
     // Joins in when Jev scores something said in the room as about the bot at
     // --auto-reply-threshold or more (/自动回复阈值 changes it), or when someone it just answered
@@ -40,7 +58,9 @@ export function registerAutoReply(container: Container): void {
       const options = c.resolve(OPTIONS);
       const room = c.resolve(ROOM);
       const admins = c.resolve(ADMINS);
-      const bus = c.resolve(BUS);
+      const roomConfig = c.resolve(ROOM_CONFIG);
+      const bot = c.resolve(BOT);
+      const tools = c.resolve(TOOLS);
       const noPicker: AskModel = () => Promise.reject(new Error('--codex is empty'));
       const autoReply = new AutoReply({
         outbox: c.resolve(OUTBOX),
@@ -56,25 +76,15 @@ export function registerAutoReply(container: Container): void {
             })
           : noPicker,
         pickTemplate: c.resolve(PROMPT)('replyPick'),
-        // The bot is made after this, and asks for it only when there's someone to answer.
-        reply: (target) => c.resolve(BOT).replyUnprompted(target),
+        reply: (target) => bot.replyUnprompted(target),
         streamer: () => admins.current(),
-        focus: () => c.resolve(ROOM_CONFIG)().focus,
-        // What the tools listen for; resolved when used: the tools are registered after this and a
-        // tool reaches the answerer, which needs the bot, which needs this.
+        focus: () => roomConfig().focus,
+        // What the tools listen for, as the tools are now (the room's switch on and off).
         topics: () =>
-          c
-            .resolve(TOOLS)()
-            .flatMap((tool) =>
-              tool.listen ? [{ name: tool.name, adminOnly: tool.adminOnly, ...tool.listen }] : [],
-            ),
+          tools().flatMap((tool) =>
+            tool.listen ? [{ name: tool.name, adminOnly: tool.adminOnly, ...tool.listen }] : [],
+          ),
       });
-      // A chat matching a tool's listen trigger has auto-reply look now, not at its next check.
-      bus.on('chat', (chat) => autoReply.hear(chat));
-      bus.on('heard', (line) => autoReply.hearSpeech(line));
-      // What someone says next, after the bot answered them, goes straight to the picker for a
-      // minute: it's likely a reply.
-      bus.on('answered', ({ userId }) => autoReply.answered(userId));
       return autoReply;
     })
     // Thanks a viewer whose gifts in 5 minutes pass --thanks-threshold (changed with /自动谢礼).
@@ -91,7 +101,6 @@ export function registerAutoReply(container: Container): void {
         maxLength: options.maxReplyLength,
         log: c.resolve(LOG),
       });
-      c.resolve(BUS).on('gift', (gift) => thanker.onGift(gift));
       return thanker;
     })
     // Claude says something to the room, from what's going on in it, every

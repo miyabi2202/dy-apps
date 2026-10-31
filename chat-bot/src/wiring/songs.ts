@@ -1,3 +1,4 @@
+import { busFeature } from '../app/feature';
 import { AutoSongId, SONG_CHARS } from '../app/songs/auto-song-id';
 import { BackingGapBreaks } from '../app/songs/backing-gap-breaks';
 import { LyricsBreaks } from '../app/songs/lyrics-breaks';
@@ -7,9 +8,11 @@ import { SongEnds } from '../app/songs/song-ends';
 import { SongId } from '../app/songs/song-id';
 import { candidateHints } from '../core/songs/song-candidates';
 import type { Container } from './container';
+import type { FeatureRegistry } from './features';
 import {
   ASK_CODEX,
   AUTO_SONG_ID,
+  BACKING_GAP_BREAKS,
   BUS,
   FETCH_LYRICS,
   LOG,
@@ -30,7 +33,31 @@ import {
 } from './tokens';
 
 /** Naming the songs the streamer sings, and cheering when one starts. */
-export function registerSongs(container: Container): void {
+export function registerSongs(container: Container, features: FeatureRegistry): void {
+  features
+    // The streamer's lines, to whoever acts on them: the song named unasked, the on_sing message,
+    // the chat record's line at a song's end, and the backing track's levels.
+    .add('auto-song-id', (c) => {
+      const autoSongId = c.resolve(AUTO_SONG_ID);
+      return (
+        autoSongId &&
+        busFeature('auto-song-id', c.resolve(BUS), { heard: (line) => autoSongId.hear(line) })
+      );
+    })
+    .add('on-sing', (c) => {
+      const onSing = c.resolve(ON_SING);
+      return busFeature('on-sing', c.resolve(BUS), { heard: (line) => onSing.hear(line) });
+    })
+    .add('song-ends', (c) => {
+      const songEnds = c.resolve(SONG_ENDS);
+      return busFeature('song-ends', c.resolve(BUS), { heard: (line) => songEnds.hear(line) });
+    })
+    .add('backing-gap-breaks', (c) => {
+      const backingGapBreaks = c.resolve(BACKING_GAP_BREAKS);
+      return busFeature('backing-gap-breaks', c.resolve(BUS), {
+        'backing-level': (level) => backingGapBreaks.add(level),
+      });
+    });
   container
     // /识歌 and /自动识歌: Shazam while she sings, then the lyrics search, then Codex (which searches
     // with Google) when it isn't sure; without Codex, none of them.
@@ -38,6 +65,7 @@ export function registerSongs(container: Container): void {
       if (!c.resolve(OPTIONS).codex) return null;
       const transcriber = c.resolve(TRANSCRIBER);
       const lyricsBreaks = c.resolve(LYRICS_BREAKS);
+      const room = c.resolve(ROOM);
       return new SongId({
         prompt: c.resolve(PROMPT)('songId'),
         codex: c.resolve(ASK_CODEX)('song-id', {
@@ -53,14 +81,14 @@ export function registerSongs(container: Container): void {
         // NetEase's lyrics search first: Codex only when it isn't sure of the title or names no singer.
         lyrics: c.resolve(LYRICS_SEARCH) ?? undefined,
         found: ({ title, artist }) =>
-          c.resolve(ROOM).wording('song-found', { title, artist: artist ? `${artist}的` : '' }),
+          room.wording('song-found', { title, artist: artist ? `${artist}的` : '' }),
         // Codex writes the message to the room even for a song Shazam or the lyrics search named.
         known: ({ title, artist }) =>
-          c.resolve(ROOM).wording('song-known', { title, artist: artist || '不确定' }),
-        hookNote: (on) => c.resolve(ROOM).wording(on ? 'song-hook' : 'song-no-hook'),
+          room.wording('song-known', { title, artist: artist || '不确定' }),
+        hookNote: (on) => room.wording(on ? 'song-hook' : 'song-no-hook'),
         hints: (candidates) =>
-          c.resolve(ROOM).wording('song-candidates', { candidates: candidateHints(candidates) }),
-        othersNote: () => c.resolve(ROOM).wording('song-others'),
+          room.wording('song-candidates', { candidates: candidateHints(candidates) }),
+        othersNote: () => room.wording('song-others'),
         // Each song named, by any path, has its lyrics end it (see LyricsBreaks).
         ...(lyricsBreaks && {
           onNamed: (song, askedAt) => lyricsBreaks.keep(song, askedAt),
@@ -68,8 +96,8 @@ export function registerSongs(container: Container): void {
         // Too little sung to go on: said so, without asking Codex (see wording.md).
         early: {
           minChars: SONG_CHARS,
-          noLyrics: () => c.resolve(ROOM).wording('song-no-lyrics'),
-          tooEarly: (heard) => c.resolve(ROOM).wording('song-too-early', { heard }),
+          noLyrics: () => room.wording('song-no-lyrics'),
+          tooEarly: (heard) => room.wording('song-too-early', { heard }),
         },
       });
     })
@@ -90,8 +118,6 @@ export function registerSongs(container: Container): void {
               maxLength: options.maxReplyLength,
             })
           : null;
-      const bus = c.resolve(BUS);
-      bus.on('heard', (line) => autoSongId?.hear(line));
       return autoSongId;
     })
     // Where songs start beyond pauses and talk (see song-breaks.ts): the lyrics of the song named
@@ -107,10 +133,10 @@ export function registerSongs(container: Container): void {
     .register(SONG_BREAK_SOURCES, (c) => {
       const lyricsBreaks = c.resolve(LYRICS_BREAKS);
       const shazamBreaks = new ShazamBreaks({ log: c.resolve(LOG) });
-      const backingGapBreaks = new BackingGapBreaks({ log: c.resolve(LOG) });
-      c.resolve(BUS).on('backing-level', (level) => backingGapBreaks.add(level));
+      const backingGapBreaks = c.resolve(BACKING_GAP_BREAKS);
       return [...(lyricsBreaks ? [lyricsBreaks] : []), shazamBreaks, backingGapBreaks];
     })
+    .register(BACKING_GAP_BREAKS, (c) => new BackingGapBreaks({ log: c.resolve(LOG) }))
     // And, in a room with on_sing in its room_config.json, its message as the streamer starts a song.
     .register(ON_SING, (c) => {
       const roomConfig = c.resolve(ROOM_CONFIG);
@@ -120,7 +146,6 @@ export function registerSongs(container: Container): void {
         outbox: c.resolve(OUTBOX),
         log: c.resolve(LOG),
       });
-      c.resolve(BUS).on('heard', (line) => onSing.hear(line));
       return onSing;
     })
     // And a line in the chat record each time a song the streamer sang ended.
@@ -133,7 +158,6 @@ export function registerSongs(container: Container): void {
         ...(songId && { lastTold: () => songId.lastTold() }),
         timeZone: () => roomConfig().timeZone,
       });
-      c.resolve(BUS).on('heard', (line) => songEnds.hear(line));
       return songEnds;
     });
 }

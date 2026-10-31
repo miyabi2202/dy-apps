@@ -1,5 +1,7 @@
+import { busFeature } from '../app/feature';
 import { MaliceWatch } from '../app/replies/malice-watch';
 import type { Container } from './container';
+import type { FeatureRegistry } from './features';
 import {
   ADMINS,
   ASK_CODEX,
@@ -18,7 +20,14 @@ import {
  * scores each chat, and Codex decides on the few it lets through, with the chat around them. Off
  * (null) without Jev.
  */
-export function registerMalice(container: Container): void {
+export function registerMalice(container: Container, features: FeatureRegistry): void {
+  features.add('malice-watch', (c) => {
+    const maliceWatch = c.resolve(MALICE_WATCH);
+    return (
+      maliceWatch &&
+      busFeature('malice-watch', c.resolve(BUS), { chat: (chat) => maliceWatch.hear(chat) })
+    );
+  });
   container.register(MALICE_WATCH, (c) => {
     const judge = c.resolve(JUDGE)('malice');
     if (!judge) return null;
@@ -33,7 +42,6 @@ export function registerMalice(container: Container): void {
       settings: c.resolve(SETTINGS),
       log: c.resolve(LOG),
     });
-    c.resolve(BUS).on('chat', (chat) => maliceWatch.hear(chat));
     return maliceWatch;
   });
 }

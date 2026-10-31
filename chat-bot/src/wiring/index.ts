@@ -11,7 +11,8 @@ import { registerModels } from './models';
 import { registerRoom } from './room';
 import { registerSongs } from './songs';
 import { join } from 'node:path';
-import { ENV, LOG, OPTIONS, PACKAGE_DIR, PROMPTS_DIR } from './tokens';
+import { FeatureRegistry } from './features';
+import { ENV, FEATURES, LOG, OPTIONS, PACKAGE_DIR, PROMPTS_DIR } from './tokens';
 import { registerTranscriber } from './transcriber';
 
 export { APP, BOT, REMEMBER_CHAT } from './tokens';
@@ -36,15 +37,17 @@ export function buildContainer({ options, packageDir, log, env }: Given): Contai
     .register(PROMPTS_DIR, () => join(packageDir, 'prompts'))
     .register(LOG, () => log)
     .register(ENV, () => env);
+  const features = new FeatureRegistry();
   registerAdapters(container);
   registerModels(container);
-  registerRoom(container);
-  registerAutoReply(container);
-  registerSongs(container);
-  registerMalice(container);
+  registerRoom(container, features);
+  registerAutoReply(container, features);
+  registerSongs(container, features);
+  registerMalice(container, features);
   registerTranscriber(container);
   registerMcp(container);
   registerBot(container);
+  container.register(FEATURES, (c) => features.build(c));
   registerApp(container);
   return container;
 }

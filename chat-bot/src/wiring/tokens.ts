@@ -15,6 +15,8 @@ import type { AutoSongId } from '../app/songs/auto-song-id';
 import type { ChatBot } from '../app/replies/chat-bot';
 import type { ToolRunner } from '../app/tools/tool-runner';
 import type { EventBus } from '../app/event-bus';
+import type { Feature } from '../app/feature';
+import type { BackingGapBreaks } from '../app/songs/backing-gap-breaks';
 import type { GiftThanker } from '../app/replies/gift-thanker';
 import type { MaliceWatch } from '../app/replies/malice-watch';
 import type { BotMcpServer } from '../adapters/mcp/server';
@@ -143,6 +145,8 @@ export const SONG_ID = token<SongId | null>('songId');
 export const AUTO_SONG_ID = token<AutoSongId | null>('autoSongId');
 export const ON_SING = token<OnSing>('onSing');
 export const SONG_ENDS = token<SongEnds>('songEnds');
+/** The backing track stopping between songs (one of SONG_BREAK_SOURCES), fed the worker's backing levels. */
+export const BACKING_GAP_BREAKS = token<BackingGapBreaks>('backingGapBreaks');
 /** The lyrics song break source (see song-breaks.ts); null without NetEase. */
 export const LYRICS_BREAKS = token<LyricsBreaks | null>('lyricsBreaks');
 /**
@@ -168,6 +172,9 @@ export const MCP_SERVER = token<BotMcpServer>('mcpServer');
 export const ANSWERER = token<MentionAnswerer>('answerer');
 export const TOOL_RUNNER = token<ToolRunner>('toolRunner');
 export const BOT = token<ChatBot>('bot');
+
+// features.ts: what listens to the room, from start() to stop().
+export const FEATURES = token<readonly Feature[]>('features');
 
 // app.ts: everything, started and stopped.
 export const APP = token<App>('app');

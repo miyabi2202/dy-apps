@@ -16,6 +16,7 @@ import {
   saveStreamer,
 } from '../adapters/files/room-files';
 import { memoryReadMark, readRecordSince } from '../adapters/files/remember-files';
+import { busFeature } from '../app/feature';
 import { RememberChat } from '../app/memory/remember-chat';
 import { botTalkFile, folderOf, userTalkFiles } from '../adapters/files/room-talk-files';
 import { EventBus } from '../app/event-bus';
@@ -29,6 +30,7 @@ import { errorMessage } from '../core/errors';
 import { localDate } from '../core/prompts/local-time';
 import { Transcript } from '../core/songs/transcript';
 import type { Container } from './container';
+import type { FeatureRegistry } from './features';
 import {
   ADMINS,
   BOT_CONFIG,
@@ -68,7 +70,13 @@ import {
  * chat, gifts and speech it remembers, the admins, who pays for what, the prompts every feature
  * fills in, and the way the bot talks (the outbox) and listens (the feed).
  */
-export function registerRoom(container: Container): void {
+export function registerRoom(container: Container, features: FeatureRegistry): void {
+  features.add('recent-gifts', (c) => {
+    const [gifts, room] = [c.resolve(GIFTS), c.resolve(ROOM)];
+    return busFeature('recent-gifts', c.resolve(BUS), {
+      gift: (gift) => gifts.add(room.now(), gift),
+    });
+  });
   container
     .register(ROOM_DIR, (c) => {
       const options = c.resolve(OPTIONS);
@@ -263,7 +271,6 @@ export function registerRoom(container: Container): void {
         wording: liveWording(join(c.resolve(PROMPTS_DIR), 'wording.md')),
         log: c.resolve(LOG),
       });
-      c.resolve(BUS).on('gift', (gift) => gifts.add(room.now(), gift));
       return room;
     })
     // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.

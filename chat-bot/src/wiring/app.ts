@@ -8,15 +8,13 @@ import {
   BOT,
   BOT_CONFIG,
   DOWNLOADS,
+  FEATURES,
   LOG,
   MCP_SERVER,
-  ON_SING,
   OPTIONS,
   ROOM,
   ROOM_EVENTS,
   SETTINGS,
-  SONG_BREAK_SOURCES,
-  SONG_ENDS,
   TRANSCRIBER,
 } from './tokens';
 
@@ -50,17 +48,15 @@ export function registerApp(container: Container): void {
     const options = c.resolve(OPTIONS);
     const config = c.resolve(BOT_CONFIG);
     const downloads = c.resolve(DOWNLOADS);
-    // Made now, though nothing asks for them: they hear the streamer sing.
-    c.resolve(ON_SING);
-    c.resolve(SONG_ENDS);
-    // And the song break sources, so the ones the speech worker's add-ons feed (Shazam's backing
-    // titles, the backing's gaps) are listening from the start.
-    c.resolve(SONG_BREAK_SOURCES);
+    const features = c.resolve(FEATURES);
     let stopping = false;
     return {
       async start() {
         admins.start();
         downloads();
+        // Listening to the room before the speech worker can say anything, and before the bot
+        // enters it.
+        for (const feature of features) feature.start();
         // The room's settings now: from its room_config.json, else the options that filled it in.
         const settings = c.resolve(SETTINGS).get();
         log.info('starting', {
@@ -91,6 +87,7 @@ export function registerApp(container: Container): void {
         stopping = true;
         log.info('stopping', quitSpeech ? { quitSpeech } : {});
         bot.stop();
+        for (const feature of features) feature.stop();
         transcriber?.stop({ quitService: quitSpeech });
         autoReply.stop();
         autoMessage.stop();

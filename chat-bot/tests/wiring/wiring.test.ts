@@ -12,6 +12,7 @@ import {
   APP,
   AUTO_SONG_ID,
   BOT,
+  BUS,
   CLAUDE_CLI,
   CODEX_CLI,
   DOWNLOADS,
@@ -29,6 +30,7 @@ import {
   THANKER,
   TOOLS,
   TRANSCRIBER,
+  TRANSCRIPT,
 } from '../../src/wiring/tokens';
 import { chat, fakeEvents } from '../support/fakes';
 
@@ -514,4 +516,50 @@ test("every declarative tool in chat-bot/tools is in docs/commands.md's installa
   const documented = rows.map((row) => /^\| `([^`]+)`/.exec(row)?.[1]);
 
   expect(documented.sort()).toEqual(defined.map(({ name }) => name).sort());
+});
+
+test('the song features listen once the app has started, though nothing resolved them, and not after it stops', async () => {
+  const roomConfig = { on_sing: { message: '加油', probability: 1 } };
+  const bot = build(
+    ['--no-asr', '--codex', ''],
+    {},
+    { 'room_config.json': JSON.stringify(roomConfig) },
+  );
+  const app = bot.container.resolve(APP);
+  const bus = bot.container.resolve(BUS);
+  const transcript = bot.container.resolve(TRANSCRIPT);
+  /** The streamer sings for a minute, a line every 10 seconds. */
+  const sing = (tag: string) => {
+    const now = Date.now();
+    for (let ago = 60; ago >= 0; ago -= 10) {
+      const line = {
+        start: now - ago * 1000 - 3000,
+        end: now - ago * 1000,
+        text: `${tag}歌词${ago}`,
+        speech: 0.05,
+      };
+      transcript.add(line);
+      bus.emit('heard', line);
+    }
+  };
+  const settle = async () => {
+    await bot.container.resolve(OUTBOX).idle();
+  };
+
+  // Built, not started: nobody is listening.
+  sing('甲');
+  await settle();
+  expect(bot.sent).toEqual([]);
+
+  await app.start();
+  jest.advanceTimersByTime(600_000);
+  sing('乙');
+  await settle();
+  expect(bot.sent).toEqual(['加油']);
+
+  app.stop();
+  jest.advanceTimersByTime(600_000);
+  sing('丙');
+  await settle();
+  expect(bot.sent).toEqual(['加油']);
 });

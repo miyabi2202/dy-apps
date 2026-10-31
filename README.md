@@ -64,7 +64,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
     personas/             #     shared personas a room's persona file can build on (fairy.md, …)
   config.json             #   admins (user ids) and what viewers call them (adminNames)
   src/main.ts             #   entry: options (cli-options.ts), the container built, started and stopped
-  src/wiring/             #   the IoC container (container.ts) and what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot)
+  src/wiring/             #   the IoC container (container.ts), what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot) and the FEATURES that subscribe to the room when the app starts (features.ts)
   src/core/               #   pure logic: mentions, prompt, reply splitting, viewer ids, chat record and talk record formats
   src/app/                #   use cases: ChatBot (/ commands to tools, questions to the answerer), RoomFeed (chat and gifts in), MentionAnswerer (questions to Claude), RoomState (what prompts know about the room), Outbox, Transcriber; ports.ts for the outside
   src/adapters/           #   room-feed, the Claude CLI, the ASR process, files and logging
