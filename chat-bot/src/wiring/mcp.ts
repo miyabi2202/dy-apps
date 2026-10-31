@@ -15,7 +15,7 @@ import { settingTool } from '../app/tools/setting-tool';
 import { updateMemoryTool } from '../app/tools/update-memory';
 import type { Container } from './container';
 import {
-  ADMINS,
+  SCREENSHOTS,
   ANSWERER,
   ASK_SOLVE,
   BUS,
@@ -33,6 +33,8 @@ import {
   ROOM_DIR,
   SETTINGS,
   SONG_ID,
+  SONG_SPANS,
+  STREAMER,
   TOOL_DEFINITIONS,
   TOOLS,
   TRANSCRIBER,
@@ -85,6 +87,7 @@ export function registerMcp(container: Container): void {
               identifySongTool({
                 songId,
                 room,
+                songSpans: c.resolve(SONG_SPANS),
                 maxLength: options.maxReplyLength,
                 log,
               }),
@@ -100,6 +103,7 @@ export function registerMcp(container: Container): void {
           settings,
           prompt: c.resolve(PROMPT)('solve'),
           room,
+          screenshots: c.resolve(SCREENSHOTS),
           outbox: c.resolve(OUTBOX),
           userTalk: c.resolve(USER_TALK),
           bus: c.resolve(BUS),
@@ -113,7 +117,7 @@ export function registerMcp(container: Container): void {
         setting('happyHeart'),
       ];
       const roomConfig = c.resolve(ROOM_CONFIG);
-      const admins = c.resolve(ADMINS);
+      const streamer = c.resolve(STREAMER);
       const defined = declarativeTools({
         definitions: c.resolve(TOOL_DEFINITIONS),
         enabled: () => roomConfig().tools,
@@ -121,7 +125,7 @@ export function registerMcp(container: Container): void {
         // the MCP server, which needs these tools (ANSWERER -> MCP_SERVER -> TOOLS -> ANSWERER).
         say: (mention) => c.resolve(ANSWERER).ask(mention),
         room,
-        streamer: () => admins.current(),
+        streamer: () => streamer.current(),
         builtInNames: () => tools.map((tool) => tool.name),
         log,
       });

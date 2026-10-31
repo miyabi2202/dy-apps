@@ -5,6 +5,7 @@ import { LyricsBreaks } from '../app/songs/lyrics-breaks';
 import { ShazamBreaks } from '../app/songs/shazam-breaks';
 import { OnSing } from '../app/songs/on-sing';
 import { SongEnds } from '../app/songs/song-ends';
+import { SongSpans } from '../app/songs/song-spans';
 import { SongId } from '../app/songs/song-id';
 import { candidateHints } from '../core/songs/song-candidates';
 import type { Container } from './container';
@@ -29,6 +30,7 @@ import {
   SONG_BREAK_SOURCES,
   SONG_ENDS,
   SONG_ID,
+  SONG_SPANS,
   TRANSCRIBER,
 } from './tokens';
 
@@ -112,6 +114,7 @@ export function registerSongs(container: Container, features: FeatureRegistry): 
           ? new AutoSongId({
               songId,
               room,
+              songSpans: c.resolve(SONG_SPANS),
               outbox: c.resolve(OUTBOX),
               log: c.resolve(LOG),
               settings: c.resolve(SETTINGS),
@@ -136,6 +139,14 @@ export function registerSongs(container: Container, features: FeatureRegistry): 
       const backingGapBreaks = c.resolve(BACKING_GAP_BREAKS);
       return [...(lyricsBreaks ? [lyricsBreaks] : []), shazamBreaks, backingGapBreaks];
     })
+    // What the sources make of what the streamer said, the room's `songBreaks` saying which are on.
+    .register(SONG_SPANS, (c) => {
+      const roomConfig = c.resolve(ROOM_CONFIG);
+      return new SongSpans({
+        sources: c.resolve(SONG_BREAK_SOURCES),
+        on: () => roomConfig().songBreaks,
+      });
+    })
     .register(BACKING_GAP_BREAKS, (c) => new BackingGapBreaks({ log: c.resolve(LOG) }))
     // And, in a room with on_sing in its room_config.json, its message as the streamer starts a song.
     .register(ON_SING, (c) => {
@@ -143,6 +154,7 @@ export function registerSongs(container: Container, features: FeatureRegistry): 
       const onSing = new OnSing({
         config: () => roomConfig().onSing,
         room: c.resolve(ROOM),
+        songSpans: c.resolve(SONG_SPANS),
         outbox: c.resolve(OUTBOX),
         log: c.resolve(LOG),
       });
@@ -154,6 +166,7 @@ export function registerSongs(container: Container, features: FeatureRegistry): 
       const songId = c.resolve(SONG_ID);
       const songEnds = new SongEnds({
         room: c.resolve(ROOM),
+        songSpans: c.resolve(SONG_SPANS),
         record: c.resolve(RECORD),
         ...(songId && { lastTold: () => songId.lastTold() }),
         timeZone: () => roomConfig().timeZone,

@@ -4,6 +4,8 @@ import type { SettingsStore } from '../../../src/app/ports';
 import type { UserTalk } from '../../../src/app/ports';
 import { Transcript } from '../../../src/core/songs/transcript';
 import { fakeMemory, noteFile } from '../../support/fake-memory';
+import { Screenshots } from '../../../src/app/room/screenshots';
+import { fakeNames } from '../../support/fake-names';
 import { fakeRoom } from '../../support/fake-room';
 import { fakeSettings } from '../../support/fake-settings';
 import { NOW, fakeBus, fakeOutbox, silentLog } from '../../support/fakes';
@@ -30,13 +32,13 @@ function setup(options: SetupOptions = {}) {
   const prompts: string[] = [];
   const images: (Uint8Array | undefined)[] = [];
   const { outbox, sent } = fakeOutbox();
+  const settings = options.settings ?? fakeSettings({ screenshots: !!options.screenshot });
   const room = fakeRoom({
     transcript: options.transcript,
-    screenshot: options.screenshot,
     persona: () => options.persona ?? '',
     chatDir: options.chatDir,
     botTalk: options.botTalk === undefined ? undefined : { recent: () => options.botTalk ?? '' },
-    settings: options.settings ?? fakeSettings({ screenshots: !!options.screenshot }),
+    settings,
     now: () => NOW,
   });
   const answerer = new MentionAnswerer({
@@ -47,6 +49,7 @@ function setup(options: SetupOptions = {}) {
     },
     outbox,
     room,
+    screenshots: new Screenshots({ fetch: options.screenshot, settings, log: silentLog }),
     log: silentLog,
     promptTemplate: () => options.template ?? TEMPLATE,
     userTalk: options.userTalk,
@@ -335,7 +338,7 @@ test("the reply @s the whole nickname when it fits, and only a shortened @ goes 
   const answerer = new MentionAnswerer({
     ask: () => Promise.resolve(answers.shift()!),
     outbox,
-    room: fakeRoom({ atTrimStart: () => ['⊹꙳𝝑'], now: () => NOW }),
+    room: fakeRoom({ names: fakeNames({ atTrimStart: () => ['⊹꙳𝝑'] }), now: () => NOW }),
     log: silentLog,
     promptTemplate: () => TEMPLATE,
   });

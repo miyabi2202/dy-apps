@@ -1,8 +1,8 @@
+import { SongSpans } from '../../../src/app/songs/song-spans';
 import type { Log } from '../../../src/app/ports';
 import { ShazamBreaks } from '../../../src/app/songs/shazam-breaks';
 import type { SongBreakSource } from '../../../src/core/songs/song-breaks';
 import { currentSong, type TranscriptLine } from '../../../src/core/songs/transcript';
-import { fakeRoom } from '../../support/fake-room';
 
 const sung = (at: number, title?: string): TranscriptLine => ({
   start: (at - 3) * 1000,
@@ -39,16 +39,16 @@ test("ranks below the lyrics, above the pauses, and is off when the room's songB
     name: 'lyrics',
     spans: () => [{ from: 77_000, to: 77_000, kind: 'break', by: 'lyrics' }],
   };
-  const room = fakeRoom({ songBreakSources: () => [lyrics, setup().breaks] });
-  expect(currentSong(lines, { spans: room.songSpans(lines) })[0]?.text).toBe('唱80');
+  const all = new SongSpans({ sources: [lyrics, setup().breaks] });
+  expect(currentSong(lines, { spans: all.of(lines) })[0]?.text).toBe('唱80');
 
-  const withoutLyrics = fakeRoom({
-    songBreaks: () => ['shazam'],
-    songBreakSources: () => [lyrics, setup().breaks],
+  const withoutLyrics = new SongSpans({
+    sources: [lyrics, setup().breaks],
+    on: () => ['shazam'],
   });
-  expect(currentSong(lines, { spans: withoutLyrics.songSpans(lines) })[0]?.text).toBe('唱10');
+  expect(currentSong(lines, { spans: withoutLyrics.of(lines) })[0]?.text).toBe('唱10');
 
-  const off = fakeRoom({ songBreaks: () => ['lyrics'], songBreakSources: () => [setup().breaks] });
-  expect(off.songSpans(lines)).toEqual([]);
-  expect(currentSong(lines, { spans: off.songSpans(lines) })[0]?.text).toBe('唱80');
+  const off = new SongSpans({ sources: [setup().breaks], on: () => ['lyrics'] });
+  expect(off.of(lines)).toEqual([]);
+  expect(currentSong(lines, { spans: off.of(lines) })[0]?.text).toBe('唱80');
 });

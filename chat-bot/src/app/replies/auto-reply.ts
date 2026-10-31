@@ -25,6 +25,7 @@ import { askJson } from '../models/ask-json';
 import type { Outbox } from './outbox';
 import type { Settings } from '../../core/commands/settings';
 import type { AskModel, FindStreamer, Judge, Log, SettingsStore } from '../ports';
+import type { BotNames } from '../room/bot-names';
 import type { RoomState } from '../room/room-state';
 
 export interface AutoReplyOptions {
@@ -35,7 +36,12 @@ export interface AutoReplyOptions {
   /** The room's settings, where the threshold and the quiet time are kept. */
   settings: SettingsStore;
   /** The chat, transcript and the rest of what the prompt knows about the room. */
-  room: RoomState;
+  room: Pick<
+    RoomState,
+    'now' | 'recentChat' | 'recentTranscript' | 'persona' | 'wording' | 'botTalk'
+  >;
+  /** What the bot is called here, and the room's time zone. */
+  names: BotNames;
   log: Log;
   /** Waits `ms`; tests pass one that doesn't. */
   sleep?: (ms: number) => Promise<void>;
@@ -175,7 +181,7 @@ export class AutoReply {
     content,
   }: Pick<IncomingChat, 'ts' | 'userId' | 'nickname' | 'content'>): void {
     if (userId === undefined) return;
-    const [line] = roomLines([{ ts, userId, nickname, content }], [], this.options.room.botName);
+    const [line] = roomLines([{ ts, userId, nickname, content }], [], this.options.names.botName);
     if (line?.candidate && this.options.focus?.().includes(userId)) {
       this.called.set(lineKey(line), line.ts);
       this.options.log.info('focus', { who: nickname, userId, text: content });
@@ -183,7 +189,7 @@ export class AutoReply {
       return;
     }
     if (this.settings.autoReplyThreshold >= 1) return;
-    const name = line?.candidate ? matchChat(content, this.options.room.callNames()) : undefined;
+    const name = line?.candidate ? matchChat(content, this.options.names.callNames()) : undefined;
     if (line && name !== undefined) {
       this.callsBot(line, name, { nickname, userId, question: content, heard: 'chat' });
       return;
@@ -212,17 +218,17 @@ export class AutoReply {
     const { room, log } = this.options;
     if (this.settings.autoReplyThreshold >= 1) return;
     // As the check sees it: not sung, not a guest, not the chat read out.
-    const line = roomLines(room.recentChat(), [heard], room.botName).find(
+    const line = roomLines(room.recentChat(), [heard], this.options.names.botName).find(
       (l) => l.candidate && l.who === STREAMER,
     );
     if (!line) return;
     // Reading out the bot's chat isn't calling it, but they're talking with it: like after an
     // answer, what they say (this too) goes to the picker, which may leave it.
-    if (line.text.includes(readMark(room.botName))) {
+    if (line.text.includes(readMark(this.options.names.botName))) {
       this.saidTo.set(STREAMER, Math.max(this.saidTo.get(STREAMER) ?? -Infinity, line.ts));
     }
     this.replyToSpeech(line);
-    const name = matchSpeech(withoutReading(line.text), room.callNames());
+    const name = matchSpeech(withoutReading(line.text), this.options.names.callNames());
     if (name === undefined) return;
     const streamer = this.options.streamer();
     if (!streamer) {
@@ -295,7 +301,7 @@ export class AutoReply {
     }
     // While it keeps quiet, what's said waits to be looked at after.
     if (now - this.talkedAt < this.settings.autoReplyIntervalSeconds * 1000) return;
-    const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName);
+    const lines = roomLines(room.recentChat(), room.recentTranscript(), this.options.names.botName);
     // Since the last check began, so what was said while it picked and answered is looked at now.
     const since = this.seen;
     const called = new Set<string>();
@@ -375,12 +381,12 @@ export class AutoReply {
     const { state, questions } = relevanceRequest(
       lines.slice(Math.max(0, first - 25), first),
       fresh,
-      room.botName,
+      this.options.names.botName,
       room.persona,
       room.wording,
       topics.map(({ when }) => when),
-      room.aliases(),
-      room.timeZone(),
+      this.options.names.aliases(),
+      this.options.names.timeZone(),
     );
     let scores: Record<string, number>;
     try {
@@ -466,9 +472,11 @@ export class AutoReply {
   ): Promise<number> {
     const { room, log, picker, pickTemplate, reply } = this.options;
     const streamer = this.options.streamer();
-    const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName).slice(
-      -PICK_LINES,
-    );
+    const lines = roomLines(
+      room.recentChat(),
+      room.recentTranscript(),
+      this.options.names.botName,
+    ).slice(-PICK_LINES);
     const aboutKeys = new Set(about.map(lineKey));
     const { text, numbered } = pickLines(
       lines,
@@ -484,16 +492,16 @@ export class AutoReply {
           : this.judgedTopics()
               .map((topic) => matchFor(topic, line.text))
               .filter((label): label is string => label !== null),
-      room.timeZone(),
+      this.options.names.timeZone(),
     );
     if (!numbered.length) return 0;
     const prompt = pickPrompt(pickTemplate(), room.wording, {
       lines: text,
-      botName: room.botName,
+      botName: this.options.names.botName,
       persona: room.persona,
       botTalk: room.botTalk(),
       topics: this.judgedTopics().map(({ name, when, adminOnly }) => ({ name, when, adminOnly })),
-      aliases: room.aliases(),
+      aliases: this.options.names.aliases(),
     });
     let picks: ReplyPick[] | null;
     try {

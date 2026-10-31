@@ -22,7 +22,9 @@ import { botTalkFile, folderOf, userTalkFiles } from '../adapters/files/room-tal
 import { EventBus } from '../app/event-bus';
 import { Outbox } from '../app/replies/outbox';
 import { RoomFeed } from '../app/room/room-feed';
+import { BotNames } from '../app/room/bot-names';
 import { RoomState } from '../app/room/room-state';
+import { Screenshots } from '../app/room/screenshots';
 import { StreamerAdmin } from '../app/commands/streamer-admin';
 import { ChatHistory } from '../core/chat/chat-history';
 import { RecentGifts } from '../core/chat/recent-gifts';
@@ -33,6 +35,7 @@ import type { Container } from './container';
 import type { FeatureRegistry } from './features';
 import {
   ADMINS,
+  BOT_NAMES,
   BOT_CONFIG,
   BOT_TALK,
   BUS,
@@ -59,8 +62,9 @@ import {
   ROOM_DIR,
   ROOM_EVENTS,
   ROOM_FILES,
+  SCREENSHOTS,
   SETTINGS,
-  SONG_BREAK_SOURCES,
+  STREAMER,
   TRANSCRIPT,
   USER_TALK,
 } from './tokens';
@@ -138,6 +142,15 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
         log,
       });
     })
+    // Who the streamer is, for the memory, the prompts and the answers: room-feed's word on it, else
+    // what room_config.json kept from last time.
+    .register(STREAMER, (c) => {
+      const [admins, roomConfig] = [c.resolve(ADMINS), c.resolve(ROOM_CONFIG)];
+      return {
+        id: () => admins.current()?.uid ?? roomConfig().streamer?.uid,
+        current: () => admins.current(),
+      };
+    })
     .register(BUS, (c) => new EventBus(c.resolve(LOG)))
     .register(HISTORY, (c) => new ChatHistory(c.resolve(OPTIONS).historySize))
     // The last few minutes' gifts, among the chat in every prompt (so 「谢一下这个礼物」 knows which).
@@ -155,11 +168,10 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
     // What the bot remembers (memory.md, each person's note.md), which it writes with update_memory
     // and anyone may edit by hand: read on every use.
     .register(MEMORY, (c) => {
-      const roomConfig = c.resolve(ROOM_CONFIG);
+      const [roomConfig, streamer] = [c.resolve(ROOM_CONFIG), c.resolve(STREAMER)];
       return fileMemory(c.resolve(ROOM_DIR), {
         folderOf,
-        // room-feed's word on who the streamer is, else what room_config.json kept from last time.
-        streamerId: () => c.resolve(ADMINS).current()?.uid ?? roomConfig().streamer?.uid,
+        streamerId: () => streamer.id(),
         isPrivate: () => roomConfig().private,
         // The day an entry is written on is the streamer's, not the machine's.
         today: () => localDate(Date.now(), roomConfig().timeZone).slice(0, 10),
@@ -180,7 +192,7 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
         mark: memoryReadMark(c.resolve(ROOM_DIR)),
         notesPrompt: prompt('rememberNotes'),
         roomPrompt: prompt('rememberRoom'),
-        streamerId: () => c.resolve(ADMINS).current()?.uid ?? roomConfig().streamer?.uid,
+        streamer: c.resolve(STREAMER),
         bot: { name: options.botName, id: options.botId },
         isPrivate: () => roomConfig().private,
         dayOf: (ms) => localDate(ms, roomConfig().timeZone).slice(0, 10),
@@ -241,8 +253,7 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
           log: c.resolve(LOG),
         }),
         memory: c.resolve(MEMORY),
-        // room-feed's word on who the streamer is, else what room_config.json kept from last time.
-        streamerId: () => c.resolve(ADMINS).current()?.uid ?? roomConfig().streamer?.uid,
+        streamer: c.resolve(STREAMER),
         isPrivate: () => roomConfig().private,
         // What viewers ask about Douyin itself (灯牌…), shared by every room.
         commonKnowledge: liveText(join(c.resolve(PROMPTS_DIR), 'common-knowledge.md')),
@@ -251,28 +262,38 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
         // What it can't do and why, for when viewers notice (limitations.md, shared by every room).
         limitations: liveText(join(c.resolve(PROMPTS_DIR), 'limitations.md')),
         botTalk: c.resolve(BOT_TALK),
-        // Whether prompts get it is the setting `screenshots` (off unless --screenshot; /截图).
-        screenshot: c.resolve(ROOM_API).screenshot,
         // The settings: how many messages what the bot says may take (/最大回复条数), and the rest.
         settings: c.resolve(SETTINGS),
         chatDir: c.resolve(CHAT_DIR),
-        botName: options.botName,
-        botId: options.botId,
-        aliases: () => roomConfig().aliases,
-        // The song break sources the room has on (room_config.json's songBreaks; all when absent).
-        songBreaks: () => roomConfig().songBreaks,
-        // Ranked below the talk and pauses of currentSong, in this order; made when first asked.
-        songBreakSources: () => c.resolve(SONG_BREAK_SOURCES),
-        // 单推符号 taken off a nickname before the bot @s them.
-        atTrimStart: () => roomConfig().atTrimStart,
-        // Where the streamer is: every time in the prompts is in it (Beijing time when not known).
-        timeZone: () => roomConfig().timeZone,
+        names: c.resolve(BOT_NAMES),
         // What prompts say around what they fill in, shared by every room.
         wording: liveWording(join(c.resolve(PROMPTS_DIR), 'wording.md')),
-        log: c.resolve(LOG),
       });
       return room;
     })
+    // What the bot is called here (its nickname, the room's aliases), the 单推符号 taken off a
+    // nickname before it @s them, and where the streamer is: every time in the prompts is in their
+    // time zone (Beijing time when not known).
+    .register(BOT_NAMES, (c) => {
+      const [options, roomConfig] = [c.resolve(OPTIONS), c.resolve(ROOM_CONFIG)];
+      return new BotNames({
+        botName: options.botName,
+        botId: options.botId,
+        aliases: () => roomConfig().aliases,
+        atTrimStart: () => roomConfig().atTrimStart,
+        timeZone: () => roomConfig().timeZone,
+      });
+    })
+    // Whether prompts get the live video is the setting `screenshots` (off unless --screenshot; /截图).
+    .register(
+      SCREENSHOTS,
+      (c) =>
+        new Screenshots({
+          fetch: c.resolve(ROOM_API).screenshot,
+          settings: c.resolve(SETTINGS),
+          log: c.resolve(LOG),
+        }),
+    )
     // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
     .register(OUTBOX, (c) => {
       const botTalk = c.resolve(BOT_TALK);

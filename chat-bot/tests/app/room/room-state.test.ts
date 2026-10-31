@@ -2,6 +2,7 @@ import { SETTING_DEFAULTS } from '../../../src/core/commands/settings';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import { Transcript } from '../../../src/core/songs/transcript';
 import { fakeMemory, noteFile, ROOM_FILE } from '../../support/fake-memory';
+import { fakeNames } from '../../support/fake-names';
 import { fakeRoom } from '../../support/fake-room';
 import { fakeSettings } from '../../support/fake-settings';
 import { testWording } from '../../support/wording';
@@ -27,7 +28,7 @@ test("gives every prompt the room as it is now: chat, recent speech, persona, me
     transcriptMs: 5 * 60_000,
     persona: () => persona,
     memory,
-    streamerId: () => 's-1',
+    streamer: { id: () => 's-1' },
     botTalk: { recent: () => '你好呀' },
     chatDir: '/data/chat',
     now: () => NOW,
@@ -49,7 +50,7 @@ test("gives every prompt the room as it is now: chat, recent speech, persona, me
     memoryDir: '/room/memory',
     streamerNote: '爱喝奶茶',
     botTalk: '你好呀',
-    settings: { ...SETTING_DEFAULTS, screenshots: true },
+    settings: SETTING_DEFAULTS,
   });
 
   // Persona and memory are read each time.
@@ -70,7 +71,7 @@ test("the asker's note is theirs alone: none for the streamer (every prompt has 
   );
   const room = fakeRoom({
     memory,
-    streamerId: () => 's-1',
+    streamer: { id: () => 's-1' },
     isPrivate: () => isPrivate,
   });
   expect(room.askerNote('u-1')).toBe('叫 TA 阿明');
@@ -79,27 +80,6 @@ test("the asker's note is theirs alone: none for the streamer (every prompt has 
   expect(room.askerNote('s-1')).toBe('');
   isPrivate = true;
   expect(room.askerNote('111111-苦***-31')).toBe('');
-});
-
-test('screenshots go to Claude only while on', async () => {
-  const frame = new Uint8Array([0xff, 0xd8]);
-  let taken = 0;
-  const settings = fakeSettings({ screenshots: false });
-  const room = fakeRoom({
-    screenshot: () => {
-      taken++;
-      return Promise.resolve(frame);
-    },
-    settings,
-  });
-  expect(await room.screenshot()).toBeUndefined();
-  settings.set({ screenshots: true });
-  expect(await room.screenshot()).toBe(frame);
-  settings.set({ screenshots: false });
-  expect(await room.screenshot()).toBeUndefined();
-  // room-feed isn't even asked while screenshots are off, unless a puzzle always wants one.
-  expect(taken).toBe(1);
-  expect(await room.screenshot(true)).toBe(frame);
 });
 
 test('fills a prompt with the room, what is particular to it, and parts of the room it replaces', () => {
@@ -148,7 +128,7 @@ test('lists the settings as they are now, each in its place', () => {
 
 test("knows what the bot's own account wears from its own latest chat, and keeps it once that scrolls away", () => {
   const history = new ChatHistory(2);
-  const room = fakeRoom({ history, botId: 'bot-1' });
+  const room = fakeRoom({ history, names: fakeNames({ botId: 'bot-1' }) });
   expect(room.promptInput().ownBadges).toBeUndefined();
 
   const own = { ts: NOW, userId: 'bot-1', nickname: '小助手', content: '到', payLevel: 17 };

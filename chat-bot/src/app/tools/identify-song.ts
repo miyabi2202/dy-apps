@@ -2,11 +2,14 @@ import type { Log } from '../ports';
 import type { BotTool } from '../../core/tools/bot-tool';
 import type { RoomState } from '../room/room-state';
 import type { SongId } from '../songs/song-id';
+import type { SongSpans } from '../songs/song-spans';
 import { currentSong } from '../../core/songs/transcript';
 
 export interface IdentifySongOptions {
   songId: Pick<SongId, 'prompt' | 'identifyLines' | 'told' | 'lastTold'>;
-  room: Pick<RoomState, 'recentTranscript' | 'prompt' | 'now' | 'songSpans'>;
+  room: Pick<RoomState, 'recentTranscript' | 'prompt' | 'now'>;
+  /** Where the songs in the transcript begin and end. */
+  songSpans: Pick<SongSpans, 'of'>;
   /** Douyin's chat length limit, which the song prompt asks its message to fit. */
   maxLength: number;
   log: Log;
@@ -26,7 +29,13 @@ const WHAT_SONG_TRIGGER =
  * doesn't, as Claude's reply is the message. It also says which song the room was last told, so
  * Claude can tell "still that one".
  */
-export function identifySongTool({ songId, room, maxLength, log }: IdentifySongOptions): BotTool {
+export function identifySongTool({
+  songId,
+  room,
+  songSpans,
+  maxLength,
+  log,
+}: IdentifySongOptions): BotTool {
   return {
     name: 'identify_song',
     description:
@@ -48,7 +57,7 @@ export function identifySongTool({ songId, room, maxLength, log }: IdentifySongO
     async call(args, { asker, direct }) {
       const hint = typeof args.hint === 'string' ? args.hint : '';
       const transcript = room.recentTranscript();
-      const lines = currentSong(transcript, { spans: room.songSpans(transcript) });
+      const lines = currentSong(transcript, { spans: songSpans.of(transcript) });
       const prompt = room.prompt(songId.prompt(), {
         transcript: lines,
         asker,

@@ -1,3 +1,4 @@
+import type { Streamer } from '../commands/streamer-admin';
 import { errorMessage } from '../../core/errors';
 import { fillTemplate } from '../../core/prompts/template';
 import { parseJsonObject } from '../../core/replies/json-answer';
@@ -37,8 +38,8 @@ export interface RememberChatOptions {
   notesPrompt: () => string;
   /** The prompt about the room's memory and the streamer's note (remember-room.md), read each time. */
   roomPrompt: () => string;
-  /** The streamer's user id: their note is about the whole stream, not a viewer's. */
-  streamerId: () => string | undefined;
+  /** Who the streamer is: their note is about the whole stream, not a viewer's. */
+  streamer: Pick<Streamer, 'id'>;
   /** The bot's own account, whose lines aren't a viewer's. */
   bot: { name: string; id?: string };
   /** A 私密 room, whose viewers can't be told apart: no viewer notes there. */
@@ -122,8 +123,8 @@ export class RememberChat {
 
   /** The viewers who said enough, a batch at a time. */
   private async notes(lines: readonly RecordLine[], result: RememberResult): Promise<void> {
-    const { bot, streamerId, minChats = 5, batchSize = 8 } = this.options;
-    const exclude = new Set([bot.id, streamerId()].filter((id): id is string => !!id));
+    const { bot, streamer, minChats = 5, batchSize = 8 } = this.options;
+    const exclude = new Set([bot.id, streamer.id()].filter((id): id is string => !!id));
     const chatters = chattersOf(
       lines.filter((line) => line.sender !== bot.name),
       { minChats, exclude },
@@ -171,8 +172,8 @@ export class RememberChat {
 
   /** The room's memory and the streamer's note, from the whole stream. */
   private async room(lines: readonly RecordLine[], result: RememberResult): Promise<void> {
-    const { memory, roomPrompt, streamerId, log } = this.options;
-    const streamer = streamerId();
+    const { memory, roomPrompt, log } = this.options;
+    const streamer = this.options.streamer.id();
     const answer = await this.ask(
       fillTemplate(
         roomPrompt(),

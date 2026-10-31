@@ -1,3 +1,4 @@
+import { Screenshots } from '../../../src/app/room/screenshots';
 import type { AskModel, Question, UserTalk } from '../../../src/app/ports';
 import type { SolveEffort } from '../../../src/core/commands/settings';
 import { SETTING_DEFAULTS } from '../../../src/core/commands/settings';
@@ -36,9 +37,11 @@ function setup() {
     settings: { get: () => ({ ...SETTING_DEFAULTS, solveEffort: state.solveEffort }) },
     prompt: () => '解题：{{question}}（{{asker}}）',
     // Screenshots are off, but a puzzle always gets one.
-    room: fakeRoom({
-      screenshot: () => Promise.resolve(FRAME),
+    room: fakeRoom(),
+    screenshots: new Screenshots({
+      fetch: () => Promise.resolve(FRAME),
       settings: fakeSettings({ screenshots: false }),
+      log: silentLog,
     }),
     outbox,
     userTalk,

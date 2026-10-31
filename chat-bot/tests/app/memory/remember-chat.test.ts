@@ -45,7 +45,7 @@ function setup({
     notesPrompt: () => 'NOTES {{viewers}}',
     roomPrompt: () =>
       'ROOM {{memory}} {{roomUsed}} | {{streamerNote}} {{streamerUsed}} | {{digest}}',
-    streamerId: () => 's-1',
+    streamer: { id: () => 's-1' },
     bot: { name: '默认关闭', id: 'bot' },
     isPrivate: () => isPrivate,
     log: silentLog,

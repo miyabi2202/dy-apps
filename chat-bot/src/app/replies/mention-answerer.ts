@@ -20,6 +20,8 @@ import type { Outbox } from './outbox';
 import { Pending } from '../pending';
 import type { Admins, AskModel, BotTools, Log, UserTalk } from '../ports';
 import type { RoomState } from '../room/room-state';
+import type { Screenshots } from '../room/screenshots';
+import type { Streamer } from '../commands/streamer-admin';
 
 /** A question for Claude, or a fixed reply to send as one. */
 export interface Mention {
@@ -54,7 +56,12 @@ export interface MentionAnswererOptions {
   /** Where replies go to be sent, spaced out. */
   outbox: Pick<Outbox, 'push'>;
   /** What the room looks like now, for every prompt. */
-  room: RoomState;
+  room: Pick<
+    RoomState,
+    'askerNote' | 'now' | 'prompt' | 'recentChat' | 'recentTranscript' | 'replyLimits'
+  >;
+  /** The live video for a prompt, while screenshots are on; without it no prompt has a picture. */
+  screenshots?: Pick<Screenshots, 'take'>;
   log: Log;
   /** The prompt (see buildPrompt for what it can fill in), read each time so edits apply at once. */
   promptTemplate: () => string;
@@ -78,8 +85,8 @@ export interface MentionAnswererOptions {
   tools?: BotTools;
   /** Who the admins are: only their questions get the admin-only tools. */
   admins?: Admins;
-  /** The streamer's user id, once known: an answer to them, or a message for them, never @s them. */
-  streamerId?: () => string | undefined;
+  /** Who the streamer is, once known: an answer to them, or a message for them, never @s them. */
+  streamer?: Pick<Streamer, 'id'>;
 }
 
 /** An answer that may call tools can run longer than one that can't. */
@@ -225,7 +232,7 @@ export class MentionAnswerer {
         earlier: mention.earlier,
       });
       log.debug('prompt', { prompt });
-      const image = await room.screenshot();
+      const image = await this.options.screenshots?.take();
       const started = room.now();
       const raw = await ask({
         prompt,
@@ -264,7 +271,7 @@ export class MentionAnswerer {
       // them (「跟杨叔打个招呼」), and then says nothing to the asker.
       const others = parseOthers(raw);
       // Claude leaves the @ out when it's plain whom it answers; the streamer never gets one.
-      const streamerId = this.options.streamerId?.();
+      const streamerId = this.options.streamer?.id();
       const isStreamer = (userId: string | undefined) =>
         userId !== undefined && userId === streamerId;
       const messagesTo = (to: string, text: string, userId: string | undefined, withAt: boolean) =>

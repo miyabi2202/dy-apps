@@ -1,5 +1,6 @@
 import { RoomState, type RoomStateOptions } from '../../src/app/room/room-state';
 import { ChatHistory } from '../../src/core/chat/chat-history';
+import { fakeNames } from './fake-names';
 import { fakeSettings } from './fake-settings';
 import { testWording } from './wording';
 
@@ -7,11 +8,10 @@ import { testWording } from './wording';
 export function fakeRoom(options: Partial<RoomStateOptions> = {}): RoomState {
   return new RoomState({
     history: new ChatHistory(100),
-    botName: '小助手',
-    // Screenshots on, which the tests of a prompt with a picture rely on; the real default is off.
-    settings: fakeSettings({ screenshots: true }),
+    names: fakeNames(),
     wording: testWording,
-    log: { debug() {}, info() {}, warn() {}, error() {} },
+    // The real default has screenshots off; a test of a prompt with a picture turns them on itself.
+    settings: fakeSettings(),
     ...options,
   });
 }

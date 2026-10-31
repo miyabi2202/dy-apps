@@ -12,11 +12,14 @@ import type { Outbox } from '../replies/outbox';
 import { Pending } from '../pending';
 import type { Log, SettingsStore } from '../ports';
 import type { RoomState } from '../room/room-state';
+import type { SongSpans } from './song-spans';
 import type { SongId } from './song-id';
 
 export interface AutoSongIdOptions {
   songId: Pick<SongId, 'prompt' | 'name' | 'namedAt' | 'lastTold' | 'told'>;
-  room: RoomState;
+  room: Pick<RoomState, 'now' | 'prompt' | 'recentTranscript' | 'replyLimits' | 'wording'>;
+  /** Where the songs in the transcript begin and end. */
+  songSpans: Pick<SongSpans, 'of'>;
   outbox: Pick<Outbox, 'push'>;
   log: Log;
   /** The room's settings, where whether it's on is kept (`autoSongId`; `/自动识歌` switches it). */
@@ -72,7 +75,7 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
     if (!this.options.settings.get().autoSongId || this.busy) return;
     const { room, againMs = 180_000 } = this.options;
     const transcript = room.recentTranscript();
-    const song = singingSong(transcript, line, room.songSpans(transcript));
+    const song = singingSong(transcript, line, this.options.songSpans.of(transcript));
     if (!song) return;
     const chars = sungChars(song.lines);
     if (chars < SONG_CHARS) return;

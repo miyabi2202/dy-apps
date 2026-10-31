@@ -3,6 +3,7 @@ import { MentionAnswerer } from '../../../src/app/replies/mention-answerer';
 import { RoomFeed } from '../../../src/app/room/room-feed';
 import { newSession, type Session } from '../../../src/adapters/mcp/rpc';
 import { declarativeTools } from '../../../src/app/tools/declarative-tools';
+import { Screenshots } from '../../../src/app/room/screenshots';
 import { settingTool } from '../../../src/app/tools/setting-tool';
 import type { BotTools, DefinedTool, Log, Question } from '../../../src/app/ports';
 import type { BotTool, ToolContext } from '../../../src/core/tools/bot-tool';
@@ -48,10 +49,12 @@ function setup(options: SetupOptions = {}) {
     history,
     settings,
     persona: () => options.persona ?? '',
-    // A live video to screenshot, with screenshots off (/截图 0).
-    ...(options.screenshot && {
-      screenshot: () => Promise.resolve(new Uint8Array([0xff, 0xd8])),
-    }),
+  });
+  // A live video to screenshot, with screenshots off (/截图 0).
+  const screenshots = new Screenshots({
+    ...(options.screenshot && { fetch: () => Promise.resolve(new Uint8Array([0xff, 0xd8])) }),
+    settings,
+    log: silentLog,
   });
   const tools = (): BotTool[] => [
     ...(typeof options.tools === 'function' ? options.tools(answerer) : (options.tools ?? [])),
@@ -84,6 +87,7 @@ function setup(options: SetupOptions = {}) {
       },
       outbox,
       room,
+      screenshots,
       bus,
       log: options.log ?? silentLog,
       promptTemplate: () => options.template ?? TEMPLATE,

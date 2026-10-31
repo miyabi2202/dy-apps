@@ -1,3 +1,4 @@
+import { SongSpans } from '../../../src/app/songs/song-spans';
 import { LyricsBreaks } from '../../../src/app/songs/lyrics-breaks';
 import type { Log } from '../../../src/app/ports';
 import { singingSong, Transcript, type TranscriptLine } from '../../../src/core/songs/transcript';
@@ -42,7 +43,8 @@ function setup(lyrics: Record<string, string[]> = { 画廊游记 }) {
   });
   let now = 0;
   const transcript = new Transcript(Infinity, () => now);
-  const room = fakeRoom({ transcript, now: () => now, songBreakSources: () => [breaks] });
+  const room = fakeRoom({ transcript, now: () => now });
+  const songSpans = new SongSpans({ sources: [breaks] });
   /** The streamer sings (or says) `text` at `at` seconds. */
   const heard = (at: number, text: string, sung = true): TranscriptLine => {
     now = at * 1000;
@@ -50,18 +52,18 @@ function setup(lyrics: Record<string, string[]> = { 画廊游记 }) {
     transcript.add(line);
     return line;
   };
-  return { breaks, room, heard, logged, asked };
+  return { breaks, room, songSpans, heard, logged, asked };
 }
 
 test('says nothing before a song is named, nor until its lyrics came', async () => {
-  const { breaks, heard, room, asked } = setup();
+  const { breaks, heard, songSpans, asked } = setup();
   const lines = [heard(10, '在一切开始的时分我推开了花廊的门')];
   expect(breaks.spans(lines)).toEqual([]);
   breaks.keep({ title: '画廊游记', artist: '黄诗扶' }, 0);
   expect(asked).toEqual(['画廊游记/黄诗扶']);
   expect(breaks.spans(lines)).toEqual([]);
   await breaks.settled();
-  expect(room.songSpans(lines)).toEqual([{ from: 0, to: 10_000, kind: 'same', by: 'lyrics' }]);
+  expect(songSpans.of(lines)).toEqual([{ from: 0, to: 10_000, kind: 'same', by: 'lyrics' }]);
 });
 
 test("breaks where the lyrics stop matching, logging it once with what it can't match", async () => {
@@ -125,9 +127,9 @@ describe('in the room', () => {
     setUp.breaks.keep({ title: '画廊游记', artist: '' }, 20_000);
     await setUp.breaks.settled();
     const sung = sing(setUp);
-    const { room } = setUp;
+    const { room, songSpans } = setUp;
     const transcript = room.recentTranscript();
-    const song = singingSong(transcript, sung.at(-1)!, room.songSpans(transcript));
+    const song = singingSong(transcript, sung.at(-1)!, songSpans.of(transcript));
     expect(song?.start).toBe(sung[0]!.start);
   });
 
@@ -135,7 +137,7 @@ describe('in the room', () => {
     const setUp = setup();
     const sung = sing(setUp);
     const transcript = setUp.room.recentTranscript();
-    const song = singingSong(transcript, sung.at(-1)!, setUp.room.songSpans(transcript));
+    const song = singingSong(transcript, sung.at(-1)!, setUp.songSpans.of(transcript));
     expect(song?.start).toBe(sung[4]!.start);
   });
 
@@ -144,11 +146,11 @@ describe('in the room', () => {
       fetchLyrics: () => Promise.resolve(画廊游记),
       log: { debug() {}, info() {}, warn() {}, error() {} },
     });
-    const room = fakeRoom({ songBreaks: () => [], songBreakSources: () => [breaks] });
+    const songSpans = new SongSpans({ sources: [breaks], on: () => [] });
     breaks.keep({ title: '画廊游记', artist: '' }, 0);
     await breaks.settled();
     const line: TranscriptLine = { start: 1000, end: 5000, text: '在一切开始的时分', speech: 0.05 };
     expect(breaks.spans([line])).not.toEqual([]);
-    expect(room.songSpans([line])).toEqual([]);
+    expect(songSpans.of([line])).toEqual([]);
   });
 });

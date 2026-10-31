@@ -1,6 +1,14 @@
 import { errorMessage } from '../../core/errors';
 import type { Admins, FindStreamer, Log } from '../ports';
 
+/** Who the room's streamer is, as far as it's known now. */
+export interface Streamer {
+  /** Their user id: room-feed's word on it, else what room_config.json kept from last time; none until known. */
+  id(): string | undefined;
+  /** Who room-feed says it is (uid and nickname), or null while it hasn't read the room page. */
+  current(): { uid: string; nickname: string } | null;
+}
+
 export interface StreamerAdminOptions {
   /** The admins from config.json. */
   admins: Admins;

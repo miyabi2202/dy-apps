@@ -1,4 +1,5 @@
 import type { Judge, Log } from '../../../src/app/ports';
+import { fakeNames } from '../../support/fake-names';
 import { fakeRoom } from '../../support/fake-room';
 import { fakeSettings } from '../../support/fake-settings';
 import { AutoReply, type AutoReplyOptions } from '../../../src/app/replies/auto-reply';
@@ -50,7 +51,8 @@ function setup(
     pickTemplate: () => '{{lines}}',
     reply: () => {},
     streamer: () => null,
-    room: fakeRoom({ history, transcript, now: () => now, aliases: () => aliases }),
+    room: fakeRoom({ history, transcript, now: () => now }),
+    names: fakeNames({ aliases: () => aliases }),
     log: silentLog,
     sleep: (ms) => {
       now += ms;
@@ -406,6 +408,7 @@ test("a chat matching a tool's listen trigger is looked at at once, not at the n
     judge: (_, questions) =>
       Promise.resolve(Object.fromEntries(Object.keys(questions).map((k) => [k, 0.1]))),
     settings: fakeSettings({ autoReplyThreshold: 0.6 }),
+    names: fakeNames(),
     picker: () =>
       Promise.resolve(
         JSON.stringify({
@@ -454,6 +457,7 @@ test("a chat mentioning one of a tool's phrases is looked at at once, and the pi
     judge: (_, questions) =>
       Promise.resolve(Object.fromEntries(Object.keys(questions).map((k) => [k, 0.1]))),
     settings: fakeSettings({ autoReplyThreshold: 0.6 }),
+    names: fakeNames(),
     picker: ({ prompt }) => {
       prompts.push(prompt);
       return Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));

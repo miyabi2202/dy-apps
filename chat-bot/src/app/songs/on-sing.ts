@@ -2,11 +2,14 @@ import { isHandled, singingSong, type TranscriptLine } from '../../core/songs/tr
 import type { Outbox } from '../replies/outbox';
 import type { Log, OnSingConfig } from '../ports';
 import type { RoomState } from '../room/room-state';
+import type { SongSpans } from './song-spans';
 
 export interface OnSingOptions {
   /** The room's `on_sing` as it is now (room_config.json, read again as it changes). */
   config: () => OnSingConfig | undefined;
-  room: Pick<RoomState, 'recentTranscript'> & Partial<Pick<RoomState, 'songSpans'>>;
+  room: Pick<RoomState, 'recentTranscript'>;
+  /** Where the songs in the transcript begin and end; without it only pauses and talk do. */
+  songSpans?: Pick<SongSpans, 'of'>;
   outbox: Pick<Outbox, 'push'>;
   log: Log;
   /** While the streamer goes on singing, take this long as the next song. */
@@ -32,7 +35,7 @@ export class OnSing {
     const config = this.options.config();
     if (!config) return;
     const transcript = room.recentTranscript();
-    const song = singingSong(transcript, line, room.songSpans?.(transcript));
+    const song = singingSong(transcript, line, this.options.songSpans?.of(transcript));
     if (!song || isHandled(song, this.rolledAt, line.end, againMs)) return;
     this.rolledAt = line.end;
     if (random() >= config.probability) {

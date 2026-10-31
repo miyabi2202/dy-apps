@@ -4,6 +4,7 @@ import { Pending } from '../pending';
 import type { AskModel, Log, SettingsStore, UserTalk } from '../ports';
 import type { BotTool } from '../../core/tools/bot-tool';
 import type { RoomState } from '../room/room-state';
+import type { Screenshots } from '../room/screenshots';
 import type { SolveEffort } from '../../core/commands/settings';
 import { errorMessage } from '../../core/errors';
 import { MESSAGE_SCHEMA, parseMentionAnswer } from '../../core/replies/mention-answer';
@@ -18,8 +19,10 @@ export interface AskAboutPuzzleOptions {
   prompt: () => string;
   room: Pick<
     RoomState,
-    'prompt' | 'screenshot' | 'recentTranscript' | 'recentChat' | 'replyLimits' | 'now' | 'wording'
+    'prompt' | 'recentTranscript' | 'recentChat' | 'replyLimits' | 'now' | 'wording'
   >;
+  /** The live video, which a puzzle always gets, screenshots on or not. */
+  screenshots: Pick<Screenshots, 'take'>;
   /** Where the answer goes once Codex has it, as a reply to the asker. */
   outbox: Pick<Outbox, 'push'>;
   /** The asker's talk record gets the exchange, as a mention's does. */
@@ -118,7 +121,7 @@ export function askAboutPuzzleTool(
         return { text: 'question 要写成字符串', isError: true };
       }
       // Always, as the puzzle is on the screen even while screenshots are off.
-      const image = await room.screenshot(true);
+      const image = await options.screenshots.take(true);
       const limits = room.replyLimits(options.maxLength);
       const prompt = room.prompt(options.prompt(), {
         transcript: room.recentTranscript(),

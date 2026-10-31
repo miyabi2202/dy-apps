@@ -44,9 +44,12 @@ import type {
 import type { BotTool } from '../core/tools/bot-tool';
 import type { RememberChat } from '../app/memory/remember-chat';
 import type { RoomFeed } from '../app/room/room-feed';
+import type { BotNames } from '../app/room/bot-names';
 import type { RoomState } from '../app/room/room-state';
+import type { Screenshots } from '../app/room/screenshots';
+import type { SongSpans } from '../app/songs/song-spans';
 import type { SongId } from '../app/songs/song-id';
-import type { StreamerAdmin } from '../app/commands/streamer-admin';
+import type { Streamer, StreamerAdmin } from '../app/commands/streamer-admin';
 import type { Transcriber } from '../app/songs/transcriber';
 import type { CliOptions } from '../cli-options';
 import type { SolveEffort } from '../core/commands/settings';
@@ -131,6 +134,12 @@ export const MEMORY = token<RoomMemory>('memory');
 export const REMEMBER_CHAT = token<RememberChat>('rememberChat');
 /** The prompt `name`, read on every use: the room's own file, else the shared one. */
 export const PROMPT = token<(name: PromptName) => () => string>('prompt');
+/** What the bot is called here, the room's way of writing names, and its time zone. */
+export const BOT_NAMES = token<BotNames>('botNames');
+/** Who the streamer is: room-feed's word on it, else what room_config.json kept from last time. */
+export const STREAMER = token<Streamer>('streamer');
+/** The live video for a prompt, while the `screenshots` setting is on. */
+export const SCREENSHOTS = token<Screenshots>('screenshots');
 export const ROOM = token<RoomState>('room');
 export const OUTBOX = token<Outbox>('outbox');
 export const FEED = token<RoomFeed>('feed');
@@ -153,6 +162,8 @@ export const LYRICS_BREAKS = token<LyricsBreaks | null>('lyricsBreaks');
  * Every song break source the room asks, highest ranked first: the lyrics (when there are any),
  * then Shazam's backing titles, then the backing track stopping.
  */
+/** Where the songs in what the streamer said begin and end, by the sources the room has on. */
+export const SONG_SPANS = token<SongSpans>('songSpans');
 export const SONG_BREAK_SOURCES = token<readonly SongBreakSource[]>('songBreakSources');
 
 // malice.ts: null without Jev.

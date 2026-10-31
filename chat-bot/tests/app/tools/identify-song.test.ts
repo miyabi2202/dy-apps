@@ -1,3 +1,4 @@
+import { SongSpans } from '../../../src/app/songs/song-spans';
 import { SongId } from '../../../src/app/songs/song-id';
 import { Transcript } from '../../../src/core/songs/transcript';
 import { identifySongTool } from '../../../src/app/tools/identify-song';
@@ -67,6 +68,7 @@ function setup(
   const tool = identifySongTool({
     songId,
     room: fakeRoom({ transcript, now: () => now }),
+    songSpans: new SongSpans({ sources: [] }),
     maxLength: 49,
     log: silentLog,
   });

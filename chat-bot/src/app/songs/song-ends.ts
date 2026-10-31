@@ -4,6 +4,7 @@ import { lastBreak } from '../../core/songs/song-breaks';
 import { singingSong, type TranscriptLine } from '../../core/songs/transcript';
 import type { RoomRecord } from '../ports';
 import type { RoomState } from '../room/room-state';
+import type { SongSpans } from './song-spans';
 
 /** Why a song was taken to have ended, by what found the next one's start (see song-breaks.ts). */
 const WHY: Record<string, string> = {
@@ -14,7 +15,9 @@ const WHY: Record<string, string> = {
 };
 
 export interface SongEndsOptions {
-  room: Pick<RoomState, 'recentTranscript'> & Partial<Pick<RoomState, 'songSpans'>>;
+  room: Pick<RoomState, 'recentTranscript'>;
+  /** Where the songs in the transcript begin and end; without it only pauses and talk do. */
+  songSpans?: Pick<SongSpans, 'of'>;
   record: Pick<RoomRecord, 'add'>;
   /** The song last told to the room, and when (SongId's lastTold), to name the one that ended. */
   lastTold?: () => { song: { title: string }; at: number } | undefined;
@@ -39,7 +42,7 @@ export class SongEnds {
   hear(line: TranscriptLine): void {
     const { room, record, lastTold, timeZone } = this.options;
     const transcript = room.recentTranscript();
-    const spans = room.songSpans?.(transcript);
+    const spans = this.options.songSpans?.of(transcript);
     const song = singingSong(transcript, line, spans);
     if (!song) return;
     const last = this.song;

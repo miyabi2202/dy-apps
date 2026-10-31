@@ -6,6 +6,7 @@ import { SETTING_DEFAULTS, SETTINGS, settingsFrom } from '../../../src/core/comm
 import { OutOfCreditError } from '../../../src/core/errors';
 import { parseCliOptions } from '../../../src/cli-options';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
+import { fakeNames } from '../../support/fake-names';
 import { fakeRoom } from '../../support/fake-room';
 
 /** A room_config.json in memory, and everything written to it. */
@@ -215,6 +216,7 @@ test('when Jev runs out of money, auto-reply is turned off in the file too', asy
     outbox: { push: (m) => void sent.push(m) },
     judge: () => Promise.reject(new OutOfCreditError('no money')),
     room: fakeRoom({ settings: store, history, now: () => now }),
+    names: fakeNames(),
     log: { debug() {}, info() {}, warn() {}, error() {} },
     picker: () => Promise.resolve('{}'),
     pickTemplate: () => '',

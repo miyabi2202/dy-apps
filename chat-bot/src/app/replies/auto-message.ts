@@ -13,7 +13,7 @@ export interface AutoMessageOptions {
   outbox: Pick<Outbox, 'push'>;
   /** The prompt (auto-message.md), read each time so edits apply at once. */
   promptTemplate: () => string;
-  room: RoomState;
+  room: Pick<RoomState, 'prompt' | 'replyLimits'>;
   log: Log;
   /** Where the interval is kept (the room's room_config.json): `autoMessageIntervalSeconds`, 0 off. */
   settings: SettingsStore;

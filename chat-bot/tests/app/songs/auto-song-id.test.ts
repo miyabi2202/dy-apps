@@ -1,3 +1,4 @@
+import { SongSpans } from '../../../src/app/songs/song-spans';
 import { AutoSongId } from '../../../src/app/songs/auto-song-id';
 import type { SongAnswer } from '../../../src/core/songs/song-answer';
 import { Transcript, type TranscriptLine } from '../../../src/core/songs/transcript';
@@ -38,6 +39,7 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
       },
     },
     room: fakeRoom({ transcript, now: () => now }),
+    songSpans: new SongSpans({ sources: [] }),
     outbox: { push: ({ text }) => sent.push(text) },
     log: silentLog,
     settings,

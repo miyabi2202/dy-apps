@@ -18,7 +18,8 @@ import {
   OUTBOX,
   PROMPTS_DIR,
   ROOM,
-  ROOM_CONFIG,
+  SCREENSHOTS,
+  STREAMER,
   TOOL_RUNNER,
   TOOLS,
   USER_TALK,
@@ -38,6 +39,7 @@ export function registerBot(container: Container): void {
         ask: c.resolve(ASK_CLAUDE)('mention'),
         outbox: c.resolve(OUTBOX),
         room: c.resolve(ROOM),
+        screenshots: c.resolve(SCREENSHOTS),
         log: c.resolve(LOG),
         promptTemplate: mentionTemplate,
         userTalk: c.resolve(USER_TALK),
@@ -48,8 +50,7 @@ export function registerBot(container: Container): void {
         // while they are made: no cycle.
         tools: c.resolve(MCP_SERVER),
         admins: c.resolve(ADMINS),
-        streamerId: () =>
-          c.resolve(ADMINS).current()?.uid ?? c.resolve(ROOM_CONFIG)().streamer?.uid,
+        streamer: c.resolve(STREAMER),
       });
     })
     // Runs the tools a mention names with a `/`.

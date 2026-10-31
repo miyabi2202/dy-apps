@@ -66,7 +66,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   src/main.ts             #   entry: options (cli-options.ts), the container built, started and stopped
   src/wiring/             #   the IoC container (container.ts), what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot) and the FEATURES that subscribe to the room when the app starts (features.ts)
   src/core/               #   pure logic: mentions, prompt, reply splitting, viewer ids, chat record and talk record formats
-  src/app/                #   use cases: ChatBot (/ commands to tools, questions to the answerer), RoomFeed (chat and gifts in), MentionAnswerer (questions to Claude), RoomState (what prompts know about the room), Outbox, Transcriber; ports.ts for the outside
+  src/app/                #   use cases: ChatBot (/ commands to tools, questions to the answerer), RoomFeed (chat and gifts in), MentionAnswerer (questions to Claude), RoomState (what prompts know about the room), BotNames, Screenshots and SongSpans (what was carved out of it), Outbox, Transcriber; ports.ts for the outside
   src/adapters/           #   room-feed, the Claude CLI, the ASR process, files and logging
   src/app/tools/          #   the bot's tools for Claude (identify-song.ts, identify-bgm.ts, press-like.ts…, setting-tool.ts) and the declarative-tools.ts that builds the ones from tools/
   src/adapters/mcp/       #   the MCP server in the bot's process that gives the tools to Claude (rpc.ts, server.ts)

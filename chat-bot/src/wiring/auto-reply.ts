@@ -6,7 +6,7 @@ import type { AskModel } from '../app/ports';
 import type { Container } from './container';
 import type { FeatureRegistry } from './features';
 import {
-  ADMINS,
+  BOT_NAMES,
   ASK_CLAUDE,
   ASK_CODEX,
   AUTO_MESSAGE,
@@ -21,6 +21,7 @@ import {
   ROOM,
   ROOM_CONFIG,
   SETTINGS,
+  STREAMER,
   THANKER,
   TOOLS,
   USER_TALK,
@@ -57,7 +58,7 @@ export function registerAutoReply(container: Container, features: FeatureRegistr
     .register(AUTO_REPLY, (c) => {
       const options = c.resolve(OPTIONS);
       const room = c.resolve(ROOM);
-      const admins = c.resolve(ADMINS);
+      const streamer = c.resolve(STREAMER);
       const roomConfig = c.resolve(ROOM_CONFIG);
       const bot = c.resolve(BOT);
       const tools = c.resolve(TOOLS);
@@ -67,6 +68,7 @@ export function registerAutoReply(container: Container, features: FeatureRegistr
         judge: c.resolve(JUDGE)('about-the-bot'),
         settings: c.resolve(SETTINGS),
         room,
+        names: c.resolve(BOT_NAMES),
         log: c.resolve(LOG),
         picker: options.codex
           ? c.resolve(ASK_CODEX)('reply-pick', {
@@ -77,7 +79,7 @@ export function registerAutoReply(container: Container, features: FeatureRegistr
           : noPicker,
         pickTemplate: c.resolve(PROMPT)('replyPick'),
         reply: (target) => bot.replyUnprompted(target),
-        streamer: () => admins.current(),
+        streamer: () => streamer.current(),
         focus: () => roomConfig().focus,
         // What the tools listen for, as the tools are now (the room's switch on and off).
         topics: () =>

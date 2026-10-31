@@ -47,7 +47,7 @@ function setup(
     promptTemplate: () => '{{question}}',
     tools,
     admins: options.admins,
-    streamerId: () => options.streamerId,
+    streamer: { id: () => options.streamerId },
   });
   const ask = async (mention: Partial<Mention> = {}) => {
     answerer.ask({ asker: '阿明', question: '在吗', history: [], ...mention });

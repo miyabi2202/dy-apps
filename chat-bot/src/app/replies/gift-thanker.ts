@@ -20,7 +20,7 @@ export interface GiftThankerOptions {
   /** Waits `ms`; tests pass one that doesn't. */
   sleep?: (ms: number) => Promise<void>;
   /** The chat and the rest of what the prompt knows about the room. */
-  room: RoomState;
+  room: Pick<RoomState, 'now' | 'prompt' | 'askerNote' | 'recentChat' | 'replyLimits'>;
   /** Each viewer's past exchanges with the bot; the thanks is added to the giver's. */
   userTalk?: UserTalk;
   /** Douyin's chat length limit. */

@@ -27,6 +27,7 @@ import {
   SONG_BREAK_SOURCES,
   SONG_ID,
   SPAWN_WORKER,
+  STREAMER,
   THANKER,
   TOOLS,
   TRANSCRIBER,
@@ -562,4 +563,15 @@ test('the song features listen once the app has started, though nothing resolved
   sing('丙');
   await settle();
   expect(bot.sent).toEqual(['加油']);
+});
+
+test('the streamer is room-feed’s word on who it is, else the room_config.json’s from last time', () => {
+  const bot = build(
+    ['--no-asr'],
+    {},
+    { 'room_config.json': JSON.stringify({ streamer: { nickname: '雅', uid: '7' } }) },
+  );
+  const streamer = bot.container.resolve(STREAMER);
+  expect(streamer.current()).toBeNull();
+  expect(streamer.id()).toBe('7');
 });

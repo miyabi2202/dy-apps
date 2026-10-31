@@ -13,7 +13,8 @@ function setup(told?: { title: string; at: number }, spans: SongSpan[] = []) {
   const records: ChatRecord[] = [];
   const room = fakeRoom({ transcript, now: () => now });
   const songEnds = new SongEnds({
-    room: { recentTranscript: () => room.recentTranscript(), songSpans: () => spans },
+    room: { recentTranscript: () => room.recentTranscript() },
+    songSpans: { of: () => spans },
     record: { add: (record) => records.push(record) },
     lastTold: () => told && { song: { title: told.title }, at: at + told.at * 1000 },
     timeZone: () => 'Asia/Shanghai',

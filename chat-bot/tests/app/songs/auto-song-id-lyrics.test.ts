@@ -1,3 +1,4 @@
+import { SongSpans } from '../../../src/app/songs/song-spans';
 import { AutoSongId } from '../../../src/app/songs/auto-song-id';
 import { SongId } from '../../../src/app/songs/song-id';
 import { Transcript, type TranscriptLine } from '../../../src/core/songs/transcript';
@@ -34,6 +35,7 @@ function setup(titles: string[]) {
   const auto = new AutoSongId({
     songId,
     room: fakeRoom({ transcript, now: () => now }),
+    songSpans: new SongSpans({ sources: [] }),
     outbox: { push: ({ text }) => sent.push(text) },
     log: silentLog,
     settings: fakeSettings({ autoSongId: true }),
