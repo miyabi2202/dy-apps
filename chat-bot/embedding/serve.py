@@ -1,12 +1,12 @@
 """Local text-embedding service for the chat bot.
 
 Loads one embedding model once (Qwen3-Embedding-0.6B by default, on the Apple GPU in float16) and
-answers on 127.0.0.1 only, for every bot running on this machine at once (each room's bot asks it;
-unlike the speech worker, it isn't one bot's at a time):
+answers on 127.0.0.1 only, for the bot:
 
     GET  /info   -> {"model": "Qwen/Qwen3-Embedding-0.6B", "dims": 1024, "cutoff": 0.58}
     POST /embed  {"texts": ["…"], "kind": "query" | "document"}
                  -> {"model": "…", "vectors": [[…], …]}
+    POST /quit   -> {"quitting": true}, then the service exits (the bot asks when its stream is over)
 
 Vectors are normalized, so a dot product is their cosine similarity. A `query` (what's being said
 in the room now) gets the model's task instruction in front, a `document` (a memory) doesn't:
@@ -15,13 +15,15 @@ memory first more often than without it. `cutoff` is the similarity under which 
 as not about what's being said, measured for the model in that eval (null when it hasn't been);
 `--cutoff` overrides it.
 
-Run it by hand before the bot, and leave it running:
+Run it by hand before the bot. Only one bot runs at a time, so when room-feed is gone (the stream
+is over) the bot asks it to quit, as it does the speech service; a bot that's only restarted
+doesn't.
 
     uv run serve.py                       # port 8759, Qwen3-Embedding-0.6B
     uv run serve.py --model Qwen/Qwen3-Embedding-4B --port 8759
 
 The bot works without it: it then shows only its latest memories, as before. The first run
-downloads the model from Hugging Face. Stop it with Ctrl+C.
+downloads the model from Hugging Face. Stop it with Ctrl+C, or `curl -X POST localhost:8759/quit`.
 """
 
 from __future__ import annotations
@@ -106,6 +108,12 @@ def handler(model_name: str, cutoff: float | None, encode: Encode) -> type[BaseH
             self.answer(200, {"model": model_name, "dims": dims[0], "cutoff": cutoff})
 
         def do_POST(self) -> None:
+            if self.path == "/quit":
+                self.answer(200, {"quitting": True})
+                print("quitting: a bot asked", file=sys.stderr, flush=True)
+                # From another thread: shutdown() waits for serve_forever, which runs this request.
+                threading.Thread(target=self.server.shutdown, daemon=True).start()
+                return
             if self.path != "/embed":
                 self.answer(404, {"error": "not found"})
                 return

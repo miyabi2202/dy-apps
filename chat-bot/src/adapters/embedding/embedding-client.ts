@@ -14,12 +14,16 @@ export function embeddingClient({
   timeoutMs?: number;
 }): Embedder {
   const url = `http://127.0.0.1:${port}`;
-  const call = async (path: string, body?: object): Promise<Record<string, unknown>> => {
+  const call = async (
+    path: string,
+    body?: object,
+    ms = timeoutMs,
+  ): Promise<Record<string, unknown>> => {
     const response = await fetch(`${url}${path}`, {
       method: body ? 'POST' : 'GET',
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(ms),
     });
     if (!response.ok) throw new Error(`embedding service answered ${response.status}`);
     return (await response.json()) as Record<string, unknown>;
@@ -41,6 +45,10 @@ export function embeddingClient({
         throw new Error('embedding service gave no vector for each text');
       }
       return vectors;
+    },
+    async quit() {
+      // The bot is exiting: don't hold it up for long.
+      await call('/quit', {}, 2000);
     },
   };
 }

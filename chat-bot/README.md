@@ -56,7 +56,7 @@ It needs [room-feed](../room-feed) running for the room and logged in as the bot
 uv run --directory asr transcribe.py --serve 8758
 ```
 
-then, once it prints `[asr] serving on 127.0.0.1:8758`, the embedding service, and leave it running too (one serves every room's bot, and it's not stopped when a stream ends):
+then, once it prints `[asr] serving on 127.0.0.1:8758`, the embedding service, and leave it running too (when room-feed is gone, the bot tells it to quit along with the speech service):
 
 ```sh
 uv run --directory embedding serve.py

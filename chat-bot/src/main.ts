@@ -23,19 +23,20 @@ if (!options) {
 
 const log = createLogger(resolve(options.logsDir));
 const app = buildContainer({ options, packageDir, log, env: process.env }).resolve(APP);
-const shutdown = ({ code = 0, ...options }: { quitSpeech?: boolean; code?: number } = {}) => {
-  app.stop(options);
-  log.on('finish', () => process.exit(code));
-  // After the event that stopped it: the rest of its listeners (room-feed's 「ended」, logged) still run.
-  setImmediate(() => log.end());
+const shutdown = ({ code = 0, ...options }: { quitServices?: boolean; code?: number } = {}) => {
+  void app.stop(options).finally(() => {
+    log.on('finish', () => process.exit(code));
+    // After the event that stopped it: the rest of its listeners (room-feed's 「ended」, logged) still run.
+    setImmediate(() => log.end());
+  });
 };
 process.on('SIGINT', () => shutdown());
 process.on('SIGTERM', () => shutdown());
 // room-feed exits when the stream has ended (or its page showed another room): so does the bot,
-// and the speech service with it.
+// and the speech and embedding services with it.
 app.onRoomFeedGone((detail) => {
   log.warn('room-feed is gone, stopping', detail ? { detail } : {});
-  shutdown({ quitSpeech: true });
+  shutdown({ quitServices: true });
 });
 try {
   await app.start();
