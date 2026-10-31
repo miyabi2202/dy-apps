@@ -16,6 +16,7 @@ import {
   memoryLength,
   NOTE_LIMIT,
   ROOM_MEMORY_LIMIT,
+  STREAMER_NOTE_LIMIT,
   type MemoryChange,
 } from '../../core/memory/memory-text';
 import type { AskModel, Log, Memory } from '../ports';
@@ -51,6 +52,11 @@ export interface RememberChatOptions {
    * since a few days' chat (a thousand lines and more) is a lot to read and nobody waits on it.
    */
   timeoutMs?: number;
+}
+
+/** How full a memory file is, like `994/1000`, for the prompts to say how much room is left. */
+function usage(text: string, limit: number): string {
+  return `${memoryLength(text)}/${limit}`;
 }
 
 /** What one run did. */
@@ -112,7 +118,7 @@ export class RememberChat {
       .map(({ userId, nickname, lines }) =>
         [
           `### ${nickname}（userId: ${userId}）`,
-          '现在记着的：',
+          `现在记着的（已用 ${usage(memory.note(userId), NOTE_LIMIT)} 字）：`,
           memory.note(userId).trim() || '（无）',
           '这场 TA 自己发的弹幕：',
           digestText(lines, { maxChars: 3000 }),
@@ -156,10 +162,10 @@ export class RememberChat {
         roomPrompt(),
         {
           memory: memory.room().trim() || '（无）',
+          roomUsed: usage(memory.room(), ROOM_MEMORY_LIMIT),
           streamerNote: (streamer && memory.note(streamer).trim()) || '（无）',
+          streamerUsed: usage(streamer ? memory.note(streamer) : '', STREAMER_NOTE_LIMIT),
           digest: digestText(lines, { maxChars: 60_000 }),
-          roomLimit: ROOM_MEMORY_LIMIT,
-          noteLimit: NOTE_LIMIT,
         },
         { fillWhen: 'present' },
       ),
@@ -182,7 +188,7 @@ export class RememberChat {
         { scope: 'note', userId: streamer },
         memory.note(streamer),
         memoryChangesOf(answer.streamer),
-        NOTE_LIMIT,
+        STREAMER_NOTE_LIMIT,
         (text) => memory.setNote(streamer, text),
       );
     }

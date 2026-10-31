@@ -46,7 +46,8 @@ function setup({
     readSince: () => [record.join('\n')],
     mark: { get: () => marks.value, set: (ms) => (marks.value = ms) },
     notesPrompt: () => 'NOTES {{viewers}}',
-    roomPrompt: () => 'ROOM {{memory}} | {{streamerNote}} | {{digest}}',
+    roomPrompt: () =>
+      'ROOM {{memory}} {{roomUsed}} | {{streamerNote}} {{streamerUsed}} | {{digest}}',
     streamerId: () => 's-1',
     bot: { name: '默认关闭', id: 'bot' },
     isPrivate: () => isPrivate,
@@ -106,6 +107,24 @@ test("each regular's note gets the changes Claude names for them, the room and s
   // A few days' chat is a lot to read: each question gets 10 minutes, not the room's 4.
   expect(asked.map((q) => q.timeoutMs)).toEqual([600_000, 600_000]);
   expect(asked[1]!.prompt).toContain('今天先唱晴天');
+});
+
+test('the prompts say how full each file is, and the streamer may write up to 2000 characters', async () => {
+  const { remember, store, asked } = setup({
+    record: RECORD,
+    answers: {
+      notes: { notes: [] },
+      room: {
+        room: [],
+        streamer: [{ action: 'add', content: '字'.repeat(1500), old: '' }],
+      },
+    },
+  });
+  store.notes['u-1'] = '爱听周杰伦\n';
+  expect(await remember.run()).toMatchObject({ changes: 1 });
+  expect(store.notes['s-1']).toBe(`${'字'.repeat(1500)}\n`);
+  expect(asked[0]!.prompt).toContain('现在记着的（已用 5/1000 字）：\n爱听周杰伦');
+  expect(asked[1]!.prompt).toContain('主播叫咿咿 5/4000 | （无） 0/2000');
 });
 
 test('only what came after the mark is read, and nothing new asks nothing', async () => {

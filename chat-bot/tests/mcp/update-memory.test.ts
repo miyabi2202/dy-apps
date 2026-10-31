@@ -67,3 +67,13 @@ test('bad arguments say what is wrong', async () => {
   );
   expect(store.notes).toEqual({});
 });
+
+test("the streamer's note may hold 2000 characters, a viewer's 1000", async () => {
+  const { store, tool } = setup();
+  const args = { scope: 'note', action: 'add', content: '字'.repeat(1500) };
+  const viewer = await tool.call(args, { asker: '阿明', userId: 'u-2', question: '' });
+  expect(viewer.isError).toBe(true);
+  const streamer = await tool.call(args, { asker: '咿咿', userId: 's-1', question: '' });
+  expect(JSON.parse(streamer.text)).toMatchObject({ ok: true, used: 1500, limit: 2000 });
+  expect(store.notes['s-1']).toBe(`${'字'.repeat(1500)}\n`);
+});

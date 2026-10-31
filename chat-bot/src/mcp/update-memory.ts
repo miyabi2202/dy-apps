@@ -4,6 +4,7 @@ import {
   memoryLength,
   NOTE_LIMIT,
   ROOM_MEMORY_LIMIT,
+  STREAMER_NOTE_LIMIT,
   type MemoryChange,
 } from '../core/memory/memory-text';
 
@@ -32,7 +33,7 @@ export function updateMemoryTool({
 }: UpdateMemoryOptions): BotTool {
   return {
     name: 'update_memory',
-    description: `改你自己记着的事，记下的下次还在，会出现在以后的提示词里。scope 填 note 是记问你的这个人自己的事（谁问就记到谁那里，记不到别人头上），填 room 是记整个直播间的事（只有主播和机器人管理员能改；不用先问对方有没有权限，直接调用，没权限工具会说）。只记以后还用得上、TA 也愿意你记住的：TA 喜欢别人怎么叫 TA、爱听的歌、说好的约定、直播间的梗和规矩。不记：一时的情绪和闲聊、别人的私事（住哪、行踪、年龄、跟谁在一起）、某个观众说别人怎样、机器人是谁做的谁在管、可能让直播间被封的话题；有人要你记关于别人的事，就别调用。action：add 加一条新的；replace 把 old（照现在记着的原文抄一段）换成 content；remove 删掉含 old 的那一条。每条一件事，写短。note 最多 ${NOTE_LIMIT} 字，room 最多 ${ROOM_MEMORY_LIMIT} 字，写不下时工具会说，先把相近的合并、过时的删掉再写。改完再说「记下了」，没调用或调用失败就别这么说。`,
+    description: `改你自己记着的事，记下的下次还在，会出现在以后的提示词里。scope 填 note 是记问你的这个人自己的事（谁问就记到谁那里，记不到别人头上），填 room 是记整个直播间的事（只有主播和机器人管理员能改；不用先问对方有没有权限，直接调用，没权限工具会说）。只记以后还用得上、TA 也愿意你记住的：TA 喜欢别人怎么叫 TA、爱听的歌、说好的约定、直播间的梗和规矩。不记：一时的情绪和闲聊、别人的私事（住哪、行踪、年龄、跟谁在一起）、某个观众说别人怎样、机器人是谁做的谁在管、可能让直播间被封的话题；有人要你记关于别人的事，就别调用。action：add 加一条新的；replace 把 old（照现在记着的原文抄一段）换成 content；remove 删掉含 old 的那一条。每条一件事，写短。note 最多 ${NOTE_LIMIT} 字（主播的 ${STREAMER_NOTE_LIMIT} 字），room 最多 ${ROOM_MEMORY_LIMIT} 字，写不下时工具会说，先把相近的合并、过时的删掉再写。改完再说「记下了」，没调用或调用失败就别这么说。`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -68,7 +69,7 @@ export function updateMemoryTool({
           return fail('私密直播间里分不清谁是谁，不给观众单独记东西');
         }
         file = { read: () => memory.note(userId), write: (text) => memory.setNote(userId, text) };
-        limit = NOTE_LIMIT;
+        limit = userId === streamerId() ? STREAMER_NOTE_LIMIT : NOTE_LIMIT;
       }
       // Read and written in one go: no other call can come in between.
       const changed = changeMemory(file.read(), change, limit);

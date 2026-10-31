@@ -20,7 +20,7 @@
 
 - 一条一件事，写短。add 加一条新的；replace 把 old（照现在记着的原文抄一段，只能对得上一处）换成 content；remove 删掉含 old 的那一条。
 - 已经记着的别重复加；新说的跟记着的矛盾，就 replace 成新的；过时的 remove。
-- room 最多 {{roomLimit}} 字，streamer 最多 {{noteLimit}} 字，快满了就把相近的合并成一条。
+- 每个小本子有字数上限，现在已用 / 上限：room {{roomUsed}} 字，streamer {{streamerUsed}} 字。快满了就把相近的合并成一条、过时的删掉；写不下的改动会被丢掉。
 - 没什么值得改的就给空数组，不要硬凑。
 
 按要求的 JSON 格式回答。
