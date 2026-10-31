@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { LyricsSearch } from '@dy-apps/lyrics-search';
 import { RoomFeedClient } from '@dy-apps/room-feed-protocol';
 import { connectWorker } from '../adapters/asr-worker';
+import { embeddingClient } from '../adapters/embedding/embedding-client';
 import { claudeCli } from '../adapters/models/claude-cli';
 import { codexCli } from '../adapters/models/codex-cli';
 import { roomFeedEvents } from '../adapters/room-feed/room-feed-events';
@@ -30,6 +31,7 @@ import {
   ROOM_EVENTS,
   ROOM_FILES,
   SPAWN_WORKER,
+  EMBEDDER,
 } from './tokens';
 
 /**
@@ -50,6 +52,11 @@ export function registerAdapters(container: Container): void {
     // The speech service, started by hand before the bot, keeps its models loaded across restarts
     // of the bot: connect to it.
     .register(SPAWN_WORKER, (c) => connectWorker({ port: c.resolve(OPTIONS).asrPort }))
+    // The embedding service, started by hand like the speech service; the bot does without it.
+    .register(EMBEDDER, (c) => {
+      const port = c.resolve(OPTIONS).embeddingPort;
+      return port ? embeddingClient({ port }) : null;
+    })
     .register(CLAUDE_CLI, (c) => {
       const options = c.resolve(OPTIONS);
       // An empty working directory, so Claude Code picks up no project's CLAUDE.md or settings.

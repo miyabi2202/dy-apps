@@ -55,8 +55,27 @@ export interface LifeLog {
 export interface Thoughts {
   /** The latest `count`, oldest first, one a line (`2026-10-31：…`); empty when there are none. */
   recent(count: number): string;
+  /** Every one of them, oldest first, a line each. */
+  all(): string[];
   /** Adds `entries`, each about the stream on `date` (`2026-10-31`, or a span of days). */
   add(date: string, entries: readonly string[]): void;
+}
+
+/**
+ * A text-embedding model (chat-bot/embedding/, a local service): texts to normalized vectors, so
+ * a dot product says how alike two texts are in meaning.
+ */
+export interface Embedder {
+  /** Which model it is (vectors of different models can't be compared), and its cutoff: the similarity under which a memory isn't about the query (null when not measured). */
+  info(): Promise<{ model: string; cutoff: number | null }>;
+  /** `query` for what's being said now, `document` for a stored memory: the model treats them apart. */
+  embed(texts: readonly string[], kind: 'query' | 'document'): Promise<number[][]>;
+}
+
+/** The vectors already made for stored memories, by model and text, so each is embedded once. */
+export interface VectorCache {
+  get(model: string, texts: readonly string[]): (number[] | undefined)[];
+  put(model: string, entries: readonly (readonly [text: string, vector: number[]])[]): void;
 }
 
 /** Each viewer's past exchanges with the bot, by user id, so a regular gets continuity. */

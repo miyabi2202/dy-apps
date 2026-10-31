@@ -35,7 +35,7 @@ function setup({
   const asked: Question[] = [];
   const marks = { value: mark };
   /** The thoughts store in memory: `date：text` a line. */
-  const thoughtsStore: Thoughts = {
+  const thoughtsStore: Pick<Thoughts, 'recent' | 'add'> = {
     recent: (count) => (thoughts ?? []).slice(-count).join('\n'),
     add: (date, entries) => thoughts?.push(...entries.map((entry) => `${date}：${entry}`)),
   };

@@ -23,6 +23,7 @@ import type { BotMcpServer } from '../adapters/mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { AutoMessage } from '../app/replies/auto-message';
 import type { LifeWriter } from '../app/life/life-writer';
+import type { MemoryRecall } from '../app/memory/memory-recall';
 import type { OnSing } from '../app/songs/on-sing';
 import type { SongEnds } from '../app/songs/song-ends';
 import type { SongBreakSource } from '../core/songs/song-breaks';
@@ -32,6 +33,7 @@ import type {
   AskModel,
   BotTalk,
   DefinedTool,
+  Embedder,
   Judge,
   LifeLog,
   Log,
@@ -43,6 +45,7 @@ import type {
   SpawnWorker,
   Thoughts,
   UserTalk,
+  VectorCache,
 } from '../app/ports';
 import type { BotTool } from '../core/tools/bot-tool';
 import type { RememberChat } from '../app/memory/remember-chat';
@@ -89,6 +92,8 @@ export const ROOM_API =
   >('roomApi');
 export const ROOM_EVENTS = token<RoomEvents>('roomEvents');
 export const SPAWN_WORKER = token<SpawnWorker>('spawnWorker');
+/** The local embedding service (embedding/serve.py); null with --embedding-port 0. */
+export const EMBEDDER = token<Embedder | null>('embedder');
 /** `claude -p` for this room. */
 export const CLAUDE_CLI = token<AskModel>('claudeCli');
 /** `codex exec` with the room's usual settings, which `over` changes. */
@@ -135,6 +140,10 @@ export const USER_TALK = token<UserTalk>('userTalk');
 export const MEMORY = token<RoomMemory>('memory');
 /** The bot's own thoughts after the room's streams, in memory/thoughts.md. */
 export const THOUGHTS = token<Thoughts>('thoughts');
+/** The vectors made for stored memories, in data/embeddings/, shared by every room's bot. */
+export const VECTORS = token<VectorCache>('vectors');
+/** Which of its own memories every prompt shows: the latest, and older ones that fit what's said. */
+export const RECALL = token<MemoryRecall>('recall');
 /** Reads the chat record since last time into memory (`pnpm remember`). */
 export const REMEMBER_CHAT = token<RememberChat>('rememberChat');
 /** The prompt `name`, read on every use: the room's own file, else the shared one. */

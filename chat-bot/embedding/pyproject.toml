@@ -1,0 +1,19 @@
+[project]
+name = "dy-apps-chat-bot-embedding"
+version = "0.1.0"
+description = "Local text-embedding service for the chat bot: Qwen3-Embedding on the GPU, so the bot can recall the memories that fit what's being said in the room."
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "numpy",
+  "sentence-transformers>=5.0",
+  "torch>=2.4",
+  "transformers>=4.51",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.uv]
+package = false

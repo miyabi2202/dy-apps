@@ -31,6 +31,9 @@ import { ChatHistory } from '../core/chat/chat-history';
 import { RecentGifts } from '../core/chat/recent-gifts';
 import { errorMessage } from '../core/errors';
 import { LIFE_DAYS_SHOWN, lifeText } from '../core/prompts/life';
+import { MemoryRecall } from '../app/memory/memory-recall';
+import { livePersonaBase } from '../adapters/files/prompt-files';
+import { vectorFiles } from '../adapters/files/vector-cache';
 import { localDate } from '../core/prompts/local-time';
 import { Transcript } from '../core/songs/transcript';
 import type { Container } from './container';
@@ -44,8 +47,11 @@ import {
   CHAT_DIR,
   FEED,
   GIFTS,
+  EMBEDDER,
   HISTORY,
   LIFE,
+  RECALL,
+  VECTORS,
   LOG,
   MEMORY,
   REMEMBER_CHAT,
@@ -79,6 +85,22 @@ import {
  * fills in, and the way the bot talks (the outbox) and listens (the feed).
  */
 export function registerRoom(container: Container, features: FeatureRegistry): void {
+  // What the room says has recall look again for older memories that fit (see RECALL).
+  features.add('recall', (c) => {
+    const recall = c.resolve(RECALL);
+    const heard = busFeature('recall', c.resolve(BUS), {
+      chat: () => recall.hear(),
+      heard: () => recall.hear(),
+    });
+    return {
+      name: 'recall',
+      start: () => heard.start(),
+      stop: () => {
+        heard.stop();
+        recall.stop();
+      },
+    };
+  });
   features.add('recent-gifts', (c) => {
     const [gifts, room] = [c.resolve(GIFTS), c.resolve(ROOM)];
     return busFeature('recent-gifts', c.resolve(BUS), {
@@ -182,6 +204,32 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
       });
     })
     .register(THOUGHTS, (c) => thoughtsFile(join(c.resolve(ROOM_DIR), 'memory', 'thoughts.md')))
+    .register(VECTORS, (c) => vectorFiles(join(resolve(c.resolve(OPTIONS).dataDir), 'embeddings')))
+    // Its latest thoughts and her latest days in every prompt, and, with the embedding service,
+    // older ones that fit what's being said, looked for a moment after the room says something.
+    .register(RECALL, (c) => {
+      const [roomConfig, history, transcript, names] = [
+        c.resolve(ROOM_CONFIG),
+        c.resolve(HISTORY),
+        c.resolve(TRANSCRIPT),
+        c.resolve(BOT_NAMES),
+      ];
+      return new MemoryRecall({
+        embedder: c.resolve(EMBEDDER),
+        vectors: c.resolve(VECTORS),
+        thoughts: c.resolve(THOUGHTS),
+        life: c.resolve(LIFE),
+        persona: livePersonaBase({
+          roomDir: c.resolve(ROOM_DIR),
+          file: () => roomConfig().persona,
+        }),
+        speech: () => transcript.recent(c.resolve(OPTIONS).transcriptMs).map((line) => line.text),
+        chat: () => history.recent().map((line) => line.content),
+        names: () => [names.botName, ...names.aliases()],
+        recentDays: LIFE_DAYS_SHOWN,
+        log: c.resolve(LOG),
+      });
+    })
     // `pnpm remember`: the chat record since last time, read into the notes and memory.md by Claude,
     // and then what the bot itself made of it, in its persona (memory/thoughts.md).
     .register(REMEMBER_CHAT, (c) => {
@@ -262,11 +310,12 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
           sharedDir: join(c.resolve(PROMPTS_DIR), 'personas'),
           file: () => roomConfig().persona,
           log: c.resolve(LOG),
-          // Her own latest days (see life.ts), shared by every room that plays her.
-          life: (base) => lifeText(c.resolve(LIFE).recent(base, LIFE_DAYS_SHOWN)),
+          // Her own days (see life.ts), shared by every room that plays her: the latest, and older
+          // ones that fit what's being said (see RECALL).
+          life: (base) => lifeText(c.resolve(RECALL).lifeDays(base)),
         }),
         memory: c.resolve(MEMORY),
-        thoughts: c.resolve(THOUGHTS),
+        thoughts: () => c.resolve(RECALL).thoughtsText(),
         streamer: c.resolve(STREAMER),
         isPrivate: () => roomConfig().private,
         // What viewers ask about Douyin itself (灯牌…), shared by every room.

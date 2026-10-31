@@ -46,7 +46,7 @@ export interface RememberChatOptions {
     prompt: () => string;
     /** Who the bot plays in the room, as every prompt has it. */
     persona: () => string;
-    store: Thoughts;
+    store: Pick<Thoughts, 'recent' | 'add'>;
   };
   /** Who the streamer is: their note is about the whole stream, not a viewer's. */
   streamer: Pick<Streamer, 'id'>;

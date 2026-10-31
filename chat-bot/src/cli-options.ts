@@ -13,7 +13,7 @@ export const USAGE =
   '       [--no-asr] [--transcript-minutes 5] [--screenshot] [--queue 20]\n' +
   '       [--send-interval 10] [--data data/] [--config config.json] [--auto-reply-threshold 1]\n' +
   '       [--auto-reply-interval 60] [--thanks-threshold 99999] [--codex gpt-6-luna] [--auto-song-id]\n' +
-  '       [--malice-watch] [--asr-port 8758] [--no-lyrics-search] [--mcp-port 0]';
+  '       [--malice-watch] [--asr-port 8758] [--embedding-port 8759] [--no-lyrics-search] [--mcp-port 0]';
 
 /** The command line, checked and converted; see the README for what each option does. */
 export interface CliOptions {
@@ -45,6 +45,8 @@ export interface CliOptions {
   codex: string;
   /** The local port of the speech service, which outlives the bot. */
   asrPort: number;
+  /** The local port of the embedding service (embedding/serve.py) for memory recall; 0 for none. */
+  embeddingPort: number;
   /** Name songs from NetEase's lyrics search before asking Codex. */
   lyricsSearch: boolean;
   /** The local port of the tools' server; 0 lets the OS pick a free one. */
@@ -118,6 +120,9 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       codex: { type: 'string', default: 'gpt-6-luna' },
       // The speech service (asr/transcribe.py --serve), started by hand before the bot, listens here.
       'asr-port': { type: 'string', default: '8758' },
+      // The embedding service (embedding/serve.py), started by hand, which picks the older memories
+      // that fit what's being said; 0 turns that off. Without it the bot shows its latest ones only.
+      'embedding-port': { type: 'string', default: '8759' },
       // /识歌 and /自动识歌 search the lyrics on NetEase first; --no-lyrics-search always asks Codex.
       'lyrics-search': { type: 'boolean', default: true },
       // The tools' server (identify_song, set_thanks_threshold…, which Claude may call while answering)
@@ -156,6 +161,7 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     codex: values.codex,
     given,
     asrPort: Number(values['asr-port']),
+    embeddingPort: Number(values['embedding-port']),
     lyricsSearch: values['lyrics-search'],
     mcpPort,
   };

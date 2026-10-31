@@ -16,6 +16,7 @@ import {
   CLAUDE_CLI,
   CODEX_CLI,
   DOWNLOADS,
+  EMBEDDER,
   JEV_CLIENT,
   LYRICS_SEARCH,
   MALICE_WATCH,
@@ -109,6 +110,8 @@ function build(
     }))
     .register(ROOM_EVENTS, () => ({ ...events, connect: () => void connected++ }))
     .register(SPAWN_WORKER, () => spawnWorker)
+    // No embedding service: recall shows the latest memories only.
+    .register(EMBEDDER, () => null)
     .register(CLAUDE_CLI, () => claude)
     .register(CODEX_CLI, () => (over) => {
       codexMade.push(over);

@@ -7,21 +7,21 @@ import type { Thoughts } from '../../app/ports';
  * `2026-10-31：…`, appended and never rewritten, so a hand edit stays.
  */
 export function thoughtsFile(path: string): Thoughts {
+  const all = (): string[] => {
+    let text: string;
+    try {
+      text = readFileSync(path, 'utf8');
+    } catch {
+      return [];
+    }
+    return text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  };
   return {
-    recent(count) {
-      let text: string;
-      try {
-        text = readFileSync(path, 'utf8');
-      } catch {
-        return '';
-      }
-      return text
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .slice(-count)
-        .join('\n');
-    },
+    all,
+    recent: (count) => all().slice(-count).join('\n'),
     add(date, entries) {
       // One line an entry, so a line break in one can't start another.
       const lines = entries
