@@ -44,10 +44,3 @@ test('a cutoff not measured is null; an answer it cannot use fails', async () =>
   const down = fakeFetch({ status: 500 });
   await expect(embeddingClient({ port: 1, fetch: down.fetch }).info()).rejects.toThrow('500');
 });
-
-test('asks the service to quit', async () => {
-  const quit = fakeFetch({ body: { quitting: true } });
-  await embeddingClient({ port: 8759, fetch: quit.fetch }).quit();
-  expect(quit.asked[0]!.url).toBe('http://127.0.0.1:8759/quit');
-  expect(quit.asked[0]!.init!.method).toBe('POST');
-});

@@ -70,8 +70,6 @@ export interface Embedder {
   info(): Promise<{ model: string; cutoff: number | null }>;
   /** `query` for what's being said now, `document` for a stored memory: the model treats them apart. */
   embed(texts: readonly string[], kind: 'query' | 'document'): Promise<number[][]>;
-  /** Asks the service to exit, once the stream is over. */
-  quit(): Promise<void>;
 }
 
 /** The vectors already made for stored memories, by model and text, so each is embedded once. */

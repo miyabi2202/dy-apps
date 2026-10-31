@@ -39,7 +39,6 @@ function setup({
       embedded.push({ texts, kind });
       return Promise.resolve(texts.map(vectorOf));
     },
-    quit: () => Promise.resolve(),
   };
   const store = new Map<string, number[]>();
   const vectors: VectorCache = {

@@ -1,4 +1,3 @@
-import { errorMessage } from '../core/errors';
 import { whenRoomFeedGone } from '../app/room/room-feed';
 import type { Container } from './container';
 import {
@@ -9,7 +8,6 @@ import {
   BOT,
   BOT_CONFIG,
   DOWNLOADS,
-  EMBEDDER,
   FEATURES,
   LOG,
   MCP_SERVER,
@@ -29,10 +27,9 @@ export interface App {
   start(): Promise<void>;
   /**
    * Stops it, from a signal; a start that's still waiting for the models then doesn't go on.
-   * With `quitServices`, the speech and embedding services are told to exit too. Resolves once
-   * they have been (at once without it).
+   * With `quitSpeech`, the speech service is told to exit too.
    */
-  stop(options?: { quitServices?: boolean }): Promise<void>;
+  stop(options?: { quitSpeech?: boolean }): void;
   /** Called once when room-feed goes away after the bot was connected to it. */
   onRoomFeedGone(handler: (detail?: string) => void): void;
 }
@@ -52,7 +49,6 @@ export function registerApp(container: Container): void {
     const config = c.resolve(BOT_CONFIG);
     const downloads = c.resolve(DOWNLOADS);
     const features = c.resolve(FEATURES);
-    const embedder = c.resolve(EMBEDDER);
     let stopping = false;
     return {
       async start() {
@@ -87,22 +83,15 @@ export function registerApp(container: Container): void {
           void autoMessage.loop();
         }
       },
-      async stop({ quitServices = false } = {}) {
+      stop({ quitSpeech = false } = {}) {
         stopping = true;
-        log.info('stopping', quitServices ? { quitServices } : {});
+        log.info('stopping', quitSpeech ? { quitSpeech } : {});
         bot.stop();
         for (const feature of features) feature.stop();
-        transcriber?.stop({ quitService: quitServices });
+        transcriber?.stop({ quitService: quitSpeech });
         autoReply.stop();
         autoMessage.stop();
         void mcp.stop();
-        if (quitServices && embedder) {
-          try {
-            await embedder.quit();
-          } catch (err) {
-            log.warn('could not tell the embedding service to quit', { error: errorMessage(err) });
-          }
-        }
       },
       onRoomFeedGone(handler) {
         whenRoomFeedGone(c.resolve(ROOM_EVENTS), handler);

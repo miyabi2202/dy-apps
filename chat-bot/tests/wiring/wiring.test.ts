@@ -227,7 +227,7 @@ test('--no-asr has no transcriber, no /识歌, no /识别背景音乐 and no aut
   const bot = build(['--no-asr']);
   const app = bot.container.resolve(APP);
   await app.start();
-  await app.stop();
+  app.stop();
 
   expect(bot.container.resolve(TRANSCRIBER)).toBeNull();
   expect(bot.container.resolve(AUTO_SONG_ID)).toBeNull();
@@ -273,7 +273,7 @@ test('starts the speech worker first and enters the room once its models are loa
     bot.workerReady();
     await started;
     expect(bot.connected()).toBe(1);
-    await app.stop();
+    app.stop();
     expect(bot.logged.map(([, message]) => message)).toEqual(
       expect.arrayContaining(['starting', 'stopping']),
     );
@@ -286,45 +286,11 @@ test('a start stopped while the models load never enters the room', async () => 
     const app = bot.container.resolve(APP);
     const started = app.start();
     await Promise.resolve();
-    await app.stop();
+    app.stop();
     await started;
 
     expect(bot.connected()).toBe(0);
   }
-});
-
-test('a stop with quitServices tells the embedding service to quit, a plain stop (a restart) does not', async () => {
-  for (const quitServices of [false, true]) {
-    const bot = build(['--no-asr']);
-    let quits = 0;
-    bot.container.register(EMBEDDER, () => ({
-      info: () => Promise.resolve({ model: 'm', cutoff: 0.5 }),
-      embed: (texts) => Promise.resolve(texts.map(() => [1])),
-      quit: () => {
-        quits++;
-        return Promise.resolve();
-      },
-    }));
-    const app = bot.container.resolve(APP);
-    await app.start();
-    await app.stop({ quitServices });
-
-    expect(quits).toBe(quitServices ? 1 : 0);
-  }
-});
-
-test('an embedding service that does not answer the quit is a warning, and the stop still ends', async () => {
-  const bot = build(['--no-asr']);
-  bot.container.register(EMBEDDER, () => ({
-    info: () => Promise.reject(new Error('down')),
-    embed: () => Promise.reject(new Error('down')),
-    quit: () => Promise.reject(new Error('down')),
-  }));
-  const app = bot.container.resolve(APP);
-  await app.start();
-  await app.stop({ quitServices: true });
-
-  expect(bot.logged).toContainEqual(['warn', 'could not tell the embedding service to quit']);
 });
 
 test('answers a mention with the room, the settings the features gave and the persona in the prompt', async () => {
@@ -334,7 +300,7 @@ test('answers a mention with the room, the settings the features gave and the pe
   bot.say(mention('小红', 'u-1', '@小助手 你好'));
   await bot.container.resolve(BOT).idle();
   await bot.container.resolve(OUTBOX).idle();
-  await app.stop();
+  app.stop();
 
   expect(bot.sent).toEqual(['@小红 你好呀']);
   const prompt = bot.prompts[0]!;
@@ -356,7 +322,7 @@ test('the knowledge base in data/knowledge/douyin/ is in the prompt, read when i
   await app.start();
   bot.say(mention('小红', 'u-1', '@小助手 灯牌是什么'));
   await bot.container.resolve(BOT).idle();
-  await app.stop();
+  app.stop();
 
   const prompt = bot.prompts[0]!;
   expect(prompt).toContain('## 灯牌\n\n灯牌是主播粉丝团的徽章。');
@@ -375,7 +341,7 @@ test('a typed command runs the tool: an admin changes the setting in room_config
   await settle();
   bot.say(mention('小红', 'u-1', '@小助手 /自动谢礼 5'));
   await settle();
-  await app.stop();
+  app.stop();
 
   expect(bot.sent).toEqual([
     '@雅 已处理自动谢礼请求',
@@ -443,7 +409,7 @@ test('the tools server starts with the bot, serves its tools (an admin the admin
   expect(admin.access.tools).toEqual(
     expect.arrayContaining(['set_thanks_threshold', 'identify_song', 'identify_bgm']),
   );
-  await app.stop();
+  app.stop();
   await jest
     .requireActual<typeof import('node:timers/promises')>('node:timers/promises')
     .setImmediate();
@@ -485,7 +451,7 @@ test('without speech, Codex or Jev the tools server still has the admin-only set
     'ask_about_puzzle',
     'set_happy_heart',
   ]);
-  await app.stop();
+  app.stop();
 });
 
 test('/开心送心, which only admins have, offers send_happy_heart to anyone while it is on', async () => {
@@ -501,7 +467,7 @@ test('/开心送心, which only admins have, offers send_happy_heart to anyone w
   bot.container.resolve(SETTINGS).set({ happyHeart: true });
   expect(viewer()).toContain('send_happy_heart');
   expect(admin()).toContain('send_happy_heart');
-  await app.stop();
+  app.stop();
 });
 
 test('the tools a room switches on are built from chat-bot/tools, beside the built-in ones', () => {
@@ -613,7 +579,7 @@ test('the song features listen once the app has started, though nothing resolved
   await settle();
   expect(bot.sent).toEqual(['加油']);
 
-  await app.stop();
+  app.stop();
   jest.advanceTimersByTime(600_000);
   sing('丙');
   await settle();

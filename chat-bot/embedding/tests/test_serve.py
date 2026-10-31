@@ -20,17 +20,11 @@ def fake_encode(texts, kind):
 
 
 @pytest.fixture
-def served():
+def url():
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler("fake/model", 0.47, fake_encode))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{server.server_address[1]}", thread
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_address[1]}"
     server.shutdown()
-
-
-@pytest.fixture
-def url(served):
-    return served[0]
 
 
 def post(url, body):
@@ -59,10 +53,3 @@ def test_refuses_what_it_cant_read(url):
         with pytest.raises(urllib.error.HTTPError) as error:
             post(f"{url}/embed", body)
         assert error.value.code == 400
-
-
-def test_quits_when_asked(served):
-    url, thread = served
-    assert post(f"{url}/quit", {}) == {"quitting": True}
-    thread.join(timeout=5)
-    assert not thread.is_alive()

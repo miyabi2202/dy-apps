@@ -38,7 +38,6 @@ function setup({
     info: () =>
       failing ? Promise.reject(new Error('not running')) : Promise.resolve({ model: 'm', cutoff }),
     embed: (texts) => Promise.resolve(texts.map(vectorOf)),
-    quit: () => Promise.resolve(),
   };
   const store = new Map<string, number[]>();
   const vectors: VectorCache = {
