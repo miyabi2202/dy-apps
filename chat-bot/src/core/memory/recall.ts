@@ -1,12 +1,12 @@
 import { syllables } from '../viewers/sounds-like';
 
 /**
- * How much the pinyin match counts next to the meaning: `(1 − w) × cosine + w × pinyin`. Small,
- * since more lets sound outvote meaning (at 0.3 chat-bot/embedding-eval's 「related」 queries
- * dropped from 83% to 50% right), yet enough to pull up a word the recognizer or a typo got wrong
- * (三角洲 heard as 酸角粥). Picked on that small test set: a "small" weight, not a tuned constant.
+ * How much the pinyin match counts next to the meaning: `(1 − w) × cosine + w × pinyin`, so a word
+ * the recognizer or a typo got wrong (三角洲 heard as 酸角粥) still finds its memory. Tuned on 400
+ * real moments (chat-bot/embedding-eval/, "Real-room calibration"): anything from 0.05 to 0.3 did
+ * about as well and only 0 (no pinyin) clearly worse, so read it as "some", not a precise value.
  */
-export const PINYIN_WEIGHT = 0.1;
+export const PINYIN_WEIGHT = 0.15;
 
 /** What a pinyin BM25 score is divided by (and capped at 1) to sit beside a cosine: the 99th percentile of the eval's. */
 export const PINYIN_SCALE = 6.4;

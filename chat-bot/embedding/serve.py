@@ -4,7 +4,7 @@ Loads one embedding model once (Qwen3-Embedding-0.6B by default, on the Apple GP
 answers on 127.0.0.1 only, for every bot running on this machine at once (each room's bot asks it;
 unlike the speech worker, it isn't one bot's at a time):
 
-    GET  /info   -> {"model": "Qwen/Qwen3-Embedding-0.6B", "dims": 1024, "cutoff": 0.45}
+    GET  /info   -> {"model": "Qwen/Qwen3-Embedding-0.6B", "dims": 1024, "cutoff": 0.5}
     POST /embed  {"texts": ["…"], "kind": "query" | "document"}
                  -> {"model": "…", "vectors": [[…], …]}
 
@@ -34,17 +34,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 
 # What each model is told a query is for, and its cutoff (see chat-bot/embedding-eval/README.md): the
-# score (0.9 × cosine + 0.1 × the pinyin match, in the bot) under which a memory is taken as not
-# about what's being said. 0.45 for 0.6B came from a 62-query test set, with only a few hundredths
-# between the unrelated queries' best and the right answers' worst: recalibrate it from the bot's
-# `memory recall` log lines.
+# score (0.85 × cosine + 0.15 × the pinyin match, in the bot) under which a memory is taken as not
+# about what's being said. 0.5 for 0.6B is the best F1 on 400 real moments ("Real-room
+# calibration"): cutoffs from about 0.42 to 0.64 did nearly as well, and at 0.45 four in five
+# moments with nothing relevant still recalled something, at 0.5 about half. Recalibrate once
+# rooms have thoughts and days of their own, or from the bot's `memory recall` log lines.
 TASK_INSTRUCT = (
     "Given what is being said in a Chinese live-stream room (viewers' chat and the "
     "streamer's speech-to-text, which has typos), retrieve the bot's memory notes "
     "that are relevant to it"
 )
 MODELS: dict[str, dict[str, Any]] = {
-    "Qwen/Qwen3-Embedding-0.6B": {"instruct": TASK_INSTRUCT, "cutoff": 0.45},
+    "Qwen/Qwen3-Embedding-0.6B": {"instruct": TASK_INSTRUCT, "cutoff": 0.5},
     "Qwen/Qwen3-Embedding-4B": {"instruct": TASK_INSTRUCT, "cutoff": None},
     "Qwen/Qwen3-Embedding-8B": {"instruct": TASK_INSTRUCT, "cutoff": None},
 }

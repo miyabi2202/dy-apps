@@ -37,9 +37,9 @@ test('a word heard as another that sounds alike still matches by sound', () => {
 });
 
 test('the score is mostly meaning and a little sound, the sound capped', () => {
-  expect(combinedScore(0.5, 0)).toBeCloseTo(0.45);
-  expect(combinedScore(0.5, 6.4)).toBeCloseTo(0.55);
-  expect(combinedScore(0.5, 100)).toBeCloseTo(0.55);
+  expect(combinedScore(0.5, 0)).toBeCloseTo(0.425);
+  expect(combinedScore(0.5, 6.4)).toBeCloseTo(0.575);
+  expect(combinedScore(0.5, 100)).toBeCloseTo(0.575);
   expect(combinedScore(0.5, 1, { weight: 0.5, scale: 1 })).toBeCloseTo(0.75);
 });
 

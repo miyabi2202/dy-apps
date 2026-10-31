@@ -144,3 +144,87 @@ The queries where the rankers' first picks differ are in `results/report.md` (lo
 4. **Hybrid score**: `(1 − w) × cosine + w × min(1, pinyinBM25 / scale)` with w ≈ 0.1 and one fixed scale per pool (here the 99th percentile of pinyin scores, 6.4). Don't use `max`: it wrecks the ranking and the cutoff. Strip the bot's own names from the query first.
 
 Caveats: 62 queries, 6 `none`, one author (who also wrote the instruction and picked w on this set). The ranking of the top three options is not settled by this set. "Embeddings + a little pinyin ≫ bigrams" is.
+
+## Real-room calibration
+
+The test above is small and hand-written, and its 0.45 cutoff and 0.1 weight were picked on it. This section replaces it as the source of those two numbers: real moments from six rooms' chat records, labelled by Claude, split into a half to tune on and a half to test on.
+
+### Method
+
+- **Pool** per room: its `memory.md` entries (split on `§`; an entry over 300 characters made of several lines split into its lines; `<!-- … -->` lines dropped) and its viewers' `note.md` entries (also split on `§`, each prefixed `关于观众「<nickname>」：` or `关于主播「…」：`). No room had `memory/thoughts.md`, `memory/streams.md` or Fairy's days yet, so none are in it. 11–112 items per room (73, 112, 11, 19, 36, 28), 279 in all.
+- **Moments**: 400, at random times inside streams (a stream ends at a 30-minute gap), at least 40 per room and the rest in proportion to each room's speech and chat (95, 89, 56, 59, 48, 53). Each is the bot's own `recallQuery` of what came before: the speech and sung lines of the last 5 minutes (the bot's transcript window) and the stream's chat lines, the last 6 and 8. Moments with under 3 lines of real content were skipped, and one sharing half its lines or more with an earlier one in its room was dropped.
+- **Labels**: Claude (Opus, `claude -p`, no tools, `--json-schema`) with the prompt in [`real-judge-prompt.md`](real-judge-prompt.md): one room's whole pool, numbered, and 8–10 of its moments per call; for each, the 0–3 items a regular would find genuinely useful right now, or none. 40 calls for the 400 moments, 9 more to judge a random 40 (10%) again in fresh batches. 75.5% of moments got at least one item (1.97 each on average).
+- **Split**: by moment, within each room, half tune (202), half test (198), fixed seed.
+- **Scoring**: [`score-recall.ts`](score-recall.ts) imports the bot's `recallQuery`, `similarity`, `pinyinScores`, `withoutNames`, `combinedScore`, `recalled` and its embedding client, and scores each moment against its room's pool exactly as `MemoryRecall` does (query as `query`, items as `document`, the bot's names taken out before the pinyin match, scale 6.4, at most 3 recalled). P and R are pooled over moments: P = recalled items the judge marked / all recalled, R = marked items recalled / all marked.
+
+Rerun from `chat-bot/`, with the embedding service up:
+
+```sh
+npx tsx embedding-eval/real-build-set.ts   # data/embedding-eval/real/set.json
+npx tsx embedding-eval/real-judge.ts       # labels.json, rejudge.json (resumable; ~49 claude -p calls, ~$3.5)
+npx tsx embedding-eval/score-recall.ts     # results.json, report.md (the full sweep, per-room table, most-recalled items)
+```
+
+Everything they write stays in `chat-bot/data/embedding-eval/real/`, out of git.
+
+### Judge agreement (the noise ceiling)
+
+On the 40 moments judged twice: the same set of items 62.5% of the time, mean Jaccard 0.78; "none" vs "something" agreed on 92.5% (κ 0.80). Scoring the second judgment against the first gives P 0.77, R 0.85, **F1 0.81**. That is about the best a ranker could expect to score against these labels.
+
+### Ranking (moments with at least one marked item)
+
+| ranker            | tune hit@1 | hit@3 | MRR   | test hit@1 | hit@3 | MRR   |
+| ----------------- | ---------- | ----- | ----- | ---------- | ----- | ----- |
+| cosine (w = 0)    | 41.3%      | 63.9% | 0.545 | 29.9%      | 53.7% | 0.450 |
+| pinyin only       | 43.2%      | 64.5% | 0.573 | 55.8%      | 76.9% | 0.688 |
+| combined w = 0.05 | 45.2%      | 69.7% | 0.586 | 35.4%      | 58.5% | 0.511 |
+| combined w = 0.1  | 43.9%      | 69.7% | 0.588 | 38.1%      | 63.9% | 0.547 |
+| combined w = 0.15 | 43.2%      | 69.0% | 0.588 | 40.8%      | 64.6% | 0.566 |
+| combined w = 0.2  | 41.3%      | 69.0% | 0.578 | 41.5%      | 67.3% | 0.578 |
+| combined w = 0.3  | 38.7%      | 66.5% | 0.561 | 42.9%      | 68.7% | 0.589 |
+
+(155 tune and 147 test moments have a marked item.)
+
+### The bot's rule (≤ 3 items scoring ≥ cutoff), tuned on tune
+
+Best F1 per weight, cutoff swept 0.30–0.65 in 0.01 steps:
+
+| w    | best cutoff | P     | R     | F1    | "none" moments recalling something | items per moment | at cutoff 0.45: P / R / F1 |
+| ---- | ----------- | ----- | ----- | ----- | ---------------------------------- | ---------------- | -------------------------- |
+| 0    | 0.48        | 0.255 | 0.360 | 0.298 | 60%                                | 2.08             | 0.239 / 0.391 / 0.296      |
+| 0.05 | 0.50        | 0.319 | 0.387 | 0.350 | 49%                                | 1.79             | 0.274 / 0.444 / 0.339      |
+| 0.1  | 0.49        | 0.306 | 0.428 | 0.357 | 51%                                | 2.05             | 0.270 / 0.448 / 0.337      |
+| 0.15 | **0.51**    | 0.313 | 0.418 | 0.358 | 43%                                | 1.96             | 0.268 / 0.455 / 0.337      |
+| 0.2  | 0.57        | 0.344 | 0.360 | 0.352 | 32%                                | 1.54             | 0.268 / 0.468 / 0.341      |
+| 0.3  | 0.63        | 0.361 | 0.347 | 0.354 | 30%                                | 1.41             | 0.256 / 0.455 / 0.327      |
+
+**The optimum is flat.** 51 settings are within 0.02 of the best F1: w 0.05 at cutoffs 0.45–0.52, w 0.1 at 0.46–0.53, w 0.15 at 0.42–0.58, w 0.2 at 0.42–0.60, w 0.3 at 0.60–0.64. Only w = 0 (no pinyin) is clearly worse. Below about 0.42 the cutoff stops mattering: nearly every moment recalls its top 3.
+
+### Test (bootstrap 95% intervals, 2000 resamples of moments within rooms)
+
+| setting                                     | P                   | R                   | F1                  | F2                  | "none" moments recalling | items per moment |
+| ------------------------------------------- | ------------------- | ------------------- | ------------------- | ------------------- | ------------------------ | ---------------- |
+| **w = 0.15, cutoff 0.51** (best F1 on tune) | 0.246 [0.203–0.291] | 0.322 [0.266–0.373] | 0.279 [0.232–0.325] | 0.303 [0.250–0.353] | 53% [41–66%]             | 1.97 [1.85–2.08] |
+| w = 0.2, cutoff 0.40 (best F2 on tune)      | 0.226 [0.192–0.262] | 0.430 [0.374–0.486] | 0.296 [0.256–0.339] | 0.364 [0.316–0.413] | 94% [87–100%]            | 2.86 [2.80–2.93] |
+| w = 0.1, cutoff 0.45 (before this test)     | 0.223 [0.185–0.262] | 0.372 [0.315–0.426] | 0.279 [0.235–0.322] | 0.328 [0.278–0.377] | 80% [69–91%]             | 2.52 [2.42–2.61] |
+
+Ranking at w = 0.15 on test: hit@1 40.8% [33.1–48.3%], hit@3 64.6% [57.0–72.0%], MRR 0.566 [0.507–0.625]. The best setting on test itself (not chosen on it) is w = 0.3, cutoff 0.47, F1 0.313, inside the chosen setting's interval.
+
+Top-1 scores at w = 0.15 overlap heavily: moments with a marked item have a median of 0.60 (p10 0.51), moments without one 0.50 (p90 0.61). A cutoff can trim how much is recalled. It can't tell "nothing fits" from "something does".
+
+### Per room (all 400 moments, w = 0.15, cutoff 0.51)
+
+F1 runs from 0.24 to 0.48. The two rooms with big pools (73 and 112 items) are the worst, at F1 0.24 and 0.29 and hit@1 29% and 42%. The small-pool rooms (11–28 items) reach hit@1 49–57%. Each room's own best cutoff is between 0.48 and 0.57, so one cutoff fits them all about equally well. How often the judge marks nothing varies a lot: 3% of moments in one room, about half or more in two others.
+
+### Recommendation
+
+- **Cutoff 0.50, weight 0.15.** On test, F1 is the same as the old 0.45 / 0.1 (0.28 [0.23–0.33] both), but fewer wrong items come along: "none" moments still recalling something drop from 80% to 53%, and items per moment from 2.5 to 2.0. Any w from 0.1 to 0.2 with a cutoff of 0.48–0.53 is as good within noise. Pinyin should stay in: w = 0 is the one clearly worse setting.
+- **If a missed memory costs more than a wrong one, use a low cutoff (≈ 0.40), which amounts to always taking the top 3.** On test that is the better F2 (0.36 against 0.30) and recall (0.43 against 0.32), at the cost of almost always putting 3 items in the prompt.
+- **The weak part is the ranking, not the threshold.** The judge agrees with itself at F1 0.81, and the bot's rule gets 0.28–0.30. The items recalled most often are general ones (rules for the bot, the streamer's profile, a short note about a viewer), which sit close to any long, mixed query whatever is being said. Better candidates are scoring each line of the query separately, down-weighting items that come up for every query, or making the query shorter (the last few lines only). Each needs a test like this one.
+
+### Caveats
+
+- **The pool isn't what recall searches today.** Recall looks only at older thoughts and Fairy's days, and no room has any yet. memory.md and notes are the bulk of real material and the same kind of short Chinese text, but they include rules for the bot and profile entries, which pull at every query. Recalibrate on thoughts and days once there are enough.
+- **One judge.** Claude's idea of "genuinely useful" is the target, and it marked something in 75% of moments, more than "strict" suggests. Its self-agreement (κ 0.80 on none vs some) is good, not perfect.
+- **Tune and test disagree more than their size suggests.** Pinyin-only beats cosine by 26 points of hit@1 on test and by 2 on tune, and test prefers a higher weight. The data is clustered: moments from one stream share topics and items. Treat weight differences of ±0.1 as a tie.
+- 400 moments from six rooms over about two weeks, all with the same bot. Since recall now logs each look's best scores (`memory recall`, debug), the cutoff can be rechecked against what the bot actually saw.
