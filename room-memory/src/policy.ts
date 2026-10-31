@@ -16,10 +16,13 @@ export interface RoomFacts {
 
 const ONLY_EXTEND = '这条是主播或管理员写的，只能在后面补充，不能改写或删掉';
 
-/** Whether `content` keeps all of `old`, bar the punctuation or closing bracket it ends with. */
+/**
+ * Whether `content` starts with all of `old`, bar the punctuation or closing bracket it ends with:
+ * text only goes after it, as text put before it could turn it round (「搭理他」 to 「别搭理他」).
+ */
 function keeps(old: string, content: string): boolean {
   const stem = old.trim().replace(/[\s。．.，,；;、！!？?）)】」』"”]+$/u, '');
-  return !!stem && content.includes(stem);
+  return !!stem && content.trim().startsWith(stem);
 }
 
 /**

@@ -86,11 +86,13 @@ test('the chat may not rewrite or remove what the streamer or an admin wrote', (
       { action: 'remove', old: '主播叫咿咿' },
       { action: 'replace', old: '周杰伦', content: '陈奕迅' },
       { action: 'remove', old: '周杰伦' },
+      // Keeps the old text, but what's put before it turns it round.
+      { action: 'replace', old: '爱唱周杰伦', content: '不爱唱周杰伦' },
     ],
     chat,
   );
   expect(done.made).toEqual([]);
-  expect(done.skipped.map((skipped) => skipped.why)).toEqual(Array(4).fill(ONLY_EXTEND));
+  expect(done.skipped.map((skipped) => skipped.why)).toEqual(Array(5).fill(ONLY_EXTEND));
   expect(store.get('/room/memory.md')).toBe(text);
   expect([...store.keys()]).toEqual(['/room/memory.md']);
 });
