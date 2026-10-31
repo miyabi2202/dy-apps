@@ -88,10 +88,12 @@ test("each regular's note gets the changes Claude names for them, the room and s
     },
   });
   expect(await remember.run()).toEqual({ lines: 8, viewers: 1, changes: 4, failed: 0 });
-  expect(store.get(noteFile('s-1'))).toBe('说好下次唱《稻香》\n');
-  expect(store.get(noteFile('u-1'))).toBe('喜欢被叫阿拂\n§\n爱听周杰伦\n');
+  expect(store.get(noteFile('s-1'))).toBe('说好下次唱《稻香》\n<!-- 2026-10-31 chat -->\n');
+  expect(store.get(noteFile('u-1'))).toBe(
+    '喜欢被叫阿拂\n<!-- 2026-10-31 chat -->\n§\n爱听周杰伦\n<!-- 2026-10-31 chat -->\n',
+  );
   expect(store.get(noteFile('u-9'))).toBeUndefined();
-  expect(store.get(ROOM_FILE)).toBe('主播叫咿咿，外号 11\n');
+  expect(store.get(ROOM_FILE)).toBe('主播叫咿咿，外号 11\n<!-- 2026-10-31 chat -->\n');
   expect(marks.value).toBe(T0 + 8000);
   // Only 阿拂 said enough: not the bot, the streamer or 路人; and no tools for the model.
   expect(asked[0]!.prompt).toContain('阿拂（userId: u-1）');
@@ -116,7 +118,7 @@ test('the prompts say how full each file is, and the streamer may write up to 20
   });
   store.set(noteFile('u-1'), '爱听周杰伦\n');
   expect(await remember.run()).toMatchObject({ changes: 1 });
-  expect(store.get(noteFile('s-1'))).toBe(`${'字'.repeat(1500)}\n`);
+  expect(store.get(noteFile('s-1'))).toBe(`${'字'.repeat(1500)}\n<!-- 2026-10-31 chat -->\n`);
   expect(asked[0]!.prompt).toContain('现在记着的（已用 5/1000 字）：\n爱听周杰伦');
   expect(asked[1]!.prompt).toContain('主播叫咿咿 5/4000 | （无） 0/2000');
 });
@@ -143,7 +145,7 @@ test("a 私密 room gets no viewer notes; a change that can't be made is skipped
   });
   expect(await remember.run()).toMatchObject({ changes: 1, failed: 0 });
   expect(asked.map((q) => q.why)).toEqual(['room']);
-  expect(store.get(ROOM_FILE)).toBe('主播叫咿咿\n§\n周五不播\n');
+  expect(store.get(ROOM_FILE)).toBe('主播叫咿咿\n§\n周五不播\n<!-- 2026-10-31 chat -->\n');
 });
 
 test('a question that fails leaves the mark where it was, so the next run reads it again', async () => {
@@ -153,4 +155,14 @@ test('a question that fails leaves the mark where it was, so the next run reads 
   });
   expect(await remember.run()).toMatchObject({ failed: 1 });
   expect(marks.value).toBeUndefined();
+});
+
+test('the prompts show each entry with the day it was written, and undated ones as they are', async () => {
+  const { remember, store, asked } = setup({
+    record: RECORD,
+    answers: { notes: { notes: [] }, room: { room: [], streamer: [] } },
+  });
+  store.set(ROOM_FILE, '主播叫咿咿\n§\n爱唱周杰伦\n<!-- 2026-10-30 tool -->\n');
+  await remember.run();
+  expect(asked[1]!.prompt).toContain('主播叫咿咿\n§\n爱唱周杰伦（2026-10-30 记）');
 });

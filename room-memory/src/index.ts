@@ -1,5 +1,12 @@
-export { applyChange, applyChanges, type Change } from './change';
-export { memoryLength, parseEntries, serialiseEntries, type Entry } from './entry';
+export { applyChange, applyChanges, type Change, type Retired, type Stamp } from './change';
+export {
+  memoryLength,
+  parseEntries,
+  serialiseEntries,
+  withoutTrailers,
+  type Author,
+  type Entry,
+} from './entry';
 export {
   fileMemory,
   type ChangeResult,

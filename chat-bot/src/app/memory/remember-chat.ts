@@ -24,7 +24,7 @@ import type { AskModel, Log } from '../ports';
 export interface RememberChatOptions {
   /** Claude, asked once per batch of viewers and once about the whole stream. */
   ask: AskModel;
-  memory: Pick<RoomMemory, 'roomText' | 'noteText' | 'limitOf' | 'changeAll'>;
+  memory: Pick<RoomMemory, 'roomText' | 'noteText' | 'entries' | 'limitOf' | 'changeAll'>;
   /** The chat record's files that may hold lines from `sinceMs` on, as text, oldest first. */
   readSince: (sinceMs: number) => string[];
   /** Up to when the record was read into memory last time; set once a run is through. */
@@ -61,6 +61,12 @@ function usage(
 ): string {
   const text = target.scope === 'room' ? memory.roomText() : memory.noteText(target.userId);
   return `${memoryLength(text)}/${memory.limitOf(target)}`;
+}
+
+/** The entries of `target`'s file for a prompt, each with the day it was written when it's known: `（2026-10-30 记）`. */
+function shown(memory: Pick<RoomMemory, 'entries'>, target: Target): string {
+  const entries = memory.entries(target).map(({ text, at }) => (at ? `${text}（${at} 记）` : text));
+  return entries.join('\n§\n') || '（无）';
 }
 
 /** What one run did. */
@@ -123,7 +129,7 @@ export class RememberChat {
         [
           `### ${nickname}（userId: ${userId}）`,
           `现在记着的（已用 ${usage(memory, { scope: 'note', userId })} 字）：`,
-          memory.noteText(userId).trim() || '（无）',
+          shown(memory, { scope: 'note', userId }),
           '这场 TA 自己发的弹幕：',
           digestText(lines, { maxChars: 3000 }),
         ].join('\n'),
@@ -159,9 +165,9 @@ export class RememberChat {
       fillTemplate(
         roomPrompt(),
         {
-          memory: memory.roomText().trim() || '（无）',
+          memory: shown(memory, { scope: 'room' }),
           roomUsed: usage(memory, { scope: 'room' }),
-          streamerNote: (streamer && memory.noteText(streamer).trim()) || '（无）',
+          streamerNote: streamer ? shown(memory, { scope: 'note', userId: streamer }) : '（无）',
           streamerUsed: streamer
             ? usage(memory, { scope: 'note', userId: streamer })
             : `0/${STREAMER_NOTE_LIMIT}`,

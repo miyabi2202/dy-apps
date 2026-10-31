@@ -41,7 +41,7 @@ export interface RoomStateOptions {
    * What the bot remembers (memory.md and each person's note.md), read each time so edits apply at
    * once: the room's and the streamer's for `{{memory}}`, the asker's for `{{askerNote}}`.
    */
-  memory?: Pick<RoomMemory, 'roomText' | 'noteText'>;
+  memory?: Pick<RoomMemory, 'roomText' | 'noteText' | 'readDir'>;
   /** The streamer's user id (room_config.json's `streamer`), read each time; none until known. */
   streamerId?: () => string | undefined;
   /** Whether the room is 私密 (room_config.json's `private`): viewers' notes are left out there. */
@@ -235,6 +235,7 @@ export class RoomState {
       now: this.now(),
       timeZone: this.timeZone(),
       chatDir,
+      memoryDir: memory?.readDir(),
       persona: this.persona,
       botName: this.botName,
       memory: memory?.roomText(),

@@ -16,9 +16,8 @@ import {
   saveStreamer,
 } from '../adapters/files/room-files';
 import { memoryReadMark, readRecordSince } from '../adapters/files/remember-files';
-import { folderOf } from '../adapters/files/room-talk-files';
 import { RememberChat } from '../app/memory/remember-chat';
-import { botTalkFile, userTalkFiles } from '../adapters/files/room-talk-files';
+import { botTalkFile, folderOf, userTalkFiles } from '../adapters/files/room-talk-files';
 import { EventBus } from '../app/event-bus';
 import { Outbox } from '../app/replies/outbox';
 import { RoomFeed } from '../app/room/room-feed';
@@ -27,6 +26,7 @@ import { StreamerAdmin } from '../app/commands/streamer-admin';
 import { ChatHistory } from '../core/chat/chat-history';
 import { RecentGifts } from '../core/chat/recent-gifts';
 import { errorMessage } from '../core/errors';
+import { localDate } from '../core/prompts/local-time';
 import { Transcript } from '../core/songs/transcript';
 import type { Container } from './container';
 import {
@@ -153,6 +153,8 @@ export function registerRoom(container: Container): void {
         // room-feed's word on who the streamer is, else what room_config.json kept from last time.
         streamerId: () => c.resolve(ADMINS).current()?.uid ?? roomConfig().streamer?.uid,
         isPrivate: () => roomConfig().private,
+        // The day an entry is written on is the streamer's, not the machine's.
+        today: () => localDate(Date.now(), roomConfig().timeZone).slice(0, 10),
       });
     })
     // `pnpm remember`: the chat record since last time, read into the notes and memory.md by Claude.

@@ -1,10 +1,19 @@
 /** The line between two entries of a memory file. */
 const SEPARATOR = '§';
 
-/** One thing a memory file remembers. */
+/** Who wrote an entry: Claude answering someone (`tool`), or `pnpm remember` (`chat`). */
+export type Author = 'tool' | 'chat';
+
+/** One thing a memory file remembers, and, when the module wrote it, when and by whom. */
 export interface Entry {
   text: string;
+  /** The day it was written, `YYYY-MM-DD`; none for what was in the file before dates. */
+  at?: string;
+  by?: Author;
 }
+
+/** The last line of an entry the module wrote: `<!-- 2026-10-30 tool -->`. */
+const TRAILER = /^<!-- (\d{4}-\d{2}-\d{2}) (tool|chat) -->[ \t]*$/;
 
 /** A memory file's entries, in order: the text between `§` lines, each trimmed, empty ones left out. */
 export function parseEntries(text: string): Entry[] {
@@ -12,15 +21,44 @@ export function parseEntries(text: string): Entry[] {
     .split(/^[ \t]*§[ \t]*$/m)
     .map((entry) => entry.trim())
     .filter(Boolean)
-    .map((entry) => ({ text: entry }));
+    .map((entry) => {
+      const lines = entry.split('\n');
+      const trailer = TRAILER.exec(lines[lines.length - 1]!.trim());
+      if (!trailer) return { text: entry };
+      return {
+        text: lines.slice(0, -1).join('\n').trim(),
+        at: trailer[1]!,
+        by: trailer[2] as Author,
+      };
+    })
+    .filter((entry) => entry.text);
 }
 
-/** `entries` as a memory file, a `§` line between each two. */
+/** `entries` as a memory file, a `§` line between each two and a trailer line on those with a date. */
 export function serialiseEntries(entries: readonly Entry[]): string {
-  return entries.length ? `${entries.map((entry) => entry.text).join(`\n${SEPARATOR}\n`)}\n` : '';
+  const lines = entries.map((entry) =>
+    entry.at && entry.by ? `${entry.text}\n<!-- ${entry.at} ${entry.by} -->` : entry.text,
+  );
+  return lines.length ? `${lines.join(`\n${SEPARATOR}\n`)}\n` : '';
 }
 
-/** How long a memory file is, in characters as the limit counts them. */
+/**
+ * `text` as a prompt has it: the file without the trailer lines. A file with none is the same
+ * text, byte for byte.
+ */
+export function withoutTrailers(text: string): string {
+  return text.replace(/^<!-- \d{4}-\d{2}-\d{2} (?:tool|chat) -->[ \t]*(?:\r?\n|$)/gm, '');
+}
+
+/** `text` with any line that looks like a trailer taken out, so what's written can't pass for one. */
+export function withoutTrailerLines(text: string): string {
+  return text
+    .split('\n')
+    .filter((line) => !TRAILER.test(line.trim()))
+    .join('\n');
+}
+
+/** How long a memory file is, in characters as the limit counts them (trailer lines aren't). */
 export function memoryLength(text: string): number {
-  return [...text.trim()].length;
+  return [...withoutTrailers(text).trim()].length;
 }

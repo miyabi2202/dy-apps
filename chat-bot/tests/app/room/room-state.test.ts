@@ -44,6 +44,7 @@ test("gives every prompt the room as it is now: chat, recent speech, persona, me
     persona: '数学老师',
     botName: '小助手',
     memory: '主播是猫猫',
+    memoryDir: '/room/memory',
     streamerNote: '爱喝奶茶',
     botTalk: '你好呀',
   });

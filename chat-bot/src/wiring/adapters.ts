@@ -20,6 +20,7 @@ import {
   JEV_CLIENT,
   LOG,
   LYRICS_SEARCH,
+  MEMORY,
   NETEASE,
   OPTIONS,
   PACKAGE_DIR,
@@ -55,7 +56,8 @@ export function registerAdapters(container: Container): void {
       return claudeCli({
         cwd: tmpdir(),
         tools: options.tools,
-        readDirs: [c.resolve(CHAT_DIR)],
+        // The chat record, and what the bot remembered before (the archive in memory/).
+        readDirs: [c.resolve(CHAT_DIR), c.resolve(MEMORY).readDir()],
         model: options.model,
         systemPrompt: options.systemPrompt,
         // Zooming into a screenshot can make an answer take a minute or two.

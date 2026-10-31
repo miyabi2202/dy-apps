@@ -21,6 +21,8 @@ export interface RoomPromptInput {
   timeZone?: string;
   /** The folder of the room's chat record files. */
   chatDir?: string;
+  /** The folder of what the bot remembered before and changed since (the archive). */
+  memoryDir?: string;
   /** Who the bot plays, as admins set it. */
   persona?: string;
   /** The bot's own nickname, to spot its own messages in the chat. */
@@ -153,7 +155,7 @@ function settingsText(settings: RoomSettings): string {
  * most the answer may use over several, `{{now}}` the time, `{{today}}` the date and weekday
  * (`2026-10-20 星期二`), both in the room's time zone, `{{timeZone}}` that zone's name (北京时间), `{{recordTimeZone}}` the machine's
  * (which record lines written before, without an offset, are in), `{{chatDir}}` the folder of chat
- * record files, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{aliases}}` a line saying the room's other names for the bot mean it too (empty without any), `{{botName}}`
+ * record files, `{{memoryDir}}` the folder of its older memories, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{aliases}}` a line saying the room's other names for the bot mean it too (empty without any), `{{botName}}`
  * the bot's own nickname, `{{memory}}` what the bot remembers about the room and about the
  * streamer, each under a heading (empty without either), `{{askerNote}}` what it remembers about
  * the asker, likewise, `{{commonKnowledge}}` Douyin's own common knowledge (灯牌…), likewise, `{{intro}}`
@@ -206,7 +208,9 @@ export function buildPrompt(template: string, input: PromptInput): string {
       : '',
     botName: botName ?? '',
     memory: [
-      input.memory?.trim() ? wording('memory', { memory: input.memory.trim() }) : '',
+      input.memory?.trim()
+        ? wording('memory', { memory: input.memory.trim(), memoryDir: input.memoryDir ?? '（无）' })
+        : '',
       input.streamerNote?.trim()
         ? wording('streamer-note', { note: input.streamerNote.trim() })
         : '',

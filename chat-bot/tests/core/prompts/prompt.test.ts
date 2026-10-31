@@ -113,3 +113,14 @@ test('{{commonKnowledge}} gives Douyin common knowledge under a heading, and is 
   expect(filled).not.toBe('## 灯牌\n\n粉丝团的徽章');
   expect(buildPrompt('[{{commonKnowledge}}]', { ...input, commonKnowledge: ' \n' })).toBe('[]');
 });
+
+test('{{memory}} says where the older memories are kept, which the prompt does not repeat', () => {
+  const filled = buildPrompt('{{memory}}', {
+    ...input,
+    memory: '主播叫咿咿\n',
+    memoryDir: '/data/1/memory',
+  });
+  expect(filled).toContain('主播叫咿咿');
+  expect(filled).toContain('/data/1/memory 的 archive.md');
+  expect(buildPrompt('{{memory}}', input)).toBe('');
+});
