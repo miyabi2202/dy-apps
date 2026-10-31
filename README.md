@@ -14,6 +14,7 @@ Small live-stream apps, served as one site: an index page at `/` and each app on
 | `chat-bot/`                          | A bot that chats in a live room: answers @s, joins in, names songs, thanks gifts |
 | `room-feed-protocol/`                | What room-feed sends and answers: events, status frames, HTTP API types, URLs    |
 | `lyrics-search/`                     | Names a song from the lines sung with NetEase's lyrics search, for the chat bot  |
+| `room-memory/`                       | What the chat bot remembers: memory files, limits, who may change what, archive  |
 | `room-feed/`                         | The server that reads a live room in Chrome and sends its chat and gifts on      |
 
 ## Layout
@@ -71,7 +72,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   src/mcp/tools/          #   declarative tools (tool.json + guidance.md per folder) a room switches on in its room_config.json
   scripts/                #   offline tools over logs/: song-breaks-replay.ts (`pnpm replay:song-breaks`), where lyrics would end each named song; shazam-windows.py, what Shazam hears in a recording, window by window
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + ERes2Net
-  logs/  data/            #   winston logs; data/<房间号>/ per room: room_config.json, memory.md, personas/, tools/, chat/, <user id>/, bot_logs.md (not in git)
+  logs/  data/            #   winston logs; data/<房间号>/ per room: room_config.json, memory.md, memory/ (archive.md), personas/, tools/, chat/, <user id>/, bot_logs.md (not in git)
 room-feed-protocol/       # @dy-apps/room-feed-protocol: room-feed's events and API, and the client that reads them
   src/events.ts           #   chat, gift, like events and the status frames, one JSON object per WebSocket message
   src/api.ts              #   the HTTP API's answers, the default port, the URLs, port and room-number checks
@@ -81,6 +82,10 @@ lyrics-search/            # @dy-apps/lyrics-search: names a song from sung lines
   src/lyrics-search.ts    #   LyricsSearch: the queries, the vote, the singer rule, with fetch, clock and limits injected
   src/netease.ts          #   NetEase's lyrics and title searches; limits.ts: rate limit and circuit breaker
   src/normalise.ts        #   line cleaning, title and singer normalising (traditional folded to simplified)
+room-memory/              # @dy-apps/room-memory: what the chat bot remembers (memory.md, each viewer's note.md), who may change what
+  src/file-memory.ts      #   fileMemory: the RoomMemory interface over the files, with read, write, append and the day injected; the archive of changed entries
+  src/policy.ts           #   who may change what: the room's memory for admins, a note its person's own, what pnpm remember may rewrite
+  src/entry.ts            #   entries between § lines, each with its <!-- date tool|chat --> trailer; change.ts: add / replace / remove; limits.ts
 room-feed/                # @dy-apps/room-feed: one live room's events, run with tsx (see "room-feed" below)
   src/main.ts             #   entry: `login` or `--room` (cli-options.ts), the real objects wired
   src/room.ts             #   Room: keeps the room page open, reopens it when chat drops, chat queue

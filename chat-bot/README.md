@@ -13,7 +13,7 @@ To use it:
 
 1. Start, in this order: the speech service (`uv run --directory asr transcribe.py --serve 8758`, from `chat-bot/`), the bot for a room once the service is ready: `pnpm start --room <房间号> --bot-name <its nickname>`, and last room-feed, logged in as the bot's account (more under [Start](AGENTS.md#start)). The bot never starts the speech service itself.
 2. In the room, an admin (the streamer, or anyone in `config.json`) turns features on and off by asking the bot in words or with a `/` command (see Tools and `/` commands below; every command is in [`docs/commands.md`](docs/commands.md)).
-3. To fit it to one room, put that room's details in its `data/<房间号>/` folder, with no code changes: who the streamer is (`memory.md`, which the bot also adds to itself), a song list, which tools it has on and their data (a song list, the streamer's hours), a message for when she sings. How is in [`docs/room-setup.md`](docs/room-setup.md).
+3. To fit it to one room, put that room's details in its `data/<房间号>/` folder, with no code changes: who the streamer is (`memory.md`, which the bot also adds to itself; its rules are in [`room-memory/`](../room-memory)), a song list, which tools it has on and their data (a song list, the streamer's hours), a message for when she sings. How is in [`docs/room-setup.md`](docs/room-setup.md).
 
 ## How it works
 
@@ -62,7 +62,7 @@ then room-feed (from the repo root: `pnpm room-feed --room <房间号>`).
 
 Without the speech service running, the bot still enters the room, without speech (it logs `no speech service on port 8758: start it first, …` once), and starts hearing the streamer within 10 s of it being started; `--no-asr` turns speech off altogether.
 
-After a stream, `pnpm remember` with the same `--room`, `--bot-name` and `--bot-id` reads its chat into what the bot remembers: the regulars' `note.md`, the room's `memory.md` and the streamer's note (see "Reading the chat into memory" in [`docs/commands.md`](docs/commands.md)).
+After a stream, `pnpm remember` with the same `--room`, `--bot-name` and `--bot-id` reads its chat into what the bot remembers: the regulars' `note.md`, the room's `memory.md` (which it may add to but not rewrite what the streamer or an admin wrote) and the streamer's note (see "Reading the chat into memory" in [`docs/commands.md`](docs/commands.md)).
 
 Other options:
 

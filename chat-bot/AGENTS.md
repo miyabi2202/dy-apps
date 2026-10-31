@@ -72,7 +72,7 @@ How the bot tells viewers apart: set `"private": true` in the room's `data/<房�
 
 **Every feature must work in a 私密 room, at least in its basics.** When you add or change a feature:
 
-- Key viewers by the user id the adapter gives (like `<uid>/note.md`, what the bot remembers about a viewer) (never by `111111`, the raw nickname or the avatar), and don't assume ids are digits.
+- Key viewers by the user id the adapter gives (like `<uid>/note.md`, what the bot remembers about a viewer; the memory files and their rules are `@dy-apps/room-memory`'s) (never by `111111`, the raw nickname or the avatar), and don't assume ids are digits.
 - Don't rely on a viewer's full nickname, avatar, `secUid` or fan club; with only `苦***`, the feature should still do its job (answer an @, thank a gift, remember their talk with the bot).
 - Add a test with 私密 viewers (id `111111`, a `X***` nickname, a wealth level) when the feature handles users.
 
@@ -88,7 +88,7 @@ How the bot tells viewers apart: set `"private": true` in the room's `data/<房�
 
 Stop the bot's background task first (a recorder, if one is running, stops with it), then room-feed's, then the speech service's (TaskStop each; leave the speech service running when the bot is only being restarted), and check with the `pgrep` and `lsof` commands above that no `transcribe.py`, `ffmpeg` or room-feed process is left.
 
-After a stream (the bot stopped by you, or gone with room-feed), read its chat into memory, from `chat-bot/`, with the bot's room and account: `pnpm remember --room <房间号> --bot-name 默认关闭 --bot-id 7692586790687114297` (half a minute or so; see "Reading the chat into memory" in docs/commands.md). Tell the user what it changed: the `memory updated` lines with `by: "chat"` in `logs/chat-bot.log`. Not when the bot was only restarted mid-stream.
+After a stream (the bot stopped by you, or gone with room-feed), read its chat into memory, from `chat-bot/`, with the bot's room and account: `pnpm remember --room <房间号> --bot-name 默认关闭 --bot-id 7692586790687114297` (half a minute or so; see "Reading the chat into memory" in docs/commands.md). Tell the user what it changed: the `memory updated` lines with `by: "chat"` in `logs/chat-bot.log`, and any `memory change skipped` (it never rewrites or removes what the streamer or an admin wrote in memory.md, only adds to it; replaced and removed entries are kept in `data/<房间号>/memory/archive.md`). Not when the bot was only restarted mid-stream.
 
 ## Troubleshooting
 
