@@ -79,10 +79,11 @@ test('a change that does not fit says so, and writes nothing', () => {
   expect(store.size).toBe(0);
 });
 
-test('the chat may write anywhere; a change that cannot be made is skipped and the rest still are', () => {
-  const { memory, store } = setup({ '/room/memory.md': '甲\n' });
+test('a change that cannot be made is skipped and the rest still are, and a trailer goes on what was written', () => {
+  const note = { scope: 'note', userId: 'u-1' } as const;
+  const { memory, store } = setup({ '/room/folder-u-1/note.md': '甲\n' });
   const done = memory.changeAll(
-    room,
+    note,
     [
       { action: 'remove', old: '没有这条' },
       { action: 'add', content: '乙' },
@@ -101,8 +102,8 @@ test('the chat may write anywhere; a change that cannot be made is skipped and t
     },
   ]);
   // Trailers don't count: `丙 § 乙` is five characters.
-  expect(done).toMatchObject({ used: 5, limit: 4000 });
-  expect(store.get('/room/memory.md')).toBe(
+  expect(done).toMatchObject({ used: 5, limit: 1000 });
+  expect(store.get('/room/folder-u-1/note.md')).toBe(
     '丙\n<!-- 2026-10-31 chat -->\n§\n乙\n<!-- 2026-10-31 chat -->\n',
   );
 });
@@ -125,16 +126,16 @@ test('an entry a replace or remove takes out is kept first, with its date, who c
       { action: 'remove', old: '乙' },
       { action: 'add', content: '丁' },
     ],
-    { by: 'chat' },
+    admin,
   );
   expect(store.get('/room/memory/archive.md')).toBe(
-    '甲\n<!-- 写于 2026-10-01 tool；2026-10-31 chat 改掉 -->\n§\n乙\n<!-- 写于 没有日期；2026-10-31 chat 删掉 -->\n§\n',
+    '甲\n<!-- 写于 2026-10-01 tool；2026-10-31 tool 改掉 -->\n§\n乙\n<!-- 写于 没有日期；2026-10-31 tool 删掉 -->\n§\n',
   );
   expect(memory.roomText()).toBe('甲二\n§\n丙\n§\n丁\n');
   expect(memory.entries(room)).toEqual([
-    { text: '甲二', at: '2026-10-31', by: 'chat' },
+    { text: '甲二', at: '2026-10-31', by: 'tool' },
     { text: '丙' },
-    { text: '丁', at: '2026-10-31', by: 'chat' },
+    { text: '丁', at: '2026-10-31', by: 'tool' },
   ]);
 
   // A person's archive sits next to their note, outside the folder Claude may read.

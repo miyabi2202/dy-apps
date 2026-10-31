@@ -14,6 +14,30 @@ export interface RoomFacts {
   streamerId: string | undefined;
 }
 
+const ONLY_EXTEND = '这条是主播或管理员写的，只能在后面补充，不能改写或删掉';
+
+/** Whether `content` keeps all of `old`, bar the punctuation or closing bracket it ends with. */
+function keeps(old: string, content: string): boolean {
+  const stem = old.trim().replace(/[\s。．.，,；;、！!？?）)】」』"”]+$/u, '');
+  return !!stem && content.includes(stem);
+}
+
+/**
+ * Why what `pnpm remember` read out of the chat may not make `change` to the room's memory, or
+ * nothing when it may. What it writes is only as good as the chat, which anyone can fill with
+ * lies: so it may add, and add to what the streamer or an admin wrote (a replace that keeps the
+ * old text), but only rewrite or remove what it wrote itself.
+ */
+function chatRefusal(change: Change, entries: readonly Entry[]): string | undefined {
+  if (change.action === 'add') return undefined;
+  const old = change.old.trim();
+  const found = entries.filter((entry) => old && entry.text.includes(old));
+  // Not found, or in several places: the change itself says why it can't be made.
+  if (found.length !== 1 || found[0]!.by === 'chat') return undefined;
+  if (change.action === 'replace' && keeps(old, change.content)) return undefined;
+  return ONLY_EXTEND;
+}
+
 /**
  * Why `writer` may not make `change` to `target` as it is now (`entries`), in words for Claude, or
  * nothing when it may. The room's memory is for the streamer and admins; a note is its person's
@@ -21,12 +45,14 @@ export interface RoomFacts {
  */
 export function refusal(
   target: Target,
-  _change: Change,
-  _entries: readonly Entry[],
+  change: Change,
+  entries: readonly Entry[],
   writer: Writer,
   { isPrivate, streamerId }: RoomFacts,
 ): string | undefined {
-  if (writer.by === 'chat') return undefined;
+  if (writer.by === 'chat') {
+    return target.scope === 'room' ? chatRefusal(change, entries) : undefined;
+  }
   if (target.scope === 'room') {
     return writer.admin ? undefined : '直播间的记忆只有主播和机器人管理员能改';
   }

@@ -63,9 +63,15 @@ function usage(
   return `${memoryLength(text)}/${memory.limitOf(target)}`;
 }
 
-/** The entries of `target`'s file for a prompt, each with the day it was written when it's known: `（2026-10-30 记）`. */
+/**
+ * The entries of `target`'s file for a prompt, each with the day it was written when it's known:
+ * `（2026-10-30 记）`, or `（2026-10-30 你记）` for one this reading wrote itself, which it may
+ * rewrite (see the room's policy in @dy-apps/room-memory).
+ */
 function shown(memory: Pick<RoomMemory, 'entries'>, target: Target): string {
-  const entries = memory.entries(target).map(({ text, at }) => (at ? `${text}（${at} 记）` : text));
+  const entries = memory
+    .entries(target)
+    .map(({ text, at, by }) => (at ? `${text}（${at} ${by === 'chat' ? '你' : ''}记）` : text));
   return entries.join('\n§\n') || '（无）';
 }
 

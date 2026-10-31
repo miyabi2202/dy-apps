@@ -162,7 +162,30 @@ test('the prompts show each entry with the day it was written, and undated ones 
     record: RECORD,
     answers: { notes: { notes: [] }, room: { room: [], streamer: [] } },
   });
-  store.set(ROOM_FILE, '主播叫咿咿\n§\n爱唱周杰伦\n<!-- 2026-10-30 tool -->\n');
+  store.set(
+    ROOM_FILE,
+    '主播叫咿咿\n§\n爱唱周杰伦\n<!-- 2026-10-30 tool -->\n§\n周五不播\n<!-- 2026-10-31 chat -->\n',
+  );
   await remember.run();
-  expect(asked[1]!.prompt).toContain('主播叫咿咿\n§\n爱唱周杰伦（2026-10-30 记）');
+  expect(asked[1]!.prompt).toContain(
+    '主播叫咿咿\n§\n爱唱周杰伦（2026-10-30 记）\n§\n周五不播（2026-10-31 你记）',
+  );
+});
+
+test("a change to what the streamer or an admin wrote that rewrites it is skipped, as the room's policy says", async () => {
+  const { remember, store } = setup({
+    record: RECORD,
+    answers: {
+      notes: { notes: [] },
+      room: {
+        room: [
+          { action: 'remove', content: '', old: '主播叫咿咿' },
+          { action: 'replace', content: '主播叫咿咿，外号 11', old: '主播叫咿咿' },
+        ],
+        streamer: [],
+      },
+    },
+  });
+  expect(await remember.run()).toMatchObject({ changes: 1, failed: 0 });
+  expect(store.get(ROOM_FILE)).toBe('主播叫咿咿，外号 11\n<!-- 2026-10-31 chat -->\n');
 });
