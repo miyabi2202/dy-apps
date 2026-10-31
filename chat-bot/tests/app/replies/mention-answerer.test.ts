@@ -1,11 +1,11 @@
-import { SETTING_DEFAULTS } from '../../../src/core/commands/settings';
 import type { EventBus } from '../../../src/app/event-bus';
 import { MentionAnswerer, type Mention } from '../../../src/app/replies/mention-answerer';
-import type { SettingsPart } from '../../../src/app/room/room-state';
+import type { SettingsStore } from '../../../src/app/ports';
 import type { UserTalk } from '../../../src/app/ports';
 import { Transcript } from '../../../src/core/songs/transcript';
 import { fakeMemory, noteFile } from '../../support/fake-memory';
 import { fakeRoom } from '../../support/fake-room';
+import { fakeSettings } from '../../support/fake-settings';
 import { NOW, fakeBus, fakeOutbox, silentLog } from '../../support/fakes';
 
 const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{singleLength}})';
@@ -23,7 +23,7 @@ interface SetupOptions {
   userTalk?: UserTalk;
   bus?: Pick<EventBus, 'emit'>;
   botTalk?: string;
-  settings?: () => SettingsPart;
+  settings?: SettingsStore;
 }
 
 function setup(options: SetupOptions = {}) {
@@ -36,10 +36,9 @@ function setup(options: SetupOptions = {}) {
     persona: () => options.persona ?? '',
     chatDir: options.chatDir,
     botTalk: options.botTalk === undefined ? undefined : { recent: () => options.botTalk ?? '' },
-    screenshotsOn: !!options.screenshot,
+    settings: options.settings ?? fakeSettings({ screenshots: !!options.screenshot }),
     now: () => NOW,
   });
-  if (options.settings) room.addSettings(options.settings);
   const answerer = new MentionAnswerer({
     ask: ({ prompt, image }) => {
       prompts.push(prompt);
@@ -151,17 +150,10 @@ test('points Claude at the record folder, and tells it who it plays', async () =
 });
 
 test('tells Claude the room settings', async () => {
-  const settings = {
-    autoReplyThreshold: 1,
-    thanksThreshold: 100,
-  };
-  const { ask, prompts } = setup({
-    template: '{{settings}}',
-    settings: () => settings,
-  });
+  const settings = fakeSettings({ autoReplyThreshold: 1, thanksThreshold: 100 });
+  const { ask, prompts } = setup({ template: '{{settings}}', settings });
   await ask({ userId: 'u-阿明' });
-  settings.autoReplyThreshold = 0.6;
-  settings.thanksThreshold = 99999;
+  settings.set({ autoReplyThreshold: 0.6, thanksThreshold: 99999 });
   await ask({ userId: 'u-阿明' });
 
   expect(prompts).toEqual([
@@ -170,9 +162,10 @@ test('tells Claude the room settings', async () => {
       '- 截图：关（你看不到直播画面）',
       '- 自动回复：关闭',
       '- 自动谢礼：5 分钟内送礼超过 100 钻的观众会收到感谢',
+      '- 自动识歌：关闭',
     ].join('\n'),
     expect.stringContaining(
-      '- 自动回复：开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 0.6）\n- 自动谢礼：关闭',
+      '- 自动回复：开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 0.6，两次之间至少隔 60 秒）\n- 自动谢礼：关闭',
     ),
   ]);
 });
@@ -381,11 +374,7 @@ test("the asker's note goes into their prompt, and the reply @s them by nickname
 });
 
 test('the most messages an answer may take is kept in the room settings, and splits the answer', async () => {
-  const stored: Record<string, unknown> = {};
-  const settings = {
-    get: () => ({ ...SETTING_DEFAULTS, ...stored }),
-    set: (patch: object) => void Object.assign(stored, patch),
-  };
+  const settings = fakeSettings();
   const { outbox, sent } = fakeOutbox();
   const room = fakeRoom({ now: () => NOW, settings });
   const answerer = new MentionAnswerer({
@@ -395,8 +384,7 @@ test('the most messages an answer may take is kept in the room settings, and spl
     log: silentLog,
     promptTemplate: () => TEMPLATE,
   });
-  room.maxReplyParts = 2;
-  expect(stored).toEqual({ maxReplyParts: 2 });
+  settings.set({ maxReplyParts: 2 });
 
   answerer.ask({ asker: '阿明', question: '讲讲', history: [] });
   await answerer.idle();

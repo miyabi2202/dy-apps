@@ -1,5 +1,6 @@
 import type { Judge, Log } from '../../../src/app/ports';
 import { fakeRoom } from '../../support/fake-room';
+import { fakeSettings } from '../../support/fake-settings';
 import { AutoReply, type AutoReplyOptions } from '../../../src/app/replies/auto-reply';
 import type { UnpromptedReply } from '../../../src/app/replies/mention-answerer';
 import type { Alias } from '../../../src/core/viewers/alias';
@@ -28,9 +29,14 @@ const judgeByWord =
  */
 function setup(
   rounds: (() => void)[],
-  options: Partial<AutoReplyOptions> = {},
+  options: Partial<AutoReplyOptions> & { threshold?: number; quietMs?: number } = {},
   aliases: Alias[] = [],
 ) {
+  const { threshold = 0.6, quietMs = 60_000, ...rest } = options;
+  const settings = fakeSettings({
+    autoReplyThreshold: threshold,
+    autoReplyIntervalSeconds: quietMs / 1000,
+  });
   let now = 0;
   const transcript = new Transcript(Infinity, () => now);
   const history = new ChatHistory(100);
@@ -39,7 +45,7 @@ function setup(
   const autoReply: AutoReply = new AutoReply({
     outbox: { push: (message) => sent.push(message) },
     judge: judgeByWord(judged),
-    threshold: 0.6,
+    settings,
     picker: () => Promise.resolve(JSON.stringify({ picks: [] })),
     pickTemplate: () => '{{lines}}',
     reply: () => {},
@@ -53,7 +59,7 @@ function setup(
       else autoReply.stop();
       return Promise.resolve();
     },
-    ...options,
+    ...rest,
   });
   const chat = (nickname: string, content: string, userId?: string) => {
     const line = { ts: now, nickname, content, ...(userId && { userId }) };
@@ -70,28 +76,28 @@ function setup(
     now += ms;
     then();
   };
-  return { autoReply, sent, judged, chat, say, later };
+  return { autoReply, settings, sent, judged, chat, say, later };
 }
 
 test('asks Jev nothing at a threshold of 1 or more, until it is lowered', async () => {
   const rounds = [
     () => chat('小红', '机器人在吗'),
     () => {
-      autoReply.threshold = 0.6;
+      settings.set({ autoReplyThreshold: 0.6 });
       chat('小红', '机器人在吗在吗');
     },
   ];
-  const { autoReply, judged, chat } = setup(rounds, { threshold: 1 });
+  const { autoReply, settings, judged, chat } = setup(rounds, { threshold: 1 });
   await autoReply.run();
 
   // Only what was said after it was turned on.
   expect(judged).toEqual(['(1) 00:00:40 [小红] 机器人在吗在吗']);
-  expect(autoReply.threshold).toBe(0.6);
+  expect(settings.get().autoReplyThreshold).toBe(0.6);
 });
 
 test('when Jev runs out of money, says so in the room and turns itself off', async () => {
   let asked = 0;
-  const { autoReply, sent, chat } = setup(
+  const { autoReply, settings, sent, chat } = setup(
     [() => chat('小红', '机器人在吗'), () => chat('小红', '机器人还在吗'), () => {}],
     {
       judge: () => {
@@ -103,7 +109,7 @@ test('when Jev runs out of money, says so in the room and turns itself off', asy
   await autoReply.run();
 
   expect(sent).toEqual([{ kind: 'system', text: '钱包烧干了，自动回复已关闭' }]);
-  expect(autoReply.threshold).toBe(10);
+  expect(settings.get().autoReplyThreshold).toBe(10);
   expect(asked).toBe(1);
 });
 
@@ -208,7 +214,7 @@ test('with no quiet time it answers the next one without waiting', async () => {
   const ran = setup(
     [
       () => {
-        ran.autoReply.quietMs = 0;
+        ran.settings.set({ autoReplyIntervalSeconds: 0 });
         ran.chat('阿明', '机器人在吗', 'u-阿明');
       },
       () => ran.chat('小蓝', '机器人你几岁', 'u-小蓝'),
@@ -399,7 +405,7 @@ test("a chat matching a tool's listen trigger is looked at at once, not at the n
     outbox: { push: () => {} },
     judge: (_, questions) =>
       Promise.resolve(Object.fromEntries(Object.keys(questions).map((k) => [k, 0.1]))),
-    threshold: 0.6,
+    settings: fakeSettings({ autoReplyThreshold: 0.6 }),
     picker: () =>
       Promise.resolve(
         JSON.stringify({
@@ -447,7 +453,7 @@ test("a chat mentioning one of a tool's phrases is looked at at once, and the pi
     outbox: { push: () => {} },
     judge: (_, questions) =>
       Promise.resolve(Object.fromEntries(Object.keys(questions).map((k) => [k, 0.1]))),
-    threshold: 0.6,
+    settings: fakeSettings({ autoReplyThreshold: 0.6 }),
     picker: ({ prompt }) => {
       prompts.push(prompt);
       return Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] }));
@@ -503,7 +509,7 @@ test('what is said while it picks whom to answer is looked at in the next check'
 function aliasSetup(
   rounds: (() => void)[],
   picks: unknown,
-  options: Partial<AutoReplyOptions> = {},
+  options: Partial<AutoReplyOptions> & { threshold?: number; quietMs?: number } = {},
 ) {
   const logged: [string, string, unknown][] = [];
   const log: Log = {

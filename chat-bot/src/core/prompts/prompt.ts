@@ -2,6 +2,7 @@ import { clock, localDate, machineTimeZone, retimeLines, timeZoneName } from './
 import type { GiftLine } from '../chat/recent-gifts';
 import type { ChatLine } from '../chat/room-events';
 import { fillTemplate } from './template';
+import { settingsText, type Settings } from '../commands/settings';
 import type { Wording } from './wording';
 import { isGuest, isPlayed, isSung, type TranscriptLine } from '../songs/transcript';
 
@@ -42,7 +43,7 @@ export interface RoomPromptInput {
   /** What the bot itself said in the room lately, one message a line. */
   botTalk?: string;
   /** How the bot is set up in the room right now. */
-  settings?: RoomSettings;
+  settings?: Settings;
   /** What the bot's own account wears by its name, from its own latest chat line. */
   ownBadges?: OwnBadges;
   /** The rules for topics the bot must not take up (forbidden.md's `## Topics`). */
@@ -67,26 +68,6 @@ function ownBadgesText({ fansLevel, payLevel }: OwnBadges): string {
     ? `你自己这个账号名字旁边挂着：${worn.join('、')}（大家都看得见，随送礼和互动会涨）。`
     : '';
 }
-
-/**
- * How the bot is set up in the room right now, which admins can change while it runs. Each feature
- * gives its own part (see RoomState.addSettings), and the prompt lists the parts there are.
- */
-export interface RoomSettings {
-  /** Whether prompts get a screenshot of the live video. */
-  screenshots: boolean;
-  /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
-  autoReplyThreshold?: number;
-  /** How long it keeps quiet after talking unprompted. */
-  autoReplyIntervalMs?: number;
-  /** Viewers whose gifts within 5 minutes pass this many diamonds are thanked. */
-  thanksThreshold?: number;
-  /** Whether the bot names the songs the streamer sings without being asked. */
-  autoSongId?: boolean;
-}
-
-/** A threshold this high means thanks are off: nobody gives that much in 5 minutes. */
-const THANKS_OFF_FROM = 99999;
 
 /** Where the bot heard someone talk to or about it without an @: the chat, or (the streamer) the stream. */
 export type Heard = 'chat' | 'speech';
@@ -119,31 +100,6 @@ export interface PromptDetails {
 
 /** The room plus what's particular to one prompt. */
 export type PromptInput = RoomPromptInput & PromptDetails;
-
-/** `settings` as lines for the prompt. */
-function settingsText(settings: RoomSettings): string {
-  const { screenshots, autoReplyThreshold, autoReplyIntervalMs } = settings;
-  const { thanksThreshold, autoSongId } = settings;
-  const interval =
-    autoReplyIntervalMs === undefined ? '' : `，两次之间至少隔 ${autoReplyIntervalMs / 1000} 秒`;
-  return [
-    '直播间现在的设置（机器人管理员可以用指令修改）：',
-    `- 截图：${screenshots ? '开（你能看到直播画面）' : '关（你看不到直播画面）'}`,
-    ...(autoReplyThreshold === undefined
-      ? []
-      : [
-          `- 自动回复：${autoReplyThreshold < 1 ? `开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 ${autoReplyThreshold}${interval}）` : '关闭'}`,
-        ]),
-    ...(thanksThreshold === undefined
-      ? []
-      : [
-          `- 自动谢礼：${thanksThreshold >= THANKS_OFF_FROM ? '关闭' : `5 分钟内送礼超过 ${thanksThreshold} 钻的观众会收到感谢`}`,
-        ]),
-    ...(autoSongId === undefined
-      ? []
-      : [`- 自动识歌：${autoSongId ? '开（主播唱歌时，你会自己认出是什么歌并说出来）' : '关闭'}`]),
-  ].join('\n');
-}
 
 /**
  * Fills a prompt template: `{{history}}` becomes one `昵称: 内容` line per chat (and, among them

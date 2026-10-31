@@ -2,6 +2,7 @@ import { AutoSongId } from '../../../src/app/songs/auto-song-id';
 import type { SongAnswer } from '../../../src/core/songs/song-answer';
 import { Transcript, type TranscriptLine } from '../../../src/core/songs/transcript';
 import { fakeRoom } from '../../support/fake-room';
+import { fakeSettings } from '../../support/fake-settings';
 import { silentLog } from '../../support/fakes';
 
 /**
@@ -10,6 +11,7 @@ import { silentLog } from '../../support/fakes';
  */
 function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
   let now = 0;
+  const settings = fakeSettings({ autoSongId: on });
   const transcript = new Transcript(Infinity, () => now);
   const sent: string[] = [];
   const prompts: string[] = [];
@@ -38,7 +40,7 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
     room: fakeRoom({ transcript, now: () => now }),
     outbox: { push: ({ text }) => sent.push(text) },
     log: silentLog,
-    on,
+    settings,
   });
   /** The streamer sings (or says) `text` at `at` seconds. */
   const line = async (at: number, text: string, sung = true) => {
@@ -48,7 +50,7 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
     auto.hear(heard);
     await auto.idle();
   };
-  return { auto, line, sent, prompts };
+  return { settings, line, sent, prompts };
 }
 
 test('names the song once the streamer has sung it a while, and says only what it is sure of', async () => {
@@ -87,11 +89,11 @@ test('names it again every 3 minutes of singing on, but never says the same song
 });
 
 test('switched on, it names the song; off, it names nothing', async () => {
-  const { auto, line, prompts } = setup([{ message: '这首是《晴天》', title: '晴天' }], false);
+  const { settings, line, prompts } = setup([{ message: '这首是《晴天》', title: '晴天' }], false);
   for (let t = 0; t < 60; t += 10) await line(t, `一句长长的歌词${t}`);
   expect(prompts).toEqual([]);
 
-  auto.on = true;
+  settings.set({ autoSongId: true });
   await line(60, '一句长长的歌词60');
   expect(prompts).toHaveLength(1);
 });

@@ -9,7 +9,6 @@ import {
   type OwnBadges,
   type PromptDetails,
   type RoomPromptInput,
-  type RoomSettings,
 } from '../../core/prompts/prompt';
 import type { ForbiddenWords } from '../../core/prompts/forbidden';
 import type { ReplyLimits } from '../../core/replies/reply';
@@ -21,10 +20,6 @@ import {
 } from '../../core/songs/transcript';
 import { combineSpans, type SongBreakSource, type SongSpan } from '../../core/songs/song-breaks';
 import type { BotTalk, Log, Screenshot, SettingsStore } from '../ports';
-import { setting } from '../commands/setting';
-
-/** What a feature adds to the room's settings (everything but screenshots, which the room keeps). */
-export type SettingsPart = Omit<RoomSettings, 'screenshots'>;
 
 export interface RoomStateOptions {
   /** The room's recent chat; whoever hears the chat adds to it. */
@@ -56,12 +51,12 @@ export interface RoomStateOptions {
   botTalk?: Pick<BotTalk, 'recent'>;
   /** A JPEG of the live video, sent to Claude with a prompt while screenshots are on. */
   screenshot?: Screenshot;
-  /** Whether to start with screenshots on (when there's a `screenshot`); /截图 switches it. Without `settings`, what it starts as. */
-  screenshotsOn?: boolean;
-  /** The most messages anything the bot says is split into, `@asker (1/3) …`. Without `settings`, what it starts as. */
-  maxReplyParts?: number;
-  /** The room's settings, where those are kept (`screenshots`, `maxReplyParts`). */
-  settings?: SettingsStore;
+  /**
+   * The room's settings: `screenshots` (whether prompts get the live video; /截图 switches it),
+   * `maxReplyParts` (the most messages anything the bot says is split into, `@asker (1/3) …`), and
+   * all of them for `{{settings}}`.
+   */
+  settings: SettingsStore;
   /** The folder of the room's chat record files, for `{{chatDir}}`. */
   chatDir?: string;
   /** The sentences prompts say around what they fill in (wording.md), read each time. */
@@ -104,20 +99,10 @@ export class RoomState {
   readonly botName: string;
   readonly wording: Wording;
   private readonly clock: () => number;
-  private readonly screenshotsSetting: ReturnType<typeof setting<'screenshots'>>;
-  private readonly partsSetting: ReturnType<typeof setting<'maxReplyParts'>>;
-  /** The parts of the room's settings the features keep, for `{{settings}}`. */
-  private readonly settingsParts: (() => SettingsPart)[] = [];
   /** What the bot's own account wore by its name the last time its own chat was seen. */
   private ownBadgesSeen: OwnBadges | undefined;
 
   constructor(private readonly options: RoomStateOptions) {
-    this.screenshotsSetting = setting(
-      options.settings,
-      'screenshots',
-      options.screenshotsOn ?? true,
-    );
-    this.partsSetting = setting(options.settings, 'maxReplyParts', options.maxReplyParts ?? 5);
     this.botName = options.botName;
     this.wording = options.wording;
     this.clock = options.now ?? Date.now;
@@ -153,20 +138,11 @@ export class RoomState {
     return memory.noteText(userId);
   }
 
-  /** The most messages anything the bot says is split into; `/最大回复条数` sets it. */
-  get maxReplyParts(): number {
-    return this.partsSetting.get();
-  }
-
-  set maxReplyParts(parts: number) {
-    this.partsSetting.set(parts);
-  }
-
   /** How what the bot says is fit into messages of at most `maxLength` characters, as set now. */
   replyLimits(maxLength: number): ReplyLimits {
     return {
       maxLength,
-      maxParts: this.maxReplyParts,
+      maxParts: this.options.settings.get().maxReplyParts,
       atTrimStart: this.atTrimStart(),
       forbidden: this.options.forbiddenWords?.(),
     };
@@ -213,15 +189,6 @@ export class RoomState {
     return this.options.botTalk?.recent() ?? '';
   }
 
-  /**
-   * Has `part`, read each time, in `{{settings}}`: a feature gives what it keeps there (the
-   * auto-reply threshold, say), which admins may change while the bot runs. Without any, there's
-   * no settings text at all.
-   */
-  addSettings(part: () => SettingsPart): void {
-    this.settingsParts.push(part);
-  }
-
   /** The room's part of a prompt (see buildPrompt), as it is now. */
   promptInput(): RoomPromptInput {
     const { chatDir, memory, intro, limitations, botTalk } = this.options;
@@ -244,7 +211,7 @@ export class RoomState {
       intro: intro?.(),
       limitations: limitations?.(),
       botTalk: botTalk?.recent(),
-      settings: this.settings(),
+      settings: this.options.settings.get(),
       ownBadges: this.ownBadges(),
       forbiddenTopics: this.options.forbiddenTopics?.(),
     };
@@ -276,30 +243,12 @@ export class RoomState {
     return buildPrompt(template, { ...this.promptInput(), ...details });
   }
 
-  private settings(): RoomSettings | undefined {
-    if (!this.settingsParts.length) return undefined;
-    return Object.assign({}, ...this.settingsParts.map((part) => part()), {
-      screenshots: this.screenshots,
-    }) as RoomSettings;
-  }
-
-  /** Whether prompts get the live video; admins switch it while the bot runs. */
-  get screenshots(): boolean {
-    return this.screenshotsSetting.get();
-  }
-
-  set screenshots(on: boolean) {
-    if (on === this.screenshots) return;
-    this.screenshotsSetting.set(on);
-    this.options.log.info('screenshot', { enabled: on });
-  }
-
   /**
    * The live video while screenshots are on, or `always`; nothing while they're off (without
    * asking room-feed) or when there's no screenshot to be had: prompting goes on.
    */
   async screenshot(always = false): Promise<Uint8Array | undefined> {
-    if (!this.screenshots && !always) return undefined;
+    if (!this.options.settings.get().screenshots && !always) return undefined;
     try {
       return await this.options.screenshot?.();
     } catch (err) {

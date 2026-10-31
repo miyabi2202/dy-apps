@@ -2,6 +2,7 @@ import { MaliceWatch } from '../../../src/app/replies/malice-watch';
 import type { IncomingChat } from '../../../src/core/chat/room-events';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import { fakeRoom } from '../../support/fake-room';
+import { fakeSettings } from '../../support/fake-settings';
 import { silentLog } from '../../support/fakes';
 
 /**
@@ -10,6 +11,7 @@ import { silentLog } from '../../support/fakes';
  */
 function setup(scores: Record<string, number>, malicious: string[], answer?: string) {
   let now = 0;
+  const settings = fakeSettings({ maliceWatch: true });
   const history = new ChatHistory(100);
   const sent: string[] = [];
   const prompts: string[] = [];
@@ -28,7 +30,7 @@ function setup(scores: Record<string, number>, malicious: string[], answer?: str
     room: fakeRoom({ history, now: () => now }),
     exempt: (userId) => userId === 'streamer',
     log: silentLog,
-    on: true,
+    settings,
   });
   /** `nickname` (user id `userId`) chats `content` at `at` seconds. */
   const say = async (at: number, userId: string, nickname: string, content: string) => {
@@ -38,7 +40,7 @@ function setup(scores: Record<string, number>, malicious: string[], answer?: str
     watch.hear(chat);
     await watch.idle();
   };
-  return { watch, say, sent, prompts };
+  return { watch, settings, say, sent, prompts };
 }
 
 // A 私密 room's viewer, as the adapter gives them.
@@ -73,8 +75,8 @@ test('an answer that is not JSON, and admins, count for nothing', async () => {
 });
 
 test('turned off, it stops', async () => {
-  const { watch, say, sent } = setup({ 滚: 0.9 }, ['滚']);
-  watch.on = false;
+  const { settings, say, sent } = setup({ 滚: 0.9 }, ['滚']);
+  settings.set({ maliceWatch: false });
   await say(0, 'u-1', '甲', '滚');
   await say(1, 'u-1', '甲', '滚');
   expect(sent).toEqual([]);

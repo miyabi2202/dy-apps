@@ -23,7 +23,7 @@ import type { IncomingChat } from '../../core/chat/room-events';
 import type { TranscriptLine } from '../../core/songs/transcript';
 import { askJson } from '../models/ask-json';
 import type { Outbox } from './outbox';
-import { setting } from '../commands/setting';
+import type { Settings } from '../../core/commands/settings';
 import type { AskModel, FindStreamer, Judge, Log, SettingsStore } from '../ports';
 import type { RoomState } from '../room/room-state';
 
@@ -32,10 +32,8 @@ export interface AutoReplyOptions {
   outbox: Pick<Outbox, 'push'>;
   /** Says how likely each new chat or sentence is about the bot. Without it, it never talks unprompted. */
   judge?: Judge;
-  /** Talk when something new is about the bot at least this likely; 1 or more never, without asking. Without `settings`, what it starts as. */
-  threshold: number;
   /** The room's settings, where the threshold and the quiet time are kept. */
-  settings?: SettingsStore;
+  settings: SettingsStore;
   /** The chat, transcript and the rest of what the prompt knows about the room. */
   room: RoomState;
   log: Log;
@@ -43,8 +41,6 @@ export interface AutoReplyOptions {
   sleep?: (ms: number) => Promise<void>;
   /** How often it looks at what's new. */
   checkMs?: number;
-  /** At least this long between two things it says unprompted, or after being asked to talk. */
-  quietMs?: number;
   /** Picks whom to answer of what's about the bot (Codex, cheap). */
   picker: AskModel;
   /** The picker's prompt (see pickPrompt), read each time so edits apply at once. */
@@ -101,8 +97,6 @@ const OFF_FOR_NO_CREDIT = 10;
  * the judge.
  */
 export class AutoReply {
-  private readonly thresholdSetting: ReturnType<typeof setting<'autoReplyThreshold'>>;
-  private readonly quietSetting: ReturnType<typeof setting<'autoReplyIntervalSeconds'>>;
   private stopped = false;
   /** Ends the current wait early: to stop, or to look now. */
   private wake: () => void = () => {};
@@ -126,32 +120,13 @@ export class AutoReply {
   private readonly spoke = new Map<string, number>();
 
   constructor(private readonly options: AutoReplyOptions) {
-    this.thresholdSetting = setting(options.settings, 'autoReplyThreshold', options.threshold);
-    this.quietSetting = setting(
-      options.settings,
-      'autoReplyIntervalSeconds',
-      (options.quietMs ?? 60_000) / 1000,
-    );
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.seen = options.room.now();
   }
 
-  /** Talk when something is about the bot at least this likely; 1 or more never. */
-  get threshold(): number {
-    return this.thresholdSetting.get();
-  }
-
-  set threshold(threshold: number) {
-    this.thresholdSetting.set(threshold);
-  }
-
-  /** At least this long between two things it says unprompted; 0 doesn't wait. */
-  get quietMs(): number {
-    return this.quietSetting.get() * 1000;
-  }
-
-  set quietMs(ms: number) {
-    this.quietSetting.set(ms / 1000);
+  /** The room's settings as they are now: the threshold (1 or more never talks unprompted) and how long it keeps quiet. */
+  private get settings(): Settings {
+    return this.options.settings.get();
   }
 
   /** Runs until `stop()`. */
@@ -207,7 +182,7 @@ export class AutoReply {
       this.options.reply({ nickname, userId, question: content, heard: 'chat' });
       return;
     }
-    if (this.threshold >= 1) return;
+    if (this.settings.autoReplyThreshold >= 1) return;
     const name = line?.candidate ? matchChat(content, this.options.room.callNames()) : undefined;
     if (line && name !== undefined) {
       this.callsBot(line, name, { nickname, userId, question: content, heard: 'chat' });
@@ -235,7 +210,7 @@ export class AutoReply {
    */
   hearSpeech(heard: TranscriptLine): void {
     const { room, log } = this.options;
-    if (this.threshold >= 1) return;
+    if (this.settings.autoReplyThreshold >= 1) return;
     // As the check sees it: not sung, not a guest, not the chat read out.
     const line = roomLines(room.recentChat(), [heard], room.botName).find(
       (l) => l.candidate && l.who === STREAMER,
@@ -300,11 +275,6 @@ export class AutoReply {
     this.saidTo.set(userId === streamer?.uid ? STREAMER : userId, this.options.room.now());
   }
 
-  /** What `{{settings}}` says of it: the threshold and how long it keeps quiet. */
-  settings(): { autoReplyThreshold: number; autoReplyIntervalMs: number } {
-    return { autoReplyThreshold: this.threshold, autoReplyIntervalMs: this.quietMs };
-  }
-
   /** Waits `ms`, or until woken: which of the two ended it. */
   private wait(ms: number): Promise<'elapsed' | 'woken'> {
     this.waiting = true;
@@ -318,13 +288,13 @@ export class AutoReply {
   private async check(): Promise<void> {
     const { judge, room, log } = this.options;
     const now = room.now();
-    if (!judge || this.threshold >= 1) {
+    if (!judge || this.settings.autoReplyThreshold >= 1) {
       this.seen = now;
       this.called.clear();
       return;
     }
     // While it keeps quiet, what's said waits to be looked at after.
-    if (now - this.talkedAt < this.quietMs) return;
+    if (now - this.talkedAt < this.settings.autoReplyIntervalSeconds * 1000) return;
     const lines = roomLines(room.recentChat(), room.recentTranscript(), room.botName);
     // Since the last check began, so what was said while it picked and answered is looked at now.
     const since = this.seen;
@@ -347,7 +317,7 @@ export class AutoReply {
     );
     // Jev failing doesn't lose the follow-ups, which never needed it (unless it ran out of money,
     // which turned auto-reply off).
-    if (judged === null && (!following.length || this.threshold >= 1)) return;
+    if (judged === null && (!following.length || this.settings.autoReplyThreshold >= 1)) return;
     const { about, toBot, sure, best, topicsOf } = judged ?? {
       about: [],
       toBot: [],
@@ -427,7 +397,7 @@ export class AutoReply {
       best,
       topics: named,
     } = scoreRelevance(fresh, scores, {
-      threshold: this.threshold,
+      threshold: this.settings.autoReplyThreshold,
       topics: topics.map(({ name }) => name),
       matched: (line) =>
         line.userId === undefined
@@ -548,7 +518,7 @@ export class AutoReply {
     });
     // Only what it's sure enough of (the same threshold as the judge's), surest first, one each.
     const picked = chooseTargets(picks, numbered, {
-      threshold: this.threshold,
+      threshold: this.settings.autoReplyThreshold,
       max: MAX_PICKS,
       streamer,
       allowed: (line) => aboutKeys.has(lineKey(line)),
@@ -572,7 +542,7 @@ export class AutoReply {
    * sets it again), and the room is told.
    */
   private outOfCredit(err: OutOfCreditError): void {
-    this.threshold = OFF_FOR_NO_CREDIT;
+    this.options.settings.set({ autoReplyThreshold: OFF_FOR_NO_CREDIT });
     this.options.log.error('jev is out of credit, auto-reply off', { error: err.message });
     this.options.outbox.push({ kind: 'system', text: '钱包烧干了，自动回复已关闭' });
   }

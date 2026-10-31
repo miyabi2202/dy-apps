@@ -86,12 +86,10 @@ export function registerSongs(container: Container): void {
               room,
               outbox: c.resolve(OUTBOX),
               log: c.resolve(LOG),
-              on: options.autoSongId,
               settings: c.resolve(SETTINGS),
               maxLength: options.maxReplyLength,
             })
           : null;
-      room.addSettings(() => autoSongId?.settings() ?? { autoSongId: false });
       const bus = c.resolve(BUS);
       bus.on('heard', (line) => autoSongId?.hear(line));
       return autoSongId;

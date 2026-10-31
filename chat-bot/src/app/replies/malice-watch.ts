@@ -11,7 +11,6 @@ import { ModelFeature } from '../models/model-feature';
 import type { Outbox } from './outbox';
 import { Pending } from '../pending';
 import type { AskModel, Judge, Log, SettingsStore } from '../ports';
-import { setting } from '../commands/setting';
 import type { RoomState } from '../room/room-state';
 
 export interface MaliceWatchOptions {
@@ -26,10 +25,8 @@ export interface MaliceWatchOptions {
   /** Viewers never judged: the streamer and the bot's admins. */
   exempt?: (userId: string) => boolean;
   log: Log;
-  /** Whether it starts on (off by default); `/识别恶意言论` switches it. Without `settings`, what it starts as. */
-  on?: boolean;
-  /** The room's settings, where it's kept (`maliceWatch`). */
-  settings?: SettingsStore;
+  /** The room's settings, where whether it watches is kept (`maliceWatch`; `/识别恶意言论` switches it). */
+  settings: SettingsStore;
   /** Jev's score from which a chat goes on to the model. */
   threshold?: number;
   /** How much chat around it the model sees. */
@@ -59,28 +56,23 @@ const WARNING = '检测到恶意言论';
  * model flagged one, a regular teasing.
  */
 export class MaliceWatch extends ModelFeature<Suspect, MaliceAnswer> {
-  private readonly onSetting: ReturnType<typeof setting<'maliceWatch'>>;
   private pending = 0;
   private readonly work = new Pending();
 
   constructor(private readonly options: MaliceWatchOptions) {
     super(options.log);
-    this.onSetting = setting(options.settings, 'maliceWatch', options.on ?? false);
-  }
-
-  /** Whether it watches; admins switch it while the bot runs. */
-  get on(): boolean {
-    return this.onSetting.get();
-  }
-
-  set on(on: boolean) {
-    this.onSetting.set(on);
   }
 
   /** Called with each chat from someone but the bot, once it's in the room's history. */
   hear(chat: IncomingChat): void {
     const { userId } = chat;
-    if (!this.on || !userId || this.options.exempt?.(userId) || !chat.content.trim()) return;
+    if (
+      !this.options.settings.get().maliceWatch ||
+      !userId ||
+      this.options.exempt?.(userId) ||
+      !chat.content.trim()
+    )
+      return;
     this.work.track(this.check({ ...chat, userId }));
   }
 

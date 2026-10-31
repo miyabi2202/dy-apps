@@ -5,7 +5,6 @@ import { ModelFeature } from '../models/model-feature';
 import type { Outbox } from './outbox';
 import { Pending } from '../pending';
 import type { AskModel, Log, SettingsStore, UserTalk } from '../ports';
-import { setting } from '../commands/setting';
 import type { RoomState } from '../room/room-state';
 
 export interface GiftThankerOptions {
@@ -13,10 +12,8 @@ export interface GiftThankerOptions {
   outbox: Pick<Outbox, 'push'>;
   /** The prompt (see buildPrompt), read each time so edits apply at once. */
   promptTemplate: () => string;
-  /** Thank someone whose gifts within `windowMs` come to more than this many diamonds. Without `settings`, what it starts as. */
-  threshold: number;
-  /** The room's settings, where the threshold is kept (`thanksThreshold`). */
-  settings?: SettingsStore;
+  /** The room's settings, where the threshold is kept (`thanksThreshold`): thank someone whose gifts within `windowMs` come to more than that many diamonds. */
+  settings: SettingsStore;
   windowMs?: number;
   /** Once past the threshold, wait this long for the rest of a combo, so it's one thanks. */
   settleMs?: number;
@@ -52,7 +49,6 @@ interface Thanks {
  * be changed while it runs.
  */
 export class GiftThanker extends ModelFeature<Thanks, string[]> {
-  private readonly thresholdSetting: ReturnType<typeof setting<'thanksThreshold'>>;
   private readonly windowMs: number;
   /** Each viewer's gifts not thanked yet, by user id. */
   private readonly given = new Map<string, Given[]>();
@@ -62,17 +58,7 @@ export class GiftThanker extends ModelFeature<Thanks, string[]> {
 
   constructor(private readonly options: GiftThankerOptions) {
     super(options.log);
-    this.thresholdSetting = setting(options.settings, 'thanksThreshold', options.threshold);
     this.windowMs = options.windowMs ?? 5 * 60_000;
-  }
-
-  /** The diamonds a giver's gifts in the window must pass to be thanked; admins change it while it runs. */
-  get threshold(): number {
-    return this.thresholdSetting.get();
-  }
-
-  set threshold(threshold: number) {
-    this.thresholdSetting.set(threshold);
   }
 
   /**
@@ -86,7 +72,8 @@ export class GiftThanker extends ModelFeature<Thanks, string[]> {
       (g) => g.at > now - this.windowMs,
     );
     this.given.set(userId, given);
-    if (this.settling.has(userId) || total(given) <= this.threshold) return;
+    if (this.settling.has(userId) || total(given) <= this.options.settings.get().thanksThreshold)
+      return;
     this.settling.add(userId);
     const { settleMs = 15_000 } = this.options;
     const sleep =
@@ -100,11 +87,6 @@ export class GiftThanker extends ModelFeature<Thanks, string[]> {
         return this.run({ gift: all.at(-1)?.gift ?? gift, given: all, total: total(all) });
       }),
     );
-  }
-
-  /** What `{{settings}}` says of it: the threshold. */
-  settings(): { thanksThreshold: number } {
-    return { thanksThreshold: this.threshold };
   }
 
   /** Resolves once every thanks under way has been written (or failed). */

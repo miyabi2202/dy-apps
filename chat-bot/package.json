@@ -16,7 +16,8 @@
     "@dy-apps/room-feed-protocol": "workspace:*",
     "@dy-apps/room-memory": "workspace:*",
     "pinyin-pro": "3.29.4",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@swc/core": "^1.16.13",

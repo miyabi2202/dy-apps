@@ -3,6 +3,7 @@ import type { Exchange, Log } from '../../../src/app/ports';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import type { Gift } from '../../../src/core/chat/room-events';
 import { fakeRoom } from '../../support/fake-room';
+import { fakeSettings } from '../../support/fake-settings';
 
 const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 const MINUTE = 60_000;
@@ -13,6 +14,7 @@ function gift(nickname: string, name: string, diamonds: number): Gift {
 
 test('thanks a viewer once their gifts in 5 minutes pass the threshold, and again for what they send after', async () => {
   let now = 0;
+  const settings = fakeSettings({ thanksThreshold: 20 });
   const prompts: string[] = [];
   const sent: { kind: string; text: string }[] = [];
   const exchanges: Exchange[] = [];
@@ -28,7 +30,7 @@ test('thanks a viewer once their gifts in 5 minutes pass the threshold, and agai
     },
     outbox: { push: (message) => sent.push(message) },
     promptTemplate: () => '{{asker}}|{{question}}|{{userChat}}|{{userHistory}}',
-    threshold: 20,
+    settings,
     room: fakeRoom({ history, now: () => now }),
     userTalk: { add: (_userId, exchange) => exchanges.push(exchange), recent: () => '' },
     log: silentLog,
@@ -53,7 +55,7 @@ test('thanks a viewer once their gifts in 5 minutes pass the threshold, and agai
   waits.shift()!();
   await thanker.idle();
 
-  thanker.threshold = 99999;
+  settings.set({ thanksThreshold: 99999 });
   now += 6 * MINUTE;
   thanker.onGift(gift('阿明', '玫瑰', 500)); // threshold raised
   await thanker.idle();
@@ -80,7 +82,7 @@ test('in a 私密 room, thanks the viewer by their id and the nickname they show
     ask: ({ prompt }) => Promise.resolve(prompt),
     outbox: { push: (message) => sent.push(message) },
     promptTemplate: () => '{{asker}}|{{userChat}}',
-    threshold: 20,
+    settings: fakeSettings({ thanksThreshold: 20 }),
     room: fakeRoom({ history }),
     userTalk: { add: (userId, exchange) => talked.push([userId, exchange]), recent: () => '' },
     log: silentLog,
@@ -105,7 +107,7 @@ test('tells Claude how long the thanks may be with the short @ a long nickname f
     },
     outbox: { push: () => {} },
     promptTemplate: () => '{{singleLength}}',
-    threshold: 20,
+    settings: fakeSettings({ thanksThreshold: 20 }),
     room: fakeRoom(),
     maxLength: 20,
     log: silentLog,

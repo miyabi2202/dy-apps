@@ -11,7 +11,6 @@ import { ModelFeature } from '../models/model-feature';
 import type { Outbox } from '../replies/outbox';
 import { Pending } from '../pending';
 import type { Log, SettingsStore } from '../ports';
-import { setting } from '../commands/setting';
 import type { RoomState } from '../room/room-state';
 import type { SongId } from './song-id';
 
@@ -20,10 +19,8 @@ export interface AutoSongIdOptions {
   room: RoomState;
   outbox: Pick<Outbox, 'push'>;
   log: Log;
-  /** Whether it starts on; `/自动识歌` switches it. Without `settings`, what it starts as. */
-  on?: boolean;
-  /** The room's settings, where it's kept (`autoSongId`). */
-  settings?: SettingsStore;
+  /** The room's settings, where whether it's on is kept (`autoSongId`; `/自动识歌` switches it). */
+  settings: SettingsStore;
   /** Douyin's chat length limit. */
   maxLength?: number;
   /** While the streamer goes on singing, name the song again this often, for the next song. */
@@ -55,7 +52,6 @@ const MAX_RETRIES = 2;
  * about again, the new one is.
  */
 export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null> {
-  private readonly onSetting: ReturnType<typeof setting<'autoSongId'>>;
   /** When it last tried. */
   private triedAt = -Infinity;
   /** How long after `triedAt` it tries again while the streamer sings on. */
@@ -69,21 +65,11 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
 
   constructor(private readonly options: AutoSongIdOptions) {
     super(options.log);
-    this.onSetting = setting(options.settings, 'autoSongId', options.on ?? false);
-  }
-
-  /** Whether it names the songs; admins switch it while the bot runs. */
-  get on(): boolean {
-    return this.onSetting.get();
-  }
-
-  set on(on: boolean) {
-    this.onSetting.set(on);
   }
 
   /** Called with each line the streamer says or sings, after it joined the transcript. */
   hear(line: TranscriptLine): void {
-    if (!this.on || this.busy) return;
+    if (!this.options.settings.get().autoSongId || this.busy) return;
     const { room, againMs = 180_000 } = this.options;
     const transcript = room.recentTranscript();
     const song = singingSong(transcript, line, room.songSpans(transcript));
@@ -109,11 +95,6 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
   /** Resolves once the song being named has been told to the room, or has failed. */
   idle(): Promise<void> {
     return this.work.idle();
-  }
-
-  /** What `{{settings}}` says of it: whether it's on. */
-  settings(): { autoSongId: boolean } {
-    return { autoSongId: this.on };
   }
 
   /** What nobody asked, and the song it last told the room when that was within `repeatMs`. */

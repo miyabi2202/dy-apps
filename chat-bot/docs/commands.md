@@ -290,11 +290,11 @@ Each tool is a `BotTool` in `src/mcp/`; `src/wiring/mcp.ts` lists them, in the o
 
 | Tool                       | Defined in                                                                                                     |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `set_auto_reply_threshold` | `numberTool` (`src/mcp/setting-tools.ts`), listed in `src/wiring/mcp.ts`                                       |
-| `set_auto_reply_interval`  | `numberTool`, listed in `src/wiring/mcp.ts`                                                                    |
-| `set_max_reply_parts`      | `numberTool`, listed in `src/wiring/mcp.ts`                                                                    |
-| `set_thanks_threshold`     | `src/mcp/set-thanks-threshold.ts`                                                                              |
-| `set_screenshots`          | `onOffTool` (`src/mcp/setting-tools.ts`), listed in `src/wiring/mcp.ts`                                        |
+| `set_auto_reply_threshold` | `settingTool`, from its entry in `SETTINGS`                                                                    |
+| `set_auto_reply_interval`  | `settingTool`, from its entry in `SETTINGS`                                                                    |
+| `set_max_reply_parts`      | `settingTool`, from its entry in `SETTINGS`                                                                    |
+| `set_thanks_threshold`     | `settingTool`, from its entry in `SETTINGS`                                                                    |
+| `set_screenshots`          | `settingTool`, from its entry in `SETTINGS`                                                                    |
 | `identify_song`            | `src/mcp/identify-song.ts`                                                                                     |
 | `identify_bgm`             | `src/mcp/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`                                            |
 | `press_like`               | `src/mcp/press-like.ts`, which asks room-feed's `POST …/like`                                                  |
@@ -302,9 +302,9 @@ Each tool is a `BotTool` in `src/mcp/`; `src/wiring/mcp.ts` lists them, in the o
 | `send_heart`               | `src/mcp/heart.ts`, through `HeartGate` (`src/app/tools/heart-gate.ts`), which asks room-feed's `POST …/heart` |
 | `send_happy_heart`         | `src/mcp/happy-heart.ts`, through the same `HeartGate`                                                         |
 | `ask_about_puzzle`         | `src/mcp/ask-about-puzzle.ts`                                                                                  |
-| `set_auto_song_id`         | `onOffTool`, listed in `src/wiring/mcp.ts`                                                                     |
-| `set_malice_watch`         | `onOffTool`, listed in `src/wiring/mcp.ts`                                                                     |
-| `set_happy_heart`          | `onOffTool`, listed in `src/wiring/mcp.ts`                                                                     |
+| `set_auto_song_id`         | `settingTool`, from its entry in `SETTINGS`                                                                    |
+| `set_malice_watch`         | `settingTool`, from its entry in `SETTINGS`                                                                    |
+| `set_happy_heart`          | `settingTool`, from its entry in `SETTINGS`                                                                    |
 | `can_sing`                 | `src/mcp/tools/can-sing/` (`tool.json`, `guidance.md`)                                                         |
 | `too_easy`                 | `src/mcp/tools/too-easy/` (`tool.json`, `guidance.md`)                                                         |
 | `wants_topic`              | `src/mcp/tools/wants-topic/` (`tool.json`)                                                                     |
@@ -313,19 +313,8 @@ Each tool is a `BotTool` in `src/mcp/`; `src/wiring/mcp.ts` lists them, in the o
 
 ## Adding one
 
-A `BotTool` in `src/mcp/` with `commands: [{ name, parse, say }]` for its `/` name, listed in `src/wiring/mcp.ts`; a setting is a few lines with `onOffTool` or `numberTool`:
+A `BotTool` in `src/mcp/` with `commands: [{ name, parse, say }]` for its `/` name, listed in `src/wiring/mcp.ts`. A setting is one entry in `SETTINGS` (`src/core/commands/settings.ts`): its default and bounds as a zod schema, its flag, its `/` command, tool name, description and usage, and the line `{{settings}}` shows. `settingTool('muted', { settings, log })` builds its tool, `cli-options.ts` its flag and `settingsFrom` its check of room_config.json from that entry, and features read it with `settings.get().muted`.
 
-```ts
-onOffTool({
-  name: 'set_muted',
-  command: '静音',
-  description: '开关静音：开着时机器人不主动说话。有人要它安静或要它说话时调用。',
-  get: () => muted.on,
-  set: (on) => (muted.on = on),
-  log,
-}),
-```
-
-Then add a row to the table at the top (the `/` name and the tool's name; a test keeps it in step with the tools), and test it in `tests/mcp/` (see `tests/mcp/setting-tools.test.ts`).
+Then add a row to the tables at the top (the `/` name, the tool's name and the `room_config.json` field; `tests/core/commands/settings.test.ts` checks that every setting has them), and test its feature with `fakeSettings()` (`tests/support/fake-settings.ts`).
 
 A declarative tool, one a room can switch on, is a folder in `src/mcp/tools/` with a `tool.json` (and a `guidance.md` unless it has a `fixedReply`); add a row for it to the table in [Tools a room switches on](#tools-a-room-switches-on) (a test checks that the table and the folders agree), and a room switches it on in its `room_config.json`. Put nothing about one room in it: what differs per room goes in `data/<房间号>/tools/<folder>/` (or `artifacts/`) and is read with `{{file:…}}` in the guidance.

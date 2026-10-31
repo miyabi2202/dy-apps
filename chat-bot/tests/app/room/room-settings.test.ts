@@ -1,9 +1,8 @@
 import { fillRoomConfig, roomConfigFile } from '../../../src/adapters/files/room-files';
 import { AutoReply } from '../../../src/app/replies/auto-reply';
-import { AutoSongId } from '../../../src/app/songs/auto-song-id';
-import { MaliceWatch } from '../../../src/app/replies/malice-watch';
+import { settingTool } from '../../../src/app/tools/setting-tool';
 import type { Log, SettingsStore } from '../../../src/app/ports';
-import { SETTING_DEFAULTS, settingsFrom } from '../../../src/core/commands/settings';
+import { SETTING_DEFAULTS, SETTINGS, settingsFrom } from '../../../src/core/commands/settings';
 import { OutOfCreditError } from '../../../src/core/errors';
 import { parseCliOptions } from '../../../src/cli-options';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
@@ -114,32 +113,21 @@ function setup(text = '{}') {
   return { file, config, store, ...recorded };
 }
 
-test('a setting changed by hand takes effect at once, and one a feature changes is written to the file', () => {
+test('a setting changed by hand takes effect at once, and one a tool changes is written to the file', () => {
   const { file, store } = setup();
-  const autoReply = new AutoReply({
-    outbox: { push: () => {} },
-    threshold: 1,
-    room: fakeRoom({ settings: store }),
-    log: { debug() {}, info() {}, warn() {}, error() {} },
-    picker: () => Promise.resolve('{}'),
-    pickTemplate: () => '',
-    reply: () => {},
-    streamer: () => null,
-    settings: store,
-  });
-  expect(autoReply.quietMs).toBe(60_000);
+  expect(store.get().autoReplyIntervalSeconds).toBe(60);
 
   // By hand.
   file.state.text = file.state.text.replace(
     '"autoReplyIntervalSeconds": 60',
     '"autoReplyIntervalSeconds": 5',
   );
-  expect(autoReply.quietMs).toBe(5_000);
+  expect(store.get().autoReplyIntervalSeconds).toBe(5);
 
-  // By the feature (a tool does this): the file has it, and so does the next read.
-  autoReply.quietMs = 20_000;
+  // By a tool: the file has it, and so does the next read.
+  store.set({ autoReplyIntervalSeconds: 20 });
   expect(fileOf(file.state.text).autoReplyIntervalSeconds).toBe(20);
-  expect(autoReply.quietMs).toBe(20_000);
+  expect(store.get().autoReplyIntervalSeconds).toBe(20);
 });
 
 test('writing a setting does not make the file reload: one read after it, and no write by the read', () => {
@@ -187,62 +175,34 @@ test('a value of the wrong kind keeps the last good settings and is not written'
   expect(messages('room_config.json has bad values, keeping their last ones')).toHaveLength(1);
 });
 
-test('auto-reply, the thanker, auto song id, malice watch and the screenshots keep their settings in the file', () => {
-  const { file, store } = setup();
-  const room = fakeRoom({ settings: store });
-  const autoReply = new AutoReply({
-    outbox: { push: () => {} },
-    threshold: 1,
-    room,
-    log: { debug() {}, info() {}, warn() {}, error() {} },
-    picker: () => Promise.resolve('{}'),
-    pickTemplate: () => '',
-    reply: () => {},
-    streamer: () => null,
-    settings: store,
-  });
-  autoReply.threshold = 0.7;
-  autoReply.quietMs = 20_000;
+test('the tools keep every setting in the file, and a hand edit counts for all of them', async () => {
+  const { file, store, log } = setup();
+  const admin = { asker: 'é›…', question: '', admin: true };
+  const tools = {
+    autoReplyThreshold: [0.7, settingTool('autoReplyThreshold', { settings: store, log })],
+    autoReplyIntervalSeconds: [
+      20,
+      settingTool('autoReplyIntervalSeconds', { settings: store, log }),
+    ],
+    autoSongId: [true, settingTool('autoSongId', { settings: store, log })],
+    maliceWatch: [true, settingTool('maliceWatch', { settings: store, log })],
+    screenshots: [true, settingTool('screenshots', { settings: store, log })],
+  } as const;
+  for (const [name, [value, tool]] of Object.entries(tools)) {
+    const arg = SETTINGS[name as keyof typeof tools].tool!.arg;
+    expect(await tool.call({ [arg]: value }, admin)).not.toHaveProperty('isError');
+  }
   expect(fileOf(file.state.text)).toMatchObject({
     autoReplyThreshold: 0.7,
     autoReplyIntervalSeconds: 20,
+    autoSongId: true,
+    maliceWatch: true,
+    screenshots: true,
   });
-  expect(autoReply.quietMs).toBe(20_000);
 
-  const auto = new AutoSongId({
-    songId: {
-      prompt: () => '',
-      name: () => Promise.reject(new Error('no')),
-      namedAt: () => undefined,
-      lastTold: () => undefined,
-      told: () => {},
-    },
-    room,
-    outbox: { push: () => {} },
-    log: { debug() {}, info() {}, warn() {}, error() {} },
-    settings: store,
-  });
-  auto.on = true;
-  expect(auto.on).toBe(true);
-  expect(fileOf(file.state.text).autoSongId).toBe(true);
-
-  const watch = new MaliceWatch({
-    judge: () => Promise.resolve({}),
-    ask: () => Promise.resolve('{}'),
-    promptTemplate: () => '',
-    outbox: { push: () => {} },
-    room,
-    log: { debug() {}, info() {}, warn() {}, error() {} },
-    settings: store,
-  });
-  watch.on = true;
-  expect(fileOf(file.state.text).maliceWatch).toBe(true);
-
-  room.screenshots = true;
-  expect(fileOf(file.state.text).screenshots).toBe(true);
   // A hand edit counts for all of them.
   file.state.text = file.state.text.replace('"maliceWatch": true', '"maliceWatch": false');
-  expect(watch.on).toBe(false);
+  expect(store.get().maliceWatch).toBe(false);
 });
 
 test('when Jev runs out of money, auto-reply is turned off in the file too', async () => {
@@ -254,7 +214,6 @@ test('when Jev runs out of money, auto-reply is turned off in the file too', asy
   const autoReply: AutoReply = new AutoReply({
     outbox: { push: (m) => void sent.push(m) },
     judge: () => Promise.reject(new OutOfCreditError('no money')),
-    threshold: 1,
     room: fakeRoom({ settings: store, history, now: () => now }),
     log: { debug() {}, info() {}, warn() {}, error() {} },
     picker: () => Promise.resolve('{}'),
@@ -281,7 +240,6 @@ test('the command line says which settings it gave, and the rest stay the roomâ€
     parseCliOptions(['--room', '123', '--bot-name', 'x', ...args], '/pkg')!;
 
   expect(parse().given).toEqual({});
-  expect(parse().autoReplyThreshold).toBe(1);
   expect(parse('--auto-reply-threshold', '0.66', '--screenshot', '--auto-song-id').given).toEqual({
     autoReplyThreshold: 0.66,
     screenshots: true,
@@ -355,5 +313,4 @@ test('--max-parts seeds maxReplyParts, which then lives in room_config.json like
     maxReplyParts: 2,
   });
   expect(parseCliOptions(args, '/pkg')?.given).toEqual({});
-  expect(parseCliOptions(args, '/pkg')?.maxReplyParts).toBe(5);
 });

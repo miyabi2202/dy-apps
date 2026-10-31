@@ -3,7 +3,7 @@ import { MentionAnswerer } from '../../../src/app/replies/mention-answerer';
 import { RoomFeed } from '../../../src/app/room/room-feed';
 import { newSession, type Session } from '../../../src/mcp/rpc';
 import { declarativeTools } from '../../../src/mcp/declarative-tools';
-import { onOffTool } from '../../../src/mcp/setting-tools';
+import { settingTool } from '../../../src/app/tools/setting-tool';
 import type {
   BotTool,
   BotTools,
@@ -15,6 +15,7 @@ import type {
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import type { IncomingChat } from '../../../src/core/chat/room-events';
 import { fakeRoom } from '../../support/fake-room';
+import { fakeSettings } from '../../support/fake-settings';
 import { BOT, chat, fakeBus, fakeEvents, fakeOutbox, silentLog } from '../../support/fakes';
 
 const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{singleLength}})';
@@ -48,29 +49,19 @@ function setup(options: SetupOptions = {}) {
   const sessions: Session[] = [];
   const { outbox, sent } = fakeOutbox();
   const history = new ChatHistory(100);
+  const settings = fakeSettings({ screenshots: false });
   const room = fakeRoom({
     history,
+    settings,
     persona: () => options.persona ?? '',
     // A live video to screenshot, with screenshots off (/截图 0).
     ...(options.screenshot && {
       screenshot: () => Promise.resolve(new Uint8Array([0xff, 0xd8])),
-      screenshotsOn: false,
     }),
   });
   const tools = (): BotTool[] => [
     ...(typeof options.tools === 'function' ? options.tools(answerer) : (options.tools ?? [])),
-    ...(options.screenshotsTool
-      ? [
-          onOffTool({
-            name: 'set_screenshots',
-            command: '截图',
-            description: '开关截图',
-            get: () => room.screenshots,
-            set: (on) => (room.screenshots = on),
-            log: silentLog,
-          }),
-        ]
-      : []),
+    ...(options.screenshotsTool ? [settingTool('screenshots', { settings, log: silentLog })] : []),
   ];
   // Claude's session, as the real server opens it, with the tools it may call.
   const botTools: BotTools = {

@@ -243,11 +243,9 @@ export function registerRoom(container: Container): void {
         // What it can't do and why, for when viewers notice (limitations.md, shared by every room).
         limitations: liveText(join(c.resolve(PROMPTS_DIR), 'limitations.md')),
         botTalk: c.resolve(BOT_TALK),
-        // Off unless --screenshot; /截图 switches it while the bot runs.
+        // Whether prompts get it is the setting `screenshots` (off unless --screenshot; /截图).
         screenshot: c.resolve(ROOM_API).screenshot,
-        screenshotsOn: options.screenshot,
-        // How many messages what the bot says may take; /最大回复条数 changes it.
-        maxReplyParts: options.maxReplyParts,
+        // The settings: how many messages what the bot says may take (/最大回复条数), and the rest.
         settings: c.resolve(SETTINGS),
         chatDir: c.resolve(CHAT_DIR),
         botName: options.botName,

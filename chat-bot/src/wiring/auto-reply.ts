@@ -45,8 +45,6 @@ export function registerAutoReply(container: Container): void {
       const autoReply = new AutoReply({
         outbox: c.resolve(OUTBOX),
         judge: c.resolve(JUDGE)('about-the-bot'),
-        threshold: options.autoReplyThreshold,
-        quietMs: options.autoReplyIntervalMs,
         settings: c.resolve(SETTINGS),
         room,
         log: c.resolve(LOG),
@@ -71,7 +69,6 @@ export function registerAutoReply(container: Container): void {
               tool.listen ? [{ name: tool.name, adminOnly: tool.adminOnly, ...tool.listen }] : [],
             ),
       });
-      room.addSettings(() => autoReply.settings());
       // A chat matching a tool's listen trigger has auto-reply look now, not at its next check.
       bus.on('chat', (chat) => autoReply.hear(chat));
       bus.on('heard', (line) => autoReply.hearSpeech(line));
@@ -88,14 +85,12 @@ export function registerAutoReply(container: Container): void {
         ask: c.resolve(ASK_CLAUDE)('gift-thanks'),
         outbox: c.resolve(OUTBOX),
         promptTemplate: c.resolve(PROMPT)('giftThanks'),
-        threshold: options.thanksThreshold,
         settings: c.resolve(SETTINGS),
         room,
         userTalk: c.resolve(USER_TALK),
         maxLength: options.maxReplyLength,
         log: c.resolve(LOG),
       });
-      room.addSettings(() => thanker.settings());
       c.resolve(BUS).on('gift', (gift) => thanker.onGift(gift));
       return thanker;
     })

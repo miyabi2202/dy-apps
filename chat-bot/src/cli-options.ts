@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { isRoomId, parsePort } from '@dy-apps/room-feed-protocol';
 import { DOUYIN_CHAT_LIMIT } from './core/replies/reply';
-import { SETTING_DEFAULTS, type Settings } from './core/commands/settings';
+import { SETTINGS, SETTING_NAMES, type Settings } from './core/commands/settings';
 import { DEFAULT_TRANSCRIPT_WINDOW_MS } from './core/songs/transcript';
 
 export const USAGE =
@@ -24,24 +24,17 @@ export interface CliOptions {
   promptFile: string;
   historySize: number;
   maxReplyLength: number;
-  maxReplyParts: number;
   tools: string[];
   model: string;
   systemPrompt: string;
   logsDir: string;
   asr: boolean;
   transcriptMs: number;
-  screenshot: boolean;
   maxPending: number;
   sendIntervalMs: number;
   dataDir: string;
   /** The admins. */
   configFile: string;
-  /** How likely something must be about the bot for it to reply unprompted; 1 or more never. */
-  autoReplyThreshold: number;
-  autoReplyIntervalMs: number;
-  /** Thank a viewer whose gifts in 5 minutes come to more than this many diamonds. */
-  thanksThreshold: number;
   /**
    * The settings the command line gave, by their room_config.json names: the ones it didn't give
    * are left out, so the room's own (kept in its room_config.json) stay. A given one only fills in a
@@ -50,10 +43,6 @@ export interface CliOptions {
   given: Partial<Settings>;
   /** The Codex model for /识歌, auto-reply and malice watch; empty turns all three off. */
   codex: string;
-  /** Name the songs the streamer sings without being asked, from the start. */
-  autoSongId: boolean;
-  /** @ viewers who keep posting malicious chat, from the start. */
-  maliceWatch: boolean;
   /** The local port of the speech service, which outlives the bot. */
   asrPort: number;
   /** Name songs from NetEase's lyrics search before asking Codex. */
@@ -62,12 +51,43 @@ export interface CliOptions {
   mcpPort: number;
 }
 
+/** The flags the settings have, by flag name, for parseArgs. */
+const settingFlags: Record<string, { type: 'string' | 'boolean' }> = Object.fromEntries(
+  SETTING_NAMES.flatMap((name) => {
+    const { flag, default: initial } = SETTINGS[name];
+    return flag ? [[flag, { type: typeof initial === 'boolean' ? 'boolean' : 'string' }]] : [];
+  }),
+);
+
+/**
+ * The settings the flags in `values` gave, by their room_config.json names, or null when one is
+ * given as something that isn't valid (a number, 0 or more).
+ */
+function settingsGiven(
+  values: Record<string, string | boolean | undefined>,
+): Partial<Settings> | null {
+  const given: Record<string, unknown> = {};
+  for (const name of SETTING_NAMES) {
+    const spec = SETTINGS[name];
+    const raw = spec.flag ? values[spec.flag] : undefined;
+    if (raw === undefined) continue;
+    const value = typeof raw === 'string' ? Number(raw) : raw;
+    if (!spec.valid.safeParse(value).success) return null;
+    given[name] = value;
+  }
+  return given;
+}
+
 /** `args` (without node and the script) as options, or null when they're unusable. */
 export function parseCliOptions(args: string[], packageDir: string): CliOptions | null {
   const { values } = parseArgs({
     args,
     allowNegative: true,
     options: {
+      // The settings' flags (--max-parts, --screenshot, --auto-reply-threshold…), from SETTINGS: a
+      // number is given as text, a switch as a flag. Off by default; each one given seeds the
+      // room's room_config.json, and /<command> changes it while the bot runs.
+      ...settingFlags,
       room: { type: 'string' },
       port: { type: 'string', default: String(DEFAULT_PORT) },
       'bot-name': { type: 'string' },
@@ -75,7 +95,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       prompt: { type: 'string', default: join(packageDir, 'prompts', 'prompt.md') },
       history: { type: 'string', default: '100' },
       'max-reply': { type: 'string', default: String(DOUYIN_CHAT_LIMIT) },
-      'max-parts': { type: 'string' },
       tools: { type: 'string', default: 'WebSearch,WebFetch,Read,Glob,Grep' },
       model: { type: 'string', default: 'opus' },
       // Claude may write up its thinking or searching before the answer; only what follows the
@@ -91,25 +110,12 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
         type: 'string',
         default: String(DEFAULT_TRANSCRIPT_WINDOW_MS / 60_000),
       },
-      // Off by default: most streams don't need Claude to see the video (lessons with a board do).
-      screenshot: { type: 'boolean' },
       queue: { type: 'string', default: '20' },
       'send-interval': { type: 'string', default: '10' },
       data: { type: 'string', default: join(packageDir, 'data') },
       config: { type: 'string', default: join(packageDir, 'config.json') },
-      // Jev's score at which the bot joins in when someone talks about it: 1, off, by default;
-      // /自动回复阈值 0.6 turns it on while the bot runs.
-      'auto-reply-threshold': { type: 'string' },
-      // Seconds it keeps quiet after talking unprompted; /自动回复间隔 changes it while the bot runs.
-      'auto-reply-interval': { type: 'string' },
-      // So high it's off by default; /自动谢礼 lowers it while the bot runs.
-      'thanks-threshold': { type: 'string' },
       // /识歌, auto-reply and malice watch ask Codex (fast and cheap at medium effort); '' turns them off.
       codex: { type: 'string', default: 'gpt-6-luna' },
-      // Name the songs the streamer sings without being asked; /自动识歌 switches it while it runs.
-      'auto-song-id': { type: 'boolean' },
-      // @ viewers who keep posting malicious chat; /识别恶意言论 switches it while it runs.
-      'malice-watch': { type: 'boolean' },
       // The speech service (asr/transcribe.py --serve), started by hand before the bot, listens here.
       'asr-port': { type: 'string', default: '8758' },
       // /识歌 and /自动识歌 search the lyrics on NetEase first; --no-lyrics-search always asks Codex.
@@ -125,28 +131,10 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
   // 0 is allowed here (the OS picks a port), unlike room-feed's.
   const mcpPort = values['mcp-port'] === '0' ? 0 : parsePort(values['mcp-port']);
   if (!isRoomId(roomId) || port === null || mcpPort === null || !botName) return null;
-  const given: Partial<Settings> = {
-    ...(values['auto-reply-threshold'] !== undefined && {
-      autoReplyThreshold: Number(values['auto-reply-threshold']),
-    }),
-    ...(values['auto-reply-interval'] !== undefined && {
-      autoReplyIntervalSeconds: Number(values['auto-reply-interval']),
-    }),
-    ...(values['thanks-threshold'] !== undefined && {
-      thanksThreshold: Number(values['thanks-threshold']),
-    }),
-    ...(values['auto-song-id'] !== undefined && { autoSongId: values['auto-song-id'] }),
-    ...(values['malice-watch'] !== undefined && { maliceWatch: values['malice-watch'] }),
-    ...(values.screenshot !== undefined && { screenshots: values.screenshot }),
-    ...(values['max-parts'] !== undefined && { maxReplyParts: Number(values['max-parts']) }),
-  };
+  const given = settingsGiven(values);
   // A setting given as something that isn't a number, 0 or more (`--max-parts abc`), is a mistake: say
   // so, rather than write it into the room's room_config.json for good.
-  const badNumber = Object.values(given).some(
-    (value) => typeof value === 'number' && !(Number.isFinite(value) && value >= 0),
-  );
-  if (badNumber) return null;
-  const settings = { ...SETTING_DEFAULTS, ...given };
+  if (!given) return null;
   return {
     roomId,
     port,
@@ -155,24 +143,17 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
     promptFile: values.prompt,
     historySize: Number(values.history),
     maxReplyLength: Number(values['max-reply']),
-    maxReplyParts: settings.maxReplyParts,
     tools: values.tools.split(',').filter(Boolean),
     model: values.model,
     systemPrompt: values.system,
     logsDir: values.logs,
     asr: values.asr,
     transcriptMs: Number(values['transcript-minutes']) * 60_000,
-    screenshot: settings.screenshots,
     maxPending: Number(values.queue),
     sendIntervalMs: Number(values['send-interval']) * 1000,
     dataDir: values.data,
     configFile: values.config,
-    autoReplyThreshold: settings.autoReplyThreshold,
-    autoReplyIntervalMs: settings.autoReplyIntervalSeconds * 1000,
-    thanksThreshold: settings.thanksThreshold,
     codex: values.codex,
-    autoSongId: settings.autoSongId,
-    maliceWatch: settings.maliceWatch,
     given,
     asrPort: Number(values['asr-port']),
     lyricsSearch: values['lyrics-search'],

@@ -10,20 +10,16 @@ import { happyHeartTool } from '../mcp/happy-heart';
 import { heartTool } from '../mcp/heart';
 import { HeartGate } from '../app/tools/heart-gate';
 import { pressLikeTool } from '../mcp/press-like';
-import { numberTool, onOffTool } from '../mcp/setting-tools';
-import { setThanksThresholdTool } from '../mcp/set-thanks-threshold';
+import { settingTool } from '../app/tools/setting-tool';
 import { updateMemoryTool } from '../mcp/update-memory';
 import type { Container } from './container';
 import {
   ADMINS,
   ANSWERER,
   ASK_SOLVE,
-  AUTO_MESSAGE,
-  AUTO_REPLY,
-  AUTO_SONG_ID,
   BUS,
+  JUDGE,
   LOG,
-  MALICE_WATCH,
   MEMORY,
   MCP_SERVER,
   OPTIONS,
@@ -36,7 +32,6 @@ import {
   ROOM_DIR,
   SETTINGS,
   SONG_ID,
-  THANKER,
   TOOL_DEFINITIONS,
   TOOLS,
   TRANSCRIBER,
@@ -68,78 +63,22 @@ export function registerMcp(container: Container): void {
       const transcriber = c.resolve(TRANSCRIBER);
       const songId = c.resolve(SONG_ID);
       const room = c.resolve(ROOM);
-      const autoReply = c.resolve(AUTO_REPLY);
-      const autoMessage = c.resolve(AUTO_MESSAGE);
-      const autoSongId = c.resolve(AUTO_SONG_ID);
-      const maliceWatch = c.resolve(MALICE_WATCH);
       const settings = c.resolve(SETTINGS);
       // One clock for every 小心心 (HEART_COOLDOWN_MINUTES), asked for or sent out of happiness.
       const hearts = new HeartGate(c.resolve(ROOM_API).sendHeart, () => room.now());
       // Made once: a tool may hold options. The function is read hot, for the room's declarative tools.
       // The order is the one the help and docs/commands.md list them in.
+      const setting = (name: Parameters<typeof settingTool>[0]) =>
+        settingTool(name, { settings, log });
       const tools = [
-        numberTool({
-          name: 'set_auto_reply_threshold',
-          command: '自动回复阈值',
-          description:
-            '改自动回复的阈值：观众或主播说到机器人、跟它说话时，Jev 判断的把握到这个数就主动接一句，0 到 1，1 以上关闭。有人要开、关自动回复或改阈值时调用（「把自动回复打开」填 0.6）。',
-          arg: { name: 'threshold', description: '0 到 1 的小数；1 以上关闭自动回复' },
-          min: 0,
-          usage: '阈值要写成 0 到 1 之间的小数，1 表示关闭，用法：/自动回复阈值 0.6',
-          get: () => autoReply.threshold,
-          set: (threshold) => (autoReply.threshold = threshold),
-          log,
-        }),
-        numberTool({
-          name: 'set_auto_reply_interval',
-          command: '自动回复间隔',
-          description: '改自动回复的间隔：主动接过一句后安静多少秒，0 不等。',
-          arg: { name: 'seconds', description: '秒数；0 不等' },
-          integer: true,
-          min: 0,
-          usage: '间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20',
-          get: () => autoReply.quietMs / 1000,
-          set: (seconds) => (autoReply.quietMs = seconds * 1000),
-          log,
-        }),
-        numberTool({
-          name: 'set_auto_message_interval',
-          command: '自动消息间隔',
-          description:
-            '改自动消息的间隔：每隔多少秒，机器人看一眼直播间（主播说的、弹幕），自己发一条弹幕（没什么可说就不发），0 关闭。和自动回复无关。',
-          arg: { name: 'seconds', description: '秒数；0 关闭' },
-          integer: true,
-          min: 0,
-          usage: '间隔要写成秒数，0 表示关闭，用法：/自动消息间隔 300',
-          get: () => autoMessage.intervalSeconds,
-          set: (seconds) => (autoMessage.intervalSeconds = seconds),
-          log,
-        }),
-        numberTool({
-          name: 'set_max_reply_parts',
-          command: '最大回复条数',
-          description: '改一条回答最多拆成几条弹幕（1 到 10）。',
-          arg: { name: 'parts', description: '条数，1 到 10' },
-          integer: true,
-          min: 1,
-          max: 10,
-          usage: '条数要写成 1 到 10 的整数，用法：/最大回复条数 3',
-          get: () => room.maxReplyParts,
-          set: (parts) => (room.maxReplyParts = parts),
-          log,
-        }),
-        setThanksThresholdTool(c.resolve(THANKER), log),
+        setting('autoReplyThreshold'),
+        setting('autoReplyIntervalSeconds'),
+        setting('autoMessageIntervalSeconds'),
+        setting('maxReplyParts'),
+        setting('thanksThreshold'),
         // What the bot remembers: the room's (admins) and the asker's own note (anyone).
         updateMemoryTool({ memory: c.resolve(MEMORY), log }),
-        onOffTool({
-          name: 'set_screenshots',
-          command: '截图',
-          description:
-            '开关直播画面截图：开着时每个问题都带一张截图给你看。有人要你看画面、看题、看板书，或要关掉时调用。',
-          get: () => room.screenshots,
-          set: (on) => (room.screenshots = on),
-          log,
-        }),
+        setting('screenshots'),
         ...(songId && transcriber
           ? [
               identifySongTool({
@@ -166,39 +105,11 @@ export function registerMcp(container: Container): void {
           maxLength: options.maxReplyLength,
           log,
         }),
-        ...(autoSongId
-          ? [
-              onOffTool({
-                name: 'set_auto_song_id',
-                command: '自动识歌',
-                description: '开关自动识歌：开着时主播唱歌，机器人自己认出是什么歌并说出来。',
-                get: () => autoSongId.on,
-                set: (on) => (autoSongId.on = on),
-                log,
-              }),
-            ]
-          : []),
-        ...(maliceWatch
-          ? [
-              onOffTool({
-                name: 'set_malice_watch',
-                command: '识别恶意言论',
-                description: '开关恶意言论识别：开着时 @ 发恶意弹幕的观众。',
-                get: () => maliceWatch.on,
-                set: (on) => (maliceWatch.on = on),
-                log,
-              }),
-            ]
-          : []),
-        onOffTool({
-          name: 'set_happy_heart',
-          command: '开心送心',
-          description:
-            '开关开心送心：开着时，主播让机器人真心开心了（夸它、唱得特别好），它会自己给主播送一个小心心（1 钻，4 分钟最多一个）。',
-          get: () => settings.get().happyHeart,
-          set: (on) => settings.set({ happyHeart: on }),
-          log,
-        }),
+        // Only where the feature can run: auto song id needs the stream and Codex's song id,
+        // malice watch Jev.
+        ...(songId && transcriber ? [setting('autoSongId')] : []),
+        ...(c.resolve(JUDGE)('malice') ? [setting('maliceWatch')] : []),
+        setting('happyHeart'),
       ];
       const roomConfig = c.resolve(ROOM_CONFIG);
       const defined = declarativeTools({

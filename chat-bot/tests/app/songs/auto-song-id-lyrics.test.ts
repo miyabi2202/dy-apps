@@ -2,6 +2,7 @@ import { AutoSongId } from '../../../src/app/songs/auto-song-id';
 import { SongId } from '../../../src/app/songs/song-id';
 import { Transcript, type TranscriptLine } from '../../../src/core/songs/transcript';
 import { fakeRoom } from '../../support/fake-room';
+import { fakeSettings } from '../../support/fake-settings';
 import { silentLog } from '../../support/fakes';
 
 /** Auto song id over a real SongId whose lyrics search answers `titles` in turn (and has no Codex). */
@@ -35,7 +36,7 @@ function setup(titles: string[]) {
     room: fakeRoom({ transcript, now: () => now }),
     outbox: { push: ({ text }) => sent.push(text) },
     log: silentLog,
-    on: true,
+    settings: fakeSettings({ autoSongId: true }),
   });
   const line = async (at: number, text: string) => {
     now = at * 1000;

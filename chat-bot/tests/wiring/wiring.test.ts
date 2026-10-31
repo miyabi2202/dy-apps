@@ -363,7 +363,7 @@ test("starts filling in the room's room_config.json: an option seeds a missing s
   container.register(DOWNLOADS, () => () => {});
   container.resolve(THANKER);
   expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ thanksThreshold: 200 });
-  expect(container.resolve(THANKER).threshold).toBe(200);
+  expect(container.resolve(SETTINGS).get().thanksThreshold).toBe(200);
   expect(warned).toContain('setting from room_config, ignoring option');
 });
 

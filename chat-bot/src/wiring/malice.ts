@@ -7,7 +7,6 @@ import {
   JUDGE,
   LOG,
   MALICE_WATCH,
-  OPTIONS,
   OUTBOX,
   PROMPT,
   ROOM,
@@ -31,7 +30,6 @@ export function registerMalice(container: Container): void {
       outbox: c.resolve(OUTBOX),
       room: c.resolve(ROOM),
       exempt: (userId) => admins.has(userId),
-      on: c.resolve(OPTIONS).maliceWatch,
       settings: c.resolve(SETTINGS),
       log: c.resolve(LOG),
     });

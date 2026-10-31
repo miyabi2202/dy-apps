@@ -1,7 +1,6 @@
 import { errorMessage } from '../../core/errors';
 import { parseJsonObject } from '../../core/replies/json-answer';
 import { DOUYIN_CHAT_LIMIT, plainMessages } from '../../core/replies/reply';
-import { setting } from '../commands/setting';
 import { askJson } from '../models/ask-json';
 import { ModelFeature } from '../models/model-feature';
 import type { AskModel, Log, SettingsStore } from '../ports';
@@ -16,10 +15,8 @@ export interface AutoMessageOptions {
   promptTemplate: () => string;
   room: RoomState;
   log: Log;
-  /** Where the interval is kept (the room's room_config.json); without it, `intervalSeconds` is. */
-  settings?: SettingsStore;
-  /** Seconds between two messages, 0 off; what it starts as without `settings`. */
-  intervalSeconds?: number;
+  /** Where the interval is kept (the room's room_config.json): `autoMessageIntervalSeconds`, 0 off. */
+  settings: SettingsStore;
   /** Douyin's chat length limit. */
   maxLength?: number;
   now?: () => number;
@@ -54,7 +51,6 @@ function parseAutoMessage(text: string): AutoMessageAnswer | null {
  * bot starts with it on), and it never asks again while Claude is still answering.
  */
 export class AutoMessage extends ModelFeature<void, AutoMessageAnswer> {
-  private readonly intervalSetting: ReturnType<typeof setting<'autoMessageIntervalSeconds'>>;
   private stopped = false;
   /** When it last asked, or was turned on; undefined while off. */
   private since: number | undefined;
@@ -62,20 +58,6 @@ export class AutoMessage extends ModelFeature<void, AutoMessageAnswer> {
 
   constructor(private readonly options: AutoMessageOptions) {
     super(options.log);
-    this.intervalSetting = setting(
-      options.settings,
-      'autoMessageIntervalSeconds',
-      options.intervalSeconds ?? 0,
-    );
-  }
-
-  /** Seconds between two messages; 0 off. */
-  get intervalSeconds(): number {
-    return this.intervalSetting.get();
-  }
-
-  set intervalSeconds(seconds: number) {
-    this.intervalSetting.set(seconds);
   }
 
   /** Runs until `stop()`. */
@@ -95,7 +77,7 @@ export class AutoMessage extends ModelFeature<void, AutoMessageAnswer> {
   /** Asks Claude if it's time; resolves once it has answered (at once when it isn't time). */
   async tick(): Promise<void> {
     const { now = Date.now } = this.options;
-    const seconds = this.intervalSeconds;
+    const seconds = this.options.settings.get().autoMessageIntervalSeconds;
     if (!seconds) {
       this.since = undefined;
       return;

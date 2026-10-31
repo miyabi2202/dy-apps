@@ -4,6 +4,7 @@ import { SETTING_DEFAULTS } from '../../src/core/commands/settings';
 import { MESSAGE_SCHEMA } from '../../src/core/replies/mention-answer';
 import { askAboutPuzzleTool } from '../../src/mcp/ask-about-puzzle';
 import { fakeRoom } from '../support/fake-room';
+import { fakeSettings } from '../support/fake-settings';
 import { fakeBus, fakeOutbox, silentLog } from '../support/fakes';
 
 const FRAME = new Uint8Array([0xff, 0xd8]);
@@ -37,7 +38,7 @@ function setup() {
     // Screenshots are off, but a puzzle always gets one.
     room: fakeRoom({
       screenshot: () => Promise.resolve(FRAME),
-      screenshotsOn: false,
+      settings: fakeSettings({ screenshots: false }),
     }),
     outbox,
     userTalk,
