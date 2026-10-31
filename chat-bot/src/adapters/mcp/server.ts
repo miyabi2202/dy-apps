@@ -6,9 +6,18 @@ import {
   type ServerResponse,
 } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { Server as McpSdkServer } from '@modelcontextprotocol/sdk/server/index.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { newSession, type Session } from './session';
 import type { BotTools, Log } from '../../app/ports';
-import type { BotTool, ToolAccess, ToolContext, ToolSession } from '../../core/tools/bot-tool';
-import { handleRpc, newSession, type RpcMessage, type Session } from './rpc';
+import type {
+  BotTool,
+  ToolAccess,
+  ToolContext,
+  ToolResult,
+  ToolSession,
+} from '../../core/tools/bot-tool';
 
 export interface BotMcpServerOptions {
   /** The bot's tools as they are now: a room's own change with its files, so each session reads them again. */
@@ -19,7 +28,14 @@ export interface BotMcpServerOptions {
   /** A fresh secret for each question. */
   newToken?: () => string;
   createServer?: typeof createHttpServer;
+  /** The clock for how long a call took. */
+  now?: () => number;
 }
+
+const textResult = (result: ToolResult) => ({
+  content: [{ type: 'text' as const, text: result.text }],
+  ...(result.isError ? { isError: true } : {}),
+});
 
 /** Requests are small JSON; more than this is refused. */
 const MAX_BODY = 1024 * 1024;
@@ -45,8 +61,9 @@ function readBody(request: IncomingMessage): Promise<string> {
 }
 
 /**
- * The bot's tools for Claude, as an MCP server inside the bot process: streamable HTTP with JSON
- * responses only, stateless, on 127.0.0.1. A question opens a session (`open`) with a token of its
+ * The bot's tools for Claude, as an MCP server inside the bot process: the official SDK's `Server`
+ * and `StreamableHTTPServerTransport` (stateless, JSON responses only) on 127.0.0.1, behind our
+ * own checks, which the SDK doesn't know. A question opens a session (`open`) with a token of its
  * own that Claude sends as a bearer header, and closes it when the answer is done, so the tools
  * work only while the bot is answering that question, and offer an admin-only tool only when an
  * admin asked. A request must come to `127.0.0.1` or
@@ -172,13 +189,55 @@ export class BotMcpServer implements BotTools {
         error: { code: -32600, message: 'invalid request' },
       });
     }
-    if (Array.isArray(body)) {
-      const answers = (
-        await Promise.all(messages.map((m) => handleRpc(m as RpcMessage, session)))
-      ).filter((answer) => answer !== null);
-      return answers.length ? send(200, answers) : send(202);
-    }
-    const answer = await handleRpc(body as RpcMessage, session);
-    return answer ? send(200, answer) : send(202);
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+      enableJsonResponse: true,
+    });
+    const mcp = this.mcpServer(session);
+    response.on('close', () => void mcp.close());
+    await mcp.connect(transport);
+    await transport.handleRequest(request, response, body);
+  }
+
+  /** The SDK's server for one request: only the session's tools are listed or run, so an admin-only tool is unknown to anyone else. */
+  private mcpServer(session: Session): McpSdkServer {
+    const mcp = new McpSdkServer(
+      { name: 'bot', version: '1.0.0' },
+      { capabilities: { tools: {} } },
+    );
+    mcp.setRequestHandler(ListToolsRequestSchema, () => ({
+      tools: session.tools.map(({ name, description, inputSchema }) => ({
+        name,
+        description,
+        inputSchema: inputSchema as { type: 'object' },
+      })),
+    }));
+    mcp.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
+      const { name } = params;
+      const tool = session.tools.find((candidate) => candidate.name === name);
+      if (!tool) return textResult({ text: `没有这个工具：${name}`, isError: true });
+      let result = session.memo.get(name);
+      if (!result) {
+        const now = this.options.now ?? Date.now;
+        const start = now();
+        result = tool
+          .call(params.arguments ?? {}, session.context)
+          .catch((): ToolResult => ({ text: `${name} 这次没成功`, isError: true }))
+          .then((settled) => {
+            session.calls.push({
+              tool: name,
+              ms: now() - start,
+              isError: settled.isError === true,
+              ...(settled.silent && { silent: true }),
+              ...(settled.say !== undefined && { say: settled.say }),
+            });
+            return settled;
+          });
+        session.memo.set(name, result);
+        session.used.push(name);
+      }
+      return textResult(await result);
+    });
+    return mcp;
   }
 }

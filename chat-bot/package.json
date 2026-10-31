@@ -15,6 +15,7 @@
     "@dy-apps/lyrics-search": "workspace:*",
     "@dy-apps/room-feed-protocol": "workspace:*",
     "@dy-apps/room-memory": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "pinyin-pro": "3.29.4",
     "winston": "^3.19.0",
     "zod": "4.6.5"

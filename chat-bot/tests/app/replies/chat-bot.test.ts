@@ -1,7 +1,7 @@
 import { ChatBot, type ChatBotOptions } from '../../../src/app/replies/chat-bot';
 import { MentionAnswerer } from '../../../src/app/replies/mention-answerer';
 import { RoomFeed } from '../../../src/app/room/room-feed';
-import { newSession, type Session } from '../../../src/adapters/mcp/rpc';
+import { newSession, type Session } from '../../../src/adapters/mcp/session';
 import { declarativeTools } from '../../../src/app/tools/declarative-tools';
 import { Screenshots } from '../../../src/app/room/screenshots';
 import { settingTool } from '../../../src/app/tools/setting-tool';
