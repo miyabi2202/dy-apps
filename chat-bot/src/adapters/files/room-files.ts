@@ -24,7 +24,7 @@ export interface Streamer {
 
 /**
  * The room's files in `dir` (`data/<房间号>/`, which also holds `chat/` and the bot's memory.md,
- * see memoryFiles): a default `room_config.json` created when missing, `bot_logs.md`, and a
+ * see fileMemory in @dy-apps/room-memory): a default `room_config.json` created when missing, `bot_logs.md`, and a
  * `<user id>/` folder for each viewer the bot talked with. The prompts are shared by every room (see PROMPT_FILES in prompt-files.ts); a room
  * only has its own when someone puts one there to override it.
  */

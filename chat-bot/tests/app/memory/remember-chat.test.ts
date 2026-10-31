@@ -1,5 +1,6 @@
-import type { Memory, Question } from '../../../src/app/ports';
+import type { Question } from '../../../src/app/ports';
 import { RememberChat } from '../../../src/app/memory/remember-chat';
+import { fakeMemory, noteFile, ROOM_FILE } from '../../support/fake-memory';
 
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} };
 const T0 = Date.parse('2026-10-24T20:00:00+08:00');
@@ -25,13 +26,7 @@ function setup({
   mark?: number;
   isPrivate?: boolean;
 }) {
-  const store = { room: '主播叫咿咿\n', notes: { 's-1': '' } as Record<string, string> };
-  const memory: Memory = {
-    room: () => store.room,
-    setRoom: (text) => (store.room = text),
-    note: (userId) => store.notes[userId] ?? '',
-    setNote: (userId, text) => (store.notes[userId] = text),
-  };
+  const { memory, store } = fakeMemory({ [ROOM_FILE]: '主播叫咿咿\n' });
   const asked: Question[] = [];
   const marks = { value: mark };
   const remember = new RememberChat({
@@ -93,11 +88,10 @@ test("each regular's note gets the changes Claude names for them, the room and s
     },
   });
   expect(await remember.run()).toEqual({ lines: 8, viewers: 1, changes: 4, failed: 0 });
-  expect(store.notes).toEqual({
-    's-1': '说好下次唱《稻香》\n',
-    'u-1': '喜欢被叫阿拂\n§\n爱听周杰伦\n',
-  });
-  expect(store.room).toBe('主播叫咿咿，外号 11\n');
+  expect(store.get(noteFile('s-1'))).toBe('说好下次唱《稻香》\n');
+  expect(store.get(noteFile('u-1'))).toBe('喜欢被叫阿拂\n§\n爱听周杰伦\n');
+  expect(store.get(noteFile('u-9'))).toBeUndefined();
+  expect(store.get(ROOM_FILE)).toBe('主播叫咿咿，外号 11\n');
   expect(marks.value).toBe(T0 + 8000);
   // Only 阿拂 said enough: not the bot, the streamer or 路人; and no tools for the model.
   expect(asked[0]!.prompt).toContain('阿拂（userId: u-1）');
@@ -120,9 +114,9 @@ test('the prompts say how full each file is, and the streamer may write up to 20
       },
     },
   });
-  store.notes['u-1'] = '爱听周杰伦\n';
+  store.set(noteFile('u-1'), '爱听周杰伦\n');
   expect(await remember.run()).toMatchObject({ changes: 1 });
-  expect(store.notes['s-1']).toBe(`${'字'.repeat(1500)}\n`);
+  expect(store.get(noteFile('s-1'))).toBe(`${'字'.repeat(1500)}\n`);
   expect(asked[0]!.prompt).toContain('现在记着的（已用 5/1000 字）：\n爱听周杰伦');
   expect(asked[1]!.prompt).toContain('主播叫咿咿 5/4000 | （无） 0/2000');
 });
@@ -149,7 +143,7 @@ test("a 私密 room gets no viewer notes; a change that can't be made is skipped
   });
   expect(await remember.run()).toMatchObject({ changes: 1, failed: 0 });
   expect(asked.map((q) => q.why)).toEqual(['room']);
-  expect(store.room).toBe('主播叫咿咿\n§\n周五不播\n');
+  expect(store.get(ROOM_FILE)).toBe('主播叫咿咿\n§\n周五不播\n');
 });
 
 test('a question that fails leaves the mark where it was, so the next run reads it again', async () => {

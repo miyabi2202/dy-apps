@@ -1,3 +1,4 @@
+import { fileMemory } from '@dy-apps/room-memory';
 import { mkdirSync } from 'node:fs';
 import {
   forbiddenTopicsOf,
@@ -14,7 +15,8 @@ import {
   roomFiles,
   saveStreamer,
 } from '../adapters/files/room-files';
-import { memoryFiles, memoryReadMark, readRecordSince } from '../adapters/files/memory-files';
+import { memoryReadMark, readRecordSince } from '../adapters/files/remember-files';
+import { folderOf } from '../adapters/files/room-talk-files';
 import { RememberChat } from '../app/memory/remember-chat';
 import { botTalkFile, userTalkFiles } from '../adapters/files/room-talk-files';
 import { EventBus } from '../app/event-bus';
@@ -144,7 +146,15 @@ export function registerRoom(container: Container): void {
     })
     // What the bot remembers (memory.md, each person's note.md), which it writes with update_memory
     // and anyone may edit by hand: read on every use.
-    .register(MEMORY, (c) => memoryFiles(c.resolve(ROOM_DIR)))
+    .register(MEMORY, (c) => {
+      const roomConfig = c.resolve(ROOM_CONFIG);
+      return fileMemory(c.resolve(ROOM_DIR), {
+        folderOf,
+        // room-feed's word on who the streamer is, else what room_config.json kept from last time.
+        streamerId: () => c.resolve(ADMINS).current()?.uid ?? roomConfig().streamer?.uid,
+        isPrivate: () => roomConfig().private,
+      });
+    })
     // `pnpm remember`: the chat record since last time, read into the notes and memory.md by Claude.
     .register(REMEMBER_CHAT, (c) => {
       const [options, roomConfig, prompt] = [

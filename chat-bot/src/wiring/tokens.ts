@@ -3,6 +3,7 @@
  * module here). A test swaps the adapters' for fakes.
  */
 import type { LyricsSearch } from '@dy-apps/lyrics-search';
+import type { RoomMemory } from '@dy-apps/room-memory';
 import type { CodexCliOptions } from '../adapters/models/codex-cli';
 import type { RoomFeedApi } from '../adapters/room-feed/room-feed-api';
 import type { RoomFiles, roomConfigFile } from '../adapters/files/room-files';
@@ -38,7 +39,6 @@ import type {
   SettingsStore,
   SpawnWorker,
   UserTalk,
-  Memory,
 } from '../app/ports';
 import type { RememberChat } from '../app/memory/remember-chat';
 import type { RoomFeed } from '../app/room/room-feed';
@@ -123,8 +123,8 @@ export const RECORD = token<RoomRecord>('record');
 export const SINGING = token<Pick<RoomRecord, 'add'>>('singing');
 export const BOT_TALK = token<BotTalk>('botTalk');
 export const USER_TALK = token<UserTalk>('userTalk');
-/** What the bot remembers in the room: memory.md and each person's note.md. */
-export const MEMORY = token<Memory>('memory');
+/** What the bot remembers in the room: memory.md and each person's note.md, and who may change them. */
+export const MEMORY = token<RoomMemory>('memory');
 /** Reads the chat record since last time into memory (`pnpm remember`). */
 export const REMEMBER_CHAT = token<RememberChat>('rememberChat');
 /** The prompt `name`, read on every use: the room's own file, else the shared one. */

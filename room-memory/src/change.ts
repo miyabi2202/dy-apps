@@ -1,4 +1,4 @@
-import { memoryLength, parseEntries, serialiseEntries } from './entry';
+import { memoryLength, parseEntries, serialiseEntries, type Entry } from './entry';
 
 /**
  * One change to a memory file: `add` a new entry at the end, `replace` the one place the text
@@ -50,17 +50,20 @@ export function applyChange(
 
 /**
  * `text` with each of `changes` made in turn (see applyChange): one that can't be made is
- * skipped, with why in `skipped`, and the rest still are.
+ * skipped, with why in `skipped`, and the rest still are. `permit` says why a change isn't
+ * allowed, given the entries as they are by then, or nothing when it is.
  */
 export function applyChanges(
   text: string,
   changes: readonly Change[],
   limit: number,
+  permit: (change: Change, entries: readonly Entry[]) => string | undefined = () => undefined,
 ): { text: string; made: Change[]; skipped: { change: Change; why: string }[] } {
   const made: Change[] = [];
   const skipped: { change: Change; why: string }[] = [];
   for (const change of changes) {
-    const changed = applyChange(text, change, limit);
+    const refused = permit(change, parseEntries(text));
+    const changed = refused ? { error: refused } : applyChange(text, change, limit);
     if ('error' in changed) {
       skipped.push({ change, why: changed.error });
     } else {

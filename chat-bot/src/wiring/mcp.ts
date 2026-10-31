@@ -130,13 +130,7 @@ export function registerMcp(container: Container): void {
         }),
         setThanksThresholdTool(c.resolve(THANKER), log),
         // What the bot remembers: the room's (admins) and the asker's own note (anyone).
-        updateMemoryTool({
-          memory: c.resolve(MEMORY),
-          streamerId: () =>
-            c.resolve(ADMINS).current()?.uid ?? c.resolve(ROOM_CONFIG)().streamer?.uid,
-          isPrivate: () => c.resolve(ROOM_CONFIG)().private,
-          log,
-        }),
+        updateMemoryTool({ memory: c.resolve(MEMORY), log }),
         onOffTool({
           name: 'set_screenshots',
           command: '截图',

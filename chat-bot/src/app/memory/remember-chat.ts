@@ -12,19 +12,19 @@ import {
   type RecordLine,
 } from '../../core/memory/chat-digest';
 import {
-  applyChanges,
   memoryLength,
   NOTE_LIMIT,
-  ROOM_MEMORY_LIMIT,
   STREAMER_NOTE_LIMIT,
   type Change,
+  type RoomMemory,
+  type Target,
 } from '@dy-apps/room-memory';
-import type { AskModel, Log, Memory } from '../ports';
+import type { AskModel, Log } from '../ports';
 
 export interface RememberChatOptions {
   /** Claude, asked once per batch of viewers and once about the whole stream. */
   ask: AskModel;
-  memory: Memory;
+  memory: Pick<RoomMemory, 'roomText' | 'noteText' | 'limitOf' | 'changeAll'>;
   /** The chat record's files that may hold lines from `sinceMs` on, as text, oldest first. */
   readSince: (sinceMs: number) => string[];
   /** Up to when the record was read into memory last time; set once a run is through. */
@@ -54,9 +54,13 @@ export interface RememberChatOptions {
   timeoutMs?: number;
 }
 
-/** How full a memory file is, like `994/1000`, for the prompts to say how much room is left. */
-function usage(text: string, limit: number): string {
-  return `${memoryLength(text)}/${limit}`;
+/** How full `target`'s file is, like `994/1000`, for the prompts to say how much room is left. */
+function usage(
+  memory: Pick<RoomMemory, 'noteText' | 'roomText' | 'limitOf'>,
+  target: Target,
+): string {
+  const text = target.scope === 'room' ? memory.roomText() : memory.noteText(target.userId);
+  return `${memoryLength(text)}/${memory.limitOf(target)}`;
 }
 
 /** What one run did. */
@@ -118,8 +122,8 @@ export class RememberChat {
       .map(({ userId, nickname, lines }) =>
         [
           `### ${nickname}（userId: ${userId}）`,
-          `现在记着的（已用 ${usage(memory.note(userId), NOTE_LIMIT)} 字）：`,
-          memory.note(userId).trim() || '（无）',
+          `现在记着的（已用 ${usage(memory, { scope: 'note', userId })} 字）：`,
+          memory.noteText(userId).trim() || '（无）',
           '这场 TA 自己发的弹幕：',
           digestText(lines, { maxChars: 3000 }),
         ].join('\n'),
@@ -143,13 +147,7 @@ export class RememberChat {
           log.warn('remember named a viewer it was not asked about', { userId });
         continue;
       }
-      result.changes += this.apply(
-        { scope: 'note', userId },
-        memory.note(userId),
-        memoryChangesOf(changes),
-        NOTE_LIMIT,
-        (text) => memory.setNote(userId, text),
-      );
+      result.changes += this.apply({ scope: 'note', userId }, memoryChangesOf(changes));
     }
   }
 
@@ -161,10 +159,12 @@ export class RememberChat {
       fillTemplate(
         roomPrompt(),
         {
-          memory: memory.room().trim() || '（无）',
-          roomUsed: usage(memory.room(), ROOM_MEMORY_LIMIT),
-          streamerNote: (streamer && memory.note(streamer).trim()) || '（无）',
-          streamerUsed: usage(streamer ? memory.note(streamer) : '', STREAMER_NOTE_LIMIT),
+          memory: memory.roomText().trim() || '（无）',
+          roomUsed: usage(memory, { scope: 'room' }),
+          streamerNote: (streamer && memory.noteText(streamer).trim()) || '（无）',
+          streamerUsed: streamer
+            ? usage(memory, { scope: 'note', userId: streamer })
+            : `0/${STREAMER_NOTE_LIMIT}`,
           digest: digestText(lines, { maxChars: 60_000 }),
         },
         { fillWhen: 'present' },
@@ -176,20 +176,11 @@ export class RememberChat {
       result.failed++;
       return;
     }
-    result.changes += this.apply(
-      { scope: 'room' },
-      memory.room(),
-      memoryChangesOf(answer.room),
-      ROOM_MEMORY_LIMIT,
-      (text) => memory.setRoom(text),
-    );
+    result.changes += this.apply({ scope: 'room' }, memoryChangesOf(answer.room));
     if (streamer) {
       result.changes += this.apply(
         { scope: 'note', userId: streamer },
-        memory.note(streamer),
         memoryChangesOf(answer.streamer),
-        STREAMER_NOTE_LIMIT,
-        (text) => memory.setNote(streamer, text),
       );
     }
   }
@@ -214,23 +205,15 @@ export class RememberChat {
   }
 
   /** Makes `changes` to one file, logging each like update_memory does; how many were made. */
-  private apply(
-    where: { scope: 'room' | 'note'; userId?: string },
-    text: string,
-    changes: readonly Change[],
-    limit: number,
-    write: (text: string) => void,
-  ): number {
-    const { log } = this.options;
+  private apply(target: Target, changes: readonly Change[]): number {
+    const { memory, log } = this.options;
     if (!changes.length) return 0;
-    const done = applyChanges(text, changes, limit);
-    if (done.made.length) write(done.text);
-    const used = memoryLength(done.text);
+    const done = memory.changeAll(target, changes, { by: 'chat' });
     for (const change of done.made) {
-      log.info('memory updated', { ...where, ...change, by: 'chat', used });
+      log.info('memory updated', { ...target, ...change, by: 'chat', used: done.used });
     }
     for (const { change, why } of done.skipped) {
-      log.warn('memory change skipped', { ...where, ...change, by: 'chat', why });
+      log.warn('memory change skipped', { ...target, ...change, by: 'chat', why });
     }
     return done.made.length;
   }

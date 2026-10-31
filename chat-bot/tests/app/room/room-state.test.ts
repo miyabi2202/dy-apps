@@ -1,5 +1,6 @@
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import { Transcript } from '../../../src/core/songs/transcript';
+import { fakeMemory, noteFile, ROOM_FILE } from '../../support/fake-memory';
 import { fakeRoom } from '../../support/fake-room';
 import { testWording } from '../../support/wording';
 
@@ -13,15 +14,17 @@ test("gives every prompt the room as it is now: chat, recent speech, persona, me
   const transcript = new Transcript(30 * 60_000, () => NOW);
   transcript.add({ start: NOW - 20 * 60_000, end: NOW - 19 * 60_000, text: '太早了' });
   transcript.add({ start: NOW - 3000, end: NOW, text: '大家好' });
-  const notes: Record<string, string> = { 's-1': '爱喝奶茶' };
-  let memory = '主播是猫猫';
+  const { memory, store } = fakeMemory({
+    [ROOM_FILE]: '主播是猫猫',
+    [noteFile('s-1')]: '爱喝奶茶',
+  });
   let persona = '数学老师\n';
   const room = fakeRoom({
     history,
     transcript,
     transcriptMs: 5 * 60_000,
     persona: () => persona,
-    memory: { room: () => memory, note: (userId) => notes[userId] ?? '' },
+    memory,
     streamerId: () => 's-1',
     botTalk: { recent: () => '你好呀' },
     chatDir: '/data/chat',
@@ -47,19 +50,22 @@ test("gives every prompt the room as it is now: chat, recent speech, persona, me
 
   // Persona and memory are read each time.
   persona = '小狗';
-  memory = '主播今天生日';
+  store.set(ROOM_FILE, '主播今天生日');
   expect(room.promptInput()).toMatchObject({ persona: '小狗', memory: '主播今天生日' });
 });
 
 test("the asker's note is theirs alone: none for the streamer (every prompt has theirs) or in a 私密 room", () => {
-  const notes: Record<string, string> = {
-    's-1': '爱喝奶茶',
-    'u-1': '叫 TA 阿明',
-    '111111-苦***-31': '爱听晴天',
-  };
   let isPrivate = false;
+  const { memory } = fakeMemory(
+    {
+      [noteFile('s-1')]: '爱喝奶茶',
+      [noteFile('u-1')]: '叫 TA 阿明',
+      [noteFile('111111-苦***-31')]: '爱听晴天',
+    },
+    { isPrivate: () => isPrivate },
+  );
   const room = fakeRoom({
-    memory: { room: () => '', note: (userId) => notes[userId] ?? '' },
+    memory,
     streamerId: () => 's-1',
     isPrivate: () => isPrivate,
   });

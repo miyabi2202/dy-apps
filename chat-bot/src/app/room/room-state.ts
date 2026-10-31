@@ -1,3 +1,4 @@
+import type { RoomMemory } from '@dy-apps/room-memory';
 import type { Alias } from '../../core/viewers/alias';
 import type { ChatHistory } from '../../core/chat/chat-history';
 import type { RecentGifts } from '../../core/chat/recent-gifts';
@@ -19,7 +20,7 @@ import {
   type TranscriptLine,
 } from '../../core/songs/transcript';
 import { combineSpans, type SongBreakSource, type SongSpan } from '../../core/songs/song-breaks';
-import type { BotTalk, Log, Memory, Screenshot, SettingsStore } from '../ports';
+import type { BotTalk, Log, Screenshot, SettingsStore } from '../ports';
 import { setting } from '../commands/setting';
 
 /** What a feature adds to the room's settings (everything but screenshots, which the room keeps). */
@@ -40,7 +41,7 @@ export interface RoomStateOptions {
    * What the bot remembers (memory.md and each person's note.md), read each time so edits apply at
    * once: the room's and the streamer's for `{{memory}}`, the asker's for `{{askerNote}}`.
    */
-  memory?: Pick<Memory, 'room' | 'note'>;
+  memory?: Pick<RoomMemory, 'roomText' | 'noteText'>;
   /** The streamer's user id (room_config.json's `streamer`), read each time; none until known. */
   streamerId?: () => string | undefined;
   /** Whether the room is 私密 (room_config.json's `private`): viewers' notes are left out there. */
@@ -149,7 +150,7 @@ export class RoomState {
   askerNote(userId: string | undefined): string {
     const { memory, streamerId, isPrivate } = this.options;
     if (!memory || !userId || userId === streamerId?.() || isPrivate?.()) return '';
-    return memory.note(userId);
+    return memory.noteText(userId);
   }
 
   /** The most messages anything the bot says is split into; `/最大回复条数` sets it. */
@@ -236,8 +237,8 @@ export class RoomState {
       chatDir,
       persona: this.persona,
       botName: this.botName,
-      memory: memory?.room(),
-      streamerNote: streamerId ? memory?.note(streamerId) : undefined,
+      memory: memory?.roomText(),
+      streamerNote: streamerId ? memory?.noteText(streamerId) : undefined,
       commonKnowledge: this.options.commonKnowledge?.(),
       intro: intro?.(),
       limitations: limitations?.(),

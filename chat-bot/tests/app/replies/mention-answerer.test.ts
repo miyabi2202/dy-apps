@@ -4,6 +4,7 @@ import { MentionAnswerer, type Mention } from '../../../src/app/replies/mention-
 import type { SettingsPart } from '../../../src/app/room/room-state';
 import type { UserTalk } from '../../../src/app/ports';
 import { Transcript } from '../../../src/core/songs/transcript';
+import { fakeMemory, noteFile } from '../../support/fake-memory';
 import { fakeRoom } from '../../support/fake-room';
 import { NOW, fakeBus, fakeOutbox, silentLog } from '../../support/fakes';
 
@@ -366,10 +367,7 @@ test("the asker's note goes into their prompt, and the reply @s them by nickname
     },
     outbox,
     room: fakeRoom({
-      memory: {
-        room: () => '',
-        note: (userId) => (userId === '103094206072' ? '喜欢被叫阿拂' : ''),
-      },
+      memory: fakeMemory({ [noteFile('103094206072')]: '喜欢被叫阿拂' }).memory,
       now: () => NOW,
     }),
     log: silentLog,
