@@ -100,19 +100,50 @@ export function withoutNames(text: string, names: readonly string[]): string {
   return out;
 }
 
+/** How much of what's being said recall looks at: the streamer's last lines, the last chats, and at most so many characters. */
+export interface RecallWindow {
+  speechLines?: number;
+  chatLines?: number;
+  maxChars?: number;
+}
+
 /**
  * What's being said in the room now, as recall looks for memories that fit it: the streamer's last
- * few lines and the last few chats, a line each, the newest last, at most `maxChars` (the oldest
- * dropped first).
+ * few lines and the last few chats, a line each, the newest last, at most `maxChars` in all (the
+ * oldest dropped first). Recall scores each line on its own (see bestOfLines).
  */
-export function recallQuery(
+export function recallLines(
   speech: readonly string[],
   chat: readonly string[],
-  { speechLines = 6, chatLines = 8, maxChars = 600 } = {},
-): string {
+  { speechLines = 6, chatLines = 8, maxChars = 600 }: RecallWindow = {},
+): string[] {
   const lines = [...speech.slice(-speechLines), ...chat.slice(-chatLines)]
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
   while (lines.length > 1 && lines.join('\n').length > maxChars) lines.shift();
-  return lines.join('\n').slice(-maxChars);
+  if (lines.length === 1) lines[0] = lines[0]!.slice(-maxChars);
+  return lines;
+}
+
+/** recallLines as one text, a line each: how the room's window was scored before it was split. */
+export function recallQuery(
+  speech: readonly string[],
+  chat: readonly string[],
+  window: RecallWindow = {},
+): string {
+  return recallLines(speech, chat, window).join('\n');
+}
+
+/**
+ * Each item's score against what's being said: its best against any one line (`perLine[line][item]`).
+ * A long window of mixed talk sits near every general memory in meaning, so on the whole window
+ * the general ones crowded out the specific; scored a line at a time, a memory comes up when one
+ * line is about it (embedding-eval's "Speech vs chat": MRR 0.57 → 0.66 on 400 real moments).
+ */
+export function bestOfLines(perLine: readonly (readonly number[])[]): number[] {
+  const best: number[] = [];
+  for (const scores of perLine) {
+    scores.forEach((score, i) => (best[i] = Math.max(best[i] ?? -Infinity, score)));
+  }
+  return best;
 }

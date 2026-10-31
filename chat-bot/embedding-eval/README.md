@@ -222,6 +222,29 @@ F1 runs from 0.24 to 0.48. The two rooms with big pools (73 and 112 items) are t
 - **If a missed memory costs more than a wrong one, use a low cutoff (≈ 0.40), which amounts to always taking the top 3.** On test that is the better F2 (0.36 against 0.30) and recall (0.43 against 0.32), at the cost of almost always putting 3 items in the prompt.
 - **The weak part is the ranking, not the threshold.** The judge agrees with itself at F1 0.81, and the bot's rule gets 0.28–0.30. The items recalled most often are general ones (rules for the bot, the streamer's profile, a short note about a viewer), which sit close to any long, mixed query whatever is being said. Better candidates are scoring each line of the query separately, down-weighting items that come up for every query, or making the query shorter (the last few lines only). Each needs a test like this one.
 
+### Speech vs chat
+
+[`speech-vs-chat.ts`](speech-vs-chat.ts) reuses the same moments and labels (no new judging) and rebuilds each moment from the chat records to know which of its speech lines were sung (`(sing)`); all 400 rebuild to the stored query. A query's speech share is the share of its characters from speech and sung lines. Queries lean to speech, since ASR lines are long: median 64%; 146 moments are ≥ 70% speech, 236 mixed, only 18 ≥ 70% chat (99 under 50% speech); 172 have a sung line, 28 are ≥ 40% sung. Scored at w = 0.15; intervals as above; Δs are paired.
+
+**Speech ranks about as well, but the rule does worse on it.** MRR on all 400 moments: mostly speech 0.556 [0.488–0.624], mixed 0.575, under 50% speech 0.624 [0.541–0.710]. Taking each room's own level out (big pools are harder, and the buckets come from different rooms), mostly speech is −0.004, the same as its room's average. At cutoff 0.5, though, mostly-speech moments get F1 0.27 [0.22–0.32] against 0.34 mixed and 0.39 under 50% speech, and 66% [53–79%] of their "none" moments still recall something (mixed 41%, chat-leaning 38%). Much singing (≥ 40% sung, 18 with a marked item) ranks worst: MRR 0.46 [0.32–0.62], hit@1 28%.
+
+**Leaving sung lines out does almost nothing**: MRR +0.005 [−0.010–0.021] overall, +0.06 [−0.04–0.17] on much singing; on test, tuned (0.57), F1 0.27 against 0.28.
+
+**Scoring each line as its own query and taking each item's best line is the one clear gain.**
+
+| query (test half)                    | hit@1 | MRR                 | Δ MRR vs current      | tuned cutoff | F1                  | "none" recalling |
+| ------------------------------------ | ----- | ------------------- | --------------------- | ------------ | ------------------- | ---------------- |
+| current: whole window, one query     | 40.8% | 0.566 [0.507–0.625] |                       | 0.5 (bot)    | 0.285 [0.240–0.329] | 55%              |
+| speech and chat as two queries, max  | 44.2% | 0.608               | +0.041 [−0.005–0.088] | 0.49         | 0.345 [0.301–0.390] | 53%              |
+| speech and chat as two queries, mean | 40.8% | 0.576               | +0.010 [−0.035–0.056] | 0.45         | 0.268               | 45%              |
+| each line its own query, max         | 51.0% | 0.658 [0.597–0.716] | +0.092 [+0.028–0.155] | 0.58         | 0.366 [0.316–0.415] | 29% [18–41%]     |
+
+Against the bot's setting on test, each-line-max at 0.58 is F1 +0.081 [+0.032–0.130] and "none" moments recalling something −25 points [−38 to −13]. On all 400 it is MRR +0.052 [+0.009–0.097]; the gain is in speech-heavy moments (+0.10 [+0.03–0.18]) and singing (≥ 20% sung: +0.13 [+0.00–0.24]), none in mixed or chat-leaning ones. Its tune optimum is a plateau from 0.54 to 0.60 (F1 0.366–0.385). Sung lines out on top of it changes nothing.
+
+**Pinyin's edge isn't only ASR.** On the whole-window query pinyin alone beats cosine by MRR +0.175 [0.09–0.27] on mostly speech, +0.32 on much singing, and +0.07 [−0.03–0.18] on chat-leaning moments. But with each part as its own query, on the same moments, the chat lines alone show the edge as clearly (+0.076 [0.028–0.125], test +0.156) as the speech lines alone (+0.050 [−0.001–0.098], test +0.114). Cosine falls behind most on long mixed windows with lyrics in them; on short chat lines the sound match helps too.
+
+**Recommendation:** score each line of the query separately (the same 6 speech and 8 chat lines), each item's score its best line's, cutoff about 0.58, w 0.15 (not retuned). On test it is the better ranker and the better rule, outside the intervals, and each line could be embedded once and cached, instead of the whole window at every look. Its numbers come from the same 400 moments and one judge, so take the cutoff as ±0.03; recheck it on the bot's own `memory recall` logs after the change. Full tables are in `data/embedding-eval/real/speech-report.md` (`npx tsx embedding-eval/speech-vs-chat.ts`).
+
 ### Caveats
 
 - **The pool isn't what recall searches today.** Recall looks only at older thoughts and Fairy's days, and no room has any yet. memory.md and notes are the bulk of real material and the same kind of short Chinese text, but they include rules for the bot and profile entries, which pull at every query. Recalibrate on thoughts and days once there are enough.

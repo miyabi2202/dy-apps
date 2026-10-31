@@ -100,8 +100,8 @@ test('every prompt has the latest thoughts and days, and, once the room says som
 
   say({ chat: ['今晚唱稻香吗'], speech: ['小黑呢'] });
   await recall.refresh();
-  // The query is embedded as one; each older memory as a document, without its date.
-  expect(embedded[0]).toEqual({ texts: ['小黑呢\n今晚唱稻香吗'], kind: 'query' });
+  // Each line being said is a query of its own; each older memory a document, without its date.
+  expect(embedded[0]).toEqual({ texts: ['小黑呢', '今晚唱稻香吗'], kind: 'query' });
   expect(embedded[1]!.kind).toBe('document');
   expect(embedded[1]!.texts).toContain('主人说下次唱稻香，下次问问她');
   expect(recall.thoughtsText()).toBe(
@@ -185,4 +185,20 @@ test("a word heard wrong still brings up its memory by sound, and the bot's own 
   await recall.refresh();
   expect(recall.thoughtsText()).toContain('三角洲');
   expect(recall.thoughtsText()).not.toContain('fairy');
+});
+
+test('a memory comes up when one line is about it, and a line already embedded is not embedded again', async () => {
+  const { recall, embedded, say } = setup({ thoughts: THOUGHTS });
+  // A long window where only one line is about the anniversary: its best line carries it.
+  say({ speech: ['今天先唱几首', '谢谢大家'], chat: ['晚上好', '周年活动有吗', '来了来了'] });
+  await recall.refresh();
+  expect(recall.thoughtsText()).toContain('主人下周一周年');
+
+  say({ chat: ['晚上好', '周年活动有吗', '来了来了', '稻香'] });
+  await recall.refresh();
+  const queries = embedded.filter(({ kind }) => kind === 'query').map(({ texts }) => texts);
+  expect(queries).toEqual([
+    ['今天先唱几首', '谢谢大家', '晚上好', '周年活动有吗', '来了来了'],
+    ['稻香'],
+  ]);
 });

@@ -2,7 +2,9 @@ import {
   combinedScore,
   pinyinScores,
   pinyinTokens,
+  bestOfLines,
   recalled,
+  recallLines,
   recallQuery,
   similarity,
   withoutNames,
@@ -54,4 +56,20 @@ test("the query is the streamer's last lines and the last chats, newest last, cu
   ).toBe('二\n三\nb c');
   expect(recallQuery(['很长的一句话'], ['短'], { maxChars: 3 })).toBe('短');
   expect(recallQuery([], [])).toBe('');
+});
+
+test('the window is its lines, which recallQuery joins', () => {
+  expect(recallLines(['一', '二'], ['a  b', ''])).toEqual(['一', '二', 'a b']);
+  expect(recallQuery(['一', '二'], ['a  b'])).toBe('一\n二\na b');
+  expect(recallLines(['很长的一句话'], [], { maxChars: 3 })).toEqual(['一句话']);
+});
+
+test('each item scores its best line', () => {
+  expect(
+    bestOfLines([
+      [0.2, 0.9, 0.1],
+      [0.7, 0.3, 0.1],
+    ]),
+  ).toEqual([0.7, 0.9, 0.1]);
+  expect(bestOfLines([])).toEqual([]);
 });

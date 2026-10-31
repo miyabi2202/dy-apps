@@ -1,9 +1,10 @@
 import { errorMessage } from '../../core/errors';
 import {
+  bestOfLines,
   combinedScore,
   pinyinScores,
   recalled,
-  recallQuery,
+  recallLines,
   similarity,
   withoutNames,
 } from '../../core/memory/recall';
@@ -55,10 +56,11 @@ const LIFE_DAYS_LOOKED_AT = 365;
  * What the bot remembers of its own, for every prompt: its latest thoughts after the room's
  * streams and the latest days of the persona it plays, as before, and besides, older ones that
  * fit what's being said now. After the room says something (a chat, the streamer's speech) it
- * waits `debounceMs`, then scores each older thought and day against what's being said: mostly by
- * meaning (the embedding service's cosine), a little by sound (pinyin BM25, with the bot's own
- * names left out, so a word heard wrong still matches), and keeps those scoring at least the
- * model's cutoff, the highest first, at most `extra` of each. The best scores go to the log
+ * waits `debounceMs`, then scores each older thought and day against each line being said now (the
+ * streamer's last lines and the last chats, see recallLines): mostly by meaning (the embedding
+ * service's cosine), a little by sound (pinyin BM25, with the bot's own names left out, so a word
+ * heard wrong still matches). A memory scores its best line (bestOfLines), and those scoring at
+ * least the model's cutoff come to mind, the highest first, at most `extra` of each. The best scores go to the log
  * (debug, `memory recall`), to set the cutoff from real rooms. Building a prompt never waits for that: it shows what was found last.
  * Without the service (not running, or an error) only the latest are shown, and the failure is
  * warned about once until it works again.
@@ -71,6 +73,9 @@ export class MemoryRecall {
   private looking = false;
   private again = false;
   private failing = false;
+  /** The window's lines embedded as queries, by text, for `linesModel`. */
+  private readonly lines = new Map<string, number[]>();
+  private linesModel = '';
 
   constructor(private readonly options: MemoryRecallOptions) {}
 
@@ -130,7 +135,8 @@ export class MemoryRecall {
   private async look(): Promise<void> {
     const { embedder, log, speech, chat, extra = 3 } = this.options;
     if (!embedder) return;
-    const query = recallQuery(speech(), chat());
+    const lines = recallLines(speech(), chat());
+    const query = lines.join('\n');
     if (!query || query === this.lastQuery) return;
     try {
       const { model, cutoff } = await embedder.info();
@@ -138,16 +144,25 @@ export class MemoryRecall {
       const persona = this.options.persona();
       const days = persona ? this.olderLife(persona) : [];
       const texts = [...thoughts.map(thoughtText), ...days.map(({ line }) => line)];
-      const [queryVector] = await embedder.embed([query], 'query');
+      const queryVectors = await this.lineVectors(model, lines);
       const docs = await this.documentVectors(model, texts);
       const { names, pinyinWeight: weight, pinyinScale: scale } = this.options;
-      const sounds = pinyinScores(texts, withoutNames(query, names()));
-      const scores = docs.map((vector, i) =>
-        combinedScore(similarity(queryVector!, vector), sounds[i]!, { weight, scale }),
-      );
+      const botNames = names();
+      // Each memory against each line, meaning and sound; a memory scores its best line.
+      const perLine = lines.map((line, l) => {
+        const sounds = pinyinScores(texts, withoutNames(line, botNames));
+        return docs.map((vector, i) =>
+          combinedScore(similarity(queryVectors[l]!, vector), sounds[i]!, { weight, scale }),
+        );
+      });
+      const scores = bestOfLines(perLine);
       log.debug('memory recall', {
         best: scores
-          .map((score, i) => ({ score: Math.round(score * 1000) / 1000, text: texts[i] }))
+          .map((score, i) => ({
+            score: Math.round(score * 1000) / 1000,
+            text: texts[i],
+            line: lines[perLine.findIndex((each) => each[i] === score)],
+          }))
           .sort((a, b) => b.score - a.score)
           .slice(0, 3),
         cutoff,
@@ -197,6 +212,26 @@ export class MemoryRecall {
         .filter(Boolean)
         .map((line) => ({ date, line })),
     );
+  }
+
+  /**
+   * Each line's vector as a query. A line stays in the window for many looks, so the latest are
+   * kept here and only the new lines are embedded.
+   */
+  private async lineVectors(model: string, lines: readonly string[]): Promise<number[][]> {
+    if (this.linesModel !== model) {
+      this.lines.clear();
+      this.linesModel = model;
+    }
+    const missing = [...new Set(lines.filter((line) => !this.lines.has(line)))];
+    if (missing.length) {
+      const made = await this.options.embedder!.embed(missing, 'query');
+      missing.forEach((line, i) => this.lines.set(line, made[i]!));
+    }
+    const vectors = lines.map((line) => this.lines.get(line)!);
+    // Keep only what the window still has, so it doesn't grow over a long stream.
+    for (const line of this.lines.keys()) if (!lines.includes(line)) this.lines.delete(line);
+    return vectors;
   }
 
   /** Each text's vector: from the cache, or embedded now (and cached) for the ones it hasn't. */
