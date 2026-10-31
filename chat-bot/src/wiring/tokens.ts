@@ -22,6 +22,7 @@ import type { MaliceWatch } from '../app/replies/malice-watch';
 import type { BotMcpServer } from '../adapters/mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { AutoMessage } from '../app/replies/auto-message';
+import type { LifeWriter } from '../app/life/life-writer';
 import type { OnSing } from '../app/songs/on-sing';
 import type { SongEnds } from '../app/songs/song-ends';
 import type { SongBreakSource } from '../core/songs/song-breaks';
@@ -32,6 +33,7 @@ import type {
   BotTalk,
   DefinedTool,
   Judge,
+  LifeLog,
   Log,
   RoomEvents,
   FetchLyrics,
@@ -39,6 +41,7 @@ import type {
   RoomRecord,
   SettingsStore,
   SpawnWorker,
+  Thoughts,
   UserTalk,
 } from '../app/ports';
 import type { BotTool } from '../core/tools/bot-tool';
@@ -130,6 +133,8 @@ export const BOT_TALK = token<BotTalk>('botTalk');
 export const USER_TALK = token<UserTalk>('userTalk');
 /** What the bot remembers in the room: memory.md and each person's note.md, and who may change them. */
 export const MEMORY = token<RoomMemory>('memory');
+/** The bot's own thoughts after the room's streams, in memory/thoughts.md. */
+export const THOUGHTS = token<Thoughts>('thoughts');
 /** Reads the chat record since last time into memory (`pnpm remember`). */
 export const REMEMBER_CHAT = token<RememberChat>('rememberChat');
 /** The prompt `name`, read on every use: the room's own file, else the shared one. */
@@ -148,6 +153,11 @@ export const FEED = token<RoomFeed>('feed');
 export const AUTO_REPLY = token<AutoReply>('autoReply');
 export const THANKER = token<GiftThanker>('thanker');
 export const AUTO_MESSAGE = token<AutoMessage>('autoMessage');
+
+// life.ts: the personas' own days.
+/** What happened to each shared persona on her own days, in data/lives/. */
+export const LIFE = token<LifeLog>('life');
+export const LIFE_WRITER = token<LifeWriter>('lifeWriter');
 
 // songs.ts: naming the songs sung; null without what they need.
 export const SONG_ID = token<SongId | null>('songId');

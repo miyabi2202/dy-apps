@@ -73,6 +73,14 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 {{note}}
 
+## thoughts
+
+你上几场直播后自己的想法（从旧到新，前面是那场的日期）：
+
+{{thoughts}}
+
+这些是你自己的看法和好奇，主播和观众不知道。能接上眼前的话时可以拿一条起个话头，比如问主播上次说要做的事后来怎么样了；别当成这场刚发生的事，也别一条条往外倒。
+
 ## asker-note
 
 关于 {{asker}} 你记着的事（一条一段，用 § 隔开；只在回 TA 时用，别对别人说）：

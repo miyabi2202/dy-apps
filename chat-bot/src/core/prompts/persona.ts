@@ -77,7 +77,7 @@ export function composePersona({
 
 /** A room's persona file, its `---` header read out: the shared persona it builds on, and its values. */
 export interface PersonaFile {
-  /** The shared persona (a name in chat-bot/prompts/personas/); none when the file is the whole persona. */
+  /** The shared persona (a folder in chat-bot/prompts/personas/); none when the file is the whole persona. */
   base?: string;
   /** What each `{{name}}` is filled in with. */
   vars: Record<string, string>;
@@ -108,7 +108,7 @@ export function parsePersonaFile(text: string): PersonaFile & { problems: string
     }
     const [, name = '', value = ''] = match;
     if (name !== 'base') file.vars[name] = value;
-    // A file name in prompts/personas/, so nothing outside that folder can be named.
+    // A folder in prompts/personas/, so nothing outside it can be named.
     else if (/^[^/\\.][^/\\]*$/.test(value)) file.base = value;
     else file.problems.push(line);
   }

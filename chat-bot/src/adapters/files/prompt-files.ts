@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Log } from '../../app/ports';
 import { errorMessage } from '../../core/errors';
+import { LIFE_HEADING } from '../../core/prompts/life';
 import { composePersona, parsePersonaFile } from '../../core/prompts/persona';
 import { wordingOf, type Wording } from '../../core/prompts/wording';
 
@@ -19,6 +20,8 @@ export const PROMPT_FILES = {
   malice: 'malice.md',
   rememberNotes: 'remember-notes.md',
   rememberRoom: 'remember-room.md',
+  rememberThoughts: 'remember-thoughts.md',
+  life: 'life.md',
 } as const;
 
 export type PromptName = keyof typeof PROMPT_FILES;
@@ -61,26 +64,44 @@ export function liveText(path: string, fallback: () => string = () => ''): () =>
 }
 
 /**
+ * A shared persona's folder in `sharedDir` (chat-bot/prompts/personas/) holds who she is
+ * (`persona.md`) and, when she has days of her own, who she is in her world and how they're
+ * written (`life.md`, see LifeWriter).
+ */
+export function sharedPersonaFile(sharedDir: string, name: string): string {
+  return join(sharedDir, name, 'persona.md');
+}
+
+/** The shared persona `name`'s `life.md` (see sharedPersonaFile). */
+export function sharedLifeFile(sharedDir: string, name: string): string {
+  return join(sharedDir, name, 'life.md');
+}
+
+/**
  * Who the bot plays in the room, read on every call so edits apply at once: the file `file()` names
  * in `roomDir` (room_config.json's `persona`), after its header (see parsePersonaFile), or, when it
- * names none, the shared `sharedDir/default.md` as it is (none if that's missing). With a
- * `base` there, the file is changes to `sharedDir/<base>.md` (see composePersona); either way its
+ * names none, the shared `sharedDir/default/persona.md` as it is (none if that's missing). With a
+ * `base` there, the file is changes to `sharedDir/<base>/persona.md` (see composePersona); either way its
  * `{{…}}`s are filled in from the header. A file or shared persona that can't be read, a header line
  * that can't, and a `{{…}}` with no value are each warned about once: the bot then plays what's left
- * (nothing, the room's changes alone, the blank as it is).
+ * (nothing, the room's changes alone, the blank as it is). With a `base` that has days of its own in
+ * `life` (see LifeWriter), the latest of them come last, under `## 最近的日子`.
  */
 export function livePersona({
   roomDir,
   sharedDir,
   file,
   log,
+  life = () => '',
 }: {
   roomDir: string;
   sharedDir: string;
   file: () => string | undefined;
   log: Log;
+  /** The latest days of the shared persona `base`, as the prompts show them; empty without any. */
+  life?: (base: string) => string;
 }): () => string {
-  const defaultPersona = liveText(join(sharedDir, 'default.md'));
+  const defaultPersona = liveText(sharedPersonaFile(sharedDir, 'default'));
   const warned = new Set<string>();
   const warnOnce = (message: string, fields: Record<string, unknown>) => {
     const key = `${message} ${JSON.stringify(fields)}`;
@@ -109,7 +130,7 @@ export function livePersona({
       base === undefined
         ? null
         : read(
-            join(sharedDir, `${base}.md`),
+            sharedPersonaFile(sharedDir, base),
             "could not read the shared persona, using the room's changes alone",
           );
     const composed = composePersona({ shared, room: body, vars });
@@ -119,7 +140,30 @@ export function livePersona({
         missing: composed.missing,
       });
     }
-    return composed.text;
+    const days = base === undefined ? '' : life(base).trim();
+    return days ? `${composed.text}\n\n## ${LIFE_HEADING}\n\n${days}` : composed.text;
+  };
+}
+
+/**
+ * The shared persona the room plays now: the `base` in the header of the persona file `file()`
+ * names in `roomDir`; undefined when it names none, has none, or can't be read.
+ */
+export function livePersonaBase({
+  roomDir,
+  file,
+}: {
+  roomDir: string;
+  file: () => string | undefined;
+}): () => string | undefined {
+  return () => {
+    const name = file();
+    if (!name) return undefined;
+    try {
+      return parsePersonaFile(readFileSync(join(roomDir, name), 'utf8')).base;
+    } catch {
+      return undefined;
+    }
   };
 }
 

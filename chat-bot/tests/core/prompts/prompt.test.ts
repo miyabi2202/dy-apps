@@ -124,3 +124,19 @@ test('{{memory}} says where the older memories are kept, which the prompt does n
   expect(filled).toContain('/data/1/memory 的 archive.md');
   expect(buildPrompt('{{memory}}', input)).toBe('');
 });
+
+test("{{memory}} ends with the bot's own thoughts after the last streams, and leaves them out when there are none", () => {
+  const filled = buildPrompt('{{memory}}', {
+    ...input,
+    memory: '主播叫咿咿\n',
+    thoughts: '2026-10-31：主人说下次唱稻香，下次问问她\n',
+  });
+  expect(filled).toContain('主播叫咿咿');
+  expect(filled).toContain('你上几场直播后自己的想法');
+  expect(filled.indexOf('主播叫咿咿')).toBeLessThan(filled.indexOf('主人说下次唱稻香'));
+  // Thoughts with nothing else remembered still come.
+  expect(buildPrompt('{{memory}}', { ...input, thoughts: '2026-10-31：想问的' })).toContain(
+    '想问的',
+  );
+  expect(buildPrompt('{{memory}}', { ...input, thoughts: ' ' })).toBe('');
+});

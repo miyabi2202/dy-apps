@@ -21,7 +21,7 @@ import {
   type RoomMemory,
   type Target,
 } from '@dy-apps/room-memory';
-import type { AskModel, Log } from '../ports';
+import type { AskModel, Log, Thoughts } from '../ports';
 
 export interface RememberChatOptions {
   /** Claude, asked once per batch of viewers and once about the whole stream. */
@@ -38,6 +38,16 @@ export interface RememberChatOptions {
   notesPrompt: () => string;
   /** The prompt about the room's memory and the streamer's note (remember-room.md), read each time. */
   roomPrompt: () => string;
+  /**
+   * The bot's own thoughts after the stream (remember-thoughts.md asks for them, in `persona`'s
+   * voice); none without it.
+   */
+  thoughts?: {
+    prompt: () => string;
+    /** Who the bot plays in the room, as every prompt has it. */
+    persona: () => string;
+    store: Thoughts;
+  };
   /** Who the streamer is: their note is about the whole stream, not a viewer's. */
   streamer: Pick<Streamer, 'id'>;
   /** The bot's own account, whose lines aren't a viewer's. */
@@ -82,12 +92,43 @@ function shown(memory: Pick<RoomMemory, 'entries'>, target: Target): string {
   return entries.join('\n§\n') || '（无）';
 }
 
+/** How many of its earlier thoughts the bot sees when it thinks about a stream. */
+const THOUGHTS_SHOWN_TO_REFLECT = 12;
+
+/** At most this many thoughts a stream. */
+const MAX_THOUGHTS = 3;
+
+const THOUGHTS_SCHEMA = {
+  type: 'object',
+  properties: {
+    thoughts: {
+      type: 'array',
+      items: { type: 'string', description: '你自己的一个想法，一句话' },
+      description: '这场直播之后你自己的想法，0 到 3 条',
+    },
+  },
+  required: ['thoughts'],
+  additionalProperties: false,
+} as const;
+
+/** The thoughts in an answer: its strings, trimmed, at most MAX_THOUGHTS. */
+function thoughtsOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .slice(0, MAX_THOUGHTS);
+}
+
 /** What one run did. */
 export interface RememberResult {
   lines: number;
   viewers: number;
   changes: number;
   failed: number;
+  /** How many thoughts of its own the bot had about the stream. */
+  thoughts: number;
 }
 
 /**
@@ -96,7 +137,9 @@ export interface RememberResult {
  * the whole stream. Claude says what to change, in the same add / replace / remove form as
  * update_memory, and each change goes through the same checks (the limits); one that
  * fails is skipped. The mark moves on only when every question was answered, so a failed run is
- * read again next time.
+ * read again next time. Then, with `thoughts`, the bot says what it made of the stream itself (see
+ * reflect); a failure there is only logged, since reading it all again for that would add the
+ * stream's summary twice.
  */
 export class RememberChat {
   constructor(private readonly options: RememberChatOptions) {}
@@ -108,14 +151,21 @@ export class RememberChat {
       .flatMap((text) => text.split(/\r?\n/))
       .flatMap((line) => parseRecordLine(line) ?? [])
       .filter((line) => line.ms > since);
-    const result: RememberResult = { lines: lines.length, viewers: 0, changes: 0, failed: 0 };
+    const result: RememberResult = {
+      lines: lines.length,
+      viewers: 0,
+      changes: 0,
+      failed: 0,
+      thoughts: 0,
+    };
     if (!lines.length) {
       log.info('nothing new to remember', { since });
       return result;
     }
     log.info('remembering', { since, lines: lines.length });
     if (!this.options.isPrivate()) await this.notes(lines, result);
-    await this.room(lines, result);
+    const summary = await this.room(lines, result);
+    if (summary !== null) await this.reflect(lines, summary, result);
     if (!result.failed) mark.set(Math.max(...lines.map((line) => line.ms)));
     log.info('remembered', { ...result });
     return result;
@@ -170,8 +220,11 @@ export class RememberChat {
     }
   }
 
-  /** The room's memory and the streamer's note, from the whole stream. */
-  private async room(lines: readonly RecordLine[], result: RememberResult): Promise<void> {
+  /**
+   * The room's memory and the streamer's note, from the whole stream; the stream's summary
+   * (empty when Claude gave none), or null when Claude couldn't be asked.
+   */
+  private async room(lines: readonly RecordLine[], result: RememberResult): Promise<string | null> {
     const { memory, roomPrompt, log } = this.options;
     const streamer = this.options.streamer.id();
     const answer = await this.ask(
@@ -193,7 +246,7 @@ export class RememberChat {
     );
     if (answer === null) {
       result.failed++;
-      return;
+      return null;
     }
     result.changes += this.apply({ scope: 'room' }, memoryChangesOf(answer.room));
     if (streamer) {
@@ -207,6 +260,40 @@ export class RememberChat {
       memory.addStreamSummary(this.daysOf(lines), summary);
       log.info('stream summarised', { chars: [...summary].length });
     }
+    return summary;
+  }
+
+  /**
+   * What the bot itself made of the stream, in its persona's voice: what it found funny, what it
+   * wants to ask next time, what it now thinks. It sees what it thought after the last streams, so
+   * a thought can change, and it may have none.
+   */
+  private async reflect(
+    lines: readonly RecordLine[],
+    summary: string,
+    result: RememberResult,
+  ): Promise<void> {
+    const { thoughts, log } = this.options;
+    if (!thoughts) return;
+    const answer = await this.ask(
+      fillTemplate(
+        thoughts.prompt(),
+        {
+          persona: thoughts.persona() || '（无）',
+          thoughts: thoughts.store.recent(THOUGHTS_SHOWN_TO_REFLECT) || '（无）',
+          summary: summary || '（无）',
+          digest: digestText(lines, { maxChars: 30_000 }),
+        },
+        { fillWhen: 'present' },
+      ),
+      THOUGHTS_SCHEMA,
+      'thoughts',
+    );
+    const entries = thoughtsOf(answer?.thoughts);
+    if (!entries.length) return;
+    thoughts.store.add(this.daysOf(lines), entries);
+    result.thoughts = entries.length;
+    log.info('thought about the stream', { thoughts: entries });
   }
 
   /** The day the lines are from, `2026-10-30`, or the span of days when they run over several. */

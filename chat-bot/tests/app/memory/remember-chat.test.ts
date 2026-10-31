@@ -1,4 +1,4 @@
-import type { Question } from '../../../src/app/ports';
+import type { Question, Thoughts } from '../../../src/app/ports';
 import { RememberChat } from '../../../src/app/memory/remember-chat';
 import { fakeMemory, noteFile, ROOM_FILE, STREAMS_FILE } from '../../support/fake-memory';
 
@@ -21,20 +21,33 @@ function setup({
   mark,
   isPrivate = false,
   dayOf,
+  thoughts,
 }: {
   record: string[];
-  answers: { notes?: unknown; room?: unknown };
+  answers: { notes?: unknown; room?: unknown; thoughts?: unknown };
   mark?: number;
   isPrivate?: boolean;
   dayOf?: (ms: number) => string;
+  /** The bot's thoughts after earlier streams; none asks for no thoughts. */
+  thoughts?: string[];
 }) {
   const { memory, store } = fakeMemory({ [ROOM_FILE]: '主播叫咿咿\n' });
   const asked: Question[] = [];
   const marks = { value: mark };
+  /** The thoughts store in memory: `date：text` a line. */
+  const thoughtsStore: Thoughts = {
+    recent: (count) => (thoughts ?? []).slice(-count).join('\n'),
+    add: (date, entries) => thoughts?.push(...entries.map((entry) => `${date}：${entry}`)),
+  };
   const remember = new RememberChat({
     ask: (question) => {
       asked.push(question);
-      const answer = question.why === 'notes' ? answers.notes : answers.room;
+      const answer =
+        question.why === 'notes'
+          ? answers.notes
+          : question.why === 'thoughts'
+            ? answers.thoughts
+            : answers.room;
       return answer instanceof Error
         ? Promise.reject(answer)
         : Promise.resolve(JSON.stringify(answer));
@@ -45,6 +58,13 @@ function setup({
     notesPrompt: () => 'NOTES {{viewers}}',
     roomPrompt: () =>
       'ROOM {{memory}} {{roomUsed}} | {{streamerNote}} {{streamerUsed}} | {{digest}}',
+    ...(thoughts && {
+      thoughts: {
+        prompt: () => 'THOUGHTS {{persona}} | {{thoughts}} | {{summary}} | {{digest}}',
+        persona: () => 'Fairy',
+        store: thoughtsStore,
+      },
+    }),
     streamer: { id: () => 's-1' },
     bot: { name: '默认关闭', id: 'bot' },
     isPrivate: () => isPrivate,
@@ -53,7 +73,7 @@ function setup({
     dayOf: dayOf ?? ((ms) => new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10)),
     minChats: 2,
   });
-  return { remember, store, asked, marks };
+  return { remember, store, asked, marks, thoughts };
 }
 
 const RECORD = [
@@ -90,7 +110,13 @@ test("each regular's note gets the changes Claude names for them, the room and s
       },
     },
   });
-  expect(await remember.run()).toEqual({ lines: 8, viewers: 1, changes: 4, failed: 0 });
+  expect(await remember.run()).toEqual({
+    lines: 8,
+    viewers: 1,
+    changes: 4,
+    failed: 0,
+    thoughts: 0,
+  });
   expect(store.get(noteFile('s-1'))).toBe('说好下次唱《稻香》\n<!-- 2026-10-31 chat -->\n');
   expect(store.get(noteFile('u-1'))).toBe(
     '喜欢被叫阿拂\n<!-- 2026-10-31 chat -->\n§\n爱听周杰伦\n<!-- 2026-10-31 chat -->\n',
@@ -222,4 +248,64 @@ test('a run over several days gives the span of days', async () => {
   });
   await remember.run();
   expect(store.get(STREAMS_FILE)).toBe('2026-10-23 至 2026-10-24：连着播了两天\n§\n');
+});
+
+test('then the bot says what it made of the stream, in its persona, after its earlier thoughts', async () => {
+  const { remember, asked, thoughts, marks } = setup({
+    record: RECORD,
+    thoughts: ['2026-10-20：主人说要学新歌，不知道学会没有'],
+    answers: {
+      notes: { notes: [] },
+      room: { room: [], streamer: [], summary: '唱了晴天' },
+      thoughts: {
+        thoughts: ['主人说下次唱稻香，下次问问她', '  ', '阿拂原来最爱周杰伦', '三', '四'],
+      },
+    },
+  });
+  const result = await remember.run();
+
+  const prompt = asked.find((question) => question.why === 'thoughts')!.prompt;
+  expect(prompt).toContain(
+    'THOUGHTS Fairy | 2026-10-20：主人说要学新歌，不知道学会没有 | 唱了晴天 |',
+  );
+  expect(prompt).toContain('下次唱稻香');
+  expect(asked.find((question) => question.why === 'thoughts')!.tools).toEqual([]);
+  // Blank ones left out, and at most three.
+  expect(thoughts).toEqual([
+    '2026-10-20：主人说要学新歌，不知道学会没有',
+    '2026-10-24：主人说下次唱稻香，下次问问她',
+    '2026-10-24：阿拂原来最爱周杰伦',
+    '2026-10-24：三',
+  ]);
+  expect(result.thoughts).toBe(3);
+  expect(marks.value).toBe(T0 + 8000);
+});
+
+test('no thoughts asked when the room question failed, and a failed thought only logs', async () => {
+  const roomDown = setup({
+    record: RECORD,
+    thoughts: [],
+    answers: { notes: { notes: [] }, room: new Error('down'), thoughts: { thoughts: ['不该写'] } },
+  });
+  await roomDown.remember.run();
+  expect(roomDown.asked.some((question) => question.why === 'thoughts')).toBe(false);
+  expect(roomDown.thoughts).toEqual([]);
+
+  const thinkingDown = setup({
+    record: RECORD,
+    thoughts: [],
+    answers: {
+      notes: { notes: [] },
+      room: { room: [], streamer: [], summary: '' },
+      thoughts: new Error('down'),
+    },
+  });
+  const result = await thinkingDown.remember.run();
+  expect(result.failed).toBe(0);
+  expect(thinkingDown.marks.value).toBe(T0 + 8000);
+  expect(thinkingDown.thoughts).toEqual([]);
+  // Without a summary the prompt says so.
+  expect(thinkingDown.asked.find((question) => question.why === 'thoughts')!.prompt).toContain(
+    '| （无） |',
+  );
 });

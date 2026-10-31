@@ -61,7 +61,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
     common-knowledge.md   #     what viewers ask about Douyin itself (灯牌…), in prompt.md as {{commonKnowledge}}
     forbidden.md          #     topics the bot never takes up, in prompt.md as {{forbiddenTopics}}
     forbidden-words.json  #     words Douyin hides a message for, each with what to send instead (`*`s by default), swapped in everything sent
-    personas/             #     shared personas a room's persona file can build on (fairy.md, …)
+    personas/             #     shared personas a room's persona file can build on, a folder each (fairy/: persona.md, life.md)
   config.json             #   admins (user ids) and what viewers call them (adminNames)
   src/main.ts             #   entry: options (cli-options.ts), the container built, started and stopped
   src/wiring/             #   the IoC container (container.ts), what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot) and the FEATURES that subscribe to the room when the app starts (features.ts)
@@ -73,7 +73,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   tools/                  #   declarative tools (tool.json + guidance.md per folder) a room switches on in its room_config.json
   scripts/                #   offline tools over logs/: song-breaks-replay.ts (`pnpm replay:song-breaks`), where lyrics would end each named song; shazam-windows.py, what Shazam hears in a recording, window by window
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + ERes2Net
-  logs/  data/            #   winston logs; data/<房间号>/ per room: room_config.json, memory.md, memory/ (archive.md, streams.md), personas/, tools/, chat/, <user id>/, bot_logs.md (not in git)
+  logs/  data/            #   winston logs; data/<房间号>/ per room: room_config.json, memory.md, memory/ (archive.md, streams.md, thoughts.md), personas/, tools/, chat/, <user id>/, bot_logs.md; data/lives/<persona>/ the shared personas' own days (not in git)
 room-feed-protocol/       # @dy-apps/room-feed-protocol: room-feed's events and API, and the client that reads them
   src/events.ts           #   chat, gift, like events and the status frames, one JSON object per WebSocket message
   src/api.ts              #   the HTTP API's answers, the default port, the URLs, port and room-number checks

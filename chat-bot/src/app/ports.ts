@@ -11,6 +11,7 @@ import type { ToolAccess, ToolContext, ToolSession } from '../core/tools/bot-too
 import type { ToolDefinition } from '../core/tools/tool-definition';
 import type { Exchange } from '../core/chat/talk-record';
 import type { OnSingConfig } from '../core/room/room-config';
+import type { LifeDay } from '../core/prompts/life';
 
 /** The room's settings, kept in its room_config.json: read each time (so a hand edit counts), and written when something changes one. */
 export interface SettingsStore {
@@ -33,7 +34,30 @@ export interface BotTalk {
   recent(): string;
 }
 
-export type { Exchange, OnSingConfig };
+export type { Exchange, LifeDay, OnSingConfig };
+
+/**
+ * What happened to each persona on its own days (see LifeWriter), shared by every room that plays it:
+ * a day once written is never changed.
+ */
+export interface LifeLog {
+  /** The latest `days` days written for `persona`, oldest first. */
+  recent(persona: string, days: number): LifeDay[];
+  has(persona: string, date: string): boolean;
+  /** Writes `date` for `persona`; false when that day was already written (by another room's bot, say). */
+  add(persona: string, date: string, text: string): boolean;
+}
+
+/**
+ * The bot's own thoughts after each stream in a room (see RememberChat): what it made of it, in its
+ * persona's voice, one a line with the day it's about. Only ever added to.
+ */
+export interface Thoughts {
+  /** The latest `count`, oldest first, one a line (`2026-10-31：…`); empty when there are none. */
+  recent(count: number): string;
+  /** Adds `entries`, each about the stream on `date` (`2026-10-31`, or a span of days). */
+  add(date: string, entries: readonly string[]): void;
+}
 
 /** Each viewer's past exchanges with the bot, by user id, so a regular gets continuity. */
 export interface UserTalk {

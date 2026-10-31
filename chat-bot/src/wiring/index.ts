@@ -5,6 +5,7 @@ import { registerApp } from './app';
 import { registerAutoReply } from './auto-reply';
 import { registerBot } from './bot';
 import { Container } from './container';
+import { registerLife } from './life';
 import { registerMalice } from './malice';
 import { registerMcp } from './mcp';
 import { registerModels } from './models';
@@ -44,6 +45,7 @@ export function buildContainer({ options, packageDir, log, env }: Given): Contai
   registerAutoReply(container, features);
   registerSongs(container, features);
   registerMalice(container, features);
+  registerLife(container, features);
   registerTranscriber(container);
   registerMcp(container);
   registerBot(container);

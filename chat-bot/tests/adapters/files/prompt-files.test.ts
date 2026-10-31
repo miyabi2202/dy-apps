@@ -1,7 +1,13 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { livePersona, livePrompt } from '../../../src/adapters/files/prompt-files';
+import { livePersona, livePersonaBase, livePrompt } from '../../../src/adapters/files/prompt-files';
+
+/** Writes the shared persona `name`'s persona.md in `sharedDir`, in her own folder. */
+function writeShared(sharedDir: string, name: string, text: string): void {
+  mkdirSync(join(sharedDir, name), { recursive: true });
+  writeFileSync(join(sharedDir, name, 'persona.md'), text);
+}
 
 describe('livePrompt', () => {
   const dirs = () => ({
@@ -82,10 +88,7 @@ describe('livePersona', () => {
 
   test('a file with a base header is changes to that shared persona, its blanks filled from the header', () => {
     const { roomDir, sharedDir, persona, choose } = setup();
-    writeFileSync(
-      join(sharedDir, 'fairy.md'),
-      'Fairy，{{主播}}的助手\n\n## 说话方式\n\n- 一本正经\n',
-    );
+    writeShared(sharedDir, 'fairy', 'Fairy，{{主播}}的助手\n\n## 说话方式\n\n- 一本正经\n');
     writeFileSync(
       join(roomDir, 'personas', 'fairy.md'),
       '---\nbase: fairy\n主播: 咿咿\n---\n## 说话方式\n\n- 正经里带点俏皮\n',
@@ -94,14 +97,14 @@ describe('livePersona', () => {
     expect(persona()).toBe('Fairy，咿咿的助手\n\n## 说话方式\n\n- 正经里带点俏皮');
 
     // An edit to the shared persona applies at once too.
-    writeFileSync(join(sharedDir, 'fairy.md'), 'Fairy，{{主播}}的首席助手\n');
+    writeShared(sharedDir, 'fairy', 'Fairy，{{主播}}的首席助手\n');
     expect(persona()).toBe('Fairy，咿咿的首席助手\n\n## 说话方式\n\n- 正经里带点俏皮');
   });
 
   test('a room that names no persona plays the shared default one, if there is one', () => {
     const { sharedDir, log, persona, choose } = setup();
     expect(persona()).toBe('');
-    writeFileSync(join(sharedDir, 'default.md'), '普通观众\n');
+    writeShared(sharedDir, 'default', '普通观众\n');
     expect(persona()).toBe('普通观众');
     choose('personas/gone.md');
     expect(persona()).toBe('');
@@ -126,5 +129,57 @@ describe('livePersona', () => {
       expect.stringContaining('could not read the shared persona'),
       expect.anything(),
     );
+  });
+});
+
+describe('livePersona with days of her own', () => {
+  test("a room playing a shared persona gets that persona's latest days at the end", () => {
+    const roomDir = mkdtempSync(join(tmpdir(), 'room-'));
+    const sharedDir = mkdtempSync(join(tmpdir(), 'shared-'));
+    mkdirSync(join(roomDir, 'personas'));
+    writeShared(sharedDir, 'fairy', 'Fairy\n\n## 说话方式\n\n- 一本正经\n');
+    writeFileSync(join(roomDir, 'personas', 'fairy.md'), '---\nbase: fairy\n---\n');
+    writeFileSync(join(roomDir, 'personas', 'cat.md'), '小猫\n');
+    const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    let file = 'personas/fairy.md';
+    const asked: string[] = [];
+    const persona = livePersona({
+      roomDir,
+      sharedDir,
+      file: () => file,
+      log,
+      life: (base) => {
+        asked.push(base);
+        return '### 2026-10-31\n\n- 小黑趴在招财布旁边';
+      },
+    });
+
+    expect(persona()).toBe(
+      'Fairy\n\n## 说话方式\n\n- 一本正经\n\n## 最近的日子\n\n### 2026-10-31\n\n- 小黑趴在招财布旁边',
+    );
+    expect(asked).toEqual(['fairy']);
+    expect(livePersonaBase({ roomDir, file: () => file })()).toBe('fairy');
+
+    // A persona of the room's own has no shared persona, so no days.
+    file = 'personas/cat.md';
+    expect(persona()).toBe('小猫');
+    expect(livePersonaBase({ roomDir, file: () => file })()).toBeUndefined();
+    expect(livePersonaBase({ roomDir, file: () => 'personas/gone.md' })()).toBeUndefined();
+  });
+
+  test('no section when she has no days yet', () => {
+    const roomDir = mkdtempSync(join(tmpdir(), 'room-'));
+    const sharedDir = mkdtempSync(join(tmpdir(), 'shared-'));
+    writeShared(sharedDir, 'fairy', 'Fairy\n');
+    writeFileSync(join(roomDir, 'fairy.md'), '---\nbase: fairy\n---\n');
+    const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    const persona = livePersona({
+      roomDir,
+      sharedDir,
+      file: () => 'fairy.md',
+      log,
+      life: () => '',
+    });
+    expect(persona()).toBe('Fairy');
   });
 });

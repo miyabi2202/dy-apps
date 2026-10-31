@@ -16,9 +16,12 @@ import {
   type Transcript,
   type TranscriptLine,
 } from '../../core/songs/transcript';
-import type { BotTalk, SettingsStore } from '../ports';
+import type { BotTalk, SettingsStore, Thoughts } from '../ports';
 import type { BotNames } from './bot-names';
 import type { Streamer } from '../commands/streamer-admin';
+
+/** How many of the bot's latest thoughts after the room's streams every prompt shows: about two streams'. */
+const THOUGHTS_SHOWN = 6;
 
 export interface RoomStateOptions {
   /** The room's recent chat; whoever hears the chat adds to it. */
@@ -36,6 +39,8 @@ export interface RoomStateOptions {
    * once: the room's and the streamer's for `{{memory}}`, the asker's for `{{askerNote}}`.
    */
   memory?: Pick<RoomMemory, 'roomText' | 'noteText' | 'readDir'>;
+  /** The bot's own thoughts after the room's streams, the latest of which go into `{{memory}}`. */
+  thoughts?: Pick<Thoughts, 'recent'>;
   /** Who the streamer is, for their note and for leaving the asker's own out. */
   streamer?: Pick<Streamer, 'id'>;
   /** Whether the room is 私密 (room_config.json's `private`): viewers' notes are left out there. */
@@ -148,6 +153,7 @@ export class RoomState {
       botName: names.botName,
       memory: memory?.roomText(),
       streamerNote: streamerId ? memory?.noteText(streamerId) : undefined,
+      thoughts: this.options.thoughts?.recent(THOUGHTS_SHOWN),
       commonKnowledge: this.options.commonKnowledge?.(),
       intro: intro?.(),
       limitations: limitations?.(),

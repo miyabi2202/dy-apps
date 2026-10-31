@@ -16,6 +16,7 @@ import {
   saveStreamer,
 } from '../adapters/files/room-files';
 import { memoryReadMark, readRecordSince } from '../adapters/files/remember-files';
+import { thoughtsFile } from '../adapters/files/thoughts-file';
 import { busFeature } from '../app/feature';
 import { RememberChat } from '../app/memory/remember-chat';
 import { botTalkFile, folderOf, userTalkFiles } from '../adapters/files/room-talk-files';
@@ -29,6 +30,7 @@ import { StreamerAdmin } from '../app/commands/streamer-admin';
 import { ChatHistory } from '../core/chat/chat-history';
 import { RecentGifts } from '../core/chat/recent-gifts';
 import { errorMessage } from '../core/errors';
+import { LIFE_DAYS_SHOWN, lifeText } from '../core/prompts/life';
 import { localDate } from '../core/prompts/local-time';
 import { Transcript } from '../core/songs/transcript';
 import type { Container } from './container';
@@ -43,6 +45,7 @@ import {
   FEED,
   GIFTS,
   HISTORY,
+  LIFE,
   LOG,
   MEMORY,
   REMEMBER_CHAT,
@@ -65,6 +68,7 @@ import {
   SCREENSHOTS,
   SETTINGS,
   STREAMER,
+  THOUGHTS,
   TRANSCRIPT,
   USER_TALK,
 } from './tokens';
@@ -177,7 +181,9 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
         today: () => localDate(Date.now(), roomConfig().timeZone).slice(0, 10),
       });
     })
-    // `pnpm remember`: the chat record since last time, read into the notes and memory.md by Claude.
+    .register(THOUGHTS, (c) => thoughtsFile(join(c.resolve(ROOM_DIR), 'memory', 'thoughts.md')))
+    // `pnpm remember`: the chat record since last time, read into the notes and memory.md by Claude,
+    // and then what the bot itself made of it, in its persona (memory/thoughts.md).
     .register(REMEMBER_CHAT, (c) => {
       const [options, roomConfig, prompt] = [
         c.resolve(OPTIONS),
@@ -192,6 +198,11 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
         mark: memoryReadMark(c.resolve(ROOM_DIR)),
         notesPrompt: prompt('rememberNotes'),
         roomPrompt: prompt('rememberRoom'),
+        thoughts: {
+          prompt: prompt('rememberThoughts'),
+          persona: () => c.resolve(ROOM).persona,
+          store: c.resolve(THOUGHTS),
+        },
         streamer: c.resolve(STREAMER),
         bot: { name: options.botName, id: options.botId },
         isPrivate: () => roomConfig().private,
@@ -251,8 +262,11 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
           sharedDir: join(c.resolve(PROMPTS_DIR), 'personas'),
           file: () => roomConfig().persona,
           log: c.resolve(LOG),
+          // Her own latest days (see life.ts), shared by every room that plays her.
+          life: (base) => lifeText(c.resolve(LIFE).recent(base, LIFE_DAYS_SHOWN)),
         }),
         memory: c.resolve(MEMORY),
+        thoughts: c.resolve(THOUGHTS),
         streamer: c.resolve(STREAMER),
         isPrivate: () => roomConfig().private,
         // What viewers ask about Douyin itself (灯牌…), shared by every room.

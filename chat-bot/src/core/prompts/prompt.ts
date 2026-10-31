@@ -34,6 +34,8 @@ export interface RoomPromptInput {
   memory?: string;
   /** What the bot remembers about the streamer (their note.md), in every prompt since viewers ask about them. */
   streamerNote?: string;
+  /** The bot's own latest thoughts after the room's streams (memory/thoughts.md), one a line. */
+  thoughts?: string;
   /** What every room's viewers ask about Douyin itself (灯牌, …), from common-knowledge.md. */
   commonKnowledge?: string;
   /** What the bot says about itself when asked: who made it, what it can and can't do. */
@@ -113,7 +115,7 @@ export type PromptInput = RoomPromptInput & PromptDetails;
  * (which record lines written before, without an offset, are in), `{{chatDir}}` the folder of chat
  * record files, `{{memoryDir}}` the folder of its older memories, `{{persona}}` the line `你的人设是…` (empty without a persona), `{{aliases}}` a line saying the room's other names for the bot mean it too (empty without any), `{{botName}}`
  * the bot's own nickname, `{{memory}}` what the bot remembers about the room and about the
- * streamer, each under a heading (empty without either), `{{askerNote}}` what it remembers about
+ * streamer and its own thoughts after the last streams, each under a heading (empty without any), `{{askerNote}}` what it remembers about
  * the asker, likewise, `{{commonKnowledge}}` Douyin's own common knowledge (灯牌…), likewise, `{{intro}}`
  * what the bot says about itself, likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
@@ -170,6 +172,7 @@ export function buildPrompt(template: string, input: PromptInput): string {
       input.streamerNote?.trim()
         ? wording('streamer-note', { note: input.streamerNote.trim() })
         : '',
+      input.thoughts?.trim() ? wording('thoughts', { thoughts: input.thoughts.trim() }) : '',
     ]
       .filter(Boolean)
       .join('\n\n'),
