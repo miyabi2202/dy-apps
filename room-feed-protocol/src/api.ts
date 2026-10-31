@@ -58,12 +58,14 @@ export interface LikeRequest {
  * `POST /api/rooms/<id>/like`: about how many likes it gave (from Douyin's counter by the heart,
  * so give or take a few), how long the key was held, and whether Douyin's 手速太快了 cut it short.
  */
-export interface LikeAnswer {
-  ok: true;
+export interface LikeResult {
   liked: number;
   heldMs: number;
   tooFast: boolean;
 }
+
+/** `POST /api/rooms/<id>/like`: how it went. */
+export type LikeAnswer = { ok: true } & LikeResult;
 
 /** A gift it didn't send because the account has fewer `diamonds` than its `price`: nothing was clicked. */
 export interface NotEnoughDiamonds {

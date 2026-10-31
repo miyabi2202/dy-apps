@@ -1,4 +1,4 @@
-import type { LikeAnswer } from '@dy-apps/room-feed-protocol';
+import type { LikeResult } from '@dy-apps/room-feed-protocol';
 import { LikeTally } from './like-tally';
 import { Pace } from './pace';
 
@@ -54,7 +54,7 @@ export class LikeHold {
   }
 
   /** About how many likes went, how long the key was held, and whether 手速太快了 cut it short. */
-  async hold(likes: number): Promise<Omit<LikeAnswer, 'ok'>> {
+  async hold(likes: number): Promise<LikeResult> {
     const { surface, pace } = this;
     if (await surface.playerShown()) await pace.afterSeen(() => surface.clickPlayer());
     else await surface.blurFocus();

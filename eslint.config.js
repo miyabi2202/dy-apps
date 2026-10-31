@@ -197,7 +197,7 @@ export default tseslint.config(
   },
 
   // room-feed: the steps are plain classes over surface interfaces; only the Playwright side
-  // (room-page.ts, page-shots.ts, chrome*.ts, login.ts) imports playwright-core.
+  // (page/, page-shots.ts, chrome*.ts, login.ts) imports playwright-core.
   {
     files: [
       'room-feed/src/chat-box.ts',
@@ -218,7 +218,7 @@ export default tseslint.config(
           patterns: [
             {
               group: ['playwright-core', 'playwright-core/*'],
-              message: 'Steps know nothing of Playwright: the page surfaces in room-page.ts do.',
+              message: 'Steps know nothing of Playwright: the page surfaces in page/ do.',
             },
           ],
         },

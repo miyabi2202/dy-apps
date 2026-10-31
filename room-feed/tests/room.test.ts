@@ -1,7 +1,7 @@
 import protobuf from 'protobufjs';
 import type { RawProtoMessage } from '../src/douyin/proto';
 import type { RoomEvent, RoomGoneReason, RoomStatus } from '@dy-apps/room-feed-protocol';
-import { RoomEndedError, RoomError } from '../src/errors';
+import { NotLiveError, RoomEndedError } from '../src/errors';
 import { Room } from '../src/room';
 import type { RoomPage, RoomPageHandlers } from '../src/room-page';
 
@@ -263,8 +263,8 @@ describe('Room', () => {
     room.start();
     await clock.advance(0);
 
-    expect(() => room.streamUrl()).toThrow(RoomError);
-    await expect(room.sendChat('hi')).rejects.toMatchObject({ statusCode: 409 });
+    expect(() => room.streamUrl()).toThrow(NotLiveError);
+    await expect(room.sendChat('hi')).rejects.toBeInstanceOf(NotLiveError);
   });
 
   it('spaces chats apart and tells whether each came back', async () => {
@@ -293,7 +293,7 @@ describe('Room', () => {
     const { clock, pages, room } = setup();
     room.start();
     await clock.advance(0);
-    await expect(room.like(20)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(room.like(20)).rejects.toBeInstanceOf(NotLiveError);
     const page = pages[0]!;
     page.handlers.onPush([]);
 

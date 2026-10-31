@@ -7,6 +7,33 @@
 /** The size of the window the page is opened in, which decides the layout it gives. */
 export const VIEWPORT = { width: 1440, height: 900 };
 
+/**
+ * How long a step on the page waits for what it acts on, in ms (Playwright's `timeout`), and the
+ * settling after it loads. A target that doesn't show in time throws.
+ */
+export const PAGE_WAIT = {
+  /** Opening the room's address, until its HTML is in. */
+  load: 45_000,
+  /** The page's title, which shows it has started to render. */
+  title: 15_000,
+  /** The page settling after its title is there, before the click that starts the player. */
+  settle: 2500,
+  /** The enter answer, which says whether the room is streaming, before the page's own words do. */
+  enter: 15_000,
+  /** The 粉丝团 button, the gift bar's 更多 and the gift panel to show, or the 粉丝团 button to click. */
+  panel: 15_000,
+  /** One step in the gift panel (更多, the search, a gift) for its target. */
+  giftStep: 10_000,
+  /** The chat box to show. */
+  chatBox: 5000,
+  /** The click on the chat box, before falling back to focusing it. */
+  chatBoxClick: 3000,
+  /** A × (the right panel's, the download popup's) to click. */
+  close: 5000,
+  /** The gift bar's 充值 to read the balance from. */
+  balance: 2000,
+};
+
 /** Where the click that starts a headless player lands (and opens the chat socket). */
 export const PLAYER_CLICK = { x: 720, y: 450 };
 

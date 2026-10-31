@@ -17,8 +17,8 @@ Closing a panel is a step too: `closeRightPanel` (`src/right-panel.ts`) sees the
 How a feature is built (`ChatBox`, `LikeHold`, `FansLamp`, `HeartGift`):
 
 - **The steps** are a class that takes a surface interface and a `Pace` (with a real one by default), and knows nothing of Playwright. Its tests give it a fake surface that logs what it was asked, and a `Pace` with a fake `wait`, then check the order: `wait for X`, the pause, `click X`.
-- **The surface** (`Page…Surface` in `room-page.ts`) is the Playwright side: one `waitFor…` and one `click…` (or `type…`) for each target, found by the selectors in `src/douyin/page-map.ts`. It doesn't pause, and it doesn't decide anything.
-- `LivePage` builds one `Pace` from the page's `waitForTimeout` and the `random` it's given, and hands it to every feature.
+- **The surface** (`Page…Surface` in `src/page/`: `chat-surface.ts`, `fans-surface.ts`, `gift-surface.ts`, `like-surface.ts`; the right panel's ×, the download popup's × and the balance, which the fans and gift surfaces share, are `page-chrome.ts`) is the Playwright side: one `waitFor…` and one `click…` (or `type…`) for each target, found by the selectors in `src/douyin/page-map.ts`. It doesn't pause, and it doesn't decide anything.
+- `LivePage` (`src/page/live-page.ts`) builds one `Pace` from the page's `waitForTimeout` and the `random` it's given, and hands it to every feature.
 
 A step is one thing a person does: a click, typing a chat and pressing Enter, clearing the box, the first press of the like key. What's part of one act isn't paced inside it: the keydowns that repeat while the like key is held, the keys that clear the box. Opening the page clicks the player to start it after the page has settled, a step like the others.
 

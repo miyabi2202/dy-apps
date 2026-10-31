@@ -1,12 +1,5 @@
-/** A request the room can't do now, with the HTTP status to answer it with. */
-export class RoomError extends Error {
-  constructor(
-    message: string,
-    readonly statusCode: number,
-  ) {
-    super(message);
-  }
-}
+/** What the room throws for a request that needs its page while the chat connection isn't up (yet, or any more). */
+export class NotLiveError extends Error {}
 
 /** What a room page's open throws when the stream has ended (or not started): nothing to wait for. */
 export class RoomEndedError extends Error {}
@@ -29,7 +22,7 @@ export class PageActionError extends Error {
   }
 }
 
-/** The HTTP status to answer a failed request with: a RoomError's own, else 500. */
+/** The HTTP status to answer a failed request with: 409 when the room isn't live, else 500. */
 export function httpStatusOf(e: unknown): number {
-  return e instanceof RoomError ? e.statusCode : 500;
+  return e instanceof NotLiveError ? 409 : 500;
 }

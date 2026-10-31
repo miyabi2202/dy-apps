@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { WebSocket } from 'ws';
 import type { RoomEvent, RoomGoneReason, RoomStatus } from '@dy-apps/room-feed-protocol';
-import { RoomError } from '../src/errors';
+import { NotLiveError } from '../src/errors';
 import { createRoomFeedServer, type RoomFeedServer, type ServedRoom } from '../src/server';
 
 class FakeRoom implements ServedRoom {
@@ -63,7 +63,7 @@ class FakeRoom implements ServedRoom {
     return Promise.resolve(this.diamonds);
   }
   streamUrl(): string | null {
-    if (this.status !== 'live') throw new RoomError('直播间的弹幕连接还没建立', 409);
+    if (this.status !== 'live') throw new NotLiveError('直播间的弹幕连接还没建立');
     return 'https://pull.example/stream.flv';
   }
   screenshot() {

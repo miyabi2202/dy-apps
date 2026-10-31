@@ -1,4 +1,4 @@
-import { httpStatusOf, PageActionError, RoomEndedError, RoomError } from '../src/errors';
+import { httpStatusOf, NotLiveError, PageActionError, RoomEndedError } from '../src/errors';
 
 describe('PageActionError', () => {
   it('keeps the message as given without a screenshot', () => {
@@ -21,8 +21,8 @@ describe('PageActionError', () => {
 });
 
 describe('httpStatusOf', () => {
-  it('is a RoomError’s own status, and 500 for anything else', () => {
-    expect(httpStatusOf(new RoomError('还没建立', 409))).toBe(409);
+  it('is 409 for a room that isn’t live, and 500 for anything else', () => {
+    expect(httpStatusOf(new NotLiveError('还没建立'))).toBe(409);
     expect(httpStatusOf(new PageActionError('x'))).toBe(500);
     expect(httpStatusOf(new RoomEndedError('over'))).toBe(500);
     expect(httpStatusOf('text')).toBe(500);

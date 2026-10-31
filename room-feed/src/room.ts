@@ -3,14 +3,14 @@ import { isStreamEnd, type RawProtoMessage } from './douyin/proto';
 import type {
   FansLampResult,
   HeartResult,
-  LikeAnswer,
+  LikeResult,
   RoomEvent,
   RoomGoneReason,
   RoomInfoAnswer,
   RoomMeta,
   RoomStatus,
 } from '@dy-apps/room-feed-protocol';
-import { RoomEndedError, RoomError } from './errors';
+import { NotLiveError, RoomEndedError } from './errors';
 import type { OpenRoomPage, RoomPage } from './room-page';
 import { SerialQueue } from './serial-queue';
 
@@ -151,7 +151,7 @@ export class Room {
    * Gives about `likes` likes by holding the like key (see RoomPage.holdLike). Queued with the
    * chats: both use the page's keyboard, and a z held while a chat is typed would go into the chat box.
    */
-  like(likes: number): Promise<Omit<LikeAnswer, 'ok'>> {
+  like(likes: number): Promise<LikeResult> {
     return this.queue.run(() => this.livePage().holdLike(likes));
   }
 
@@ -180,7 +180,7 @@ export class Room {
 
   private livePage(): RoomPage {
     if (this.status !== 'live' || !this.page) {
-      throw new RoomError('直播间的弹幕连接还没建立', 409);
+      throw new NotLiveError('直播间的弹幕连接还没建立');
     }
     return this.page;
   }

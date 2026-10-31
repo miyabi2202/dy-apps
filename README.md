@@ -90,7 +90,8 @@ room-memory/              # @dy-apps/room-memory: what the chat bot remembers (m
 room-feed/                # @dy-apps/room-feed: one live room's events, run with tsx (see "room-feed" below)
   src/main.ts             #   entry: `login` or `--room` (cli-options.ts), the real objects wired
   src/room.ts             #   Room: keeps the room page open, reopens it when chat drops, chat queue
-  src/room-page.ts        #   the page in Chrome (Playwright): push frames over CDP, chat box, stream URL, screenshot, likes, fans lamp, 小心心, balance
+  src/room-page.ts        #   RoomPage: what the Room asks of the page in Chrome (the interface, its handlers)
+  src/page/               #   the page in Chrome (Playwright): live-page.ts (push frames over CDP, stream URL, composition) and one surface per feature: chat-surface, fans-surface, gift-surface, like-surface, page-chrome
   src/like-tally.ts       #   LikeTally: Douyin's like counter added up over one hold
   src/heart-gift.ts       #   HeartGift: one 小心心 from the gift panel (更多 → search), checked by the balance
   src/pace.ts             #   Pace: every click and typing waits for its target, pauses 500–1000 ms, then acts (AGENTS.md)

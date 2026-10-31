@@ -10,6 +10,7 @@ import {
   type HeartResult,
   type NotEnoughDiamonds,
   type LikeAnswer,
+  type LikeResult,
   type LikeRequest,
   type RoomAction,
   type RoomInfoAnswer,
@@ -59,7 +60,7 @@ export class RoomFeedHttp {
   }
 
   /** `POST …/like`: holds the like key, answering once it's let go. */
-  async like(likes: number): Promise<Omit<LikeAnswer, 'ok'>> {
+  async like(likes: number): Promise<LikeResult> {
     const request: LikeRequest = { likes };
     const res = await this.post('like', request);
     const body = (await res.json().catch(() => ({}))) as Partial<LikeAnswer & ErrorAnswer>;
