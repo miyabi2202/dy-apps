@@ -11,7 +11,7 @@ A bot that sits in a Douyin live room as an ordinary viewer's account and talks 
 
 To use it:
 
-1. Start, in this order: the speech service (`uv run --directory asr transcribe.py --serve 8758`, from `chat-bot/`), the bot for a room once the service is ready: `pnpm start --room <房间号> --bot-name <its nickname>`, and last room-feed, logged in as the bot's account (more under [Start](AGENTS.md#start)). The bot never starts the speech service itself.
+1. Start, in this order: the speech service (`uv run --directory asr transcribe.py --serve 8758`, from `chat-bot/`) and the embedding service (`uv run --directory embedding serve.py`), each once the one before is ready; then the bot for a room: `pnpm start --room <房间号> --bot-name <its nickname>`; and last room-feed, logged in as the bot's account (more under [Start](AGENTS.md#start)). The bot never starts either service itself. The embedding service is shared by every room's bot: leave it running between streams.
 2. In the room, an admin (the streamer, or anyone in `config.json`) turns features on and off by asking the bot in words or with a `/` command (see Tools and `/` commands below; every command is in [`docs/commands.md`](docs/commands.md)).
 3. To fit it to one room, put that room's details in its `data/<房间号>/` folder, with no code changes: who the streamer is (`memory.md`, which the bot also adds to itself; its rules are in [`room-memory/`](../room-memory)), a song list, which tools it has on and their data (a song list, the streamer's hours), a message for when she sings. How is in [`docs/room-setup.md`](docs/room-setup.md).
 
@@ -56,7 +56,13 @@ It needs [room-feed](../room-feed) running for the room and logged in as the bot
 uv run --directory asr transcribe.py --serve 8758
 ```
 
-then, once it prints `[asr] serving on 127.0.0.1:8758`, the bot (it waits for room-feed, logging `room-feed error` until it's up):
+then, once it prints `[asr] serving on 127.0.0.1:8758`, the embedding service, and leave it running too (one serves every room's bot, and it's not stopped when a stream ends):
+
+```sh
+uv run --directory embedding serve.py
+```
+
+then, once it prints `listening on 127.0.0.1:8759`, the bot (it waits for room-feed, logging `room-feed error` until it's up):
 
 ```sh
 pnpm start --room <房间号> --bot-name <the logged-in account's nickname> [--bot-id <its uid>]
@@ -66,13 +72,7 @@ then room-feed (from the repo root: `pnpm room-feed --room <房间号>`).
 
 Without the speech service running, the bot still enters the room, without speech (it logs `no speech service on port 8758: start it first, …` once), and starts hearing the streamer within 10 s of it being started; `--no-asr` turns speech off altogether.
 
-Optionally, also start the embedding service, and leave it running: one serves every room's bot at once.
-
-```sh
-uv run --directory embedding serve.py
-```
-
-It loads Qwen3-Embedding-0.6B (about 1.2 GB, downloaded from Hugging Face the first time) on the Apple GPU and listens on `127.0.0.1:8759` (`--embedding-port`). With it, every prompt gets, besides the bot's latest thoughts after the room's streams (6) and the latest days of the persona it plays (5), up to 3 older ones of each that fit what's being said: a moment after each chat or line of speech, the bot scores each older thought and day against each of the streamer's last lines and the last chats, a memory counting its best line, and keeps those scoring at least the model's cutoff (0.58 for 0.6B), the highest first (`MemoryRecall`). Scoring a line at a time, not the window as one text, is what lets a specific memory beat the general ones a long window of mixed talk sits near. The score is mostly meaning, `0.85 × cosine`, and a little sound, `0.15 ×` a pinyin BM25 match with the bot's own names left out, so a word the recognizer or a typo got wrong (三角洲 heard as 酸角粥) still finds its memory. Both numbers were tuned on 400 real moments, labelled by Claude (`embedding-eval/`, "Real-room calibration" and "Speech vs chat"): a line at a time raised F1 from 0.29 to 0.37 on the held-out half and cut how often a moment with nothing relevant still recalls something from 55% to 29%; the judge agrees with itself at F1 0.81, so there's room left. Each look's best three scores go to the log (debug, `memory recall`). A prompt never waits for that; it shows what was found last. Each memory is embedded once, into `data/embeddings/<model>.json` (shared by every bot; another model starts its own file, so `--model Qwen/Qwen3-Embedding-4B` is the whole switch, given a cutoff for it in `serve.py`'s `MODELS` or `--cutoff`). Without the service the bot shows only the latest, as before, and logs `memory recall is off: the embedding service did not answer` once until it answers.
+The embedding service loads Qwen3-Embedding-0.6B (about 1.2 GB, downloaded from Hugging Face the first time) on the Apple GPU and listens on `127.0.0.1:8759` (`--embedding-port`). With it, every prompt gets, besides the bot's latest thoughts after the room's streams (6) and the latest days of the persona it plays (5), up to 3 older ones of each that fit what's being said: a moment after each chat or line of speech, the bot scores each older thought and day against each of the streamer's last lines and the last chats, a memory counting its best line, and keeps those scoring at least the model's cutoff (0.58 for 0.6B), the highest first (`MemoryRecall`). Scoring a line at a time, not the window as one text, is what lets a specific memory beat the general ones a long window of mixed talk sits near. The score is mostly meaning, `0.85 × cosine`, and a little sound, `0.15 ×` a pinyin BM25 match with the bot's own names left out, so a word the recognizer or a typo got wrong (三角洲 heard as 酸角粥) still finds its memory. Both numbers were tuned on 400 real moments, labelled by Claude (`embedding-eval/`, "Real-room calibration" and "Speech vs chat"): a line at a time raised F1 from 0.29 to 0.37 on the held-out half and cut how often a moment with nothing relevant still recalls something from 55% to 29%; the judge agrees with itself at F1 0.81, so there's room left. Each look's best three scores go to the log (debug, `memory recall`). A prompt never waits for that; it shows what was found last. Each memory is embedded once, into `data/embeddings/<model>.json` (shared by every bot; another model starts its own file, so `--model Qwen/Qwen3-Embedding-4B` is the whole switch, given a cutoff for it in `serve.py`'s `MODELS` or `--cutoff`). Without the service the bot still runs, showing only the latest, and logs `memory recall is off: the embedding service did not answer` once; it recalls again by itself once the service answers (`memory recall works again`), so it can also be started after the bot. `--embedding-port 0` leaves it out on purpose.
 
 After a stream, `pnpm remember` with the same `--room`, `--bot-name` and `--bot-id` reads its chat into what the bot remembers: the regulars' `note.md`, the room's `memory.md` (which it may add to but not rewrite what the streamer or an admin wrote) and the streamer's note, then writes the bot's own thoughts about the stream, in its persona, to `memory/thoughts.md` (see "Reading the chat into memory" in [`docs/commands.md`](docs/commands.md)). It exits 1 when Claude left a question unanswered: the mark then stays where it was, and the next run reads the same chat again.
 
