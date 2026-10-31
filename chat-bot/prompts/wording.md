@@ -65,7 +65,7 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 {{memory}}
 
-（你以前记过、后来被改掉或删掉的条目，连同日期，存在文件夹 {{memoryDir}} 的 archive.md 里；有人问「你以前记过什么」时才去翻，别把里面的当成现在的事。）
+（你以前记过、后来被改掉或删掉的条目，连同日期，存在文件夹 {{memoryDir}} 的 archive.md 里；有人问「你以前记过什么」时才去翻，别把里面的当成现在的事。同一个文件夹里的 streams.md 是每场直播的小结（一场一条，写着日期），有人问「上次」「昨天」那场时先看它，不用去翻原始的聊天记录。）
 
 ## streamer-note
 

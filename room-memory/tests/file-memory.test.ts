@@ -166,3 +166,13 @@ test('the live memory.md from before dates reads as a prompt exactly as it did, 
   expect(store.get('/room/memory.md')).toContain('周五不播\n<!-- 2026-10-31 tool -->');
   expect(memory.entries(room).filter((entry) => entry.at)).toHaveLength(1);
 });
+
+test('a stream summary is one dated line added to streams.md, in the folder Claude may read', () => {
+  const { memory, store } = setup();
+  memory.addStreamSummary('2026-10-30', '唱了《晴天》。\n聊了周杰伦。');
+  memory.addStreamSummary('2026-10-31', '休息了。');
+  expect(store.get('/room/memory/streams.md')).toBe(
+    '2026-10-30：唱了《晴天》。 聊了周杰伦。\n§\n2026-10-31：休息了。\n§\n',
+  );
+  expect(memory.readDir()).toBe('/room/memory');
+});

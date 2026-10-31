@@ -123,13 +123,25 @@ export const NOTE_CHANGES_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-/** What the model answers about the whole stream: changes to the room's memory and the streamer's note. */
+/**
+ * What the model answers about the whole stream: changes to the room's memory and the streamer's
+ * note, and a short summary of the stream.
+ */
 export const ROOM_CHANGES_SCHEMA = {
   type: 'object',
-  properties: { room: CHANGES, streamer: CHANGES },
-  required: ['room', 'streamer'],
+  properties: { room: CHANGES, streamer: CHANGES, summary: { type: 'string' } },
+  required: ['room', 'streamer', 'summary'],
   additionalProperties: false,
 } as const;
+
+/** The most characters a stream's summary may have: 300 are asked for, and this is the cut for one that runs on. */
+const SUMMARY_MAX = 600;
+
+/** `value` (the model's `summary`) as one line of at most SUMMARY_MAX characters; empty when it isn't text. */
+export function summaryOf(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return [...value.replace(/\s+/g, ' ').trim()].slice(0, SUMMARY_MAX).join('');
+}
 
 /** `value` (one of the schemas' change lists) as the changes in it that are whole; others are left out. */
 export function memoryChangesOf(value: unknown): Change[] {

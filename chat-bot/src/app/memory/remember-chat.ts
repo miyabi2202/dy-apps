@@ -8,6 +8,7 @@ import {
   NOTE_CHANGES_SCHEMA,
   parseRecordLine,
   ROOM_CHANGES_SCHEMA,
+  summaryOf,
   type Chatter,
   type RecordLine,
 } from '../../core/memory/chat-digest';
@@ -24,7 +25,10 @@ import type { AskModel, Log } from '../ports';
 export interface RememberChatOptions {
   /** Claude, asked once per batch of viewers and once about the whole stream. */
   ask: AskModel;
-  memory: Pick<RoomMemory, 'roomText' | 'noteText' | 'entries' | 'limitOf' | 'changeAll'>;
+  memory: Pick<
+    RoomMemory,
+    'roomText' | 'noteText' | 'entries' | 'limitOf' | 'changeAll' | 'addStreamSummary'
+  >;
   /** The chat record's files that may hold lines from `sinceMs` on, as text, oldest first. */
   readSince: (sinceMs: number) => string[];
   /** Up to when the record was read into memory last time; set once a run is through. */
@@ -41,6 +45,8 @@ export interface RememberChatOptions {
   isPrivate: () => boolean;
   log: Log;
   now?: () => number;
+  /** The day `ms` falls on, `YYYY-MM-DD`, in the room's time zone; the machine's by default. */
+  dayOf?: (ms: number) => string;
   /** How many chats a viewer must have sent since last time to get their note looked at. */
   minChats?: number;
   /** How many viewers one question is about. */
@@ -165,7 +171,7 @@ export class RememberChat {
 
   /** The room's memory and the streamer's note, from the whole stream. */
   private async room(lines: readonly RecordLine[], result: RememberResult): Promise<void> {
-    const { memory, roomPrompt, streamerId } = this.options;
+    const { memory, roomPrompt, streamerId, log } = this.options;
     const streamer = streamerId();
     const answer = await this.ask(
       fillTemplate(
@@ -195,6 +201,19 @@ export class RememberChat {
         memoryChangesOf(answer.streamer),
       );
     }
+    const summary = summaryOf(answer.summary);
+    if (summary) {
+      memory.addStreamSummary(this.daysOf(lines), summary);
+      log.info('stream summarised', { chars: [...summary].length });
+    }
+  }
+
+  /** The day the lines are from, `2026-10-30`, or the span of days when they run over several. */
+  private daysOf(lines: readonly RecordLine[]): string {
+    const { dayOf = (ms) => new Date(ms).toLocaleDateString('sv-SE') } = this.options;
+    const first = dayOf(Math.min(...lines.map((line) => line.ms)));
+    const last = dayOf(Math.max(...lines.map((line) => line.ms)));
+    return first === last ? first : `${first} 至 ${last}`;
   }
 
   /** Claude's answer as JSON, or null (logged) when it failed or isn't JSON. */

@@ -6,6 +6,9 @@ export const ROOM_FILE = '/room/memory.md';
 /** Where the room's archive of changed and removed entries is in a fake memory's files. */
 export const ARCHIVE_FILE = '/room/memory/archive.md';
 
+/** Where the room's summaries of streams are in a fake memory's files. */
+export const STREAMS_FILE = '/room/memory/streams.md';
+
 /** Where one person's note.md is in a fake memory's files. */
 export function noteFile(userId: string): string {
   return `/room/${userId}/note.md`;

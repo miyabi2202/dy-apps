@@ -9,6 +9,7 @@ data/<房间号>/
   room_config.json        直播间设置（见下）
   memory.md               机器人记着的直播间的事，每个提示词都会带上（见「memory.md」）
   memory/archive.md       被机器人改掉、删掉的旧条目，只往后加，机器人要查以前记过什么时可以读（见「memory.md」）
+  memory/streams.md       每场直播的小结，`pnpm remember` 写的，一场一条，有人问「上次」时机器人去读
   personas/<name>.md      这个直播间的人设，可以有好几个，room_config.json 的 persona 选一个（见「人设」）
   artifacts/              下载下来、或者手动放进来的资料（歌单之类）
   tools/<工具文件夹>/      这个直播间给某个工具的资料（can-sing/notes.md、can-sing/songs-transformer.js、schedule/hours.md，见「工具」）
@@ -145,7 +146,7 @@ base: fairy
 
 机器人自己会改它（`update_memory` 工具，只有主播和管理员跟它说时才能改），你也可以手改，改了马上生效。一条一段，条与条之间单独一行 `§`；最多 4000 字，满了机器人会先合并、删旧的再写。适合写在这里的，比如：「这是专门唱欧美歌的直播间，别把『今天都是欧美歌』当新鲜事说」。
 
-机器人写的条目末尾会多一行 `<!-- 2026-10-30 tool -->`（日期，`tool` 是它回答时记的，`chat` 是 `pnpm remember` 记的）；你手写的不用加，没有就当没有日期。这行不会进提示词，也不算字数，手改时留着就好。机器人改掉或删掉一条之前，会先把旧的连日期存进 `memory/archive.md`，以后可以翻回来。`pnpm remember` 对 memory.md 只能加，或在你写的（和老的、没日期的）条目后面补充，不能改写、删掉；只有它自己写的条目它才能改。
+机器人写的条目末尾会多一行 `<!-- 2026-10-30 tool -->`（日期，`tool` 是它回答时记的，`chat` 是 `pnpm remember` 记的）；你手写的不用加，没有就当没有日期。这行不会进提示词，也不算字数，手改时留着就好。机器人改掉或删掉一条之前，会先把旧的连日期存进 `memory/archive.md`，以后可以翻回来。`pnpm remember` 还会给每场直播写一条小结（唱了什么、聊了什么、谁来了）到 `memory/streams.md`，有人问「上次」「昨天」那场时机器人先看它。`pnpm remember` 对 memory.md 只能加，或在你写的（和老的、没日期的）条目后面补充，不能改写、删掉；只有它自己写的条目它才能改。
 
 每个人还有自己的 `<用户 id>/note.md`（最多 1000 字，主播的 2000 字）：TA 想被怎么叫、爱听的歌、跟机器人说好的事。谁跟机器人说，就记到谁的里面，记不到别人头上。回答或感谢这个人时提示词才带上 TA 的（`{{askerNote}}`）；主播的（按 `room_config.json` 的 `streamer.uid` 找）每个提示词都带（`{{memory}}` 里）。私密直播间分不清观众谁是谁，观众的 note 不写也不读，主播的照常。详见 `docs/commands.md` 的「What the bot remembers」。
 

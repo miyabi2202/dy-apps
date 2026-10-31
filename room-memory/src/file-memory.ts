@@ -33,7 +33,9 @@ export interface RoomMemory {
   ): { ok: true; used: number; limit: number } | { ok: false; why: string };
   /** Each of `changes` in turn, as change does; one that can't be made is skipped and the rest still are. */
   changeAll(target: Target, changes: readonly Change[], writer: Writer): ChangeResult;
-  /** The folder Claude may read on demand: the room's archive of what was changed or removed. */
+  /** Adds a short summary of the stream on `date` (`2026-10-30`, or a span of days) to streams.md. */
+  addStreamSummary(date: string, text: string): void;
+  /** The folder Claude may read on demand: the archive of what was changed or removed, and the streams' summaries. */
   readDir(): string;
 }
 
@@ -139,6 +141,13 @@ export function fileMemory(dir: string, options: FileMemoryOptions): RoomMemory 
       return skipped[0] ? { ok: false, why: skipped[0].why } : { ok: true, used, limit };
     },
     changeAll,
+    addStreamSummary(date, text) {
+      // One line an entry, so a line break in it can't pass for a `§` line.
+      append(
+        join(dir, 'memory', 'streams.md'),
+        `${date}：${text.replace(/\s+/g, ' ').trim()}\n§\n`,
+      );
+    },
     readDir: () => join(dir, 'memory'),
   };
 }

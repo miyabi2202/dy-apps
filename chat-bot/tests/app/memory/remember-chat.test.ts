@@ -1,6 +1,6 @@
 import type { Question } from '../../../src/app/ports';
 import { RememberChat } from '../../../src/app/memory/remember-chat';
-import { fakeMemory, noteFile, ROOM_FILE } from '../../support/fake-memory';
+import { fakeMemory, noteFile, ROOM_FILE, STREAMS_FILE } from '../../support/fake-memory';
 
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} };
 const T0 = Date.parse('2026-10-24T20:00:00+08:00');
@@ -20,11 +20,13 @@ function setup({
   answers,
   mark,
   isPrivate = false,
+  dayOf,
 }: {
   record: string[];
   answers: { notes?: unknown; room?: unknown };
   mark?: number;
   isPrivate?: boolean;
+  dayOf?: (ms: number) => string;
 }) {
   const { memory, store } = fakeMemory({ [ROOM_FILE]: '主播叫咿咿\n' });
   const asked: Question[] = [];
@@ -48,6 +50,7 @@ function setup({
     isPrivate: () => isPrivate,
     log: silentLog,
     now: () => T0 + 3_600_000,
+    dayOf: dayOf ?? ((ms) => new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10)),
     minChats: 2,
   });
   return { remember, store, asked, marks };
@@ -188,4 +191,35 @@ test("a change to what the streamer or an admin wrote that rewrites it is skippe
   });
   expect(await remember.run()).toMatchObject({ changes: 1, failed: 0 });
   expect(store.get(ROOM_FILE)).toBe('主播叫咿咿，外号 11\n<!-- 2026-10-31 chat -->\n');
+});
+
+test("the stream's summary from Claude is kept in memory/streams.md under the day, and none when it's empty", async () => {
+  const answers = (summary: string) => ({
+    notes: { notes: [] },
+    room: { room: [], streamer: [], summary },
+  });
+  const first = setup({
+    record: RECORD,
+    answers: answers('唱了《晴天》，\n聊了周杰伦，阿拂来了。'),
+  });
+  await first.remember.run();
+  expect(first.store.get(STREAMS_FILE)).toBe(
+    '2026-10-24：唱了《晴天》， 聊了周杰伦，阿拂来了。\n§\n',
+  );
+  expect(first.asked[1]!.prompt).toContain('ROOM');
+
+  const none = setup({ record: RECORD, answers: answers('  ') });
+  await none.remember.run();
+  expect(none.store.has(STREAMS_FILE)).toBe(false);
+});
+
+test('a run over several days gives the span of days', async () => {
+  const days = ['2026-10-23', '2026-10-24'];
+  const { remember, store } = setup({
+    record: RECORD,
+    answers: { notes: { notes: [] }, room: { room: [], streamer: [], summary: '连着播了两天' } },
+    dayOf: (ms) => days[ms < T0 + 5000 ? 0 : 1]!,
+  });
+  await remember.run();
+  expect(store.get(STREAMS_FILE)).toBe('2026-10-23 至 2026-10-24：连着播了两天\n§\n');
 });

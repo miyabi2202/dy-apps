@@ -3,6 +3,7 @@ import {
   digestText,
   memoryChangesOf,
   parseRecordLine,
+  summaryOf,
 } from '../../../src/core/memory/chat-digest';
 
 test('a record line reads back as its time, sender, user id, type and text', () => {
@@ -92,4 +93,11 @@ test("the model's changes are read as far as they're whole", () => {
     { action: 'remove', old: '乙' },
   ]);
   expect(memoryChangesOf('no')).toEqual([]);
+});
+
+test("a summary is one line of text, cut at 600 characters, and nothing when it isn't text", () => {
+  expect(summaryOf(' 唱了晴天。\n聊了稻香 ')).toBe('唱了晴天。 聊了稻香');
+  expect([...summaryOf('字'.repeat(700))]).toHaveLength(600);
+  expect(summaryOf(undefined)).toBe('');
+  expect(summaryOf(3)).toBe('');
 });

@@ -175,6 +175,7 @@ export function registerRoom(container: Container): void {
         streamerId: () => c.resolve(ADMINS).current()?.uid ?? roomConfig().streamer?.uid,
         bot: { name: options.botName, id: options.botId },
         isPrivate: () => roomConfig().private,
+        dayOf: (ms) => localDate(ms, roomConfig().timeZone).slice(0, 10),
         log: c.resolve(LOG),
       });
     })
