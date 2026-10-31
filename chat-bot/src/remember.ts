@@ -25,7 +25,11 @@ if (!options) {
 const log = createLogger(resolve(options.logsDir));
 let code = 0;
 try {
-  await buildContainer({ options, packageDir, log, env: process.env }).resolve(REMEMBER_CHAT).run();
+  const { failed } = await buildContainer({ options, packageDir, log, env: process.env })
+    .resolve(REMEMBER_CHAT)
+    .run();
+  // A question Claude didn't answer leaves the mark where it was, so the run is to be done again.
+  if (failed) code = 1;
 } catch (err) {
   log.error('could not remember', { error: errorMessage(err) });
   code = 1;

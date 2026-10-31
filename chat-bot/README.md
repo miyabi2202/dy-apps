@@ -66,7 +66,7 @@ then room-feed (from the repo root: `pnpm room-feed --room <房间号>`).
 
 Without the speech service running, the bot still enters the room, without speech (it logs `no speech service on port 8758: start it first, …` once), and starts hearing the streamer within 10 s of it being started; `--no-asr` turns speech off altogether.
 
-After a stream, `pnpm remember` with the same `--room`, `--bot-name` and `--bot-id` reads its chat into what the bot remembers: the regulars' `note.md`, the room's `memory.md` (which it may add to but not rewrite what the streamer or an admin wrote) and the streamer's note (see "Reading the chat into memory" in [`docs/commands.md`](docs/commands.md)).
+After a stream, `pnpm remember` with the same `--room`, `--bot-name` and `--bot-id` reads its chat into what the bot remembers: the regulars' `note.md`, the room's `memory.md` (which it may add to but not rewrite what the streamer or an admin wrote) and the streamer's note (see "Reading the chat into memory" in [`docs/commands.md`](docs/commands.md)). It exits 1 when Claude left a question unanswered: the mark then stays where it was, and the next run reads the same chat again.
 
 Other options:
 

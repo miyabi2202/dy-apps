@@ -93,3 +93,21 @@ test('applyChanges makes what it can, skips the rest with why, and the permit ca
   expect(done.entries).toEqual([{ text: '甲' }, { text: '乙', ...STAMP }]);
   expect(done.retired).toEqual([]);
 });
+
+test('a `§` line inside the content is joined onto the line before it, so the entry does not split when read back', () => {
+  const added = applyChange(
+    [{ text: '第一条' }],
+    { action: 'add', content: '前半\n§\n后半' },
+    100,
+    STAMP,
+  );
+  if ('error' in added) throw new Error(added.error);
+  expect(added.entries.map(({ text }) => text)).toEqual(['第一条', '前半 §\n后半']);
+  expect(parseEntries(serialiseEntries(added.entries)).map(({ text }) => text)).toEqual([
+    '第一条',
+    '前半 §\n后半',
+  ]);
+  // One first is joined onto the line after it; content that is only `§` lines is empty.
+  expect(run('', { action: 'add', content: '§\n后半' }, 100)).toEqual({ text: '§ 后半\n' });
+  expect(errorOf('', { action: 'add', content: '§\n§' }, 100)).toContain('content 是空的');
+});

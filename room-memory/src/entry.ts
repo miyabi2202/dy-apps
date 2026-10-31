@@ -50,6 +50,27 @@ export function withoutTrailers(text: string): string {
   return text.replace(/^<!-- \d{4}-\d{2}-\d{2} (?:tool|chat) -->[ \t]*(?:\r?\n|$)/gm, '');
 }
 
+/**
+ * `text` with any line that is only a `§` joined onto the line before it (or the line after, when
+ * there is none before), so what's written can't split into two entries when the file is read
+ * back. Empty when `text` is nothing but such lines: that can't be an entry.
+ */
+export function withoutSeparatorLines(text: string): string {
+  const joined: string[] = [];
+  let lead = '';
+  for (const line of text.split('\n')) {
+    if (!/^[ \t]*§[ \t]*$/.test(line)) {
+      joined.push(lead + line);
+      lead = '';
+    } else if (joined.length) {
+      joined[joined.length - 1] += ' §';
+    } else {
+      lead += '§ ';
+    }
+  }
+  return joined.join('\n');
+}
+
 /** `text` with any line that looks like a trailer taken out, so what's written can't pass for one. */
 export function withoutTrailerLines(text: string): string {
   return text

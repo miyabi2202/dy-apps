@@ -1,6 +1,7 @@
 import {
   memoryLength,
   serialiseEntries,
+  withoutSeparatorLines,
   withoutTrailerLines,
   type Author,
   type Entry,
@@ -31,7 +32,8 @@ export interface Retired {
  * `entries` with `change` made, stamped with `stamp` when it writes one, and the entry it took out
  * if any; or, when it can't be made, what's wrong in words for Claude: `old` found nowhere or in
  * more than one place, or the result over `limit` characters (then it says to merge or remove
- * entries first). A `§` in `content` stays inside the entry, as text.
+ * entries first). A `§` in `content` stays inside the entry, as text: a line that is only a `§`
+ * is joined onto the line before it, so it can't split the entry when the file is read back.
  */
 export function applyChange(
   entries: readonly Entry[],
@@ -39,7 +41,8 @@ export function applyChange(
   limit: number,
   stamp?: Stamp,
 ): { entries: Entry[]; retired?: Retired } | { error: string } {
-  const content = 'content' in change ? withoutTrailerLines(change.content).trim() : '';
+  const content =
+    'content' in change ? withoutSeparatorLines(withoutTrailerLines(change.content)).trim() : '';
   if (change.action !== 'remove' && !content) return { error: 'content 是空的' };
   const written = (text: string): Entry => ({ text, ...stamp });
   let next: Entry[];
