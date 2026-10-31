@@ -1,38 +1,10 @@
-/** The line between two entries of a memory file. */
-const SEPARATOR = '§';
-
-/** The most characters the room's memory.md may hold. */
-export const ROOM_MEMORY_LIMIT = 4000;
-
-/** The most characters one viewer's note.md may hold. */
-export const NOTE_LIMIT = 1000;
-
-/** The most characters the streamer's note.md may hold: more than a viewer's, since it's in every prompt, like memory.md. */
-export const STREAMER_NOTE_LIMIT = 2000;
-
-/** A memory file's entries, in order: the text between `§` lines, each trimmed, empty ones left out. */
-export function entriesOf(text: string): string[] {
-  return text
-    .split(/^[ \t]*§[ \t]*$/m)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-/** `entries` as a memory file, a `§` line between each two. */
-export function memoryText(entries: readonly string[]): string {
-  return entries.length ? `${entries.join(`\n${SEPARATOR}\n`)}\n` : '';
-}
-
-/** How long a memory file is, in characters as the limit counts them. */
-export function memoryLength(text: string): number {
-  return [...text.trim()].length;
-}
+import { memoryLength, parseEntries, serialiseEntries } from './entry';
 
 /**
  * One change to a memory file: `add` a new entry at the end, `replace` the one place the text
  * says `old` with `content`, or `remove` the entry that says `old`.
  */
-export type MemoryChange =
+export type Change =
   | { action: 'add'; content: string }
   | { action: 'replace'; old: string; content: string }
   | { action: 'remove'; old: string };
@@ -42,12 +14,12 @@ export type MemoryChange =
  * found nowhere or in more than one place, or the result over `limit` characters (then it says to
  * merge or remove entries first). A `§` in `content` stays inside the entry, as text.
  */
-export function changeMemory(
+export function applyChange(
   text: string,
-  change: MemoryChange,
+  change: Change,
   limit: number,
 ): { text: string } | { error: string } {
-  const entries = entriesOf(text);
+  const entries = parseEntries(text).map((entry) => entry.text);
   const content = 'content' in change ? change.content.trim() : '';
   if (change.action !== 'remove' && !content) return { error: 'content 是空的' };
   let next: string[];
@@ -66,7 +38,7 @@ export function changeMemory(
     if (change.action === 'remove') next.splice(at, 1);
     else next[at] = next[at]!.replace(old, () => content).trim();
   }
-  const result = memoryText(next.filter(Boolean));
+  const result = serialiseEntries(next.filter(Boolean).map((entry) => ({ text: entry })));
   const length = memoryLength(result);
   if (change.action !== 'remove' && length > limit) {
     return {
@@ -77,18 +49,18 @@ export function changeMemory(
 }
 
 /**
- * `text` with each of `changes` made in turn (see changeMemory): one that can't be made is
+ * `text` with each of `changes` made in turn (see applyChange): one that can't be made is
  * skipped, with why in `skipped`, and the rest still are.
  */
-export function changeMemoryAll(
+export function applyChanges(
   text: string,
-  changes: readonly MemoryChange[],
+  changes: readonly Change[],
   limit: number,
-): { text: string; made: MemoryChange[]; skipped: { change: MemoryChange; why: string }[] } {
-  const made: MemoryChange[] = [];
-  const skipped: { change: MemoryChange; why: string }[] = [];
+): { text: string; made: Change[]; skipped: { change: Change; why: string }[] } {
+  const made: Change[] = [];
+  const skipped: { change: Change; why: string }[] = [];
   for (const change of changes) {
-    const changed = changeMemory(text, change, limit);
+    const changed = applyChange(text, change, limit);
     if ('error' in changed) {
       skipped.push({ change, why: changed.error });
     } else {

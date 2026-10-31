@@ -76,6 +76,7 @@ export default tseslint.config(
       'frontend/src/ui/tests/**/*.{ts,tsx}',
       'chat-bot/tests/**/*.ts',
       'lyrics-search/tests/**/*.ts',
+      'room-memory/tests/**/*.ts',
       'room-feed/tests/**/*.ts',
     ],
     languageOptions: { globals: globals.jest },

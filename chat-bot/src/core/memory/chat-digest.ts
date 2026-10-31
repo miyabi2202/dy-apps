@@ -1,4 +1,4 @@
-import type { MemoryChange } from './memory-text';
+import type { Change } from '@dy-apps/room-memory';
 
 /** One line of the room's chat record (see formatRecord), read back. */
 export interface RecordLine {
@@ -132,9 +132,9 @@ export const ROOM_CHANGES_SCHEMA = {
 } as const;
 
 /** `value` (one of the schemas' change lists) as the changes in it that are whole; others are left out. */
-export function memoryChangesOf(value: unknown): MemoryChange[] {
+export function memoryChangesOf(value: unknown): Change[] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((item: unknown): MemoryChange[] => {
+  return value.flatMap((item: unknown): Change[] => {
     if (typeof item !== 'object' || item === null) return [];
     const { action, content = '', old = '' } = item as Record<string, unknown>;
     if (typeof content !== 'string' || typeof old !== 'string') return [];

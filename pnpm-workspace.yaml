@@ -4,6 +4,7 @@ packages:
   - room-feed
   - room-feed-protocol
   - lyrics-search
+  - room-memory
 
 allowBuilds:
   '@parcel/watcher': true

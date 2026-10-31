@@ -1,0 +1,19 @@
+{
+  "name": "@dy-apps/room-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "What the chat bot remembers about a room and its viewers: the entries in the memory files, their limits, and the changes made to them.",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "jest -c jest.config.js"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.16.13",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.5.2",
+    "typescript": "~6.0.3"
+  }
+}

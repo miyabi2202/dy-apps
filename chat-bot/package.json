@@ -14,6 +14,7 @@
   "dependencies": {
     "@dy-apps/lyrics-search": "workspace:*",
     "@dy-apps/room-feed-protocol": "workspace:*",
+    "@dy-apps/room-memory": "workspace:*",
     "pinyin-pro": "3.29.4",
     "winston": "^3.19.0"
   },

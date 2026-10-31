@@ -50,6 +50,9 @@ importers:
       '@dy-apps/room-feed-protocol':
         specifier: workspace:*
         version: link:../room-feed-protocol
+      '@dy-apps/room-memory':
+        specifier: workspace:*
+        version: link:../room-memory
       pinyin-pro:
         specifier: 3.29.4
         version: 3.29.4
@@ -233,6 +236,24 @@ importers:
         version: 6.0.3
 
   room-feed-protocol:
+    devDependencies:
+      '@swc/core':
+        specifier: ^1.16.13
+        version: 1.16.13
+      '@swc/jest':
+        specifier: ^0.2.39
+        version: 0.2.39(@swc/core@1.16.13)
+      '@types/jest':
+        specifier: ^30.0.0
+        version: 30.0.0
+      jest:
+        specifier: ^30.5.2
+        version: 30.5.2(@types/node@26.6.3)
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
+  room-memory:
     devDependencies:
       '@swc/core':
         specifier: ^1.16.13

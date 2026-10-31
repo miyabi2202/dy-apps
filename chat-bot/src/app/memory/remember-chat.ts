@@ -12,13 +12,13 @@ import {
   type RecordLine,
 } from '../../core/memory/chat-digest';
 import {
-  changeMemoryAll,
+  applyChanges,
   memoryLength,
   NOTE_LIMIT,
   ROOM_MEMORY_LIMIT,
   STREAMER_NOTE_LIMIT,
-  type MemoryChange,
-} from '../../core/memory/memory-text';
+  type Change,
+} from '@dy-apps/room-memory';
 import type { AskModel, Log, Memory } from '../ports';
 
 export interface RememberChatOptions {
@@ -217,13 +217,13 @@ export class RememberChat {
   private apply(
     where: { scope: 'room' | 'note'; userId?: string },
     text: string,
-    changes: readonly MemoryChange[],
+    changes: readonly Change[],
     limit: number,
     write: (text: string) => void,
   ): number {
     const { log } = this.options;
     if (!changes.length) return 0;
-    const done = changeMemoryAll(text, changes, limit);
+    const done = applyChanges(text, changes, limit);
     if (done.made.length) write(done.text);
     const used = memoryLength(done.text);
     for (const change of done.made) {

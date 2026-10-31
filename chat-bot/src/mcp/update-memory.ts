@@ -1,12 +1,12 @@
 import type { BotTool, Log, Memory } from '../app/ports';
 import {
-  changeMemory,
+  applyChange,
   memoryLength,
   NOTE_LIMIT,
   ROOM_MEMORY_LIMIT,
   STREAMER_NOTE_LIMIT,
-  type MemoryChange,
-} from '../core/memory/memory-text';
+  type Change,
+} from '@dy-apps/room-memory';
 
 export interface UpdateMemoryOptions {
   memory: Memory;
@@ -23,7 +23,7 @@ const ACTIONS = ['add', 'replace', 'remove'] as const;
  * `update_memory`: the bot keeping what it learns, in the room's memory.md (the streamer and
  * admins only) or the asker's own note.md (anyone, but not a 私密 room's viewers, who can't be
  * told apart). The program picks whose note, from who asked, so nobody writes into someone else's.
- * Each file has a limit (see memory-text.ts): past it, Claude is told to merge entries first.
+ * Each file has a limit (see @dy-apps/room-memory): past it, Claude is told to merge entries first.
  */
 export function updateMemoryTool({
   memory,
@@ -55,7 +55,7 @@ export function updateMemoryTool({
       if (!ACTIONS.includes(action as never)) return fail('action 要填 add、replace 或 remove');
       const content = typeof args.content === 'string' ? args.content : '';
       const old = typeof args.old === 'string' ? args.old : '';
-      const change = { action, content, old } as MemoryChange;
+      const change = { action, content, old } as Change;
 
       let file: { read(): string; write(text: string): void };
       let limit: number;
@@ -72,7 +72,7 @@ export function updateMemoryTool({
         limit = userId === streamerId() ? STREAMER_NOTE_LIMIT : NOTE_LIMIT;
       }
       // Read and written in one go: no other call can come in between.
-      const changed = changeMemory(file.read(), change, limit);
+      const changed = applyChange(file.read(), change, limit);
       if ('error' in changed) return fail(changed.error);
       file.write(changed.text);
       const used = memoryLength(changed.text);
