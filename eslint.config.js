@@ -150,7 +150,7 @@ export default tseslint.config(
           zones: [
             {
               target: './core',
-              from: ['./app', './adapters'],
+              from: ['./app', './adapters', './mcp'],
               message: 'core is pure logic: it imports only core.',
             },
             {
@@ -195,6 +195,36 @@ export default tseslint.config(
             {
               group: ['node:*', '@dy-apps/room-feed-protocol', 'winston'],
               message: 'Only adapters and main.ts talk to Node, room-feed and logging libraries.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // room-feed: the steps are plain classes over surface interfaces; only the Playwright side
+  // (room-page.ts, page-shots.ts, chrome*.ts, login.ts) imports playwright-core.
+  {
+    files: [
+      'room-feed/src/chat-box.ts',
+      'room-feed/src/fans-lamp.ts',
+      'room-feed/src/heart-gift.ts',
+      'room-feed/src/like-hold.ts',
+      'room-feed/src/pace.ts',
+      'room-feed/src/right-panel.ts',
+      'room-feed/src/download-guide.ts',
+      'room-feed/src/room.ts',
+      'room-feed/src/push-tracker.ts',
+      'room-feed/src/douyin/**/*.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['playwright-core', 'playwright-core/*'],
+              message: 'Steps know nothing of Playwright: the page surfaces in room-page.ts do.',
             },
           ],
         },

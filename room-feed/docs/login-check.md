@@ -15,11 +15,11 @@ With no saved login at all, room-feed only prints a warning and carries on.
 
 room-feed exits with an error whenever it can't send as the account, unless `--allow-logged-out` is given:
 
-| Case | Today | With the change | With `--allow-logged-out` |
-| --- | --- | --- | --- |
-| No `cookie.json`, or its `expiresAt` has passed | warns, runs | exits 1 before opening Chrome | warns, runs |
-| Cookie loaded, but the page is logged out | runs, and sending fails later | exits 1 once the page shows it's logged out | warns, runs |
-| Logged out partway through (found on a reopen) | runs, and sending fails | exits 1, telling the clients why | warns, runs |
+| Case                                            | Today                         | With the change                             | With `--allow-logged-out` |
+| ----------------------------------------------- | ----------------------------- | ------------------------------------------- | ------------------------- |
+| No `cookie.json`, or its `expiresAt` has passed | warns, runs                   | exits 1 before opening Chrome               | warns, runs               |
+| Cookie loaded, but the page is logged out       | runs, and sending fails later | exits 1 once the page shows it's logged out | warns, runs               |
+| Logged out partway through (found on a reopen)  | runs, and sending fails       | exits 1, telling the clients why            | warns, runs               |
 
 Every message tells you how to fix it: `登录已失效，请重新运行 pnpm room-feed login`.
 

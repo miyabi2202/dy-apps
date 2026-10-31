@@ -15,6 +15,10 @@ To use it:
 2. In the room, an admin (the streamer, or anyone in `config.json`) turns features on and off by asking the bot in words or with a `/` command (see Tools and `/` commands below; every command is in [`docs/commands.md`](docs/commands.md)).
 3. To fit it to one room, put that room's details in its `data/<房间号>/` folder, with no code changes: who the streamer is (`memory.md`, which the bot also adds to itself; its rules are in [`room-memory/`](../room-memory)), a song list, which tools it has on and their data (a song list, the streamer's hours), a message for when she sings. How is in [`docs/room-setup.md`](docs/room-setup.md).
 
+## Layout
+
+`src/` has layers, and imports go one way (`pnpm lint` enforces it): `core` (pure logic) imports only `core`; `app` (use cases, over the interfaces in `app/ports.ts`) imports `core`; `adapters` (room-feed, the Claude CLI, files, processes) implement those ports; `wiring/` and `main.ts` build the real objects and are imported by nothing else.
+
 ## How it works
 
 `chat-bot/` reads a room's chat from room-feed and keeps the last 100 messages in memory. When someone @s the bot's account, it fills [`chat-bot/prompts/prompt.md`](prompts/prompt.md) with that message, the chat before it and what the streamer said lately, runs `claude -p` (with a screenshot of the live video if `--screenshot` is on; web search and fetch plus read-only access to the chat record (WebSearch, WebFetch, Read, Glob, Grep; `--tools`), no MCP servers, no saved session, since chat is untrusted), and posts `@asker reply` back to the room through room-feed's `POST /api/rooms/:roomId/chat`. Everything the bot says goes out at least 10 seconds apart, while Claude goes on to the next question. Claude answers one question at a time; when it takes the next, everything else that person said while waiting (a question, then 「我发文字你看」) comes with it as one request, answered once (`answering together {asker, questions}` in the log); other people's questions stay in the queue, in order. Messages wait in three queues, each in order (see "What goes out first" below).
