@@ -36,7 +36,7 @@ export interface RoomPromptInput {
   streamerNote?: string;
   /** The bot's own latest thoughts after the room's streams (memory/thoughts.md), one a line. */
   thoughts?: string;
-  /** What every room's viewers ask about Douyin itself (灯牌, …), from common-knowledge.md. */
+  /** What every room's viewers ask about Douyin itself (灯牌, …), from the knowledge base (data/knowledge/douyin/, see KnowledgeRecall). */
   commonKnowledge?: string;
   /** What the bot says about itself when asked: who made it, what it can and can't do. */
   intro?: string;

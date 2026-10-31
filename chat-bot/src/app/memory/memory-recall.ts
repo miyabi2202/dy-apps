@@ -10,6 +10,7 @@ import {
 } from '../../core/memory/recall';
 import type { LifeDay } from '../../core/prompts/life';
 import type { Embedder, LifeLog, Log, Thoughts, VectorCache } from '../ports';
+import { RecallVectors } from './recall-vectors';
 
 export interface MemoryRecallOptions {
   /** The local embedding service; null without one, and then only the latest are shown. */
@@ -73,11 +74,12 @@ export class MemoryRecall {
   private looking = false;
   private again = false;
   private failing = false;
-  /** The window's lines embedded as queries, by text, for `linesModel`. */
-  private readonly lines = new Map<string, number[]>();
-  private linesModel = '';
+  private readonly vectors: RecallVectors | undefined;
 
-  constructor(private readonly options: MemoryRecallOptions) {}
+  constructor(private readonly options: MemoryRecallOptions) {
+    const { embedder, vectors } = options;
+    this.vectors = embedder ? new RecallVectors(embedder, vectors) : undefined;
+  }
 
   /** The room said something: look again a moment after it's quiet. */
   hear(): void {
@@ -134,7 +136,8 @@ export class MemoryRecall {
 
   private async look(): Promise<void> {
     const { embedder, log, speech, chat, extra = 3 } = this.options;
-    if (!embedder) return;
+    const vectors = this.vectors;
+    if (!embedder || !vectors) return;
     const lines = recallLines(speech(), chat());
     const query = lines.join('\n');
     if (!query || query === this.lastQuery) return;
@@ -144,8 +147,8 @@ export class MemoryRecall {
       const persona = this.options.persona();
       const days = persona ? this.olderLife(persona) : [];
       const texts = [...thoughts.map(thoughtText), ...days.map(({ line }) => line)];
-      const queryVectors = await this.lineVectors(model, lines);
-      const docs = await this.documentVectors(model, texts);
+      const queryVectors = await vectors.queries(model, lines);
+      const docs = await vectors.documents(model, texts);
       const { names, pinyinWeight: weight, pinyinScale: scale } = this.options;
       const botNames = names();
       // Each memory against each line, meaning and sound; a memory scores its best line.
@@ -212,42 +215,6 @@ export class MemoryRecall {
         .filter(Boolean)
         .map((line) => ({ date, line })),
     );
-  }
-
-  /**
-   * Each line's vector as a query. A line stays in the window for many looks, so the latest are
-   * kept here and only the new lines are embedded.
-   */
-  private async lineVectors(model: string, lines: readonly string[]): Promise<number[][]> {
-    if (this.linesModel !== model) {
-      this.lines.clear();
-      this.linesModel = model;
-    }
-    const missing = [...new Set(lines.filter((line) => !this.lines.has(line)))];
-    if (missing.length) {
-      const made = await this.options.embedder!.embed(missing, 'query');
-      missing.forEach((line, i) => this.lines.set(line, made[i]!));
-    }
-    const vectors = lines.map((line) => this.lines.get(line)!);
-    // Keep only what the window still has, so it doesn't grow over a long stream.
-    for (const line of this.lines.keys()) if (!lines.includes(line)) this.lines.delete(line);
-    return vectors;
-  }
-
-  /** Each text's vector: from the cache, or embedded now (and cached) for the ones it hasn't. */
-  private async documentVectors(model: string, texts: readonly string[]): Promise<number[][]> {
-    const { embedder, vectors } = this.options;
-    const cached = vectors.get(model, texts);
-    const missing = [...new Set(texts.filter((_, i) => !cached[i]))];
-    if (missing.length) {
-      const made = await embedder!.embed(missing, 'document');
-      vectors.put(
-        model,
-        missing.map((text, i) => [text, made[i]!] as const),
-      );
-    }
-    const now = vectors.get(model, texts);
-    return now.map((vector) => vector ?? []);
   }
 }
 

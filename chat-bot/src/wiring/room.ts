@@ -32,6 +32,8 @@ import { RecentGifts } from '../core/chat/recent-gifts';
 import { errorMessage } from '../core/errors';
 import { LIFE_DAYS_SHOWN, lifeText } from '../core/prompts/life';
 import { MemoryRecall } from '../app/memory/memory-recall';
+import { KnowledgeRecall } from '../app/knowledge/knowledge-recall';
+import { knowledgeFiles } from '../adapters/files/knowledge-files';
 import { livePersonaBase } from '../adapters/files/prompt-files';
 import { vectorFiles } from '../adapters/files/vector-cache';
 import { localDate } from '../core/prompts/local-time';
@@ -51,6 +53,7 @@ import {
   HISTORY,
   LIFE,
   RECALL,
+  KNOWLEDGE,
   VECTORS,
   LOG,
   MEMORY,
@@ -98,6 +101,22 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
       stop: () => {
         heard.stop();
         recall.stop();
+      },
+    };
+  });
+  // What the room says has the knowledge base look again for entries that fit (see KNOWLEDGE).
+  features.add('knowledge', (c) => {
+    const knowledge = c.resolve(KNOWLEDGE);
+    const heard = busFeature('knowledge', c.resolve(BUS), {
+      chat: () => knowledge.hear(),
+      heard: () => knowledge.hear(),
+    });
+    return {
+      name: 'knowledge',
+      start: () => heard.start(),
+      stop: () => {
+        heard.stop();
+        knowledge.stop();
       },
     };
   });
@@ -230,6 +249,24 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
         log: c.resolve(LOG),
       });
     })
+    // The knowledge base (data/knowledge/douyin/, shared by every room): all of it while it's small,
+    // else the entries named in what's being said and, with the embedding service, those that fit it.
+    .register(KNOWLEDGE, (c) => {
+      const [history, transcript, names] = [
+        c.resolve(HISTORY),
+        c.resolve(TRANSCRIPT),
+        c.resolve(BOT_NAMES),
+      ];
+      return new KnowledgeRecall({
+        embedder: c.resolve(EMBEDDER),
+        vectors: c.resolve(VECTORS),
+        entries: knowledgeFiles(join(resolve(c.resolve(OPTIONS).dataDir), 'knowledge', 'douyin')),
+        speech: () => transcript.recent(c.resolve(OPTIONS).transcriptMs).map((line) => line.text),
+        chat: () => history.recent().map((line) => line.content),
+        names: () => [names.botName, ...names.aliases()],
+        log: c.resolve(LOG),
+      });
+    })
     // `pnpm remember`: the chat record since last time, read into the notes and memory.md by Claude,
     // and then what the bot itself made of it, in its persona (memory/thoughts.md).
     .register(REMEMBER_CHAT, (c) => {
@@ -318,8 +355,8 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
         thoughts: () => c.resolve(RECALL).thoughtsText(),
         streamer: c.resolve(STREAMER),
         isPrivate: () => roomConfig().private,
-        // What viewers ask about Douyin itself (灯牌…), shared by every room.
-        commonKnowledge: liveText(join(c.resolve(PROMPTS_DIR), 'common-knowledge.md')),
+        // What viewers ask about Douyin itself (灯牌…), from the knowledge base (see KNOWLEDGE).
+        commonKnowledge: () => c.resolve(KNOWLEDGE).text(),
         // What the bot says about itself when asked, shared by every room.
         intro: liveText(join(c.resolve(PROMPTS_DIR), 'intro.md')),
         // What it can't do and why, for when viewers notice (limitations.md, shared by every room).

@@ -311,6 +311,24 @@ test('answers a mention with the room, the settings the features gave and the pe
   expect(prompt).toContain('- 自动识歌：关闭');
 });
 
+test('the knowledge base in data/knowledge/douyin/ is in the prompt, read when it is used', async () => {
+  const bot = build(['--no-asr', '--codex', '']);
+  mkdirSync(join(bot.dir, 'data', 'knowledge', 'douyin'), { recursive: true });
+  writeFileSync(
+    join(bot.dir, 'data', 'knowledge', 'douyin', 'fan-club.md'),
+    '## 灯牌\n\naliases: 保牌子\n来源: 直播间记录\n灯牌是主播粉丝团的徽章。\n',
+  );
+  const app = bot.container.resolve(APP);
+  await app.start();
+  bot.say(mention('小红', 'u-1', '@小助手 灯牌是什么'));
+  await bot.container.resolve(BOT).idle();
+  app.stop();
+
+  const prompt = bot.prompts[0]!;
+  expect(prompt).toContain('## 灯牌\n\n灯牌是主播粉丝团的徽章。');
+  expect(prompt).not.toContain('来源: 直播间记录');
+});
+
 test('a typed command runs the tool: an admin changes the setting in room_config.json, anyone else is refused', async () => {
   const bot = build(['--no-asr', '--codex', '']);
   const app = bot.container.resolve(APP);

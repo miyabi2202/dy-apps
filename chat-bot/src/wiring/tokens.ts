@@ -24,6 +24,7 @@ import type { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { AutoMessage } from '../app/replies/auto-message';
 import type { LifeWriter } from '../app/life/life-writer';
 import type { MemoryRecall } from '../app/memory/memory-recall';
+import type { KnowledgeRecall } from '../app/knowledge/knowledge-recall';
 import type { OnSing } from '../app/songs/on-sing';
 import type { SongEnds } from '../app/songs/song-ends';
 import type { SongBreakSource } from '../core/songs/song-breaks';
@@ -144,6 +145,8 @@ export const THOUGHTS = token<Thoughts>('thoughts');
 export const VECTORS = token<VectorCache>('vectors');
 /** Which of its own memories every prompt shows: the latest, and older ones that fit what's said. */
 export const RECALL = token<MemoryRecall>('recall');
+/** The knowledge base for every prompt (data/knowledge/douyin/): all of it while it's small, else the entries that fit what's said. */
+export const KNOWLEDGE = token<KnowledgeRecall>('knowledge');
 /** Reads the chat record since last time into memory (`pnpm remember`). */
 export const REMEMBER_CHAT = token<RememberChat>('rememberChat');
 /** The prompt `name`, read on every use: the room's own file, else the shared one. */

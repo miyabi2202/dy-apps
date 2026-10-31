@@ -58,7 +58,6 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
     intro.md              #     what the bot says about itself when asked (in prompt.md)
     limitations.md        #     what it can't do and why, for when viewers notice (in prompt.md)
     wording.md            #     the sentences the program says to Jev, Codex and Claude around what it fills in (asked, relevance, song notes…)
-    common-knowledge.md   #     what viewers ask about Douyin itself (灯牌…), in prompt.md as {{commonKnowledge}}
     forbidden.md          #     topics the bot never takes up, in prompt.md as {{forbiddenTopics}}
     forbidden-words.json  #     words Douyin hides a message for, each with what to send instead (`*`s by default), swapped in everything sent
     personas/             #     shared personas a room's persona file can build on, a folder each (fairy/: persona.md, life.md)
@@ -75,7 +74,7 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + ERes2Net
   embedding/              #   Python (uv) text-embedding service (Qwen3-Embedding) for recalling the older memories that fit what's being said
   embedding-eval/         #   which local embedding model recalls Chinese room memories best (test set, results)
-  logs/  data/            #   winston logs; data/<房间号>/ per room: room_config.json, memory.md, memory/ (archive.md, streams.md, thoughts.md), personas/, tools/, chat/, <user id>/, bot_logs.md; data/lives/<persona>/ the shared personas' own days; data/embeddings/ the memories' vectors, a file per model (not in git)
+  logs/  data/            #   winston logs; data/<房间号>/ per room: room_config.json, memory.md, memory/ (archive.md, streams.md, thoughts.md), personas/, tools/, chat/, <user id>/, bot_logs.md; data/lives/<persona>/ the shared personas' own days; data/embeddings/ the memories' and knowledge's vectors, a file per model; data/knowledge/douyin/ the knowledge base, in prompt.md as {{commonKnowledge}} (not in git)
 room-feed-protocol/       # @dy-apps/room-feed-protocol: room-feed's events and API, and the client that reads them
   src/events.ts           #   chat, gift, like events and the status frames, one JSON object per WebSocket message
   src/api.ts              #   the HTTP API's answers, the default port, the URLs, port and room-number checks
