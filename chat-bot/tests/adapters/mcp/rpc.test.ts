@@ -1,5 +1,5 @@
-import type { BotTool } from '../../src/app/ports';
-import { handleRpc, newSession } from '../../src/mcp/rpc';
+import type { BotTool } from '../../../src/core/tools/bot-tool';
+import { handleRpc, newSession } from '../../../src/adapters/mcp/rpc';
 
 function setup() {
   const calls: { args: Record<string, unknown>; asker: string; userId?: string }[] = [];

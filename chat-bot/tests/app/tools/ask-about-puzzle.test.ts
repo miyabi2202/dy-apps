@@ -1,11 +1,11 @@
-import type { AskModel, Question, UserTalk } from '../../src/app/ports';
-import type { SolveEffort } from '../../src/core/commands/settings';
-import { SETTING_DEFAULTS } from '../../src/core/commands/settings';
-import { MESSAGE_SCHEMA } from '../../src/core/replies/mention-answer';
-import { askAboutPuzzleTool } from '../../src/mcp/ask-about-puzzle';
-import { fakeRoom } from '../support/fake-room';
-import { fakeSettings } from '../support/fake-settings';
-import { fakeBus, fakeOutbox, silentLog } from '../support/fakes';
+import type { AskModel, Question, UserTalk } from '../../../src/app/ports';
+import type { SolveEffort } from '../../../src/core/commands/settings';
+import { SETTING_DEFAULTS } from '../../../src/core/commands/settings';
+import { MESSAGE_SCHEMA } from '../../../src/core/replies/mention-answer';
+import { askAboutPuzzleTool } from '../../../src/app/tools/ask-about-puzzle';
+import { fakeRoom } from '../../support/fake-room';
+import { fakeSettings } from '../../support/fake-settings';
+import { fakeBus, fakeOutbox, silentLog } from '../../support/fakes';
 
 const FRAME = new Uint8Array([0xff, 0xd8]);
 

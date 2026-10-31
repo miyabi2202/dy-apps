@@ -1,17 +1,18 @@
+import { MAX_LIKES } from '@dy-apps/room-feed-protocol';
 import { join } from 'node:path';
 import { liveToolDefinitions } from '../adapters/files/tool-files';
-import { askAboutPuzzleTool } from '../mcp/ask-about-puzzle';
-import { declarativeTools } from '../mcp/declarative-tools';
-import { identifyBgmTool } from '../mcp/identify-bgm';
-import { identifySongTool } from '../mcp/identify-song';
-import { BotMcpServer } from '../mcp/server';
-import { fansLampTool } from '../mcp/fans-lamp';
-import { happyHeartTool } from '../mcp/happy-heart';
-import { heartTool } from '../mcp/heart';
+import { askAboutPuzzleTool } from '../app/tools/ask-about-puzzle';
+import { declarativeTools } from '../app/tools/declarative-tools';
+import { identifyBgmTool } from '../app/tools/identify-bgm';
+import { identifySongTool } from '../app/tools/identify-song';
+import { BotMcpServer } from '../adapters/mcp/server';
+import { fansLampTool } from '../app/tools/fans-lamp';
+import { happyHeartTool } from '../app/tools/happy-heart';
+import { heartTool } from '../app/tools/heart';
 import { HeartGate } from '../app/tools/heart-gate';
-import { pressLikeTool } from '../mcp/press-like';
+import { pressLikeTool } from '../app/tools/press-like';
 import { settingTool } from '../app/tools/setting-tool';
-import { updateMemoryTool } from '../mcp/update-memory';
+import { updateMemoryTool } from '../app/tools/update-memory';
 import type { Container } from './container';
 import {
   ADMINS,
@@ -39,11 +40,11 @@ import {
 } from './tokens';
 
 /**
- * The bot's tools (src/mcp/): what it can do, for Claude when someone @s it and for a typed `/`
+ * The bot's tools (src/app/tools/): what it can do, for Claude when someone @s it and for a typed `/`
  * command alike, and the MCP server in this process that gives them to Claude. Each needs what
  * its feature needs (listening to the stream; Codex for the song), and an admin-only one is
  * offered only when an admin asks. The server is always on: without it Claude could not act on
- * anything said in words, so a server that can't start stops the bot at start. The declarative tools in src/mcp/tools/ are the ones a room
+ * anything said in words, so a server that can't start stops the bot at start. The declarative tools in chat-bot/tools/ are the ones a room
  * switches on in its room_config.json.
  */
 export function registerMcp(container: Container): void {
@@ -51,7 +52,7 @@ export function registerMcp(container: Container): void {
     // Read hot, like the prompts: an edit to a tool.json or a guidance applies at once.
     .register(TOOL_DEFINITIONS, (c) => {
       const roomConfig = c.resolve(ROOM_CONFIG);
-      return liveToolDefinitions(join(c.resolve(PACKAGE_DIR), 'src', 'mcp', 'tools'), {
+      return liveToolDefinitions(join(c.resolve(PACKAGE_DIR), 'tools'), {
         roomDir: c.resolve(ROOM_DIR),
         log: c.resolve(LOG),
         streamerNames: () => roomConfig().streamerNames,
@@ -90,7 +91,7 @@ export function registerMcp(container: Container): void {
             ]
           : []),
         ...(transcriber ? [identifyBgmTool(() => transcriber.identifyMusic(), log)] : []),
-        pressLikeTool(c.resolve(ROOM_API).like, log),
+        pressLikeTool(c.resolve(ROOM_API).like, log, MAX_LIKES),
         fansLampTool(c.resolve(ROOM_API).sendFansLamp, log),
         heartTool(hearts, log),
         happyHeartTool(hearts, { on: () => settings.get().happyHeart, log }),

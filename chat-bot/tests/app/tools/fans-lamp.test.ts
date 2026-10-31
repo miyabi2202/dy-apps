@@ -1,5 +1,5 @@
-import { fansLampTool } from '../../src/mcp/fans-lamp';
-import { silentLog } from '../support/fakes';
+import { fansLampTool } from '../../../src/app/tools/fans-lamp';
+import { silentLog } from '../../support/fakes';
 
 const context = { asker: '雅', question: '' };
 

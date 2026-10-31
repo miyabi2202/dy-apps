@@ -1,5 +1,5 @@
 import { ToolRunner } from '../../../src/app/tools/tool-runner';
-import type { BotTool, ToolCommand, ToolContext } from '../../../src/app/ports';
+import type { BotTool, ToolCommand, ToolContext } from '../../../src/core/tools/bot-tool';
 import type { IncomingChat } from '../../../src/core/chat/room-events';
 import { fakeRoom } from '../../support/fake-room';
 import { fakeOutbox, silentLog } from '../../support/fakes';

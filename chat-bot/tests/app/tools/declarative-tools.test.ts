@@ -1,9 +1,10 @@
-import type { DefinedTool, ToolContext } from '../../src/app/ports';
-import type { Mention } from '../../src/app/replies/mention-answerer';
-import { declarativeTools } from '../../src/mcp/declarative-tools';
-import { fakeRoom } from '../support/fake-room';
-import { ChatHistory } from '../../src/core/chat/chat-history';
-import { NOW } from '../support/fakes';
+import type { DefinedTool } from '../../../src/app/ports';
+import type { ToolContext } from '../../../src/core/tools/bot-tool';
+import type { Mention } from '../../../src/app/replies/mention-answerer';
+import { declarativeTools } from '../../../src/app/tools/declarative-tools';
+import { fakeRoom } from '../../support/fake-room';
+import { ChatHistory } from '../../../src/core/chat/chat-history';
+import { NOW } from '../../support/fakes';
 
 const CAN_SING: DefinedTool = {
   name: 'can_sing',

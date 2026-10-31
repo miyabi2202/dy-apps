@@ -1,5 +1,5 @@
-import { identifyBgmTool } from '../../src/mcp/identify-bgm';
-import { silentLog } from '../support/fakes';
+import { identifyBgmTool } from '../../../src/app/tools/identify-bgm';
+import { silentLog } from '../../support/fakes';
 
 const context = { asker: '小红', question: '' };
 

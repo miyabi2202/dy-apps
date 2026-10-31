@@ -6,7 +6,8 @@ import {
   type RoomMemory,
   type Target,
 } from '@dy-apps/room-memory';
-import type { BotTool, Log } from '../app/ports';
+import type { Log } from '../ports';
+import type { BotTool } from '../../core/tools/bot-tool';
 
 export interface UpdateMemoryOptions {
   memory: Pick<RoomMemory, 'change'>;

@@ -1,4 +1,4 @@
-import type { BotTool, ToolCall, ToolContext, ToolResult } from '../app/ports';
+import type { BotTool, ToolCall, ToolContext, ToolResult } from '../../core/tools/bot-tool';
 
 /** One JSON-RPC message, as MCP sends them. */
 export interface RpcMessage {

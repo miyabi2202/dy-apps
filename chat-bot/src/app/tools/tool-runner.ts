@@ -4,7 +4,8 @@ import { errorMessage } from '../../core/errors';
 import { DOUYIN_CHAT_LIMIT, replyMessages } from '../../core/replies/reply';
 import type { Outbox } from '../replies/outbox';
 import { Pending } from '../pending';
-import type { BotTool, Log, ToolCommand, ToolResult } from '../ports';
+import type { Log } from '../ports';
+import type { BotTool, ToolCommand, ToolResult } from '../../core/tools/bot-tool';
 import type { RoomState } from '../room/room-state';
 
 export interface ToolRunnerOptions {

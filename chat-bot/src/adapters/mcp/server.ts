@@ -6,7 +6,8 @@ import {
   type ServerResponse,
 } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { BotTool, BotTools, Log, ToolAccess, ToolContext, ToolSession } from '../app/ports';
+import type { BotTools, Log } from '../../app/ports';
+import type { BotTool, ToolAccess, ToolContext, ToolSession } from '../../core/tools/bot-tool';
 import { handleRpc, newSession, type RpcMessage, type Session } from './rpc';
 
 export interface BotMcpServerOptions {

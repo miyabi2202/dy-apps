@@ -1,8 +1,8 @@
-import { SongId } from '../../src/app/songs/song-id';
-import { Transcript } from '../../src/core/songs/transcript';
-import { identifySongTool } from '../../src/mcp/identify-song';
-import { fakeRoom } from '../support/fake-room';
-import { silentLog } from '../support/fakes';
+import { SongId } from '../../../src/app/songs/song-id';
+import { Transcript } from '../../../src/core/songs/transcript';
+import { identifySongTool } from '../../../src/app/tools/identify-song';
+import { fakeRoom } from '../../support/fake-room';
+import { silentLog } from '../../support/fakes';
 
 const context = { asker: '苦***', userId: '111111-苦***-31', question: '这是什么歌' };
 

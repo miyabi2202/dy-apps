@@ -1,8 +1,8 @@
-import type { SendHeart } from '../../src/app/ports';
-import { HEART_COOLDOWN_MS, HeartGate } from '../../src/app/tools/heart-gate';
-import { happyHeartTool } from '../../src/mcp/happy-heart';
-import { heartTool } from '../../src/mcp/heart';
-import { silentLog } from '../support/fakes';
+import type { SendHeart } from '../../../src/app/ports';
+import { HEART_COOLDOWN_MS, HeartGate } from '../../../src/app/tools/heart-gate';
+import { happyHeartTool } from '../../../src/app/tools/happy-heart';
+import { heartTool } from '../../../src/app/tools/heart';
+import { silentLog } from '../../support/fakes';
 
 const context = { asker: '糖果🍬', question: '默认关闭你今天好可爱', admin: true };
 

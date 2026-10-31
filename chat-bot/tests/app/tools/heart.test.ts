@@ -1,7 +1,7 @@
-import type { SendHeart } from '../../src/app/ports';
-import { HeartGate } from '../../src/app/tools/heart-gate';
-import { heartTool } from '../../src/mcp/heart';
-import { silentLog } from '../support/fakes';
+import type { SendHeart } from '../../../src/app/ports';
+import { HeartGate } from '../../../src/app/tools/heart-gate';
+import { heartTool } from '../../../src/app/tools/heart';
+import { silentLog } from '../../support/fakes';
 
 const context = { asker: '雅', question: '' };
 

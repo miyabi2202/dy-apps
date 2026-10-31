@@ -19,7 +19,7 @@ export interface ListenDefinition {
 }
 
 /**
- * One declarative tool, as `src/mcp/tools/<folder>/tool.json` defines it: what Claude reads to
+ * One declarative tool, as `chat-bot/tools/<folder>/tool.json` defines it: what Claude reads to
  * decide to call it, and what it hands back (the guidance file, filled with the room's data) or
  * says (a fixed reply). A room switches it on by name in its room_config.json.
  */

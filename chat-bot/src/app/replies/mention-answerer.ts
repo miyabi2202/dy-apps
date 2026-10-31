@@ -72,7 +72,7 @@ export interface MentionAnswererOptions {
    * backlog nobody remembers asking. */
   maxPending?: number;
   /**
-   * The bot's tools (src/mcp/), which Claude may call while answering; each question gets its own
+   * The bot's tools (src/app/tools/), which Claude may call while answering; each question gets its own
    * session, closed when the answer is done.
    */
   tools?: BotTools;

@@ -1,7 +1,7 @@
 import { request } from 'node:http';
-import type { BotTool, ToolSession } from '../../src/app/ports';
-import { BotMcpServer } from '../../src/mcp/server';
-import { silentLog } from '../support/fakes';
+import type { BotTool, ToolSession } from '../../../src/core/tools/bot-tool';
+import { BotMcpServer } from '../../../src/adapters/mcp/server';
+import { silentLog } from '../../support/fakes';
 
 const tool: BotTool = {
   name: 'identify_song',

@@ -1,6 +1,7 @@
-import { errorMessage } from '../core/errors';
-import type { BotTool, Log, ToolResult } from '../app/ports';
-import { HEART_COOLDOWN_MINUTES, type HeartGate } from '../app/tools/heart-gate';
+import { errorMessage } from '../../core/errors';
+import type { Log } from '../ports';
+import type { BotTool, ToolResult } from '../../core/tools/bot-tool';
+import { HEART_COOLDOWN_MINUTES, type HeartGate } from './heart-gate';
 
 /** The one gift it sends. */
 const HEART = '小心心';

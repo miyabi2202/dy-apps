@@ -1,10 +1,11 @@
-import type { Mention } from '../app/replies/mention-answerer';
-import type { BotTool, DefinedTool, Log } from '../app/ports';
-import type { RoomState } from '../app/room/room-state';
-import { appliesTo } from '../core/tools/tool-definition';
+import type { Mention } from '../replies/mention-answerer';
+import type { DefinedTool, Log } from '../ports';
+import type { BotTool } from '../../core/tools/bot-tool';
+import type { RoomState } from '../room/room-state';
+import { appliesTo } from '../../core/tools/tool-definition';
 
 export interface DeclarativeToolsOptions {
-  /** The definitions in src/mcp/tools/ as they are now (see liveToolDefinitions). */
+  /** The definitions in chat-bot/tools/ as they are now (see liveToolDefinitions). */
   definitions: () => readonly DefinedTool[];
   /** The names the room switched on (room_config.json's `tools`), read on each use. */
   enabled: () => readonly string[];

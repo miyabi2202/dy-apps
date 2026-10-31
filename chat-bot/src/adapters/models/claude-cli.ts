@@ -35,7 +35,7 @@ export interface ClaudeCliOptions {
 
 /** The zoom server's tool, as Claude Code names an MCP tool. */
 const ZOOM_TOOL = 'mcp__zoom__zoom';
-/** The bot's own MCP server (src/mcp/), whose tools are `mcp__bot__<tool>`. */
+/** The bot's own MCP server (src/adapters/mcp/), whose tools are `mcp__bot__<tool>`. */
 const BOT_SERVER = 'bot';
 
 /** Tools that read files: never pre-approved, so they stay inside the working directories. */

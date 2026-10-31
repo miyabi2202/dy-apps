@@ -17,7 +17,7 @@ import type { ToolRunner } from '../app/tools/tool-runner';
 import type { EventBus } from '../app/event-bus';
 import type { GiftThanker } from '../app/replies/gift-thanker';
 import type { MaliceWatch } from '../app/replies/malice-watch';
-import type { BotMcpServer } from '../mcp/server';
+import type { BotMcpServer } from '../adapters/mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { AutoMessage } from '../app/replies/auto-message';
 import type { OnSing } from '../app/songs/on-sing';
@@ -28,7 +28,6 @@ import type { Outbox } from '../app/replies/outbox';
 import type {
   AskModel,
   BotTalk,
-  BotTool,
   DefinedTool,
   Judge,
   Log,
@@ -40,6 +39,7 @@ import type {
   SpawnWorker,
   UserTalk,
 } from '../app/ports';
+import type { BotTool } from '../core/tools/bot-tool';
 import type { RememberChat } from '../app/memory/remember-chat';
 import type { RoomFeed } from '../app/room/room-feed';
 import type { RoomState } from '../app/room/room-state';
@@ -160,7 +160,7 @@ export const TRANSCRIBER = token<Transcriber | null>('transcriber');
 // mcp.ts: the bot's tools, and the server that gives them to Claude.
 /** The bot's tools as they are now, for Claude's sessions and for typed `/` commands alike. */
 export const TOOLS = token<() => BotTool[]>('tools');
-/** The declarative tools defined in src/mcp/tools/, as they are now; a room switches them on in its room_config.json. */
+/** The declarative tools defined in chat-bot/tools/, as they are now; a room switches them on in its room_config.json. */
 export const TOOL_DEFINITIONS = token<() => DefinedTool[]>('toolDefinitions');
 export const MCP_SERVER = token<BotMcpServer>('mcpServer');
 

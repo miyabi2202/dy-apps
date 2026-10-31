@@ -6,7 +6,8 @@ import { ToolRunner } from '../tools/tool-runner';
 import type { EventBus } from '../event-bus';
 import type { Mention, MentionAnswerer, UnpromptedReply } from './mention-answerer';
 import type { Outbox } from './outbox';
-import type { Admins, BotTool, Log } from '../ports';
+import type { Admins, Log } from '../ports';
+import type { BotTool } from '../../core/tools/bot-tool';
 import type { RoomFeed } from '../room/room-feed';
 import type { RoomState } from '../room/room-state';
 

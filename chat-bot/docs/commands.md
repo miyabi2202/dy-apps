@@ -208,7 +208,7 @@ Lets the bot send the streamer a 小心心 (1 diamond) of its own accord, nobody
 
 ## Tools a room switches on
 
-Besides the tools above, a room can switch on the ones defined in `src/mcp/tools/`, each in a folder of its own. They have no `/` names: Claude calls them when someone asks in words. This table lists them (a test keeps it in step with the folders):
+Besides the tools above, a room can switch on the ones defined in `chat-bot/tools/`, each in a folder of its own. They have no `/` names: Claude calls them when someone asks in words. This table lists them (a test keeps it in step with the folders):
 
 | Tool          | What it does                                                                       | Admins only | Data in the room's folder                                                         |
 | ------------- | ---------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------- |
@@ -221,7 +221,7 @@ Besides the tools above, a room can switch on the ones defined in `src/mcp/tools
 
 A room switches tools on by name in its `data/<房间号>/room_config.json`: `"tools": ["can_sing", "too_easy"]`. It's read again whenever the file changes, so no restart is needed; the built-in tools need no listing, and a name no folder defines is warned about (`room_config.json lists a tool there is no definition for`) and skipped. The tools are built in the order the list gives them, after the built-in ones.
 
-A tool's folder is its name with `-` for `_` (`src/mcp/tools/can-sing/` defines `can_sing`) and holds a `tool.json` and, usually, a `guidance.md`. Both are read again when they change. `tool.json` has these fields, and a field it doesn't know is an error (a typo in the repo should fail loudly):
+A tool's folder is its name with `-` for `_` (`chat-bot/tools/can-sing/` defines `can_sing`) and holds a `tool.json` and, usually, a `guidance.md`. Both are read again when they change. `tool.json` has these fields, and a field it doesn't know is an error (a typo in the repo should fail loudly):
 
 | Field             | What it is                                                                                                                                                           |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -262,11 +262,11 @@ Each is logged as `command {name, args, ok, ms}` in `logs/chat-bot.log`.
 
 ## Asking in words
 
-Anything said to the bot in words (an @, its name, a line auto-reply lets through) goes to Claude with these same tools in its MCP session, an MCP server in the bot's own process (`src/mcp/`, on 127.0.0.1 and a free port, `--mcp-port`). It is always on: without it Claude could not act on anything said in words, so a server that can't start (a taken port, `could not start` with `EADDRINUSE`) stops the bot at start. Claude reads each tool's description, calls the one that fits (「识别一下背景音乐」, 「把截图打开」, 「以后 100 钻以下的礼物不用谢了」) and answers in its own words from the result. A tool marked `adminOnly` (`BotTool` in `src/app/ports.ts`) is left out of anyone else's session: they don't see it, and `prompt.md` tells Claude to say it can't be done and who can. Each tool runs at most once per question, and each question gets a token of its own, which stops working when the answer is done. The tools a room switches on are in the same list, beside the built-in ones; they have no `/` names, and a guidance tool's text comes back to Claude, which answers in the same turn (`tool guidance` in the log). The log has `mcp server listening {port}`, `mcp tool {tool, asker, userId, ms, isError}` and, in `claude answered`, `tools: [{tool, ms, isError}]`.
+Anything said to the bot in words (an @, its name, a line auto-reply lets through) goes to Claude with these same tools in its MCP session, an MCP server in the bot's own process (`src/adapters/mcp/`, on 127.0.0.1 and a free port, `--mcp-port`). It is always on: without it Claude could not act on anything said in words, so a server that can't start (a taken port, `could not start` with `EADDRINUSE`) stops the bot at start. Claude reads each tool's description, calls the one that fits (「识别一下背景音乐」, 「把截图打开」, 「以后 100 钻以下的礼物不用谢了」) and answers in its own words from the result. A tool marked `adminOnly` (`BotTool` in `src/app/ports.ts`) is left out of anyone else's session: they don't see it, and `prompt.md` tells Claude to say it can't be done and who can. Each tool runs at most once per question, and each question gets a token of its own, which stops working when the answer is done. The tools a room switches on are in the same list, beside the built-in ones; they have no `/` names, and a guidance tool's text comes back to Claude, which answers in the same turn (`tool guidance` in the log). The log has `mcp server listening {port}`, `mcp tool {tool, asker, userId, ms, isError}` and, in `claude answered`, `tools: [{tool, ms, isError}]`.
 
 ## What the bot remembers
 
-`update_memory` (`src/mcp/update-memory.ts`) has no `/` name: Claude calls it when something said is worth keeping past this question. It writes one of two kinds of file, both read on every use and editable by hand:
+`update_memory` (`src/app/tools/update-memory.ts`) has no `/` name: Claude calls it when something said is worth keeping past this question. It writes one of two kinds of file, both read on every use and editable by hand:
 
 - the room's `data/<房间号>/memory.md` (`scope: "room"`): running jokes, the room's rules, who the regulars are. Only the streamer and admins can change it; anyone else's call says so. It's in every prompt as `{{memory}}`, together with the streamer's note.
 - one person's `data/<房间号>/<user id>/note.md` (`scope: "note"`), next to their `talk.txt`: what to call them, songs they like, what they agreed with the bot. The program picks the file from who asked, so nobody writes into someone else's. A viewer's note is in the prompts that answer or thank them (`{{askerNote}}`); the streamer's (by `room_config.json`'s `streamer.uid`, or room-feed's word once it has it) is in every prompt, as viewers ask about them. In a 私密 room viewers can't be told apart, so their notes are neither written nor read; the streamer's still is.
@@ -286,35 +286,35 @@ The changes are the tool's add / replace / remove, checked the same way (the lim
 
 ## Where they're defined
 
-Each tool is a `BotTool` in `src/mcp/`; `src/wiring/mcp.ts` lists them, in the order the help shows them. The ones a room switches on are folders in `src/mcp/tools/`, built by `src/mcp/declarative-tools.ts` and loaded by `src/adapters/files/tool-files.ts`.
+Each tool is a `BotTool` in `src/app/tools/`; `src/wiring/mcp.ts` lists them, in the order the help shows them. The ones a room switches on are folders in `chat-bot/tools/`, built by `src/app/tools/declarative-tools.ts` and loaded by `src/adapters/files/tool-files.ts`.
 
-| Tool                       | Defined in                                                                                                     |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `set_auto_reply_threshold` | `settingTool`, from its entry in `SETTINGS`                                                                    |
-| `set_auto_reply_interval`  | `settingTool`, from its entry in `SETTINGS`                                                                    |
-| `set_max_reply_parts`      | `settingTool`, from its entry in `SETTINGS`                                                                    |
-| `set_thanks_threshold`     | `settingTool`, from its entry in `SETTINGS`                                                                    |
-| `set_screenshots`          | `settingTool`, from its entry in `SETTINGS`                                                                    |
-| `identify_song`            | `src/mcp/identify-song.ts`                                                                                     |
-| `identify_bgm`             | `src/mcp/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`                                            |
-| `press_like`               | `src/mcp/press-like.ts`, which asks room-feed's `POST …/like`                                                  |
-| `send_fans_lamp`           | `src/mcp/fans-lamp.ts`, which asks room-feed's `POST …/fans-lamp`                                              |
-| `send_heart`               | `src/mcp/heart.ts`, through `HeartGate` (`src/app/tools/heart-gate.ts`), which asks room-feed's `POST …/heart` |
-| `send_happy_heart`         | `src/mcp/happy-heart.ts`, through the same `HeartGate`                                                         |
-| `ask_about_puzzle`         | `src/mcp/ask-about-puzzle.ts`                                                                                  |
-| `set_auto_song_id`         | `settingTool`, from its entry in `SETTINGS`                                                                    |
-| `set_malice_watch`         | `settingTool`, from its entry in `SETTINGS`                                                                    |
-| `set_happy_heart`          | `settingTool`, from its entry in `SETTINGS`                                                                    |
-| `can_sing`                 | `src/mcp/tools/can-sing/` (`tool.json`, `guidance.md`)                                                         |
-| `too_easy`                 | `src/mcp/tools/too-easy/` (`tool.json`, `guidance.md`)                                                         |
-| `wants_topic`              | `src/mcp/tools/wants-topic/` (`tool.json`)                                                                     |
-| `say_one`                  | `src/mcp/tools/say-one/` (`tool.json`)                                                                         |
-| `schedule`                 | `src/mcp/tools/schedule/` (`tool.json`, `guidance.md`)                                                         |
+| Tool                       | Defined in                                                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `set_auto_reply_threshold` | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_auto_reply_interval`  | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_max_reply_parts`      | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_thanks_threshold`     | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_screenshots`          | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `identify_song`            | `src/app/tools/identify-song.ts`                                                                                     |
+| `identify_bgm`             | `src/app/tools/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`                                            |
+| `press_like`               | `src/app/tools/press-like.ts`, which asks room-feed's `POST …/like`                                                  |
+| `send_fans_lamp`           | `src/app/tools/fans-lamp.ts`, which asks room-feed's `POST …/fans-lamp`                                              |
+| `send_heart`               | `src/app/tools/heart.ts`, through `HeartGate` (`src/app/tools/heart-gate.ts`), which asks room-feed's `POST …/heart` |
+| `send_happy_heart`         | `src/app/tools/happy-heart.ts`, through the same `HeartGate`                                                         |
+| `ask_about_puzzle`         | `src/app/tools/ask-about-puzzle.ts`                                                                                  |
+| `set_auto_song_id`         | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_malice_watch`         | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_happy_heart`          | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `can_sing`                 | `chat-bot/tools/can-sing/` (`tool.json`, `guidance.md`)                                                              |
+| `too_easy`                 | `chat-bot/tools/too-easy/` (`tool.json`, `guidance.md`)                                                              |
+| `wants_topic`              | `chat-bot/tools/wants-topic/` (`tool.json`)                                                                          |
+| `say_one`                  | `chat-bot/tools/say-one/` (`tool.json`)                                                                              |
+| `schedule`                 | `chat-bot/tools/schedule/` (`tool.json`, `guidance.md`)                                                              |
 
 ## Adding one
 
-A `BotTool` in `src/mcp/` with `commands: [{ name, parse, say }]` for its `/` name, listed in `src/wiring/mcp.ts`. A setting is one entry in `SETTINGS` (`src/core/commands/settings.ts`): its default and bounds as a zod schema, its flag, its `/` command, tool name, description and usage, and the line `{{settings}}` shows. `settingTool('muted', { settings, log })` builds its tool, `cli-options.ts` its flag and `settingsFrom` its check of room_config.json from that entry, and features read it with `settings.get().muted`.
+A `BotTool` in `src/app/tools/` with `commands: [{ name, parse, say }]` for its `/` name, listed in `src/wiring/mcp.ts`. A setting is one entry in `SETTINGS` (`src/core/commands/settings.ts`): its default and bounds as a zod schema, its flag, its `/` command, tool name, description and usage, and the line `{{settings}}` shows. `settingTool('muted', { settings, log })` builds its tool, `cli-options.ts` its flag and `settingsFrom` its check of room_config.json from that entry, and features read it with `settings.get().muted`.
 
 Then add a row to the tables at the top (the `/` name, the tool's name and the `room_config.json` field; `tests/core/commands/settings.test.ts` checks that every setting has them), and test its feature with `fakeSettings()` (`tests/support/fake-settings.ts`).
 
-A declarative tool, one a room can switch on, is a folder in `src/mcp/tools/` with a `tool.json` (and a `guidance.md` unless it has a `fixedReply`); add a row for it to the table in [Tools a room switches on](#tools-a-room-switches-on) (a test checks that the table and the folders agree), and a room switches it on in its `room_config.json`. Put nothing about one room in it: what differs per room goes in `data/<房间号>/tools/<folder>/` (or `artifacts/`) and is read with `{{file:…}}` in the guidance.
+A declarative tool, one a room can switch on, is a folder in `chat-bot/tools/` with a `tool.json` (and a `guidance.md` unless it has a `fixedReply`); add a row for it to the table in [Tools a room switches on](#tools-a-room-switches-on) (a test checks that the table and the folders agree), and a room switches it on in its `room_config.json`. Put nothing about one room in it: what differs per room goes in `data/<房间号>/tools/<folder>/` (or `artifacts/`) and is read with `{{file:…}}` in the guidance.

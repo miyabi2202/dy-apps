@@ -1,5 +1,6 @@
-import { errorMessage } from '../core/errors';
-import type { BotTool, Log, SendFansLamp } from '../app/ports';
+import { errorMessage } from '../../core/errors';
+import type { Log, SendFansLamp } from '../ports';
+import type { BotTool } from '../../core/tools/bot-tool';
 
 /**
  * `send_fans_lamp`: sends the streamer today's 粉丝团灯牌 (2 diamonds) as the bot's account, which

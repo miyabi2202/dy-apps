@@ -150,7 +150,7 @@ export default tseslint.config(
           zones: [
             {
               target: './core',
-              from: ['./app', './adapters', './mcp'],
+              from: ['./app', './adapters'],
               message: 'core is pure logic: it imports only core.',
             },
             {
@@ -162,12 +162,6 @@ export default tseslint.config(
               target: ['./core', './app', './adapters'],
               from: ['./*.ts', './wiring/**'],
               message: 'Only the entry imports main.ts, cli-options.ts and wiring/.',
-            },
-            {
-              target: './app',
-              from: './mcp',
-              message:
-                'app never imports mcp: tools reach app through the interfaces in app/ports.ts.',
             },
             {
               target: './adapters',

@@ -1,5 +1,5 @@
-import { updateMemoryTool } from '../../src/mcp/update-memory';
-import { fakeMemory, noteFile, ROOM_FILE } from '../support/fake-memory';
+import { updateMemoryTool } from '../../../src/app/tools/update-memory';
+import { fakeMemory, noteFile, ROOM_FILE } from '../../support/fake-memory';
 
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} };
 

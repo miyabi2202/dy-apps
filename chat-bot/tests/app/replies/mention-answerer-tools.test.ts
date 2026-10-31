@@ -1,12 +1,6 @@
 import { MentionAnswerer, type Mention } from '../../../src/app/replies/mention-answerer';
-import type {
-  Admins,
-  BotTools,
-  Question,
-  ToolCall,
-  ToolContext,
-  ToolSession,
-} from '../../../src/app/ports';
+import type { Admins, BotTools, Question } from '../../../src/app/ports';
+import type { ToolCall, ToolContext, ToolSession } from '../../../src/core/tools/bot-tool';
 import { fakeRoom } from '../../support/fake-room';
 import { NOW, fakeOutbox, silentLog } from '../../support/fakes';
 

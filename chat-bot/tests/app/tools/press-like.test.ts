@@ -1,16 +1,21 @@
-import { pressLikeTool } from '../../src/mcp/press-like';
-import { silentLog } from '../support/fakes';
+import { MAX_LIKES } from '@dy-apps/room-feed-protocol';
+import { pressLikeTool } from '../../../src/app/tools/press-like';
+import { silentLog } from '../../support/fakes';
 
 const context = { asker: '雅', question: '' };
 
 /** A room-feed that gives the likes asked, unless Douyin's 手速太快了 stops it at `cut`. */
 function setup(cut = Infinity) {
   const asked: number[] = [];
-  const tool = pressLikeTool((likes) => {
-    asked.push(likes);
-    const liked = Math.min(likes, cut);
-    return Promise.resolve({ liked, heldMs: liked * 200, tooFast: liked < likes });
-  }, silentLog);
+  const tool = pressLikeTool(
+    (likes) => {
+      asked.push(likes);
+      const liked = Math.min(likes, cut);
+      return Promise.resolve({ liked, heldMs: liked * 200, tooFast: liked < likes });
+    },
+    silentLog,
+    MAX_LIKES,
+  );
   return { tool, asked };
 }
 
@@ -57,6 +62,7 @@ test('likes out of range, or a room-feed that fails, are error results', async (
   const broken = pressLikeTool(
     () => Promise.reject(new Error('直播间的弹幕连接还没建立')),
     silentLog,
+    MAX_LIKES,
   );
   expect(await broken.call({ likes: 20 }, context)).toEqual({
     text: '现在点不了赞，请稍后再试',

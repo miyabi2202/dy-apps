@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { SETTINGS, type Settings } from '../../core/commands/settings';
-import type { BotTool, Log, SettingsStore } from '../ports';
+import type { Log, SettingsStore } from '../ports';
+import type { BotTool } from '../../core/tools/bot-tool';
 
 /**
  * The tool that changes one setting, built from its entry in SETTINGS: its name, `/` command,

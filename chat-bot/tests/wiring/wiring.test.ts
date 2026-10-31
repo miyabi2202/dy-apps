@@ -446,7 +446,7 @@ test('/开心送心, which only admins have, offers send_happy_heart to anyone w
   app.stop();
 });
 
-test('the tools a room switches on are built from src/mcp/tools, beside the built-in ones', () => {
+test('the tools a room switches on are built from chat-bot/tools, beside the built-in ones', () => {
   const bot = build(
     ['--no-asr', '--codex', ''],
     {},
@@ -491,7 +491,7 @@ test('every tool with a / name is in the table of docs/commands.md, and the tabl
   expect(documented).toEqual(built);
 });
 
-test("every declarative tool in src/mcp/tools is in docs/commands.md's installable table, and the table names only tools there are", () => {
+test("every declarative tool in chat-bot/tools is in docs/commands.md's installable table, and the table names only tools there are", () => {
   const warned: string[] = [];
   const log: Log = {
     debug() {},
@@ -499,7 +499,7 @@ test("every declarative tool in src/mcp/tools is in docs/commands.md's installab
     warn: (message) => void warned.push(message),
     error() {},
   };
-  const defined = loadToolDefinitions(join(PACKAGE_DIR, 'src', 'mcp', 'tools'), {
+  const defined = loadToolDefinitions(join(PACKAGE_DIR, 'tools'), {
     roomDir: mkdtempSync(join(tmpdir(), 'chat-bot-tools-')),
     log,
   });

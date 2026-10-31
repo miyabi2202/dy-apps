@@ -21,7 +21,7 @@ export interface ToolFilesOptions {
 }
 
 /**
- * The declarative tools in `toolsDir` (src/mcp/tools/), one folder each: its `tool.json` says what
+ * The declarative tools in `toolsDir` (chat-bot/tools/), one folder each: its `tool.json` says what
  * the tool is (see parseToolDefinition) and its guidance file, read again on every call, is what
  * Claude gets back, with each `{{file:<path>}}` in it replaced by that file in the room's folder
  * (`{{file:artifacts/songs.txt}}`, the song list, say), each `{{file?:<path>}}` the same but

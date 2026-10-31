@@ -156,7 +156,7 @@ base: fairy
 
 ## 工具：打开、配置、给它资料
 
-比如「主播会唱 xxx 吗」「主播什么时候播」。观众不用打 `/`，正常问就行，机器人自己判断这条是不是在问这个。工具是仓库里定义的（`chat-bot/src/mcp/tools/<文件夹>/`：`tool.json` 写说明、规矩和什么话会让它去看，通常还有 `guidance.md` 写怎么回答；字段见 `docs/commands.md`），所有直播间共用。直播间只做三件事：打开哪些工具，给它们资料，需要时看日志。
+比如「主播会唱 xxx 吗」「主播什么时候播」。观众不用打 `/`，正常问就行，机器人自己判断这条是不是在问这个。工具是仓库里定义的（`chat-bot/tools/<文件夹>/`：`tool.json` 写说明、规矩和什么话会让它去看，通常还有 `guidance.md` 写怎么回答；字段见 `docs/commands.md`），所有直播间共用。直播间只做三件事：打开哪些工具，给它们资料，需要时看日志。
 
 ### 打开
 
@@ -229,7 +229,7 @@ base: fairy
 
 ### 新工具要改仓库
 
-一个新的工具是 `chat-bot/src/mcp/tools/<文件夹>/` 里的 `tool.json`（和 `guidance.md`），见 `docs/commands.md` 的「Adding one」。`description` 和 `listen.when` 是 Claude、Jev 和 Codex 读到的，所以：先一句话说清楚问的是什么，再补上容易判断错的情况（比如 can_sing 的写了：观众常用昵称、外号叫主播；弹幕常有错别字；主播正在唱的就是被问的那首才算回答过；机器人刚回答过别的歌单问题，再问新的照常算）。`reply-pick.md` 只有通用的规则，和具体工具有关的都写在 `listen.when` 里。
+一个新的工具是 `chat-bot/tools/<文件夹>/` 里的 `tool.json`（和 `guidance.md`），见 `docs/commands.md` 的「Adding one」。`description` 和 `listen.when` 是 Claude、Jev 和 Codex 读到的，所以：先一句话说清楚问的是什么，再补上容易判断错的情况（比如 can_sing 的写了：观众常用昵称、外号叫主播；弹幕常有错别字；主播正在唱的就是被问的那首才算回答过；机器人刚回答过别的歌单问题，再问新的照常算）。`reply-pick.md` 只有通用的规则，和具体工具有关的都写在 `listen.when` 里。
 
 ### 占位符
 
@@ -321,10 +321,10 @@ Love Story｜Taylor Swift｜英语
 
 ## 改了要不要重启
 
-| 文件                                                                                                                                                                                                                                                                                                                                                              | 改了马上生效？   |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `memory.md`、`<用户 id>/note.md`、`personas/` 里的人设文件、`chat-bot/prompts/personas/` 里的共用人设、`room_config.json` 的 `persona`、`room_config.json` 的 `tools`、`tools/` 里的资料、`chat-bot/src/mcp/tools/` 里的 `tool.json` 和 `guidance.md`、`room_config.json` 的 `streamerNames`、`artifacts/` 里的文件、`room_config.json` 的 `private` 和 `on_sing` | ✓ 每次用都重新读 |
-| `room_config.json` 的 `download`                                                                                                                                                                                                                                                                                                                                  | ✗ 只在启动时读   |
+| 文件                                                                                                                                                                                                                                                                                                                                                      | 改了马上生效？   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `memory.md`、`<用户 id>/note.md`、`personas/` 里的人设文件、`chat-bot/prompts/personas/` 里的共用人设、`room_config.json` 的 `persona`、`room_config.json` 的 `tools`、`tools/` 里的资料、`chat-bot/tools/` 里的 `tool.json` 和 `guidance.md`、`room_config.json` 的 `streamerNames`、`artifacts/` 里的文件、`room_config.json` 的 `private` 和 `on_sing` | ✓ 每次用都重新读 |
+| `room_config.json` 的 `download`                                                                                                                                                                                                                                                                                                                          | ✗ 只在启动时读   |
 
 ## 看日志确认
 

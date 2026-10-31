@@ -1,6 +1,7 @@
-import { errorMessage } from '../core/errors';
-import type { BotTool, Log } from '../app/ports';
-import type { HeartGate } from '../app/tools/heart-gate';
+import { errorMessage } from '../../core/errors';
+import type { Log } from '../ports';
+import type { BotTool } from '../../core/tools/bot-tool';
+import type { HeartGate } from './heart-gate';
 
 /** What Claude is told after it sent one: nothing to say about it. */
 const SENT = '送出了一个小心心。回答里不用提这件事。';
