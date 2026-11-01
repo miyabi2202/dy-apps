@@ -20,6 +20,10 @@ export class MemoryStore implements DataStore {
     this.files.set(path, (this.files.get(path) ?? '') + text);
   }
 
+  remove(path: string): void {
+    this.files.delete(path);
+  }
+
   list(dir: string): string[] {
     const prefix = dir.endsWith('/') ? dir : `${dir}/`;
     return [...this.files.keys()].filter((path) => path.startsWith(prefix)).sort();

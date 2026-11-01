@@ -15,6 +15,7 @@ import { MediaStore } from './adapters/media-store';
 import { spawnOcr } from './adapters/ocr-worker';
 import { isPortListening } from './adapters/port-check';
 import { BrowseRun, type Step } from './app/browse-run';
+import { DraftReview } from './app/draft-review';
 import { DraftStore } from './app/draft-store';
 import { FeedLog, Trends, WatchedLog } from './app/feed-logs';
 import { FeedRun } from './app/feed-run';
@@ -173,7 +174,17 @@ async function main(): Promise<number> {
     return built;
   };
 
+  // The automatic review of the drafts: the web-enabled Claude, a pass of its own. No browser.
+  const review = new DraftReview({ bot, data, ask: askWeb, log, now });
+
   const steps: Step[] = [];
+  const undoDate = options.undoReview;
+  if (undoDate) {
+    steps.push({
+      name: `撤回 ${undoDate} 的自动审核`,
+      run: () => Promise.resolve(void review.undo(undoDate)),
+    });
+  }
   if (options.streamer) {
     const roomId = options.streamer;
     steps.push({
@@ -254,27 +265,39 @@ async function main(): Promise<number> {
       },
     });
   }
-  // Last: her reflection on what the run read, when it read enough. A failed one is only logged.
-  steps.push({
-    name: '感想',
-    run: async () => {
-      const reflection = new Reflection({
-        ask,
-        persona: () =>
-          [`${PERSONA}/persona.md`, `${PERSONA}/life.md`]
-            .map((file) => personas.read(file) ?? '')
-            .join('\n\n'),
-        data,
-        bot,
-        questions,
-        log,
-        now,
-      });
-      await reflection.reflect(digest).catch((e: unknown) => {
-        log(`reflection failed {why: ${e instanceof Error ? e.message : String(e)}}`);
-      });
-    },
-  });
+  // After the browsing, so this run's drafts are reviewed too.
+  if (options.review) {
+    const folder = options.review.folder;
+    steps.push({
+      name: `审核草稿${folder ? ` ${folder}` : ''}`,
+      run: async () => void (await review.run(folder)),
+    });
+  }
+  // Last: her reflection on what the run read, when it read enough (only when it browsed). A failed
+  // one is only logged.
+  const browsed =
+    options.feed || !!options.streamer || options.topics.length > 0 || !!options.knowledge;
+  if (browsed)
+    steps.push({
+      name: '感想',
+      run: async () => {
+        const reflection = new Reflection({
+          ask,
+          persona: () =>
+            [`${PERSONA}/persona.md`, `${PERSONA}/life.md`]
+              .map((file) => personas.read(file) ?? '')
+              .join('\n\n'),
+          data,
+          bot,
+          questions,
+          log,
+          now,
+        });
+        await reflection.reflect(digest).catch((e: unknown) => {
+          log(`reflection failed {why: ${e instanceof Error ? e.message : String(e)}}`);
+        });
+      },
+    });
 
   const cleanup = async () => {
     await reader.close();

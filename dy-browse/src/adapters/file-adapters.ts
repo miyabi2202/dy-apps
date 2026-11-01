@@ -42,6 +42,10 @@ export class FileDataStore implements DataStore {
     appendFileSync(full, text);
   }
 
+  remove(path: string): void {
+    rmSync(this.resolve(path), { force: true });
+  }
+
   list(dir: string): string[] {
     return walk(this.resolve(dir)).map((file) => relative(this.root, file));
   }

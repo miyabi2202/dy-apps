@@ -98,4 +98,23 @@ describe('parseOptions', () => {
   it('lets --help stand alone', () => {
     expect(parseOptions(['--help']).help).toBe(true);
   });
+
+  it('takes --review with or without a folder, and --undo-review with a date', () => {
+    expect(parseOptions(['--review'])).toMatchObject({
+      review: { folder: null },
+      undoReview: null,
+    });
+    expect(parseOptions(['--review', 'douyin', '--feed'])).toMatchObject({
+      review: { folder: 'douyin' },
+      feed: true,
+    });
+    expect(parseOptions(['--review=douyin']).review).toEqual({ folder: 'douyin' });
+    expect(parseOptions(['--knowledge', '--review']).knowledge).toEqual({ folder: null });
+    expect(parseOptions(['--undo-review', '2026-11-01'])).toMatchObject({
+      undoReview: '2026-11-01',
+      review: null,
+    });
+    expect(() => parseOptions(['--undo-review', 'yesterday'])).toThrow(UsageError);
+    expect(parseOptions(['--feed']).review).toBeNull();
+  });
 });

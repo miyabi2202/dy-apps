@@ -18,6 +18,8 @@ export interface DataStore {
   read(path: string): string | null;
   write(path: string, text: string): void;
   append(path: string, text: string): void;
+  /** Deletes the file; nothing when it isn't there. */
+  remove(path: string): void;
   /** The files under `dir` (paths relative to the data folder, recursive); empty when none. */
   list(dir: string): string[];
 }
