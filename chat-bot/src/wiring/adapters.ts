@@ -7,6 +7,7 @@ import { connectWorker } from '../adapters/asr-worker';
 import { embeddingClient } from '../adapters/embedding/embedding-client';
 import { claudeCli } from '../adapters/models/claude-cli';
 import { codexCli } from '../adapters/models/codex-cli';
+import { ffmpegCrop } from '../adapters/models/ffmpeg-crop';
 import { roomFeedEvents } from '../adapters/room-feed/room-feed-events';
 import { RoomFeedApi } from '../adapters/room-feed/room-feed-api';
 import { jev } from '../adapters/models/jev';
@@ -24,13 +25,13 @@ import {
   MEMORY,
   NETEASE,
   OPTIONS,
-  PACKAGE_DIR,
   ROOM_API,
   ROOM_CONFIG,
   ROOM_DIR,
   ROOM_EVENTS,
   ROOM_FILES,
   SPAWN_WORKER,
+  CROP_IMAGE,
   EMBEDDER,
 } from './tokens';
 
@@ -52,6 +53,7 @@ export function registerAdapters(container: Container): void {
     // The speech service, started by hand before the bot, keeps its models loaded across restarts
     // of the bot: connect to it.
     .register(SPAWN_WORKER, (c) => connectWorker({ port: c.resolve(OPTIONS).asrPort }))
+    .register(CROP_IMAGE, () => ffmpegCrop())
     // The embedding service, started by hand like the speech service; the bot does without it.
     .register(EMBEDDER, (c) => {
       const port = c.resolve(OPTIONS).embeddingPort;
@@ -67,9 +69,9 @@ export function registerAdapters(container: Container): void {
         readDirs: [c.resolve(CHAT_DIR), c.resolve(MEMORY).readDir()],
         model: options.model,
         systemPrompt: options.systemPrompt,
-        // Zooming into a screenshot can make an answer take a minute or two.
+        // Searching the web and reading the record can take a minute or two; a question with the
+        // bot's tools (look_at_screen…) is given longer (see MentionAnswerer).
         timeoutMs: 240_000,
-        zoom: zoomServer(c.resolve(PACKAGE_DIR)),
       });
     })
     .register(CODEX_CLI, (c) => {
@@ -114,8 +116,9 @@ export function registerAdapters(container: Container): void {
 }
 
 /**
- * With a screenshot, Claude and Codex may zoom into part of it to read small figures and text
- * (src/adapters/models/zoom-mcp.ts, an MCP server cropping with ffmpeg).
+ * With a puzzle's screenshot, Codex may zoom into part of it to read small figures and text
+ * (src/adapters/models/zoom-mcp.ts, an MCP server cropping with ffmpeg). Claude zooms with the
+ * bot's own look_at_screen instead.
  */
 export function zoomServer(packageDir: string) {
   return {

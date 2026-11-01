@@ -1,7 +1,5 @@
 import { Outbox } from '../../../src/app/replies/outbox';
-import type { Log } from '../../../src/app/ports';
-
-const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
+import { silentLog } from '../../support/fakes';
 
 test('sends replies, then system messages, then unprompted talk, at least the interval apart, past a failed send', async () => {
   let now = 0;

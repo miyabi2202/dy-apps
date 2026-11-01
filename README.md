@@ -49,12 +49,16 @@ frontend/                 # @dy-apps/frontend: the one package
 chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (see "Chat bot" below)
   docs/commands.md        #   every /command and its tool, the tools a room switches on, how auto-reply listens for them
   prompts/                #   every text the models are sent, read on every use
-    prompt.md             #     the prompt sent to Claude: {{history}}, {{transcript}}, {{asker}}, {{question}}, …
+    prompt.md             #     the prompt sent to Claude: {{history}}, {{transcript}}, {{asker}}, {{asked}}, …
     song-id.md            #     the prompt for /识歌 (Codex)
     solve.md              #     the prompt for ask_about_puzzle, /解题 (Codex)
     gift-thanks.md        #     the prompt for thanking big givers
     reply-pick.md         #     the prompt for picking whom to answer unprompted
     malice.md             #     the prompt for spotting malicious chat (Codex)
+    remember-notes.md     #     `pnpm remember`'s prompt for changes to viewers' notes
+    remember-room.md      #     `pnpm remember`'s prompt for changes to the room's memory.md and the stream's summary
+    remember-thoughts.md  #     `pnpm remember`'s prompt for the bot's own thoughts about the stream
+    life.md               #     the prompt for the bot's own days (data/lives/)
     intro.md              #     what the bot says about itself when asked (in prompt.md)
     limitations.md        #     what it can't do and why, for when viewers notice (in prompt.md)
     wording.md            #     the sentences the program says to Jev, Codex and Claude around what it fills in (asked, relevance, song notes…)
@@ -63,14 +67,14 @@ chat-bot/                 # @dy-apps/chat-bot: command-line bot, run with tsx (s
     personas/             #     shared personas a room's persona file can build on, a folder each (fairy/: persona.md, life.md)
   config.json             #   admins (user ids) and what viewers call them (adminNames)
   src/main.ts             #   entry: options (cli-options.ts), the container built, started and stopped
-  src/wiring/             #   the IoC container (container.ts), what each area registers in it (models, room, auto-reply, songs, malice, transcriber, bot) and the FEATURES that subscribe to the room when the app starts (features.ts)
+  src/wiring/             #   the IoC container (container.ts), what each area registers in it (adapters, models, room, auto-reply, songs, malice, transcriber, bot, mcp, life, app) and the FEATURES that subscribe to the room when the app starts (features.ts)
   src/core/               #   pure logic: mentions, prompt, reply splitting, viewer ids, chat record and talk record formats
   src/app/                #   use cases: ChatBot (/ commands to tools, questions to the answerer), RoomFeed (chat and gifts in), MentionAnswerer (questions to Claude), RoomState (what prompts know about the room), BotNames, Screenshots and SongSpans (what was carved out of it), Outbox, Transcriber; ports.ts for the outside
   src/adapters/           #   room-feed, the Claude CLI, the ASR process, files and logging
   src/app/tools/          #   the bot's tools for Claude (identify-song.ts, identify-bgm.ts, press-like.ts…, setting-tool.ts) and the declarative-tools.ts that builds the ones from tools/
   src/adapters/mcp/       #   the MCP server in the bot's process that gives the tools to Claude (server.ts on the official @modelcontextprotocol/sdk, session.ts)
   tools/                  #   declarative tools (tool.json + guidance.md per folder) a room switches on in its room_config.json
-  scripts/                #   offline tools over logs/: song-breaks-replay.ts (`pnpm replay:song-breaks`), where lyrics would end each named song; shazam-windows.py, what Shazam hears in a recording, window by window
+  scripts/                #   offline tools over logs/: song-breaks-replay.ts (`pnpm replay:song-breaks`), where lyrics would end each named song; shazam-windows.py, what Shazam hears in a recording, window by window; song-break-sources.py and backing-features.py, trying song break sources on a recording; record-stream.sh, recording a room's audio while the bot is in it
   asr/                    #   Python (uv) speech-to-text worker: ffmpeg + fsmn-vad + FireRedLID + FireRedASR2-AED/SenseVoice + AST + ERes2Net
   embedding/              #   Python (uv) text-embedding service (Qwen3-Embedding) for recalling the older memories that fit what's being said
   embedding-eval/         #   which local embedding model recalls Chinese room memories best (test set, results)

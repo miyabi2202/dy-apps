@@ -10,7 +10,6 @@ export function fakeRoom(options: Partial<RoomStateOptions> = {}): RoomState {
     history: new ChatHistory(100),
     names: fakeNames(),
     wording: testWording,
-    // The real default has screenshots off; a test of a prompt with a picture turns them on itself.
     settings: fakeSettings(),
     ...options,
   });

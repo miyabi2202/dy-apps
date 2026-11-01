@@ -13,18 +13,16 @@ export interface Settings {
   autoReplyThreshold: number;
   /** Seconds it keeps quiet after talking unprompted; 0 doesn't wait (`/自动回复间隔`). */
   autoReplyIntervalSeconds: number;
-  /** Seconds between two things Claude says to the room unprompted (auto message); 0 off (`/自动消息间隔`). */
-  autoMessageIntervalSeconds: number;
+  /** How likely any chat (not the bot's) is handed to Claude to join in on, or not; 0 never (`/随机回复`). */
+  randomReplyChance: number;
   /** Viewers whose gifts within 5 minutes pass this many diamonds are thanked (`/自动谢礼`). */
   thanksThreshold: number;
   /** Whether it names the songs the streamer sings without being asked (`/自动识歌`). */
   autoSongId: boolean;
-  /** Whether it @s viewers who keep posting malicious chat (`/识别恶意言论`). */
+  /** Whether it @s a viewer whose chat is found malicious (`/识别恶意言论`). */
   maliceWatch: boolean;
   /** Whether it may send the streamer a 小心心 of its own accord when she makes it happy (`/开心送心`). */
   happyHeart: boolean;
-  /** Whether prompts get a screenshot of the live video (`/截图`). */
-  screenshots: boolean;
   /** The most messages one @'s answer is split into (`/最大回复条数`, `--max-parts`). */
   maxReplyParts: number;
   /** How hard Codex thinks about a puzzle (`ask_about_puzzle`); nothing but the file sets it. */
@@ -151,17 +149,22 @@ export const SETTINGS: { [K in keyof Settings]: SettingSpec<Settings[K]> } = {
       },
     },
   ),
-  autoMessageIntervalSeconds: numberSetting(
+  randomReplyChance: numberSetting(
     0,
-    { integer: true, min: 0, describe: '秒数；0 关闭' },
+    { min: 0, max: 1, describe: '0 到 1 的小数；0 关闭' },
     {
       tool: {
-        name: 'set_auto_message_interval',
-        command: '自动消息间隔',
+        name: 'set_random_reply_chance',
+        command: '随机回复',
         description:
-          '改自动消息的间隔：每隔多少秒，机器人看一眼直播间（主播说的、弹幕），自己发一条弹幕（没什么可说就不发），0 关闭。和自动回复无关。',
-        usage: '间隔要写成秒数，0 表示关闭，用法：/自动消息间隔 300',
-        arg: 'seconds',
+          '改随机回复的概率：直播间每条弹幕（机器人自己的不算，主播的算）都有这么大的机会交给机器人，由它决定接不接一句，0 到 1，0 关闭。和自动回复无关。有人要开、关随机回复或改概率时调用（「随机回复开到一成」填 0.1）。',
+        usage: '概率要写成 0 到 1 之间的小数，0 表示关闭，用法：/随机回复 0.1',
+        arg: 'chance',
+      },
+      prompt: {
+        order: 3,
+        line: ({ randomReplyChance }) =>
+          `- 随机回复：${randomReplyChance > 0 ? `开（每条弹幕有 ${+(Math.min(randomReplyChance, 1) * 100).toFixed(1)}% 的机会交给你，没人跟你说话也可以接一句，不想接就不接）` : '关闭'}`,
       },
     },
   ),
@@ -179,7 +182,7 @@ export const SETTINGS: { [K in keyof Settings]: SettingSpec<Settings[K]> } = {
         extra: (diamonds: number) => ({ on: diamonds < THANKS_OFF_FROM }),
       },
       prompt: {
-        order: 3,
+        order: 4,
         line: ({ thanksThreshold }) =>
           `- 自动谢礼：${thanksThreshold >= THANKS_OFF_FROM ? '关闭' : `5 分钟内送礼超过 ${thanksThreshold} 钻的观众会收到感谢`}`,
       },
@@ -195,7 +198,7 @@ export const SETTINGS: { [K in keyof Settings]: SettingSpec<Settings[K]> } = {
       arg: 'on',
     },
     prompt: {
-      order: 4,
+      order: 5,
       line: ({ autoSongId }) =>
         `- 自动识歌：${autoSongId ? '开（主播唱歌时，你会自己认出是什么歌并说出来）' : '关闭'}`,
     },
@@ -218,22 +221,6 @@ export const SETTINGS: { [K in keyof Settings]: SettingSpec<Settings[K]> } = {
         '开关开心送心：开着时，主播让机器人真心开心了（夸它、唱得特别好），它会自己给主播送一个小心心（1 钻，4 分钟最多一个）。',
       usage: '要写 0（关闭）或 1（打开），用法：/开心送心 1',
       arg: 'on',
-    },
-  }),
-  screenshots: switchSetting(false, {
-    flag: 'screenshot',
-    tool: {
-      name: 'set_screenshots',
-      command: '截图',
-      description:
-        '开关直播画面截图：开着时每个问题都带一张截图给你看。有人要你看画面、看题、看板书，或要关掉时调用。',
-      usage: '要写 0（关闭）或 1（打开），用法：/截图 1',
-      arg: 'on',
-    },
-    prompt: {
-      order: 1,
-      line: ({ screenshots }) =>
-        `- 截图：${screenshots ? '开（你能看到直播画面）' : '关（你看不到直播画面）'}`,
     },
   }),
   maxReplyParts: numberSetting(

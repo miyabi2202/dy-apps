@@ -12,7 +12,7 @@ interface RpcMessage {
 }
 
 export interface ZoomServerOptions {
-  /** The screenshot's size, which the tool's description tells Claude. */
+  /** The screenshot's size, which the tool's description tells Codex. */
   size: { width: number; height: number };
   /** Cuts a region out of the screenshot, enlarged; the JPEG, or why it couldn't. */
   crop: (region: Region, scale: number) => Uint8Array | string;
@@ -20,7 +20,7 @@ export interface ZoomServerOptions {
 
 /**
  * An MCP server with one tool, `zoom`: a region of the screenshot sent with the question,
- * enlarged, so Claude can read what's too small in the whole picture (a puzzle's figures,
+ * enlarged, so Codex can read what's too small in the whole picture (a puzzle's figures,
  * small text). Answers each message (null for notifications, which get none).
  */
 export function zoomServer({ size, crop }: ZoomServerOptions) {

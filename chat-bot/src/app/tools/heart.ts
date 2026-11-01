@@ -36,7 +36,7 @@ export function heartTool(hearts: HeartGate, log: Log): BotTool {
 
   return {
     name: 'send_heart',
-    description: `给主播送礼物：只能送「小心心」（1 钻），一次 1 个，${HEART_COOLDOWN_MINUTES} 分钟最多一次。有人要你送礼物、送小心心、送个心心时调用（你有这个工具，就说明问的人有权叫你送）；点名要别的礼物（比如嘉年华、玫瑰）也调用，把礼物名写进 gift，没点名就不写。灯牌不是这个，用 send_fans_lamp。要几个也只送 1 个。送了，程序什么都不发，你也什么都不用说；没送，结果会写明原因（点名的礼物送不了、${HEART_COOLDOWN_MINUTES} 分钟内送过了），你用自己的话简短告诉对方。`,
+    description: `给主播送礼物：只能送「小心心」（1 钻），一次 1 个，${HEART_COOLDOWN_MINUTES} 分钟最多一次。有人要你送礼物、送小心心、送个心心时调用（你有这个工具，就说明问的人有权叫你送）；点名要别的礼物（比如嘉年华、玫瑰）也调用，把礼物名写进 gift，没点名就不写。灯牌不是这个，用 send_fans_lamp。要几个也只送 1 个。送了，程序什么都不发，你也什么都不用说；钻石不够时程序会自己说，你也什么都不用说；别的原因没送，结果会写明（点名的礼物送不了、${HEART_COOLDOWN_MINUTES} 分钟内送过了），你用自己的话简短告诉对方。`,
     adminOnly: true,
     inputSchema: {
       type: 'object',

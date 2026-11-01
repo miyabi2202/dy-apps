@@ -3,9 +3,6 @@ import { fileMemory, type FileMemoryOptions } from '@dy-apps/room-memory';
 /** Where the room's memory.md is in a fake memory's files. */
 export const ROOM_FILE = '/room/memory.md';
 
-/** Where the room's archive of changed and removed entries is in a fake memory's files. */
-export const ARCHIVE_FILE = '/room/memory/archive.md';
-
 /** Where the room's summaries of streams are in a fake memory's files. */
 export const STREAMS_FILE = '/room/memory/streams.md';
 

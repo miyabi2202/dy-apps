@@ -8,8 +8,7 @@ import type { Alias } from '../../../src/core/viewers/alias';
 import { OutOfCreditError } from '../../../src/core/errors';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import { Transcript } from '../../../src/core/songs/transcript';
-
-const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
+import { silentLog } from '../../support/fakes';
 
 /** Scores a line about the bot (one with 机器人 in it) 0.9, anything else 0.1. */
 const judgeByWord =
@@ -538,9 +537,7 @@ function aliasSetup(
       streamer: () => ({ uid: 'host', nickname: '雅' }),
       picker: (question) => {
         asked.push(question);
-        return picks instanceof Error
-          ? Promise.reject(picks)
-          : Promise.resolve(JSON.stringify(picks));
+        return Promise.resolve(JSON.stringify(picks));
       },
       pickTemplate: () => '{{lines}}|{{aliases}}',
       ...options,
@@ -904,4 +901,63 @@ test('a chat matching the trigger of a tool with no when is answered at once, wi
   expect(ran.names('trigger matched')).toEqual([
     { tools: ['wuwa_meme'], who: '苦***', text: 'Bon voyage～' },
   ]);
+});
+
+test("each chat, the streamer's too, is handed to Claude with randomReplyChance, auto-reply off; not the bot's own, nor an @ of it", async () => {
+  const rolls = [0.1, 0.9, 0.2];
+  const ran = aliasSetup(
+    [
+      () => {
+        ran.settings.set({ randomReplyChance: 0.5 });
+        ran.call('小红', '今晚吃火锅', 'u-小红');
+        ran.call('阿明', '好饿', 'u-阿明');
+        ran.call('雅', '谢谢大家', 'host');
+        ran.call('小助手', '欢迎小红', 'bot');
+        ran.call('阿明', '@小助手 在吗', 'u-阿明');
+      },
+    ],
+    { picks: [] },
+    { threshold: 1, random: () => rolls.shift() ?? 0 },
+  );
+  await ran.autoReply.run();
+
+  expect(ran.replies.map((r) => [r.nickname, r.userId, r.question, r.heard])).toEqual([
+    ['小红', 'u-小红', '今晚吃火锅', 'random'],
+    ['雅', 'host', '谢谢大家', 'random'],
+  ]);
+  expect(rolls).toEqual([]);
+  expect(ran.names('random reply')).toEqual([
+    { who: '小红', userId: 'u-小红', text: '今晚吃火锅' },
+    { who: '雅', userId: 'host', text: '谢谢大家' },
+  ]);
+});
+
+test('at a randomReplyChance of 0 nothing is rolled; a chat picked at random is left out of the check, one calling the bot is answered as a call', async () => {
+  let rolled = 0;
+  const ran = aliasSetup(
+    [
+      () => {
+        ran.call('小红', '今晚吃火锅', 'u-小红');
+        ran.settings.set({ randomReplyChance: 1 });
+        ran.call('阿明', '好饿', 'u-阿明');
+        ran.call('小红', 'Fairy 你好', 'u-小红');
+      },
+      () => {},
+    ],
+    { picks: [] },
+    {
+      random: () => {
+        rolled++;
+        return 0;
+      },
+    },
+  );
+  await ran.autoReply.run();
+
+  expect(rolled).toBe(1);
+  expect(ran.replies.map((r) => [r.question, r.heard])).toEqual([
+    ['好饿', 'random'],
+    ['Fairy 你好', 'chat'],
+  ]);
+  expect(ran.judged).toEqual(['(1) 00:00:20 [小红] 今晚吃火锅']);
 });

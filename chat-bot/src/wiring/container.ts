@@ -39,11 +39,6 @@ export class Container {
     return this;
   }
 
-  /** Whether something is registered for `token`. */
-  has(token: Token<unknown>): boolean {
-    return this.factories.has(token);
-  }
-
   /**
    * The `token`'s thing, made now if it wasn't yet. Throws when nothing is registered for it, and
    * when making it needs itself (`a -> b -> a`): a reference that points forward is resolved

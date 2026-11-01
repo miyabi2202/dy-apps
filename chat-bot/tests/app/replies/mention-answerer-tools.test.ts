@@ -4,11 +4,10 @@ import type { ToolCall, ToolContext, ToolSession } from '../../../src/core/tools
 import { fakeRoom } from '../../support/fake-room';
 import { NOW, fakeOutbox, silentLog } from '../../support/fakes';
 
-/** An answerer with a fake tools server; `answer` is what Claude says, `use` the tools it called meanwhile. */
+/** An answerer with a fake tools server; `answer` is what Claude says. */
 function setup(
   options: {
     answer?: string;
-    use?: string[];
     fail?: boolean;
     admins?: Admins;
     calls?: ToolCall[];
@@ -19,14 +18,12 @@ function setup(
   const questions: Question[] = [];
   const opened: ToolContext[] = [];
   const events: string[] = [];
-  const used: string[] = [];
   const tools: BotTools = {
     open: (context) => {
       opened.push(context);
       events.push('open');
       const session: ToolSession = {
         access: { url: 'http://127.0.0.1:1/mcp', token: 't', tools: ['identify_song'] },
-        used: () => [...used],
         calls: () => options.calls ?? [],
         close: () => void events.push('close'),
       };
@@ -36,7 +33,6 @@ function setup(
   const answerer = new MentionAnswerer({
     ask: (question) => {
       questions.push(question);
-      used.push(...(options.use ?? []));
       return options.fail
         ? Promise.reject(new Error('claude failed'))
         : Promise.resolve(options.answer ?? JSON.stringify({ message: '你好呀' }));
@@ -182,7 +178,6 @@ test('claude answered logs the tools Claude called with their times, and an unpr
     tools: {
       open: () => ({
         access: { url: 'u', token: 't', tools: ['identify_song'] },
-        used: () => ['identify_song'],
         calls: () => calls,
         close: () => {},
       }),
@@ -205,6 +200,4 @@ test('the session is opened knowing who the asker is', async () => {
   expect(opened).toEqual([
     { asker: '阿明', userId: undefined, question: '在吗', admin: false, viewer },
   ]);
-  expect(opened[0]).not.toHaveProperty('heard');
-  expect(opened[0]).not.toHaveProperty('exclude');
 });

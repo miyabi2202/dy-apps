@@ -31,7 +31,7 @@ export function registerModels(container: Container): void {
       return (task, over) => timedAsk({ model: 'codex', task }, codex(over), log);
     })
     // ask_about_puzzle: Codex's gpt-6-astra, which on figure puzzles was faster and more often
-    // right than Claude Opus or Fable, even with their zoom tool. Both efforts are made up front;
+    // right than Claude Opus or Fable, even when they could zoom in. Both efforts are made up front;
     // `high` (the room's solveEffort) thinks harder and gets 10 minutes instead of 6.
     .register(ASK_SOLVE, (c) => {
       const codex = c.resolve(ASK_CODEX);
@@ -41,15 +41,20 @@ export function registerModels(container: Container): void {
       const models = { medium: asking('medium', 360_000), high: asking('high', 600_000) };
       return (effort) => models[effort];
     })
-    // Jev, logged per use like the models above. Auto-reply and malice watch need Jev (with
-    // JEV_API_KEY from chat-bot/.env) and Codex both; without either, the bot only talks when @ed.
+    // Jev, logged per use like the models above. Auto-reply's judge and malice watch need Jev (with
+    // JEV_API_KEY from chat-bot/.env) and Codex both; without either, the bot still answers @s,
+    // its name, focus viewers and random replies.
     .register(JUDGE, (c) => {
       const [options, log] = [c.resolve(OPTIONS), c.resolve(LOG)];
       const jevKey = c.resolve(ENV).JEV_API_KEY;
       if (!jevKey)
-        log.warn('no JEV_API_KEY in chat-bot/.env: auto-reply is off, the bot only talks when @ed');
+        log.warn(
+          'no JEV_API_KEY in chat-bot/.env: no judge, the bot answers only @s, its name, focus and random replies',
+        );
       if (!options.codex)
-        log.warn('--codex is empty: auto-reply is off, the bot only talks when @ed');
+        log.warn(
+          '--codex is empty: no judge, the bot answers only @s, its name, focus and random replies',
+        );
       const judge = jevKey && options.codex ? c.resolve(JEV_CLIENT)(jevKey) : undefined;
       return (task) => judge && timedJudge({ model: 'jev', task }, judge, log);
     });

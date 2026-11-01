@@ -3,7 +3,6 @@ import type { Container } from './container';
 import {
   ADMINS,
   APP,
-  AUTO_MESSAGE,
   AUTO_REPLY,
   BOT,
   BOT_CONFIG,
@@ -40,7 +39,6 @@ export function registerApp(container: Container): void {
     const log = c.resolve(LOG);
     const bot = c.resolve(BOT);
     const autoReply = c.resolve(AUTO_REPLY);
-    const autoMessage = c.resolve(AUTO_MESSAGE);
     const transcriber = c.resolve(TRANSCRIBER);
     const mcp = c.resolve(MCP_SERVER);
     const admins = c.resolve(ADMINS);
@@ -64,12 +62,11 @@ export function registerApp(container: Container): void {
           port: options.port,
           botName: options.botName,
           asr: options.asr,
-          screenshot: settings.screenshots,
           admins: config.admins,
           persona: room.persona,
           autoReplyThreshold: settings.autoReplyThreshold,
           autoReplyIntervalMs: settings.autoReplyIntervalSeconds * 1000,
-          autoMessageIntervalSeconds: settings.autoMessageIntervalSeconds,
+          randomReplyChance: settings.randomReplyChance,
           thanksThreshold: settings.thanksThreshold,
           autoSongId: settings.autoSongId,
         });
@@ -80,7 +77,6 @@ export function registerApp(container: Container): void {
         if (!stopping) {
           bot.start();
           void autoReply.run();
-          void autoMessage.loop();
         }
       },
       stop({ quitSpeech = false } = {}) {
@@ -90,7 +86,6 @@ export function registerApp(container: Container): void {
         for (const feature of features) feature.stop();
         transcriber?.stop({ quitService: quitSpeech });
         autoReply.stop();
-        autoMessage.stop();
         void mcp.stop();
       },
       onRoomFeedGone(handler) {

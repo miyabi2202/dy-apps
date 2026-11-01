@@ -46,7 +46,6 @@ function setup(tools: BotTool[], admins: string[] = [], logs: [string, object | 
     outbox,
     room: fakeRoom(),
     log: { ...silentLog, info: (message, meta) => void logs.push([message, meta]) },
-    isAdmin: (userId) => userId !== undefined && admins.includes(userId),
     adminNames: '雅',
     now: (() => {
       let now = 1000;
@@ -110,7 +109,7 @@ test('a name nobody has is answered with the names they may use', async () => {
     [
       tool('request_song', '点歌', {}),
       tool('clear_queue', '清空', { adminOnly: true }),
-      tool('set_screenshots', '截图', { adminOnly: true }),
+      tool('set_auto_song_id', '自动识歌', { adminOnly: true }),
     ],
     ['u-管理'],
   );
@@ -119,7 +118,7 @@ test('a name nobody has is answered with the names they may use', async () => {
 
   expect(sent).toEqual([
     '@阿明 没有指令「删库」，可用的有：点歌',
-    '@管理 没有指令「删库」，可用的有：点歌、清空、截图',
+    '@管理 没有指令「删库」，可用的有：点歌、清空、自动识歌',
   ]);
 });
 

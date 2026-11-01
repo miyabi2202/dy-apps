@@ -16,15 +16,6 @@ export function musicRequest(id: number): string {
   return JSON.stringify({ music_id: id });
 }
 
-/** A line of the worker's output as a music answer, or null when it isn't one. */
-export function parseMusicLine(text: string): MusicAnswer | null {
-  try {
-    return musicAnswerFrom(JSON.parse(text));
-  } catch {
-    return null;
-  }
-}
-
 /** A parsed line of the worker's output as a music answer, or null when it isn't one. */
 export function musicAnswerFrom(json: unknown): MusicAnswer | null {
   const line = json as { music_id?: unknown; title?: unknown; artist?: unknown; error?: unknown };

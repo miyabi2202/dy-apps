@@ -1,4 +1,3 @@
-import { AutoMessage } from '../app/replies/auto-message';
 import { AutoReply } from '../app/replies/auto-reply';
 import { GiftThanker } from '../app/replies/gift-thanker';
 import { busFeature } from '../app/feature';
@@ -9,7 +8,6 @@ import {
   BOT_NAMES,
   ASK_CLAUDE,
   ASK_CODEX,
-  AUTO_MESSAGE,
   AUTO_REPLY,
   BOT,
   BUS,
@@ -28,15 +26,16 @@ import {
 } from './tokens';
 
 /**
- * What the bot says without being @ed: joining in when talked about, thanking big givers, and the
- * room something of its own every so often (auto message).
+ * What the bot says without being @ed: joining in when talked about, or on a chat picked at random
+ * (randomReplyChance), and thanking big givers.
  */
 export function registerAutoReply(container: Container, features: FeatureRegistry): void {
   features
     .add('auto-reply', (c) => {
       const autoReply = c.resolve(AUTO_REPLY);
       return busFeature('auto-reply', c.resolve(BUS), {
-        // A chat matching a tool's listen trigger has auto-reply look now, not at its next check.
+        // A chat may be a name call, a focus viewer's, a random pick (randomReplyChance), or match a
+        // tool's listen trigger, which has auto-reply look now, not at its next check.
         chat: (chat) => autoReply.hear(chat),
         heard: (line) => autoReply.hearSpeech(line),
         // What someone says next, after the bot answered them, goes straight to the picker for a
@@ -54,7 +53,7 @@ export function registerAutoReply(container: Container, features: FeatureRegistr
     // says something. Once Jev finds something about the bot, Codex (the cheap model, no web
     // search) picks whom to answer, and each is answered like a mention (with their own talk.txt;
     // the streamer's too, by their uid). Without Codex there's no judge either, so the
-    // picker is never asked.
+    // picker is never asked; name calls, focus viewers and random replies are answered all the same.
     .register(AUTO_REPLY, (c) => {
       const options = c.resolve(OPTIONS);
       const room = c.resolve(ROOM);
@@ -104,18 +103,5 @@ export function registerAutoReply(container: Container, features: FeatureRegistr
         log: c.resolve(LOG),
       });
       return thanker;
-    })
-    // Claude says something to the room, from what's going on in it, every
-    // autoMessageIntervalSeconds (/自动消息间隔); off at 0.
-    .register(AUTO_MESSAGE, (c) => {
-      return new AutoMessage({
-        ask: c.resolve(ASK_CLAUDE)('auto-message'),
-        outbox: c.resolve(OUTBOX),
-        promptTemplate: c.resolve(PROMPT)('autoMessage'),
-        room: c.resolve(ROOM),
-        settings: c.resolve(SETTINGS),
-        maxLength: c.resolve(OPTIONS).maxReplyLength,
-        log: c.resolve(LOG),
-      });
     });
 }

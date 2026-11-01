@@ -1,7 +1,7 @@
 import { ChatLog } from '../../../src/adapters/files/chat-log-files';
 import type { Log, Worker } from '../../../src/app/ports';
 import { Transcriber } from '../../../src/app/songs/transcriber';
-import { currentSong, Transcript } from '../../../src/core/songs/transcript';
+import { Transcript } from '../../../src/core/songs/transcript';
 import { fakeBus } from '../../support/fakes';
 
 const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
@@ -125,7 +125,7 @@ test('keeps what the worker hears, giving the same worker a fresh stream URL whe
   expect(sung).toEqual(['连线 sing 声3']);
 });
 
-test('is ready once the models load, before any stream; and starts a worker that stops again', async () => {
+test('is ready once the models load, before any stream, and starts a worker again when it dies', async () => {
   let spawned = 0;
   let crash: () => void = () => {};
   const transcriber = new Transcriber({
@@ -150,6 +150,7 @@ test('is ready once the models load, before any stream; and starts a worker that
   while (spawned < 2) await new Promise((resolve) => setTimeout(resolve, 0));
   transcriber.stop();
   await running;
+  expect(spawned).toBe(2);
 });
 
 test("gives each worker the room's saved singing voice before its first stream, when there is one", async () => {
@@ -357,31 +358,6 @@ test('asks the worker what music is playing, telling a match, no match and a fai
   await expect(unanswered).rejects.toThrow('the worker did not answer');
   transcriber.stop();
   await running;
-});
-
-test('the current song starts after the last pause of over a minute between sung lines', () => {
-  const line = (s: number, text: string, speech = 0.05) => ({
-    start: s * 1000,
-    end: s * 1000 + 4000,
-    text,
-    speech,
-  });
-  const lines = [
-    line(0, 'I dream'),
-    line(10, 'I dream'),
-    line(40, '下一首唱什么呢', 0.8),
-    line(130, 'どうしようもないほどに'),
-    line(150, '救いたいだけ'),
-    line(160, '好听吗', 0.8),
-  ];
-  expect(currentSong(lines).map((l) => l.text)).toEqual([
-    'どうしようもないほどに',
-    '救いたいだけ',
-    '好听吗',
-  ]);
-  // One song throughout, or nothing sung: all of it.
-  expect(currentSong(lines.slice(0, 2))).toHaveLength(2);
-  expect(currentSong([line(0, '你好', 0.8)])).toHaveLength(1);
 });
 
 test("passes on the worker's add-ons: the backing a line was sung over, and the backing's levels", async () => {

@@ -27,13 +27,13 @@ function setup(reply: string) {
 test('asks for the schema and gives the parsed answer', async () => {
   const reply = '{"message": "好听", "title": "晴天", "artist": "", "sure": true}';
   const { ask, asked, warned, log } = setup(reply);
-  const result = await askJson(ask, { prompt: 'p', maxTurns: 3 }, answer, log);
+  const result = await askJson(ask, { prompt: 'p', why: 'song' }, answer, log);
 
   expect(result).toEqual({
     value: { message: '好听', title: '晴天', artist: '', sure: true },
     text: reply,
   });
-  expect(asked).toEqual([{ prompt: 'p', maxTurns: 3, schema: SONG_ANSWER_SCHEMA }]);
+  expect(asked).toEqual([{ prompt: 'p', why: 'song', schema: SONG_ANSWER_SCHEMA }]);
   expect(warned).toEqual([]);
 });
 

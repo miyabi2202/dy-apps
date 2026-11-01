@@ -23,18 +23,9 @@ export interface ClaudeCliOptions {
   model?: string;
   /** Added to Claude Code's system prompt for every question. */
   systemPrompt?: string;
-  /** `--effort` (low, medium, high, xhigh, max); Claude Code's default when unset. */
-  effort?: string;
-  /**
-   * The MCP server with the `zoom` tool (zoom-mcp.ts), started with the screenshot's file as its
-   * last argument for a question that has one, so Claude can look closer at part of it.
-   */
-  zoom?: { command: string; args: readonly string[] };
   spawnProcess?: typeof spawn;
 }
 
-/** The zoom server's tool, as Claude Code names an MCP tool. */
-const ZOOM_TOOL = 'mcp__zoom__zoom';
 /** The bot's own MCP server (src/adapters/mcp/), whose tools are `mcp__bot__<tool>`. */
 const BOT_SERVER = 'bot';
 
@@ -42,22 +33,8 @@ const BOT_SERVER = 'bot';
 const FILE_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead']);
 
 /** The stream-json user message `claude -p --input-format stream-json` reads on stdin. */
-export function userMessage({ prompt, image }: Question): string {
-  const content = [
-    ...(image
-      ? [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: 'image/jpeg',
-              data: Buffer.from(image).toString('base64'),
-            },
-          },
-        ]
-      : []),
-    { type: 'text', text: prompt },
-  ];
+export function userMessage({ prompt }: Question): string {
+  const content = [{ type: 'text', text: prompt }];
   return JSON.stringify({ type: 'user', message: { role: 'user', content } });
 }
 
@@ -80,10 +57,11 @@ export function resultFrom(output: string): string {
 }
 
 /**
- * `claude -p`, with the question as a stream-json message on stdin so it can carry an image.
+ * `claude -p`, with the question as a stream-json message on stdin (Claude sees the stream through
+ * the bot's look_at_screen, not an attached image).
  * Chat is untrusted, so the run gets only the listed tools (web search and fetch, and reading `readDirs`,
- * by default), no saved session, and no MCP server but `zoom` (which only reads the screenshot),
- * for a question with one, and the bot's own (which a question gets only when asked to).
+ * by default), no saved session, and no MCP server but the bot's own (which a question gets only
+ * when asked to; its look_at_screen is how Claude sees the stream).
  */
 export function claudeCli({
   command = 'claude',
@@ -93,15 +71,12 @@ export function claudeCli({
   readDirs = [],
   model,
   systemPrompt,
-  effort,
-  zoom,
   spawnProcess = spawn,
 }: ClaudeCliOptions = {}): AskModel {
   const argsFor = (question: Question, mcpConfig: string | null) => {
     const allowed = question.tools ?? tools;
     const preApproved = [
       ...allowed.filter((tool) => !FILE_TOOLS.has(tool)),
-      ...(zoom && question.image ? [ZOOM_TOOL] : []),
       ...(question.botTools?.tools.map((tool) => `mcp__${BOT_SERVER}__${tool}`) ?? []),
     ].join(',');
     const readsFiles = allowed.some((tool) => FILE_TOOLS.has(tool));
@@ -120,37 +95,24 @@ export function claudeCli({
       ...(mcpConfig ? ['--mcp-config', mcpConfig] : []),
       '--no-session-persistence',
       ...(model ? ['--model', model] : []),
-      ...(effort ? ['--effort', effort] : []),
       ...(systemPrompt ? ['--append-system-prompt', systemPrompt] : []),
-      ...(question.maxTurns ? ['--max-turns', String(question.maxTurns)] : []),
       ...(question.schema ? ['--json-schema', JSON.stringify(question.schema)] : []),
     ];
   };
   return (question) =>
     new Promise((resolve, reject) => {
-      // The MCP servers' config (the zoom server started on the screenshot, and the bot's tools,
-      // reached with this question's token) and the screenshot, in a folder of their own.
+      // The MCP config (the bot's tools, reached with this question's token), in a folder of its own.
       const { botTools } = question;
-      const zooming = zoom && question.image ? { zoom, image: question.image } : null;
-      const dir = zooming || botTools ? mkdtempSync(join(tmpdir(), 'chat-bot-mcp-')) : null;
+      const dir = botTools ? mkdtempSync(join(tmpdir(), 'chat-bot-mcp-')) : null;
       let mcpConfig: string | null = null;
-      if (dir) {
-        const mcpServers: Record<string, object> = {};
-        if (zooming) {
-          const screenshot = join(dir, 'screenshot.jpg');
-          writeFileSync(screenshot, zooming.image);
-          mcpServers.zoom = {
-            command: zooming.zoom.command,
-            args: [...zooming.zoom.args, screenshot],
-          };
-        }
-        if (botTools) {
-          mcpServers[BOT_SERVER] = {
+      if (dir && botTools) {
+        const mcpServers = {
+          [BOT_SERVER]: {
             type: 'http',
             url: botTools.url,
             headers: { Authorization: `Bearer ${botTools.token}` },
-          };
-        }
+          },
+        };
         mcpConfig = join(dir, 'mcp.json');
         writeFileSync(mcpConfig, JSON.stringify({ mcpServers }));
       }

@@ -71,8 +71,25 @@ function ownBadgesText({ fansLevel, payLevel }: OwnBadges): string {
     : '';
 }
 
-/** Where the bot heard someone talk to or about it without an @: the chat, or (the streamer) the stream. */
-export type Heard = 'chat' | 'speech';
+/** What the asker wears by their name, as a line (empty when nothing is known). */
+function askerBadgesText(
+  asker: string,
+  { badges = [], fansClub, payLevel }: NonNullable<PromptDetails['askerBadges']>,
+  wording: Wording,
+): string {
+  const worn = [
+    ...badges.filter((badge) => badge === 'V' || badge === 'V年'),
+    ...(fansClub?.level ? [`粉丝团灯牌 ${fansClub.level} 级`] : []),
+    ...(payLevel ? [`财富等级 ${payLevel} 级`] : []),
+  ];
+  return worn.length ? wording('asker-badges', { asker, badges: worn.join('、') }) : '';
+}
+
+/**
+ * Where the bot heard someone talk to or about it without an @: the chat, or (the streamer) the
+ * stream; or `random`, a chat picked at random (randomReplyChance), not necessarily about it.
+ */
+export type Heard = 'chat' | 'speech' | 'random';
 
 /** What's particular to one prompt: who asked what, and how long the answer may be. */
 export interface PromptDetails {
@@ -89,10 +106,11 @@ export interface PromptDetails {
   askerNote?: string;
   /** The asker's own recent messages in the chat, one a line. */
   userChat?: string;
-  /** The badges shown by the asker's name (a 直播间会员's `V` or `V年`), when known. */
-  askerBadges?: readonly string[];
+  /** What the asker wears by their name (`V` or `V年`, 灯牌, 财富), from their latest chat line. */
+  askerBadges?: Pick<ChatLine, 'badges' | 'fansClub' | 'payLevel'>;
   /** The asker didn't @ the bot: the bot heard them say something to or about it, in the chat or
-   * (the streamer) on the stream, and answers unprompted. */
+   * (the streamer) on the stream, or (`random`) their chat was handed to it at random, and answers
+   * unprompted. */
   unprompted?: Heard;
   /** The tools whose listen the line matched, named to the model as a hint (see `{{asked}}`). */
   topics?: readonly string[];
@@ -109,7 +127,7 @@ export type PromptInput = RoomPromptInput & PromptDetails;
  * one `HH:MM:SS 内容` line per sentence the streamer said (`HH:MM:SS （唱）内容` when sung, and
  * `（连线）` before it when someone they're linked up with said it), `{{asker}}` and `{{question}}` the
  * mention's sender and text, `{{asked}}` the two as a line saying they @ed the bot (or, when
- * `unprompted`, that it heard them talk to or about it, and, for a line that matched a tool's listen, a line naming the tool as a hint; after what they said `earlier` while they waited, as one request), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
+ * `unprompted`, that it heard them talk to or about it or was handed their chat at random, and, for a line that matched a tool's listen, a line naming the tool as a hint; after what they said `earlier` while they waited, as one request), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
  * most the answer may use over several, `{{now}}` the time, `{{today}}` the date and weekday
  * (`2026-10-20 星期二`), both in the room's time zone, `{{timeZone}}` that zone's name (北京时间), `{{recordTimeZone}}` the machine's
  * (which record lines written before, without an offset, are in), `{{chatDir}}` the folder of chat
@@ -119,7 +137,7 @@ export type PromptInput = RoomPromptInput & PromptDetails;
  * the asker, likewise, `{{commonKnowledge}}` Douyin's own common knowledge (灯牌…), likewise, `{{intro}}`
  * what the bot says about itself, likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
- * none), `{{askerBadges}}` the badges by their name (`V年`; `（无）` when none or not known), `{{settings}}` the room's settings as a list
+ * none), `{{askerBadges}}` a line on what they wear by their name (`V年`, 灯牌, 财富; empty when not known), `{{settings}}` the room's settings as a list
  * (empty when not given), and `{{forbiddenTopics}}` the rules for topics not to take up, as they are.
  */
 export function buildPrompt(template: string, input: PromptInput): string {
@@ -149,7 +167,9 @@ export function buildPrompt(template: string, input: PromptInput): string {
           ? 'asked-speech'
           : unprompted === 'chat'
             ? 'asked-chat'
-            : 'asked-mention',
+            : unprompted === 'random'
+              ? 'asked-random'
+              : 'asked-mention',
         { asker, said },
       ) +
       (topics?.length ? `\n${wording('asked-topics', { tools: topics.join('、') })}` : ''),
@@ -190,7 +210,7 @@ export function buildPrompt(template: string, input: PromptInput): string {
     botTalk: retimeLines(botTalk?.trim() ?? '', input.timeZone) || '（暂无）',
     userHistory: retimeLines(userHistory?.trim() ?? '', input.timeZone) || '（暂无）',
     userChat: userChat?.trim() || '（暂无）',
-    askerBadges: input.askerBadges?.length ? input.askerBadges.join('、') : '（无）',
+    askerBadges: askerBadgesText(asker, input.askerBadges ?? {}, wording),
     settings: [settings ? settingsText(settings) : '', ownBadgesText(input.ownBadges ?? {})]
       .filter(Boolean)
       .join('\n'),

@@ -103,7 +103,7 @@ test('the same song named again moves when its lyrics are checked from; another 
   expect(asked).toEqual(['画廊游记/', '靠近/']);
 });
 
-test('without lyrics, logs so and says nothing: pauses and talk decide as before', async () => {
+test('without lyrics, logs so and says nothing, leaving pauses and talk to decide', async () => {
   const { breaks, heard, logged } = setup({});
   breaks.keep({ title: '纯音乐', artist: '' }, 0);
   await breaks.settled();
@@ -133,24 +133,11 @@ describe('in the room', () => {
     expect(song?.start).toBe(sung[0]!.start);
   });
 
-  it('splits it at the pause as before without the lyrics', () => {
+  it('splits it at the pause with talk without the lyrics', () => {
     const setUp = setup();
     const sung = sing(setUp);
     const transcript = setUp.room.recentTranscript();
     const song = singingSong(transcript, sung.at(-1)!, setUp.songSpans.of(transcript));
     expect(song?.start).toBe(sung[4]!.start);
-  });
-
-  it("leaves a source the room's songBreaks doesn't list out", async () => {
-    const breaks = new LyricsBreaks({
-      fetchLyrics: () => Promise.resolve(画廊游记),
-      log: { debug() {}, info() {}, warn() {}, error() {} },
-    });
-    const songSpans = new SongSpans({ sources: [breaks], on: () => [] });
-    breaks.keep({ title: '画廊游记', artist: '' }, 0);
-    await breaks.settled();
-    const line: TranscriptLine = { start: 1000, end: 5000, text: '在一切开始的时分', speech: 0.05 };
-    expect(breaks.spans([line])).not.toEqual([]);
-    expect(songSpans.of([line])).toEqual([]);
   });
 });

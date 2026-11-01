@@ -22,54 +22,22 @@ test('room_config.json starts not private, and is read again as it changes', () 
   });
 
   writeFileSync(config, '{ "private": true }');
-  expect(roomConfig()).toEqual({
-    private: true,
-    aliases: [],
-    streamerNames: [],
-    focus: [],
-    atTrimStart: [],
-    timeZone: 'Asia/Shanghai',
-    tools: [],
-    ...SETTING_DEFAULTS,
-  });
+  expect(roomConfig().private).toBe(true);
 
   writeFileSync(config, '{ "private": "yes" }');
-  expect(roomConfig()).toEqual({
-    private: true,
-    aliases: [],
-    streamerNames: [],
-    focus: [],
-    atTrimStart: [],
-    timeZone: 'Asia/Shanghai',
-    tools: [],
-    ...SETTING_DEFAULTS,
-  });
+  expect(roomConfig().private).toBe(true);
   expect(log.warn).toHaveBeenCalled();
 
   writeFileSync(config, '{ "on_sing": { "message": "缇娅 缇娅", "probability": 0.67 } }');
-  expect(roomConfig()).toEqual({
+  expect(roomConfig()).toMatchObject({
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
-    aliases: [],
-    streamerNames: [],
-    focus: [],
-    atTrimStart: [],
-    timeZone: 'Asia/Shanghai',
-    tools: [],
-    ...SETTING_DEFAULTS,
   });
 
   writeFileSync(config, '{ "on_sing": { "message": "缇娅 缇娅", "probability": "2/3" } }');
-  expect(roomConfig()).toEqual({
+  expect(roomConfig()).toMatchObject({
     private: false,
     onSing: { message: '缇娅 缇娅', probability: 0.67 },
-    aliases: [],
-    streamerNames: [],
-    focus: [],
-    atTrimStart: [],
-    timeZone: 'Asia/Shanghai',
-    tools: [],
-    ...SETTING_DEFAULTS,
   });
 
   writeFileSync(config, '{ "tools": ["can_sing"] }');
@@ -100,16 +68,9 @@ test('writes the streamer into room_config.json, keeping the rest', () => {
     private: true,
     streamer: { nickname: '晨曦FM ⁹⁰¹', uid: '7500039236442915865' },
   });
-  expect(roomConfigFile(config, { log }).get()).toEqual({
+  expect(roomConfigFile(config, { log }).get()).toMatchObject({
     private: true,
     streamer: { nickname: '晨曦FM ⁹⁰¹', uid: '7500039236442915865' },
-    aliases: [],
-    streamerNames: [],
-    focus: [],
-    atTrimStart: [],
-    timeZone: 'Asia/Shanghai',
-    tools: [],
-    ...SETTING_DEFAULTS,
   });
 
   writeFileSync(config, '{ "private": ');

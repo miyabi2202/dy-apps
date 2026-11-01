@@ -47,6 +47,8 @@ function setup({
   };
   const warnings: string[] = [];
   const timers: (() => void)[] = [];
+  /** Every look ever set, cancelled or not, in order. */
+  const scheduled: (() => void)[] = [];
   const recall = new MemoryRecall({
     embedder,
     vectors,
@@ -64,7 +66,11 @@ function setup({
     extra: 2,
     setTimer: (run) => {
       timers.push(run);
-      return () => timers.splice(timers.indexOf(run), 1);
+      scheduled.push(run);
+      return () => {
+        const at = timers.indexOf(run);
+        if (at >= 0) timers.splice(at, 1);
+      };
     },
   });
   return {
@@ -72,6 +78,7 @@ function setup({
     embedded,
     warnings,
     timers,
+    scheduled,
     say: (lines: { speech?: string[]; chat?: string[] }) => {
       speech = lines.speech ?? speech;
       chat = lines.chat ?? chat;
@@ -162,12 +169,19 @@ test('without the service it shows the latest only, warns once, and recalls agai
   expect(recall.thoughtsText()).toContain('稻香');
 });
 
-test('a burst of chat is one look, a moment after the last', () => {
-  const { recall, timers } = setup();
+test('a burst of chat is one look, a moment after the last; stopping cancels it', async () => {
+  const { recall, timers, scheduled, say } = setup({ thoughts: THOUGHTS });
+  say({ chat: ['稻香'] });
   recall.hear();
   recall.hear();
   recall.hear();
-  expect(timers).toHaveLength(1);
+  // Only the last one set is left, and it looks at what was said.
+  expect(timers).toEqual([scheduled[2]]);
+  timers[0]!();
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(recall.thoughtsText()).toContain('稻香');
+
+  recall.hear();
   recall.stop();
   expect(timers).toHaveLength(0);
 });

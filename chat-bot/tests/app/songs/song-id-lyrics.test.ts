@@ -98,7 +98,7 @@ test('asks Codex when it is not sure, with the candidates added to its prompt', 
   expect(asked).toEqual(['P\n\n候选：晴天、七里香']);
 });
 
-test('asks Codex as before when the search throws', async () => {
+test('asks Codex without candidates when the search throws', async () => {
   const { songId, asked, logged } = setup(() => Promise.reject(new Error('boom')));
   const outcome = await songId.identifyLines({ prompt: 'P' }, lines, 'auto');
   expect(outcome).toMatchObject({ by: 'codex' });

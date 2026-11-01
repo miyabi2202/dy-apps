@@ -76,10 +76,9 @@ test('shares the 4 minutes with send_heart, both ways', async () => {
   expect(other.sends()).toBe(2);
 });
 
-test('is for anyone, has no / command, and is offered only while /开心送心 is on', () => {
+test('is for anyone, and offered only while /开心送心 is on', () => {
   const { happy, switchOff } = setup();
   expect(happy.adminOnly).toBeUndefined();
-  expect(happy.commands).toBeUndefined();
   expect(happy.offered?.()).toBe(true);
   switchOff();
   expect(happy.offered?.()).toBe(false);

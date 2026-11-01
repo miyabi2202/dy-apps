@@ -32,8 +32,19 @@ export interface BotMcpServerOptions {
   now?: () => number;
 }
 
-const textResult = (result: ToolResult) => ({
-  content: [{ type: 'text' as const, text: result.text }],
+const toolResult = (result: ToolResult) => ({
+  content: [
+    ...(result.image
+      ? [
+          {
+            type: 'image' as const,
+            data: Buffer.from(result.image).toString('base64'),
+            mimeType: 'image/jpeg',
+          },
+        ]
+      : []),
+    { type: 'text' as const, text: result.text },
+  ],
   ...(result.isError ? { isError: true } : {}),
 });
 
@@ -150,7 +161,6 @@ export class BotMcpServer implements BotTools {
     };
     return {
       access,
-      used: () => [...session.used],
       calls: () => [...session.calls],
       close: () => void this.sessions.delete(token),
     };
@@ -215,8 +225,8 @@ export class BotMcpServer implements BotTools {
     mcp.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
       const { name } = params;
       const tool = session.tools.find((candidate) => candidate.name === name);
-      if (!tool) return textResult({ text: `没有这个工具：${name}`, isError: true });
-      let result = session.memo.get(name);
+      if (!tool) return toolResult({ text: `没有这个工具：${name}`, isError: true });
+      let result = tool.repeatable ? undefined : session.memo.get(name);
       if (!result) {
         const now = this.options.now ?? Date.now;
         const start = now();
@@ -233,10 +243,9 @@ export class BotMcpServer implements BotTools {
             });
             return settled;
           });
-        session.memo.set(name, result);
-        session.used.push(name);
+        if (!tool.repeatable) session.memo.set(name, result);
       }
-      return textResult(await result);
+      return toolResult(await result);
     });
     return mcp;
   }

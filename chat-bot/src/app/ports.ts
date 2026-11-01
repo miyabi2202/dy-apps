@@ -7,6 +7,7 @@ import type { ChatRecord } from '../core/chat/chat-record';
 import type { Gift, IncomingChat } from '../core/chat/room-events';
 import type { ToolListen } from '../core/chat/relevance';
 import type { Settings } from '../core/commands/settings';
+import type { Region } from '../core/replies/zoom';
 import type { ToolAccess, ToolContext, ToolSession } from '../core/tools/bot-tool';
 import type { ToolDefinition } from '../core/tools/tool-definition';
 import type { Exchange } from '../core/chat/talk-record';
@@ -145,20 +146,19 @@ export type SendHeart = () => Promise<
 /** A JPEG of the live video. */
 export type Screenshot = () => Promise<Uint8Array>;
 
+/** Cuts `region` out of a JPEG, enlarged `scale` times, as a JPEG; rejects with why it couldn't. */
+export type CropImage = (image: Uint8Array, region: Region, scale: number) => Promise<Uint8Array>;
+
 /** The room's stream URL, or null while there isn't one (not live, or room-feed still opening it). */
 export type StreamUrl = () => Promise<string | null>;
 
-/** One question for a model (Claude or Codex): the prompt, and optionally a JPEG to look at with it. */
+/** One question for a model (Claude or Codex): the prompt, and for Codex optionally a JPEG to look at with it. */
 export interface Question {
   prompt: string;
+  /** A JPEG to look at with the prompt; only Codex is given one (Claude looks with look_at_screen). */
   image?: Uint8Array;
   /** The tools Claude may use for this question, when not all of the usual ones. Codex ignores it. */
   tools?: readonly string[];
-  /**
-   * Give up after this many turns (each a step of thinking and tool use), to cap the cost. Codex
-   * ignores it.
-   */
-  maxTurns?: number;
   /** A JSON Schema the answer must follow: the answer is then that JSON. */
   schema?: object;
   /** Why it's asked, for the log (`alias`, `judge`…); the models ignore it. */

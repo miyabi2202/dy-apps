@@ -4,10 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { claudeCli } from '../../../src/adapters/models/claude-cli';
 
 type McpConfig = {
-  mcpServers: Record<
-    string,
-    { command?: string; args?: string[]; type?: string; url?: string; headers?: object }
-  >;
+  mcpServers: Record<string, { type?: string; url?: string; headers?: object }>;
 };
 
 /** A spawn that records the arguments and the config file at that moment, then fails to start. */
@@ -53,22 +50,7 @@ test('botTools become an http MCP server with the bearer token, and its tools ar
   expect(existsSync(seen.configPath!)).toBe(false);
 });
 
-test('with a screenshot too, zoom and the bot are both there', () => {
-  const { seen, spawnProcess, after } = peek();
-  const zoom = { command: '/bin/tsx', args: ['/app/zoom-mcp.ts'] };
-  void claudeCli({ zoom, spawnProcess })({
-    prompt: 'hi',
-    image: new Uint8Array([0xff, 0xd8]),
-    botTools,
-  }).catch(() => {});
-
-  expect(Object.keys(seen.config!.mcpServers).sort()).toEqual(['bot', 'zoom']);
-  expect(after('--allowedTools')).toBe(
-    'WebSearch,WebFetch,mcp__zoom__zoom,mcp__bot__identify_song,mcp__bot__identify_bgm',
-  );
-});
-
-test('without botTools or a screenshot there is no MCP config', () => {
+test('without botTools there is no MCP config', () => {
   const { seen, spawnProcess } = peek();
   void claudeCli({ spawnProcess })({ prompt: 'hi' }).catch(() => {});
   expect(seen.args).not.toContain('--mcp-config');

@@ -31,10 +31,6 @@ describe('combineSpans', () => {
       brk(100, 'b'),
     ]);
   });
-
-  it('is empty without sources', () => {
-    expect(combineSpans([])).toEqual([]);
-  });
 });
 
 test('isOneSong and lastBreak read the combined spans', () => {
@@ -57,9 +53,16 @@ describe('currentSong with spans', () => {
   // A pause of 2 minutes between 30 and 150: a new song by pauses alone.
   const lines = [line(10), line(20), line(30), line(150), line(160)];
 
-  it('is as before without spans', () => {
+  it('starts the song after the last pause of over a minute without spans', () => {
     expect(currentSong(lines)).toEqual(lines.slice(3));
     expect(currentSong(lines, { spans: [] })).toEqual(lines.slice(3));
+    // Talk after the song is part of it; one song throughout, or nothing sung, is all of it.
+    expect(currentSong([...lines, line(170, false)])).toEqual([
+      ...lines.slice(3),
+      line(170, false),
+    ]);
+    expect(currentSong(lines.slice(0, 3))).toEqual(lines.slice(0, 3));
+    expect(currentSong([line(10, false)])).toEqual([line(10, false)]);
   });
 
   it("doesn't break at a pause inside a source's same span", () => {

@@ -118,13 +118,13 @@ export function pickPrompt(
   return fillTemplate(template, all);
 }
 
-/** What the bot heard someone say to or about it without an @, to answer unprompted. */
+/** What the bot heard someone say to or about it without an @ (or a chat picked at random), to answer unprompted. */
 export interface UnpromptedReply {
   nickname: string;
   userId: string;
   /** What they said. */
   question: string;
-  /** In the chat, or (the streamer) on the stream. */
+  /** In the chat, or (the streamer) on the stream; `random`, a chat picked by randomReplyChance. */
   heard: Heard;
   /** The tools whose listen the line matched (Jev's score, a trigger or a phrase): a hint for Claude. */
   topics?: readonly string[];

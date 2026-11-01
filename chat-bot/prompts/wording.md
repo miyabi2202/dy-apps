@@ -42,6 +42,10 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 {{asker}} 没有 @ 你，是在弹幕里说到了你或在跟你说话，要回的话就主动回 TA 一句：{{said}}
 
+## asked-random
+
+{{asker}} 没有 @ 你，多半也不是在跟你说话：这条弹幕是随手挑给你的，你可以像一直在看的观众那样接一句（接 TA 的话、接主播在聊的事都行），没什么好接的、接了显得突兀，就 `message` 和 `others` 都留空，什么都不发：{{said}}
+
 ## asked-mention
 
 {{asker}} @ 了你：{{said}}
@@ -86,6 +90,10 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 关于 {{asker}} 你记着的事（一条一段，用 § 隔开；只在回 TA 时用，别对别人说）：
 
 {{note}}
+
+## asker-badges
+
+{{asker}} 名字旁边挂着：{{badges}}（`V` 是直播间月会员、`V年` 是年会员；大家都看得见。问到时可以用，别没事拿来说）。
 
 ## common-knowledge
 

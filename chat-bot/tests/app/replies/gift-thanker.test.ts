@@ -1,11 +1,11 @@
 import { GiftThanker } from '../../../src/app/replies/gift-thanker';
-import type { Exchange, Log } from '../../../src/app/ports';
+import type { Exchange } from '../../../src/app/ports';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import type { Gift } from '../../../src/core/chat/room-events';
 import { fakeRoom } from '../../support/fake-room';
 import { fakeSettings } from '../../support/fake-settings';
+import { silentLog } from '../../support/fakes';
 
-const silentLog: Log = { debug() {}, info() {}, warn() {}, error() {} };
 const MINUTE = 60_000;
 
 function gift(nickname: string, name: string, diamonds: number): Gift {

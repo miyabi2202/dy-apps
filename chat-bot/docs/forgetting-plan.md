@@ -8,11 +8,11 @@ The bot's own memories, its thoughts after each stream (`data/<房间号>/memory
 
 Generative Agents (Park et al., 2023) ranks a memory for recall by three things. We have one:
 
-| Part                                                                   | Status                                                            |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| **Relevance**: an old memory comes back when it fits what's being said | Built: `0.85 × cosine + 0.15 × pinyin`, at least the cutoff (0.5) |
-| **Recency**: older memories score lower, so they fade over time        | Not built                                                         |
-| **Importance**: big things fade slower than small ones                 | Not built                                                         |
+| Part                                                                   | Status                                                                                                        |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Relevance**: an old memory comes back when it fits what's being said | Built: `0.85 × cosine + 0.15 × pinyin` against each line being said, its best line at least the cutoff (0.58) |
+| **Recency**: older memories score lower, so they fade over time        | Not built                                                                                                     |
+| **Importance**: big things fade slower than small ones                 | Not built                                                                                                     |
 
 So today:
 
@@ -26,7 +26,7 @@ So today:
 
 - **The logs are short.** No room has many thoughts yet, and Fairy's days started on 2026-10-31. With a few dozen items, the recent window plus relevance covers them.
 - **There is nothing to tune it on.** The real-room calibration (`embedding-eval/README.md`) searched `memory.md` and notes, which have no importance and are not what recall searches. A decay rate or an importance weight chosen now would be a guess, the way the first cutoff (0.45) and pinyin weight (0.1) were.
-- **Ranking matters more first.** The calibration found the bot's recall at F1 about 0.28 against the judge's 0.81 with itself, mostly because general items crowd out specific ones. Fix that before adding more terms to the score.
+- **Ranking matters more first.** The calibration found the bot's recall at F1 about 0.28 against the judge's 0.81 with itself, mostly because general items crowd out specific ones. Scoring each line on its own instead of the window as one text raised that to 0.37 (from 0.29 on the same test half, "Speech vs chat" in `embedding-eval/README.md`), still far from 0.81. Improve ranking further before adding more terms to the score.
 
 ## When to build it
 

@@ -16,8 +16,7 @@ import { FeatureRegistry } from './features';
 import { ENV, FEATURES, LOG, OPTIONS, PACKAGE_DIR, PROMPTS_DIR } from './tokens';
 import { registerTranscriber } from './transcriber';
 
-export { APP, BOT, REMEMBER_CHAT } from './tokens';
-export type { App } from './app';
+export { APP, REMEMBER_CHAT } from './tokens';
 
 /** What the entry gives the container: the command line, where the package is, the log, the environment. */
 export interface Given {

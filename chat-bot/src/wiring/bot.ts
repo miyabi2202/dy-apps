@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { livePrompt } from '../adapters/files/prompt-files';
-import { ChatBot, isAdmin } from '../app/replies/chat-bot';
+import { ChatBot } from '../app/replies/chat-bot';
 import { ToolRunner } from '../app/tools/tool-runner';
 import { MentionAnswerer } from '../app/replies/mention-answerer';
 import type { Container } from './container';
@@ -18,7 +18,6 @@ import {
   OUTBOX,
   PROMPTS_DIR,
   ROOM,
-  SCREENSHOTS,
   STREAMER,
   TOOL_RUNNER,
   TOOLS,
@@ -39,7 +38,6 @@ export function registerBot(container: Container): void {
         ask: c.resolve(ASK_CLAUDE)('mention'),
         outbox: c.resolve(OUTBOX),
         room: c.resolve(ROOM),
-        screenshots: c.resolve(SCREENSHOTS),
         log: c.resolve(LOG),
         promptTemplate: mentionTemplate,
         userTalk: c.resolve(USER_TALK),
@@ -54,18 +52,18 @@ export function registerBot(container: Container): void {
       });
     })
     // Runs the tools a mention names with a `/`.
-    .register(TOOL_RUNNER, (c) => {
-      const admins = c.resolve(ADMINS);
-      return new ToolRunner({
-        tools: c.resolve(TOOLS),
-        outbox: c.resolve(OUTBOX),
-        room: c.resolve(ROOM),
-        log: c.resolve(LOG),
-        isAdmin: (userId) => isAdmin(admins, userId),
-        adminNames: c.resolve(BOT_CONFIG).adminNames,
-        maxReplyLength: c.resolve(OPTIONS).maxReplyLength,
-      });
-    })
+    .register(
+      TOOL_RUNNER,
+      (c) =>
+        new ToolRunner({
+          tools: c.resolve(TOOLS),
+          outbox: c.resolve(OUTBOX),
+          room: c.resolve(ROOM),
+          log: c.resolve(LOG),
+          adminNames: c.resolve(BOT_CONFIG).adminNames,
+          maxReplyLength: c.resolve(OPTIONS).maxReplyLength,
+        }),
+    )
     // Decides what a mention is (a question, or a tool's `/` command).
     .register(
       BOT,
@@ -75,12 +73,8 @@ export function registerBot(container: Container): void {
           bus: c.resolve(BUS),
           answerer: c.resolve(ANSWERER),
           room: c.resolve(ROOM),
-          outbox: c.resolve(OUTBOX),
           log: c.resolve(LOG),
           admins: c.resolve(ADMINS),
-          adminNames: c.resolve(BOT_CONFIG).adminNames,
-          tools: c.resolve(TOOLS),
-          maxReplyLength: c.resolve(OPTIONS).maxReplyLength,
           toolRunner: c.resolve(TOOL_RUNNER),
         }),
     );

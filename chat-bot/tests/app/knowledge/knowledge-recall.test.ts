@@ -46,6 +46,8 @@ function setup({
   };
   const warnings: string[] = [];
   const timers: (() => void)[] = [];
+  /** Every look ever set, cancelled or not, in order. */
+  const scheduled: (() => void)[] = [];
   const recall = new KnowledgeRecall({
     embedder: embedding ? embedder : null,
     vectors,
@@ -58,13 +60,18 @@ function setup({
     pinyinWeight: 0,
     setTimer: (run) => {
       timers.push(run);
-      return () => timers.splice(timers.indexOf(run), 1);
+      scheduled.push(run);
+      return () => {
+        const at = timers.indexOf(run);
+        if (at >= 0) timers.splice(at, 1);
+      };
     },
   });
   return {
     recall,
     warnings,
     timers,
+    scheduled,
     say: (lines: { speech?: string[]; chat?: string[] }) => {
       speech = lines.speech ?? speech;
       chat = lines.chat ?? chat;
@@ -115,12 +122,19 @@ test('when the service fails it warns once and still finds the named entries', a
   expect(warnings).toHaveLength(1);
 });
 
-test('a burst of chat is one look, a moment after it; stopping cancels it', () => {
-  const { recall, timers } = setup();
+test('a burst of chat is one look, a moment after it; stopping cancels it', async () => {
+  const { recall, timers, scheduled, say } = setup();
+  say({ chat: ['记得保牌子'] });
   recall.hear();
   recall.hear();
   recall.hear();
-  expect(timers).toHaveLength(1);
+  // Only the last one set is left, and it looks at what was said.
+  expect(timers).toEqual([scheduled[2]]);
+  timers[0]!();
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(titles(recall.text())).toEqual(['灯牌']);
+
+  recall.hear();
   recall.stop();
   expect(timers).toHaveLength(0);
 });

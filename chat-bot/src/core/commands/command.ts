@@ -1,4 +1,4 @@
-/** A command as a viewer typed it, from a mention like `@机器人/截图 1`: the name after the `/` is a tool's command (docs/commands.md). */
+/** A command as a viewer typed it, from a mention like `@机器人/自动谢礼 100`: the name after the `/` is a tool's command (docs/commands.md). */
 export interface CommandCall {
   name: string;
   /** Everything after the name and the space, which may be an ASCII or a full-width one. */

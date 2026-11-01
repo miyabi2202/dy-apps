@@ -1,41 +1,39 @@
 # Chat bot tools and commands
 
-A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/截图 1` or `@默认关闭 /截图 1`. The space before the argument can be an ASCII or a full-width one (`　`). A `/` without the @ is ordinary chat: the bot never sees it as a command. Each command calls one of the bot's always-on tools (its name is in the table) with no model in between; the same tools, and the ones a room switches on (see below), are what Claude calls when someone asks in words. Admins are the user ids in `chat-bot/config.json`, read again whenever it changes, and the room's streamer once room-feed tells who that is.
+A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/自动识歌 1` or `@默认关闭 /自动识歌 1`. The space before the argument can be an ASCII or a full-width one (`　`). A `/` without the @ is ordinary chat: the bot never sees it as a command. Each command calls one of the bot's always-on tools (its name is in the table) with no model in between; the same tools, and the ones a room switches on (see below), are what Claude calls when someone asks in words. Admins are the user ids in `chat-bot/config.json`, read again whenever it changes, and the room's streamer once room-feed tells who that is.
 
 ## The commands
 
-| Command                | Tool                        | What it does                                                                                   | Admins only | Default     |
-| ---------------------- | --------------------------- | ---------------------------------------------------------------------------------------------- | ----------- | ----------- |
-| `/自动回复阈值 <0–1>`  | `set_auto_reply_threshold`  | How sure it must be it's talked about to join in                                               | yes         | 1 (off)     |
-| `/自动回复间隔 <秒>`   | `set_auto_reply_interval`   | How long it keeps quiet after joining in                                                       | yes         | 60          |
-| `/自动消息间隔 <秒>`   | `set_auto_message_interval` | Claude says something to the room on its own every this many seconds                           | yes         | 0 (off)     |
-| `/最大回复条数 <1–10>` | `set_max_reply_parts`       | How many messages one @'s answer may take                                                      | yes         | 5           |
-| `/自动谢礼 <钻>`       | `set_thanks_threshold`      | Thank viewers who give more than this in 5 minutes                                             | yes         | 99999 (off) |
-| `/截图 <0\|1>`         | `set_screenshots`           | Send Claude the live video or not                                                              | yes         | 0           |
-| `/识歌 [提示]`         | `identify_song`             | Name the song the streamer sings, from its lyrics                                              | no          | –           |
-| `/识别背景音乐`        | `identify_bgm`              | Name the recording playing, from its sound                                                     | no          | –           |
-| `/点赞 [次数]`         | `press_like`                | Likes the room as the bot's account, 200 unless told, up to 200                                | yes         | –           |
-| `/灯牌`                | `send_fans_lamp`            | Sends the streamer today's 粉丝团灯牌 (2 diamonds), joining the 粉丝团 if need be              | yes         | –           |
-| `/小心心`              | `send_heart`                | Sends the streamer one 小心心 (1 diamond), at most one every 4 minutes; the only gift it sends | yes         | –           |
-| `/解题 [问题]`         | `ask_about_puzzle`          | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | no          | –           |
-| `/自动识歌 <0\|1>`     | `set_auto_song_id`          | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
-| `/识别恶意言论 <0\|1>` | `set_malice_watch`          | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
-| `/开心送心 <0\|1>`     | `set_happy_heart`           | Lets the bot send the streamer a 小心心 of its own accord when someone makes it happy          | yes         | 0           |
+| Command                | Tool                       | What it does                                                                                   | Admins only | Default     |
+| ---------------------- | -------------------------- | ---------------------------------------------------------------------------------------------- | ----------- | ----------- |
+| `/自动回复阈值 <0–1>`  | `set_auto_reply_threshold` | How sure it must be it's talked about to join in                                               | yes         | 1 (off)     |
+| `/自动回复间隔 <秒>`   | `set_auto_reply_interval`  | How long it keeps quiet after joining in                                                       | yes         | 60          |
+| `/随机回复 <0–1>`      | `set_random_reply_chance`  | How likely each chat is handed to Claude to join in on, about the bot or not                   | yes         | 0 (off)     |
+| `/最大回复条数 <1–10>` | `set_max_reply_parts`      | How many messages one @'s answer may take                                                      | yes         | 5           |
+| `/自动谢礼 <钻>`       | `set_thanks_threshold`     | Thank viewers who give more than this in 5 minutes                                             | yes         | 99999 (off) |
+| `/识歌 [提示]`         | `identify_song`            | Name the song the streamer sings, from its lyrics                                              | no          | –           |
+| `/识别背景音乐`        | `identify_bgm`             | Name the recording playing, from its sound                                                     | no          | –           |
+| `/点赞 [次数]`         | `press_like`               | Likes the room as the bot's account, 200 unless told, up to 200                                | yes         | –           |
+| `/灯牌`                | `send_fans_lamp`           | Sends the streamer today's 粉丝团灯牌 (2 diamonds), joining the 粉丝团 if need be              | yes         | –           |
+| `/小心心`              | `send_heart`               | Sends the streamer one 小心心 (1 diamond), at most one every 4 minutes; the only gift it sends | yes         | –           |
+| `/解题 [问题]`         | `ask_about_puzzle`         | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | no          | –           |
+| `/自动识歌 <0\|1>`     | `set_auto_song_id`         | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
+| `/识别恶意言论 <0\|1>` | `set_malice_watch`         | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
+| `/开心送心 <0\|1>`     | `set_happy_heart`          | Lets the bot send the streamer a 小心心 of its own accord when someone makes it happy          | yes         | 0           |
 
-These tools are always on, as far as their feature is: `identify_song` needs speech and Codex, `identify_bgm` speech. Admin-only commands are for admins and the streamer; the others are for anyone. A command that changes a setting writes it to the room's `data/<房间号>/room_config.json` (one field each, in the table below), so it stays after a restart, and the bot reads that file again whenever it changes: editing the field by hand does the same as the command, with no restart. A command-line option only seeds a room's setting the first time, when its `room_config.json` has no such field; after that the file wins, and an option that differs from it is a `setting from room_config, ignoring option` warning at start.
+These tools are always on, as far as their feature is: `identify_song` and `set_auto_song_id` need speech and Codex, `identify_bgm` speech, `set_malice_watch` Jev and Codex. Admin-only commands are for admins and the streamer; the others are for anyone. A command that changes a setting writes it to the room's `data/<房间号>/room_config.json` (one field each, in the table below), so it stays after a restart, and the bot reads that file again whenever it changes: editing the field by hand does the same as the command, with no restart. A command-line option only seeds a room's setting the first time, when its `room_config.json` has no such field; after that the file wins, and an option that differs from it is a `setting from room_config, ignoring option` warning at start.
 
-| Command                | `room_config.json` field     | Default    |
-| ---------------------- | ---------------------------- | ---------- |
-| `/自动回复阈值 <0–1>`  | `autoReplyThreshold`         | `1`        |
-| `/自动回复间隔 <秒>`   | `autoReplyIntervalSeconds`   | `60`       |
-| `/自动消息间隔 <秒>`   | `autoMessageIntervalSeconds` | `0`        |
-| `/最大回复条数 <1–10>` | `maxReplyParts`              | `5`        |
-| `/自动谢礼 <钻>`       | `thanksThreshold`            | `99999`    |
-| `/自动识歌 <0\|1>`     | `autoSongId`                 | `false`    |
-| `/识别恶意言论 <0\|1>` | `maliceWatch`                | `false`    |
-| `/开心送心 <0\|1>`     | `happyHeart`                 | `false`    |
-| `/截图 <0\|1>`         | `screenshots`                | `false`    |
-| （无指令，只能改文件） | `solveEffort`                | `"medium"` |
+| Command                | `room_config.json` field   | Default    |
+| ---------------------- | -------------------------- | ---------- |
+| `/自动回复阈值 <0–1>`  | `autoReplyThreshold`       | `1`        |
+| `/自动回复间隔 <秒>`   | `autoReplyIntervalSeconds` | `60`       |
+| `/随机回复 <0–1>`      | `randomReplyChance`        | `0`        |
+| `/最大回复条数 <1–10>` | `maxReplyParts`            | `5`        |
+| `/自动谢礼 <钻>`       | `thanksThreshold`          | `99999`    |
+| `/自动识歌 <0\|1>`     | `autoSongId`               | `false`    |
+| `/识别恶意言论 <0\|1>` | `maliceWatch`              | `false`    |
+| `/开心送心 <0\|1>`     | `happyHeart`               | `false`    |
+| （无指令，只能改文件） | `solveEffort`              | `"medium"` |
 
 When Jev runs out of money the bot sets `autoReplyThreshold` to `10` (off) in the file too. `solveEffort` is how hard Codex thinks for `ask_about_puzzle` / `/解题`: `"medium"` (up to 6 minutes) or `"high"` (up to 10); edit the file, it's read again at once.
 
@@ -66,16 +64,16 @@ How many seconds auto-reply keeps quiet after it answered someone unprompted: wh
 → 间隔要写成秒数，0 表示不等，用法：/自动回复间隔 20
 ```
 
-### /自动消息间隔
+### /随机回复
 
-Every this many seconds, Claude looks at the room (what the streamer said lately, the recent chat, what the bot said lately, the room's memory and persona) with `prompts/auto-message.md` (a room overrides it with its own `auto_message.md`) and says one message of its own, unprompted, after any waiting @ answer; or nothing, when there's nothing worth saying (`auto message: nothing to say`). `0`, the default, turns it off. The first one is asked one interval after it's turned on (or the bot starts with it on), and the next is counted from when Claude answered, so it never asks twice at once. It has nothing to do with `/自动回复间隔`. The log has `claude asking` / `claude answered` with `task: "auto-message"`, and `auto message {text}` for each sent.
+How likely each chat in the room is handed to Claude, from `0` (the default, off) to `1` (every one). Each chat is rolled for as it comes in: the streamer's own account counts, the bot's own messages don't, and neither does an @ of the bot (that's a mention, answered anyway), a chat already answered by auto-reply (its name or a tool's trigger) or one from someone in `focus`. A chat it picks is answered at once like an unprompted one (`prompt.md`, the tools, their own past exchanges), but Claude is told it was picked at random and isn't necessarily for the bot (`asked-random` in `prompts/wording.md`), so it may well say nothing (`claude skipped`); one it picks isn't looked at again by auto-reply's check. It works with auto-reply on or off, and isn't held back by `/自动回复间隔`. The log has `random reply {who, userId, text}` for each, then `unprompted` with `heard: "random"`.
 
 ```text
-@默认关闭 /自动消息间隔 300
-→ 已处理自动消息间隔请求
+@默认关闭 /随机回复 0.1
+→ 已处理随机回复请求
 
-@默认关闭 /自动消息间隔 0
-→ 已处理自动消息间隔请求
+@默认关闭 /随机回复 0
+→ 已处理随机回复请求
 ```
 
 ### /最大回复条数
@@ -105,18 +103,6 @@ Thanks a viewer, with an @ from `gift-thanks.md`, when their gifts within 5 minu
 → @雅 谢谢你的礼物，陪主播听歌的时光更暖了
 ```
 
-### /截图
-
-Turns screenshots of the live video on (`1`) or off (`0`); while on, every prompt gets one, for streams where Claude needs to see the screen (a board, a game). Off unless the bot started with `--screenshot`. With a screenshot, Claude also gets a `zoom` tool (`src/adapters/models/zoom-mcp.ts`, an MCP server that crops and enlarges a region with ffmpeg), so it can read small figures and text. For a puzzle on the screen, `/解题` does better.
-
-```text
-@默认关闭 /截图 1
-→ 已处理截图请求
-
-@默认关闭 /截图 开
-→ 要写 0（关闭）或 1（打开），用法：/截图 1
-```
-
 ### /识歌
 
 Names the song being sung or played, from the lyrics heard lately, whoever's voice sang them; when most of them were another voice's than the streamer's (a 连线, a recording, or the streamer taken for someone else), the answer ends asking so (`song-others` in `wording.md`). Only the song being sung now counts (`currentSong` in `src/core/songs/transcript.ts`): a song ends at a pause of over a minute between sung lines, or of over 15 s in which the streamer said at least 2 lines (talk between songs), and what came before it is left out. Once a song is named (by any path: Shazam, the lyrics search or Codex), its lyrics are fetched from NetEase (the first 3 versions of the title with lyrics, the singer's first) and only they end it: from when it was asked about, each sung line of 8 characters or more is matched against them (pinyin pairs, half of them in the lyrics), and 3 misses in a row start the next song at the first of them, whoever's voice sang them; a later line of 12 characters or more, 70% from the lyrics, undoes that (garbled lines, or talk taken for singing). Pauses and talk don't end it meanwhile; a song not named yet, or one NetEase has no lyrics for, goes by them as before. This is the first song break source (`src/core/songs/song-breaks.ts`, `src/app/songs/lyrics-breaks.ts`): a room turns sources off with `songBreaks` in its `room_config.json`. The log has `lyrics kept` (`title`, `artist`, `lines`) or `no lyrics for`, and `song changed` (`by: "lyrics"`, `from`, the `line` the next song starts at, `misses`). Replaying a week of logs (`pnpm replay:song-breaks`), this split 164 of 182 changes between named songs where they happened (14 more a line or so late), against 141 by pauses alone, and 7 of 220 songs by mistake, against 27. Two songs sung straight on that the lyrics don't know (the first wasn't named, or has no lyrics) still aren't told apart, so the prompt says the first lines may still be the last song's and to go by the latest. It asks NetEase's lyrics search first (`lyrics-search/`, about a second): each of the 5 longest sung lines is searched as lyrics and the titles the searches agree on win; when one clearly leads (score at least 1 and 1.5 times the runner-up's) the song is taken from that, and Codex only writes the message (below). The singer is named only when one clearly leads among the lyric hits under that title and the hits of a search by the title itself (at least 40% of their weight), since covers rank high and the original is often missing from the lyrics search; otherwise the answer is the title alone, and Codex isn't asked just for the singer. When the search isn't sure (or NetEase is down: `lyrics search failed`, `netease down`), Codex answers as below, with the search's candidates added to its prompt as hints (`song-candidates`). The log has `lyrics search` (`why`, `ms`, `sure`, `title`, `artist`, `artistShare`, `queries`, `top`) and `song identified` with `by` (`lyrics-search` or `codex`) and `ms`. `--no-lyrics-search` always asks Codex. With under 40 sung characters in the song so far it doesn't ask anyone: it says it has heard only a few lines (and which), or, with nothing sung, that it hears no singing and `/识别背景音乐` may help (`song-too-early` and `song-no-lyrics` in `wording.md`). Each time it asks, the log has `song id asked` first (`why`: `command` for a typed `/识歌`, `tool` for Claude's, `auto` or `retry`; the song's sung `lines` and `chars`; its `first` and `last` sung line). Codex (`gpt-6-sol` at medium effort, set in `src/wiring/songs.ts` rather than by `--codex`, searching the web live) works it out with `song-id.md` as the prompt (search Google for at least 3 rounds before giving up; a room's own `song_id.md` overrides it). It answers in a fixed JSON shape, enforced by `--output-schema`: `message` is what's sent, and `title`, `artist` and `sure`, the song it named (empty when none), go into the log as `song identified`. Without Codex (`--codex ''`) or speech recognition there's no `/识歌`. Anything after the command is passed on as a hint. The message is Codex's own words from `song-id.md`: the title and singer woven into a line of its own, with whatever fits (something it finds searching for the song, a line of the lyrics, who the song was for, the chat's reactions, a joke) or nothing more; one message to the room in four, by the dice, is asked to end with a question anyone can answer about the song or its work, and the rest ask nothing (`song-hook` / `song-no-hook`). It only sees the lyrics as transcribed, not the voice, so it doesn't judge the singing. When Shazam or the lyrics search named the song, Codex is still asked (for `/识歌` and `/自动识歌`, not for Claude's `identify_song`, whose own reply is the message), told the song (`song-known`), only to write the message (`song message` in the log, with `named`: whether it had the title); its sentence (`song-found`) goes out instead when Codex fails, leaves the title out, or the song was mostly another voice's.
@@ -144,9 +130,9 @@ Has the bot name the songs the streamer sings without anyone asking, as `/识歌
 
 ### /点赞
 
-Likes the room as the bot's account, for admins only: `/点赞 300` gives 300 likes, `/点赞` 100 (up to 200, `MAX_LIKES` in `room-feed-protocol`). Asked in words (「帮我点点赞」), Claude calls the tool `press_like`. It asks room-feed (`POST /api/rooms/<id>/like {likes}`) to hold Douyin's like key, z, on the live video: room-feed clicks the player (so the key doesn't go to the chat box), then holds z, a keydown every 100 ms as a held key repeats, until Douyin's counter by the heart (「x22」) adds up to about that many. The counter can start again from 1 partway, so room-feed adds up the runs (`LikeTally` in `room-feed/src/like-tally.ts`); it's give or take a few. Holding gives about 5 likes a second (measured on 2026-10-29), so 200 takes some 40 seconds; when the counter doesn't show, room-feed guesses from the time held at that rate, and never holds longer than 60 seconds. When the page says 手速太快了, Douyin's limit, it lets go at once. It takes turns with the chats, which use the same keyboard.
+Likes the room as the bot's account, for admins only: `/点赞 100` gives 100 likes, `/点赞` 200 (up to 200, `MAX_LIKES` in `room-feed-protocol`). Asked in words (「帮我点点赞」), Claude calls the tool `press_like`. It asks room-feed (`POST /api/rooms/<id>/like {likes}`) to hold Douyin's like key, z, on the live video: room-feed clicks the player (so the key doesn't go to the chat box), then holds z, a keydown every 100 ms as a held key repeats, until Douyin's counter by the heart (「x22」) adds up to about that many. The counter can start again from 1 partway, so room-feed adds up the runs (`LikeTally` in `room-feed/src/like-tally.ts`); it's give or take a few. Holding gives about 5 likes a second (measured on 2026-10-29), so 200 takes some 40 seconds; when the counter doesn't show, room-feed guesses from the time held at that rate, and never holds longer than 60 seconds. When the page says 手速太快了, Douyin's limit, it lets go at once. It takes turns with the chats, which use the same keyboard.
 
-Liking is done in silence. A typed `/点赞` says nothing; asked in words, the tool's result is `silent`, and the bot sends nothing for that question, @ or not, whatever Claude wrote (`silent after a tool` in the log; any tool can return `silent: true`, `src/app/replies/mention-answerer.ts`). With auto-reply on, it also listens (`listen.when`) for the streamer asking the room for likes (「大家帮我点点赞」「记得点一下赞」, not 「谢谢小雅的点赞」): like any topic, Jev scores her line, the picker (told it's for the streamer and admins only) picks it, and Claude calls `press_like` with the default 100, silently. That takes the 20-second check and the models, so the likes start some 30–40 s after she asks, and later while auto-reply keeps quiet after an answer. With auto-reply off it never listens.
+Liking is done in silence. A typed `/点赞` says nothing; asked in words, the tool's result is `silent`, and the bot sends nothing for that question, @ or not, whatever Claude wrote (`silent after a tool` in the log; any tool can return `silent: true`, `src/app/replies/mention-answerer.ts`). With auto-reply on, it also listens (`listen.when`) for the streamer asking the room for likes (「大家帮我点点赞」「记得点一下赞」, not 「谢谢小雅的点赞」): like any topic, Jev scores her line, the picker (told it's for the streamer and admins only) picks it, and Claude calls `press_like` with the default 200, silently. That takes the 20-second check and the models, so the likes start some 30–40 s after she asks, and later while auto-reply keeps quiet after an answer. With auto-reply off it never listens.
 
 The log has `liked {asker, likes, liked, heldMs, tooFast}` (`liked` is what Douyin's counter added up to), or `could not like`.
 
@@ -164,7 +150,7 @@ Sent, it's done in silence, like `/灯牌`; with too few diamonds, the bot says 
 
 ### /解题
 
-Answers a question about the math, logic or figure puzzle on the screen (the answer, a hint without the answer, where an attempt went wrong, how one step goes), for anyone. `/解题 问题` calls the tool `ask_about_puzzle` directly (with no question, it wants the answer); asked in words, Claude calls it for such questions and says 「稍等」 meanwhile. The tool takes a screenshot at once, even while `/截图` has them off, and starts Codex's `gpt-6-astra` in the background (no web search, with the `zoom` tool for a closer look at small figures and text) with its own prompt `solve.md` (a room's own `solve.md` overrides it) and the streamer's recent words. How hard it thinks is the room's `solveEffort`: `"medium"` takes up to 6 minutes, `"high"` up to 10; it's read on each call, from `room_config.json` only (no command sets it). The tool returns `started: true` at once, and the bot sends Codex's answer to the asker itself, with an @, when it comes (a typed `/解题` says nothing until then); if Codex fails, or has nothing to say, the asker is told so (`puzzle-failed` and `puzzle-no-answer` in `wording.md`). The prompt has it check several rules against every figure before it answers, and say so when two rules fit or it can't tell. On three test puzzles astra was right every time, in 13–43 seconds (zooming only into the blurry live screenshot), where Claude Opus and Fable (even with a zoom tool) were slower and sometimes wrong. The log has `puzzle answered` (`effort`, `ms`) and `could not answer about the puzzle`.
+Answers a question about the math, logic or figure puzzle on the screen (the answer, a hint without the answer, where an attempt went wrong, how one step goes), for anyone. `/解题 问题` calls the tool `ask_about_puzzle` directly (with no question, it wants the answer); asked in words, Claude calls it for such questions and says 「稍等」 meanwhile. The tool takes a screenshot at once and starts Codex's `gpt-6-astra` in the background (no web search, with the `zoom` tool for a closer look at small figures and text) with its own prompt `solve.md` (a room's own `solve.md` overrides it) and the streamer's recent words. How hard it thinks is the room's `solveEffort`: `"medium"` takes up to 6 minutes, `"high"` up to 10; it's read on each call, from `room_config.json` only (no command sets it). The tool returns `started: true` at once, and the bot sends Codex's answer to the asker itself, with an @, when it comes (a typed `/解题` says nothing until then); if Codex fails, or has nothing to say, the asker is told so (`puzzle-failed` and `puzzle-no-answer` in `wording.md`). The prompt has it check several rules against every figure before it answers, and say so when two rules fit or it can't tell. On three test puzzles astra was right every time, in 13–43 seconds (zooming only into the blurry live screenshot), where Claude Opus and Fable (even with a zoom tool) were slower and sometimes wrong. The log has `puzzle answered` (`effort`, `ms`) and `could not answer about the puzzle`.
 
 ```text
 @默认关闭 /解题 这题选什么
@@ -248,21 +234,25 @@ A `trigger` with no `when` is a tool that listens for that alone: a chat matchin
 
 The picker (Codex, shown `reply-pick.md`'s `{{topics}}`) is told these topics, one `- name：when` line for each tool, and a line that matched one (by Jev's score, a trigger or a phrase) ends `→ name` there. The line then reaches Claude with a hint in `{{asked}}` naming the tool(s) (`asked-topics` in `wording.md`): only a hint, Claude still decides, and a tool whose guidance says the line isn't for it is treated as not called. A line Jev scores above 0.9 as about the bot is still answered at once, without the picker; that skip uses the about-the-bot score only, never a topic's.
 
-Which tools listen today: `identify_song` (「这是什么歌」: Claude then picks `identify_song` or `identify_bgm`, by whether the streamer is singing), and the five above. The log has `looking now`, `about the bot`, `sure about the bot`, `picked whom to answer`, `mcp tool {tool}`, `tool guidance {name, asker, userId}`, `fixed reply`, `skipped by user filter` and, at start and whenever a `tool.json` changes, `tool definition {name, folder, adminOnly, listen}`.
+Which tools listen today: `identify_song` (「这是什么歌」: Claude then picks `identify_song` or `identify_bgm`, by whether the streamer is singing), `press_like` (the streamer asking the room for likes, above), and the six room tools above (`can_sing`, `too_easy`, `wants_topic`, `schedule`, `wuwa_meme`, `say_one`). The log has `looking now`, `about the bot`, `sure about the bot`, `picked whom to answer`, `mcp tool {tool}`, `tool guidance {name, asker, userId}`, `fixed reply`, `skipped by user filter` and, at start and whenever a `tool.json` changes, `tool definition {name, folder, adminOnly, listen}`.
 
 ## How a command is handled
 
 `ChatBot` (`src/app/replies/chat-bot.ts`) gets every @ of the bot from the bus (a chat without the @ never reaches it), parses a mention starting with `/` (`src/core/commands/command.ts`) and hands it to `ToolRunner` (`src/app/tools/tool-runner.ts`), which:
 
-1. **Finds the tool** with a command by that name. A name no tool has is answered with the commands the asker may run: `没有指令「x」，可用的有：…` (none, nothing said). An admin-only tool from anyone but an admin or the streamer is refused: `你无权调用「截图」指令，只有主播和雅才可以` (雅 is `adminNames` in `config.json`).
+1. **Finds the tool** with a command by that name. A name no tool has is answered with the commands the asker may run: `没有指令「x」，可用的有：…` (none, nothing said). An admin-only tool from anyone but an admin or the streamer is refused: `你无权调用「自动识歌」指令，只有主播和雅才可以` (雅 is `adminNames` in `config.json`).
 2. **Parses** the text after the name into the tool's arguments, or says its usage (`阈值要写成钻石数，用法：/自动谢礼 100`).
-3. **Calls the tool** with `direct: true` (a tool may then answer differently: `/识歌` has Codex write the message even for a song Shazam or the lyrics search named) and says its reply, from the command's `say` or, for an error result, the error's text, as a system message (sent after replies, before what the bot says unprompted). A tool that throws is `指令「x」出错了，没有完成`.
+3. **Calls the tool** with `direct: true` (a tool may then answer differently: `/识歌` has Codex write the message even for a song Shazam or the lyrics search named) and says its reply, from the command's `say` or, for an error result, the error's text, as a system message (sent after replies, before the rest the bot says on its own, like `/自动识歌`'s song names). A tool that throws is `指令「x」出错了，没有完成`.
 
 Each is logged as `command {name, args, ok, ms}` in `logs/chat-bot.log`.
 
 ## Asking in words
 
-Anything said to the bot in words (an @, its name, a line auto-reply lets through) goes to Claude with these same tools in its MCP session, an MCP server in the bot's own process (the official `@modelcontextprotocol/sdk`, `src/adapters/mcp/`, on 127.0.0.1 and a free port, `--mcp-port`). It is always on: without it Claude could not act on anything said in words, so a server that can't start (a taken port, `could not start` with `EADDRINUSE`) stops the bot at start. Claude reads each tool's description, calls the one that fits (「识别一下背景音乐」, 「把截图打开」, 「以后 100 钻以下的礼物不用谢了」) and answers in its own words from the result. A tool marked `adminOnly` (`BotTool` in `src/app/ports.ts`) is left out of anyone else's session: they don't see it, and `prompt.md` tells Claude to say it can't be done and who can. Each tool runs at most once per question, and each question gets a token of its own, which stops working when the answer is done. The tools a room switches on are in the same list, beside the built-in ones; they have no `/` names, and a guidance tool's text comes back to Claude, which answers in the same turn (`tool guidance` in the log). The log has `mcp server listening {port}`, `mcp tool {tool, asker, userId, ms, isError}` and, in `claude answered`, `tools: [{tool, ms, isError}]`.
+Anything said to the bot in words (an @, its name, a line auto-reply lets through) goes to Claude with these same tools in its MCP session, an MCP server in the bot's own process (the official `@modelcontextprotocol/sdk`, `src/adapters/mcp/`, on 127.0.0.1 and a free port, `--mcp-port`). It is always on: without it Claude could not act on anything said in words, so a server that can't start (a taken port, `could not start` with `EADDRINUSE`) stops the bot at start. Claude reads each tool's description, calls the one that fits (「识别一下背景音乐」, 「看看这题」, 「以后 100 钻以下的礼物不用谢了」) and answers in its own words from the result. A tool marked `adminOnly` (`BotTool` in `src/core/tools/bot-tool.ts`) is left out of anyone else's session: they don't see it, and `prompt.md` tells Claude to say it can't be done and who can. Each tool runs at most once per question (a repeat gets the first result), except `look_at_screen`, which zooms anew on each call; each question gets a token of its own, which stops working when the answer is done. The tools a room switches on are in the same list, beside the built-in ones; they have no `/` names, and a guidance tool's text comes back to Claude, which answers in the same turn (`tool guidance` in the log). The log has `mcp server listening {port}`, `mcp tool {tool, asker, userId, ms, isError}` and, in `claude answered`, `tools: [{tool, ms, isError}]`.
+
+## Seeing the screen
+
+Claude sees no picture of the stream unless it asks for one: `look_at_screen` (`src/app/tools/look-at-screen.ts`, for anyone, no `/` name) gives it a screenshot of the player from room-feed (`GET /api/rooms/:roomId/screenshot`) with its size. Its description tells Claude when that's worth the wait (someone asks it to look, a board or a question on screen, 「看这个」) and when it isn't (chat, songs, likes). Called again with a region (`x`, `y`, `width`, `height` in pixels, and `scale`, 2 by default, at most 4), it enlarges that part of the same screenshot with ffmpeg (`src/adapters/models/ffmpeg-crop.ts`), so it can read small figures and text; one screenshot per question, taken on the first call. A screenshot room-feed can't give is an error Claude reads (`现在截不到直播画面`, `no screenshot` in the log), and it answers without. For a puzzle on the screen, `ask_about_puzzle` does better: it always takes its own screenshot for Codex. The log's `claude answered` has the calls in `tools`.
 
 ## What the bot remembers
 
@@ -293,9 +283,11 @@ Each tool is a `BotTool` in `src/app/tools/`; `src/wiring/mcp.ts` lists them, in
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `set_auto_reply_threshold` | `settingTool`, from its entry in `SETTINGS`                                                                          |
 | `set_auto_reply_interval`  | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_random_reply_chance`  | `settingTool`, from its entry in `SETTINGS`                                                                          |
 | `set_max_reply_parts`      | `settingTool`, from its entry in `SETTINGS`                                                                          |
 | `set_thanks_threshold`     | `settingTool`, from its entry in `SETTINGS`                                                                          |
-| `set_screenshots`          | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `update_memory`            | `src/app/tools/update-memory.ts`                                                                                     |
+| `look_at_screen`           | `src/app/tools/look-at-screen.ts`, which crops with `src/adapters/models/ffmpeg-crop.ts`                             |
 | `identify_song`            | `src/app/tools/identify-song.ts`                                                                                     |
 | `identify_bgm`             | `src/app/tools/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`                                            |
 | `press_like`               | `src/app/tools/press-like.ts`, which asks room-feed's `POST …/like`                                                  |
@@ -311,6 +303,7 @@ Each tool is a `BotTool` in `src/app/tools/`; `src/wiring/mcp.ts` lists them, in
 | `wants_topic`              | `chat-bot/tools/wants-topic/` (`tool.json`)                                                                          |
 | `say_one`                  | `chat-bot/tools/say-one/` (`tool.json`)                                                                              |
 | `schedule`                 | `chat-bot/tools/schedule/` (`tool.json`, `guidance.md`)                                                              |
+| `wuwa_meme`                | `chat-bot/tools/wuwa-meme/` (`tool.json`, `guidance.md`)                                                             |
 
 ## Adding one
 

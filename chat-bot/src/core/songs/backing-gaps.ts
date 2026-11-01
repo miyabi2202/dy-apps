@@ -12,16 +12,6 @@ export interface BackingLevel {
   db: number[];
 }
 
-/** A line of the worker's output as a BackingLevel, or null when it isn't one. */
-export function parseBackingLevel(text: string): BackingLevel | null {
-  if (!text.includes('"backing_level"')) return null;
-  try {
-    return backingLevelFrom(JSON.parse(text));
-  } catch {
-    return null;
-  }
-}
-
 /** A parsed line of the worker's output as a BackingLevel, or null when it isn't one. */
 export function backingLevelFrom(json: unknown): BackingLevel | null {
   const level = (json as { backing_level?: Record<string, unknown> } | null)?.backing_level;

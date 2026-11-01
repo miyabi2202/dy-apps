@@ -2,8 +2,6 @@ import {
   currentSong,
   isHandled,
   isSung,
-  parseStatusLine,
-  parseWorkerLine,
   singingSong,
   type TranscriptLine,
 } from '../../../src/core/songs/transcript';
@@ -51,14 +49,6 @@ test('a song after a long pause starts a new one, and the same one counts again 
   expect(isHandled({ lines: [], start: 7000 }, 20_000, 201_000, 180_000)).toBe(false);
 });
 
-test('reads the worker status lines, and nothing else', () => {
-  expect(parseStatusLine('{"ready": true}')).toBe('ready');
-  expect(parseStatusLine('{"stream_ended": true, "reason": "eof"}')).toBe('stream_ended');
-  expect(parseStatusLine('{"text": "你好"}')).toBeNull();
-  expect(parseStatusLine('loading models')).toBeNull();
-  expect(parseStatusLine('{not json')).toBeNull();
-});
-
 test('a song also ends at a shorter pause the streamer talks in, but not at a guest talking or a word', () => {
   const at = (end: number, text: string, speech = 0.05, host?: boolean): TranscriptLine => ({
     start: (end - 3) * 1000,
@@ -97,13 +87,4 @@ test('a recording playing is no one singing: it neither makes a song nor ends on
   // Nor do they count against her singing, or split her song.
   const mixed = [line(10), played(12), line(14), played(16), line(18)];
   expect(singingSong(mixed, mixed[4]!)?.start).toBe(7000);
-});
-
-test("reads the worker's played recording, and only a named one", () => {
-  const parse = (played: unknown) =>
-    parseWorkerLine(JSON.stringify({ start: 1, end: 2, text: '花', speech: 0.05, played }))?.played;
-  expect(parse({ title: '花', artist: '夏川りみ' })).toEqual({ title: '花', artist: '夏川りみ' });
-  expect(parse({ title: '花' })).toEqual({ title: '花', artist: '' });
-  expect(parse(null)).toBeUndefined();
-  expect(parse({ title: '' })).toBeUndefined();
 });

@@ -1,7 +1,6 @@
 import { updateMemoryTool } from '../../../src/app/tools/update-memory';
 import { fakeMemory, noteFile, ROOM_FILE } from '../../support/fake-memory';
-
-const silentLog = { debug() {}, info() {}, warn() {}, error() {} };
+import { silentLog } from '../../support/fakes';
 
 /** The tool over memory kept in `store`, in a room whose streamer is `s-1`. */
 function setup({ isPrivate = false } = {}) {

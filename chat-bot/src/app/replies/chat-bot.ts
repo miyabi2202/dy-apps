@@ -2,12 +2,10 @@ import type { Viewer } from '../../core/tools/tool-definition';
 import { parseCommand } from '../../core/commands/command';
 import type { ChatLine, IncomingChat } from '../../core/chat/room-events';
 import type { Heard } from '../../core/prompts/prompt';
-import { ToolRunner } from '../tools/tool-runner';
+import type { ToolRunner } from '../tools/tool-runner';
 import type { EventBus } from '../event-bus';
 import type { Mention, MentionAnswerer, UnpromptedReply } from './mention-answerer';
-import type { Outbox } from './outbox';
 import type { Admins, Log } from '../ports';
-import type { BotTool } from '../../core/tools/bot-tool';
 import type { RoomFeed } from '../room/room-feed';
 import type { RoomState } from '../room/room-state';
 
@@ -19,21 +17,12 @@ export interface ChatBotOptions {
   /** Answers the questions. */
   answerer: Pick<MentionAnswerer, 'ask' | 'idle'>;
   /** The chat before a question goes with it to the answerer. */
-  room: Pick<RoomState, 'recentChat' | 'replyLimits'>;
-  /** Where command replies go to be sent, spaced out. */
-  outbox: Pick<Outbox, 'push'>;
+  room: Pick<RoomState, 'recentChat'>;
   log: Log;
   /** User ids of the admins: only they can run the admin-only commands. */
   admins?: Admins;
-  /** The bot's tools as they are now; those with `commands` run when a mention starts with their `/` name. */
-  tools?: () => readonly BotTool[];
-  /** Douyin's chat length limit, for the bot's own messages. */
-  maxReplyLength?: number;
-  /** Who may run admin-only commands, as viewers know them: 「只有主播和…才可以」. */
-  adminNames?: string;
-  now?: () => number;
-  /** Runs the commands; one made from the options above by default. */
-  toolRunner?: Pick<ToolRunner, 'run' | 'idle'>;
+  /** Runs the commands. */
+  toolRunner: Pick<ToolRunner, 'run' | 'idle'>;
 }
 
 /** Whether `userId` is one of `admins`. */
@@ -46,22 +35,7 @@ export function isAdmin(admins: Admins | undefined, userId: string | undefined):
  * first, a tool's command (`/识歌`), which the ToolRunner runs.
  */
 export class ChatBot {
-  private readonly toolRunner: Pick<ToolRunner, 'run' | 'idle'>;
-
-  constructor(private readonly options: ChatBotOptions) {
-    this.toolRunner =
-      options.toolRunner ??
-      new ToolRunner({
-        tools: options.tools ?? (() => []),
-        outbox: options.outbox,
-        room: options.room,
-        log: options.log,
-        isAdmin: (userId) => this.isAdmin(userId),
-        adminNames: options.adminNames,
-        maxReplyLength: options.maxReplyLength,
-        now: options.now,
-      });
-  }
+  constructor(private readonly options: ChatBotOptions) {}
 
   start(): void {
     this.options.bus.on('mention', ({ chat, question }) => this.onMention(chat, question));
@@ -75,7 +49,7 @@ export class ChatBot {
   /** Resolves once Claude has answered every queued mention, and every command has finished. */
   async idle(): Promise<void> {
     await this.options.answerer.idle();
-    await this.toolRunner.idle();
+    await this.options.toolRunner.idle();
   }
 
   /** Runs the command the mention gives, or hands the question on to the answerer. */
@@ -86,7 +60,7 @@ export class ChatBot {
     const admin = this.isAdmin(userId);
     const call = parseCommand(question);
     if (call) {
-      this.toolRunner.run(chat, call, admin);
+      this.options.toolRunner.run(chat, call, admin);
       return;
     }
     this.ask({
@@ -99,8 +73,8 @@ export class ChatBot {
   }
 
   /**
-   * Answers what someone said to or about the bot without an @ (auto-reply picked it), like a
-   * mention.
+   * Answers what someone said to or about the bot without an @ (auto-reply heard it: a name call,
+   * focus, a trigger, the picker, or a random pick), like a mention.
    */
   replyUnprompted({ nickname, userId, question, heard, topics }: UnpromptedReply): void {
     this.options.log.info('unprompted', {

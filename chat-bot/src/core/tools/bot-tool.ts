@@ -25,9 +25,11 @@ export interface ToolContext {
   viewer?: Viewer;
 }
 
-/** What a tool answers: text for Claude to read. */
+/** What a tool answers: text for Claude to read, and a picture to look at with it. */
 export interface ToolResult {
   text: string;
+  /** A JPEG for Claude to see (look_at_screen's screenshot). */
+  image?: Uint8Array;
   isError?: boolean;
   /** The bot says nothing more to this question, whatever Claude answers (press_like's likes). */
   silent?: true;
@@ -65,6 +67,11 @@ export interface BotTool {
   adminOnly?: boolean;
   /** Whether it's offered now (a room setting that switches it on); always, without it. Asked as each question opens. */
   offered?: () => boolean;
+  /**
+   * Runs on every call, with that call's arguments (look_at_screen zooming into one part, then
+   * another); any other tool runs once per question and a repeated call gets the first result.
+   */
+  repeatable?: boolean;
   /** The `/` commands that call it directly, typed after an @ of the bot; usually one, none for a tool only Claude calls. */
   commands?: readonly ToolCommand[];
   /**
@@ -90,8 +97,6 @@ export interface ToolCall {
 /** One question's tools, open until `close()`. */
 export interface ToolSession {
   access: ToolAccess;
-  /** The tools Claude called so far, in order. */
-  used(): string[];
   /** What each tool Claude called took, in order. */
   calls(): ToolCall[];
   close(): void;

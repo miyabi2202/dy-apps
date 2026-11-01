@@ -5,7 +5,6 @@ import { SETTING_DEFAULTS } from '../../../src/core/commands/settings';
 import { MESSAGE_SCHEMA } from '../../../src/core/replies/mention-answer';
 import { askAboutPuzzleTool } from '../../../src/app/tools/ask-about-puzzle';
 import { fakeRoom } from '../../support/fake-room';
-import { fakeSettings } from '../../support/fake-settings';
 import { fakeBus, fakeOutbox, silentLog } from '../../support/fakes';
 
 const FRAME = new Uint8Array([0xff, 0xd8]);
@@ -36,13 +35,8 @@ function setup() {
     ask,
     settings: { get: () => ({ ...SETTING_DEFAULTS, solveEffort: state.solveEffort }) },
     prompt: () => '解题：{{question}}（{{asker}}）',
-    // Screenshots are off, but a puzzle always gets one.
     room: fakeRoom(),
-    screenshots: new Screenshots({
-      fetch: () => Promise.resolve(FRAME),
-      settings: fakeSettings({ screenshots: false }),
-      log: silentLog,
-    }),
+    screenshots: new Screenshots({ fetch: () => Promise.resolve(FRAME), log: silentLog }),
     outbox,
     userTalk,
     bus,

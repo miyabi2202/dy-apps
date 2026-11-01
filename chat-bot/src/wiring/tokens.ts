@@ -21,7 +21,6 @@ import type { GiftThanker } from '../app/replies/gift-thanker';
 import type { MaliceWatch } from '../app/replies/malice-watch';
 import type { BotMcpServer } from '../adapters/mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
-import type { AutoMessage } from '../app/replies/auto-message';
 import type { LifeWriter } from '../app/life/life-writer';
 import type { MemoryRecall } from '../app/memory/memory-recall';
 import type { KnowledgeRecall } from '../app/knowledge/knowledge-recall';
@@ -33,6 +32,7 @@ import type { Outbox } from '../app/replies/outbox';
 import type {
   AskModel,
   BotTalk,
+  CropImage,
   DefinedTool,
   Embedder,
   Judge,
@@ -93,6 +93,8 @@ export const ROOM_API =
   >('roomApi');
 export const ROOM_EVENTS = token<RoomEvents>('roomEvents');
 export const SPAWN_WORKER = token<SpawnWorker>('spawnWorker');
+/** Enlarges part of a screenshot (ffmpeg), for look_at_screen's zoom. */
+export const CROP_IMAGE = token<CropImage>('cropImage');
 /** The local embedding service (embedding/serve.py); null with --embedding-port 0. */
 export const EMBEDDER = token<Embedder | null>('embedder');
 /** `claude -p` for this room. */
@@ -155,7 +157,7 @@ export const PROMPT = token<(name: PromptName) => () => string>('prompt');
 export const BOT_NAMES = token<BotNames>('botNames');
 /** Who the streamer is: room-feed's word on it, else what room_config.json kept from last time. */
 export const STREAMER = token<Streamer>('streamer');
-/** The live video for a prompt, while the `screenshots` setting is on. */
+/** The live video, for the tools that look at it. */
 export const SCREENSHOTS = token<Screenshots>('screenshots');
 export const ROOM = token<RoomState>('room');
 export const OUTBOX = token<Outbox>('outbox');
@@ -164,7 +166,6 @@ export const FEED = token<RoomFeed>('feed');
 // auto-reply.ts: what the bot says unprompted.
 export const AUTO_REPLY = token<AutoReply>('autoReply');
 export const THANKER = token<GiftThanker>('thanker');
-export const AUTO_MESSAGE = token<AutoMessage>('autoMessage');
 
 // life.ts: the personas' own days.
 /** What happened to each shared persona on her own days, in data/lives/. */
@@ -180,12 +181,12 @@ export const SONG_ENDS = token<SongEnds>('songEnds');
 export const BACKING_GAP_BREAKS = token<BackingGapBreaks>('backingGapBreaks');
 /** The lyrics song break source (see song-breaks.ts); null without NetEase. */
 export const LYRICS_BREAKS = token<LyricsBreaks | null>('lyricsBreaks');
+/** Where the songs in what the streamer said begin and end, by the sources the room has on. */
+export const SONG_SPANS = token<SongSpans>('songSpans');
 /**
  * Every song break source the room asks, highest ranked first: the lyrics (when there are any),
  * then Shazam's backing titles, then the backing track stopping.
  */
-/** Where the songs in what the streamer said begin and end, by the sources the room has on. */
-export const SONG_SPANS = token<SongSpans>('songSpans');
 export const SONG_BREAK_SOURCES = token<readonly SongBreakSource[]>('songBreakSources');
 
 // malice.ts: null without Jev.

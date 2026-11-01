@@ -31,9 +31,9 @@ import type { RoomState } from '../room/room-state';
 export interface AutoReplyOptions {
   /** Where it tells the room the judge's account ran dry. */
   outbox: Pick<Outbox, 'push'>;
-  /** Says how likely each new chat or sentence is about the bot. Without it, it never talks unprompted. */
+  /** Says how likely each new chat or sentence is about the bot. Without it nothing goes to the picker; names, `focus` and random replies are still answered. */
   judge?: Judge;
-  /** The room's settings, where the threshold and the quiet time are kept. */
+  /** The room's settings, where the threshold, the quiet time and randomReplyChance are kept. */
   settings: SettingsStore;
   /** The chat, transcript and the rest of what the prompt knows about the room. */
   room: Pick<
@@ -65,6 +65,8 @@ export interface AutoReplyOptions {
   focus?: () => readonly string[];
   /** Jev's score above which a line is answered at once, without the picker (SURE_ABOUT_BOT without it). */
   sureThreshold?: number;
+  /** A number from 0 up to 1, rolled for each chat against randomReplyChance; tests pass a fixed one. */
+  random?: () => number;
 }
 
 /**
@@ -100,7 +102,8 @@ const OFF_FOR_NO_CREDIT = 10;
  * `threshold` likely, or a chat matches a tool's trigger, it has the picker choose whom to
  * answer, each through `reply`, except what Jev is surer of than SURE_ABOUT_BOT is about the bot,
  * which is answered at once. What someone the bot just answered says goes to the picker without
- * the judge.
+ * the judge. Apart from all that, each chat but the bot's has a randomReplyChance of going to
+ * `reply` as it is (auto-reply on or off), for Claude to join in on or not.
  */
 export class AutoReply {
   private stopped = false;
@@ -130,7 +133,7 @@ export class AutoReply {
     this.seen = options.room.now();
   }
 
-  /** The room's settings as they are now: the threshold (1 or more never talks unprompted) and how long it keeps quiet. */
+  /** The room's settings as they are now: the threshold (1 or more: no judge, no name calls; focus and random replies still go on), how long it keeps quiet, and randomReplyChance. */
   private get settings(): Settings {
     return this.options.settings.get();
   }
@@ -172,7 +175,9 @@ export class AutoReply {
    * listen trigger (主播会唱xxx吗) is surely for the bot, so it looks now instead of at the next
    * check; one matching the trigger of a tool that listens for nothing else (no `when`) is
    * answered at once, like a name. The rest wait for it, so the room has time to answer. A chat
-   * from someone in `focus` is answered at once whatever it says, auto-reply on or off.
+   * from someone in `focus` is answered at once whatever it says, auto-reply on or off. Any other
+   * chat, the streamer's too, is handed to Claude at once with `randomReplyChance` (auto-reply on
+   * or off), to join in on or leave.
    */
   hear({
     ts,
@@ -188,23 +193,38 @@ export class AutoReply {
       this.options.reply({ nickname, userId, question: content, heard: 'chat' });
       return;
     }
-    if (this.settings.autoReplyThreshold >= 1) return;
-    const name = line?.candidate ? matchChat(content, this.options.names.callNames()) : undefined;
+    const on = this.settings.autoReplyThreshold < 1;
+    const name =
+      on && line?.candidate ? matchChat(content, this.options.names.callNames()) : undefined;
     if (line && name !== undefined) {
       this.callsBot(line, name, { nickname, userId, question: content, heard: 'chat' });
       return;
     }
-    const triggered = this.chatTopics()
-      .filter((topic) => !topic.when && topic.trigger?.test(content))
-      .map((topic) => topic.name);
+    const triggered = on
+      ? this.chatTopics()
+          .filter((topic) => !topic.when && topic.trigger?.test(content))
+          .map((topic) => topic.name)
+      : [];
     if (line?.candidate && triggered.length) {
       this.called.set(lineKey(line), line.ts);
       this.options.log.info('trigger matched', { tools: triggered, who: line.who, text: content });
       this.options.reply({ nickname, userId, question: content, heard: 'chat', topics: triggered });
       return;
     }
-    if (!this.chatTopics().some((topic) => matchFor(topic, content))) return;
+    if (line?.candidate && this.rollsRandomReply()) {
+      this.called.set(lineKey(line), line.ts);
+      this.options.log.info('random reply', { who: nickname, userId, text: content });
+      this.options.reply({ nickname, userId, question: content, heard: 'random' });
+      return;
+    }
+    if (!on || !this.chatTopics().some((topic) => matchFor(topic, content))) return;
     this.lookAtOnce(content);
+  }
+
+  /** Whether this chat is the one in `randomReplyChance` handed to Claude; never at 0. */
+  private rollsRandomReply(): boolean {
+    const chance = this.settings.randomReplyChance;
+    return chance > 0 && (this.options.random ?? Math.random)() < chance;
   }
 
   /**

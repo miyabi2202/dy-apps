@@ -5,6 +5,7 @@ import { askAboutPuzzleTool } from '../app/tools/ask-about-puzzle';
 import { declarativeTools } from '../app/tools/declarative-tools';
 import { identifyBgmTool } from '../app/tools/identify-bgm';
 import { identifySongTool } from '../app/tools/identify-song';
+import { lookAtScreenTool } from '../app/tools/look-at-screen';
 import { BotMcpServer } from '../adapters/mcp/server';
 import { fansLampTool } from '../app/tools/fans-lamp';
 import { happyHeartTool } from '../app/tools/happy-heart';
@@ -18,6 +19,7 @@ import {
   SCREENSHOTS,
   ANSWERER,
   ASK_SOLVE,
+  CROP_IMAGE,
   BUS,
   JUDGE,
   LOG,
@@ -76,12 +78,12 @@ export function registerMcp(container: Container): void {
       const tools = [
         setting('autoReplyThreshold'),
         setting('autoReplyIntervalSeconds'),
-        setting('autoMessageIntervalSeconds'),
+        setting('randomReplyChance'),
         setting('maxReplyParts'),
         setting('thanksThreshold'),
         // What the bot remembers: the room's (admins) and the asker's own note (anyone).
         updateMemoryTool({ memory: c.resolve(MEMORY), log }),
-        setting('screenshots'),
+        lookAtScreenTool({ screenshots: c.resolve(SCREENSHOTS), crop: c.resolve(CROP_IMAGE), log }),
         ...(songId && transcriber
           ? [
               identifySongTool({

@@ -79,7 +79,7 @@ test('is closed before it starts and after it stops', async () => {
   expect(server.open({ asker: 'a', question: '' })).toBeNull();
 });
 
-test('a tools/call round trip over loopback, logged, and the session knows what Claude used', async () => {
+test('a tools/call round trip over loopback, logged, and the session knows what Claude called', async () => {
   const { server, logged } = await started();
   const session = server.open({ asker: '苦***', userId: '111111-苦***-31', question: '什么歌' })!;
   expect(session.access.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
@@ -89,7 +89,6 @@ test('a tools/call round trip over loopback, logged, and the session knows what 
   expect(await client.callTool({ name: 'identify_song', arguments: {} })).toMatchObject({
     content: [{ type: 'text', text: '给 苦*** 认了歌' }],
   });
-  expect(session.used()).toEqual(['identify_song']);
   expect(session.calls().map(({ tool, isError }) => ({ tool, isError }))).toEqual([
     { tool: 'identify_song', isError: false },
   ]);
@@ -139,8 +138,32 @@ test('a call runs the tool once per question: a repeat gets the first result, wi
   const call = () => client.callTool({ name: 'identify_song', arguments: { hint: '嗯' } });
   expect(await call()).toMatchObject({ content: [{ type: 'text', text: '第 1 次' }] });
   expect(await call()).toMatchObject({ content: [{ type: 'text', text: '第 1 次' }] });
-  expect(session.used()).toEqual(['identify_song']);
   expect(session.calls()).toEqual([{ tool: 'identify_song', ms: 250, isError: false }]);
+});
+
+test('a repeatable tool runs on every call, with its arguments, and a picture goes with the text', async () => {
+  const looking: BotTool = {
+    ...tool,
+    name: 'look_at_screen',
+    repeatable: true,
+    call: (args) =>
+      Promise.resolve({ text: `看 ${JSON.stringify(args)}`, image: new Uint8Array([0xff, 0xd8]) }),
+  };
+  const server = new BotMcpServer({ tools: () => [looking], log: silentLog });
+  servers.push(server);
+  await server.start();
+  const session = server.open({ asker: 'a', question: '' })!;
+  const client = await connect(session);
+  const call = (args: Record<string, unknown>) =>
+    client.callTool({ name: 'look_at_screen', arguments: args });
+  expect(await call({})).toEqual({
+    content: [
+      { type: 'image', data: Buffer.from([0xff, 0xd8]).toString('base64'), mimeType: 'image/jpeg' },
+      { type: 'text', text: '看 {}' },
+    ],
+  });
+  expect(await call({ x: 1 })).toMatchObject({ content: [{}, { text: '看 {"x":1}' }] });
+  expect(session.calls().map(({ tool }) => tool)).toEqual(['look_at_screen', 'look_at_screen']);
 });
 
 test('an unknown tool, or one that throws, is an error result Claude can read', async () => {
@@ -238,9 +261,10 @@ test('a body over 1 MB is a 413', async () => {
   });
   const status = await post(session, big).then(
     (response) => response.status,
-    () => 413, // the server may hang up while the client is still sending
+    // The server may hang up while the client is still sending: a refusal too, not a crash.
+    (err: Error & { cause?: { code?: string } }) => err.cause?.code ?? err.message,
   );
-  expect(status).toBe(413);
+  expect([413, 'ECONNRESET', 'EPIPE', 'UND_ERR_SOCKET']).toContain(status);
 });
 
 test('a body that is not JSON is a 400, not a crash', async () => {

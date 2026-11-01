@@ -22,8 +22,8 @@ const WHAT_SONG_TRIGGER =
   /(?<![唱点啥么])(什么|啥)(歌|曲)(?![歌曲])|这首叫|这歌叫|叫(什么|啥)歌(?!歌)|(在|正在)放(的是)?(什么|啥)(?!(什么|啥))|放的(是)?(什么|啥)(?!(什么|啥))|(歌名|[bB][gG][mM]|背景音乐)(是|叫)?(什么|啥)|求(个|一下)?(歌名|[bB][gG][mM])/;
 
 /**
- * `identify_song`: what the streamer is singing now (the lyrics search, then Codex when it isn't
- * sure), for Claude to say in its own words. The song it named is remembered as told, so
+ * `identify_song`: what the streamer is singing now (Shazam, then the lyrics search, then Codex when
+ * they aren't sure), for Claude to say in its own words. The song it named is remembered as told, so
  * /自动识歌 doesn't say it again. A typed `/识歌` (`direct`) has no reply of Claude's, so Codex
  * writes its message to the room even for a song Shazam or the lyrics search named; for Claude it
  * doesn't, as Claude's reply is the message. It also says which song the room was last told, so

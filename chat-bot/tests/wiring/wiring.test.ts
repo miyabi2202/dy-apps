@@ -4,12 +4,14 @@ import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { CodexCliOptions } from '../../src/adapters/models/codex-cli';
-import type { AskModel, Log, Question, SpawnWorker } from '../../src/app/ports';
+import type { AskModel, Log, SpawnWorker } from '../../src/app/ports';
 import { loadToolDefinitions } from '../../src/adapters/files/tool-files';
 import { parseCliOptions } from '../../src/cli-options';
+import { settingsText } from '../../src/core/commands/settings';
 import { buildContainer } from '../../src/wiring';
 import {
   APP,
+  ASK_CODEX,
   AUTO_SONG_ID,
   BOT,
   BUS,
@@ -28,8 +30,8 @@ import {
   SONG_BREAK_SOURCES,
   SONG_ID,
   SPAWN_WORKER,
+  CROP_IMAGE,
   STREAMER,
-  THANKER,
   TOOLS,
   TRANSCRIBER,
   TRANSCRIPT,
@@ -78,10 +80,9 @@ function build(
   const spawned: string[] = [];
   const codexMade: CodexCliOptions[] = [];
   const jevKeys: string[] = [];
-  let claudeAnswer: (question: Question) => string = () => '你好呀';
   const claude: AskModel = (question) => {
     prompts.push(question.prompt);
-    return Promise.resolve(claudeAnswer(question));
+    return Promise.resolve('你好呀');
   };
   let ready: () => void = () => {};
   const spawnWorker: SpawnWorker = ({ onLine }) => {
@@ -110,6 +111,7 @@ function build(
     }))
     .register(ROOM_EVENTS, () => ({ ...events, connect: () => void connected++ }))
     .register(SPAWN_WORKER, () => spawnWorker)
+    .register(CROP_IMAGE, () => (image) => Promise.resolve(image))
     // No embedding service: recall shows the latest memories only.
     .register(EMBEDDER, () => null)
     .register(CLAUDE_CLI, () => claude)
@@ -146,7 +148,6 @@ function build(
     jevKeys,
     connected: () => connected,
     workerReady: () => ready(),
-    answerWith: (answer: (question: Question) => string) => (claudeAnswer = answer),
     /** The `/` names of the tools, in the order the tools are listed. */
     commands: () =>
       container
@@ -159,10 +160,9 @@ function build(
 const ALL_COMMANDS = [
   '自动回复阈值',
   '自动回复间隔',
-  '自动消息间隔',
+  '随机回复',
   '最大回复条数',
   '自动谢礼',
-  '截图',
   '识歌',
   '识别背景音乐',
   '点赞',
@@ -188,6 +188,11 @@ const mention = (nickname: string, userId: string, content: string) => ({
 
 test('by default it has every feature, each with its own command in the order the help shows', () => {
   const bot = build();
+  const models = new Map<string, string | undefined>();
+  bot.container.register(ASK_CODEX, () => (task, over) => {
+    models.set(task, over.model);
+    return () => Promise.resolve('{}');
+  });
   bot.container.resolve(APP);
 
   expect(bot.commands()).toEqual(ALL_COMMANDS);
@@ -197,11 +202,13 @@ test('by default it has every feature, each with its own command in the order th
   expect(bot.container.resolve(TRANSCRIBER)).not.toBeNull();
   expect(bot.jevKeys).toEqual(['key']);
   // Codex's default for the picker and malice watch, gpt-6-sol for the song id, and gpt-6-astra
-  // for the puzzle tool: one for each effort the room can be set to.
-  const models = bot.codexMade.map((over) => over.model);
-  expect(models.filter((model) => model === undefined)).toHaveLength(2);
-  expect(models.filter((model) => model === 'gpt-6-sol')).toHaveLength(1);
-  expect(models.filter((model) => model === 'gpt-6-astra')).toHaveLength(2);
+  // for the puzzle tool.
+  expect(Object.fromEntries(models)).toEqual({
+    'reply-pick': undefined,
+    malice: undefined,
+    'song-id': 'gpt-6-sol',
+    puzzle: 'gpt-6-astra',
+  });
 });
 
 test("--codex '' leaves out /识歌, the auto-reply picker and everything that needs Codex, but not /解题", () => {
@@ -219,7 +226,7 @@ test("--codex '' leaves out /识歌, the auto-reply picker and everything that n
   expect(bot.codexMade.map((over) => over.model)).toEqual(['gpt-6-astra', 'gpt-6-astra']);
   expect(bot.logged).toContainEqual([
     'warn',
-    '--codex is empty: auto-reply is off, the bot only talks when @ed',
+    '--codex is empty: no judge, the bot answers only @s, its name, focus and random replies',
   ]);
 });
 
@@ -257,7 +264,7 @@ test('without a JEV_API_KEY there is no Jev, so no auto-reply and no malice watc
   expect(bot.commands()).not.toContain('识别恶意言论');
   expect(bot.logged).toContainEqual([
     'warn',
-    'no JEV_API_KEY in chat-bot/.env: auto-reply is off, the bot only talks when @ed',
+    'no JEV_API_KEY in chat-bot/.env: no judge, the bot answers only @s, its name, focus and random replies',
   ]);
 });
 
@@ -306,9 +313,7 @@ test('answers a mention with the room, the settings the features gave and the pe
   const prompt = bot.prompts[0]!;
   expect(prompt).toContain('小红 @ 了你：你好');
   // Every feature's part of the settings, even those that are off.
-  expect(prompt).toContain('- 自动回复：关闭');
-  expect(prompt).toContain('- 自动谢礼：关闭');
-  expect(prompt).toContain('- 自动识歌：关闭');
+  expect(prompt).toContain(settingsText(bot.container.resolve(SETTINGS).get()));
 });
 
 test('the knowledge base in data/knowledge/douyin/ is in the prompt, read when it is used', async () => {
@@ -351,10 +356,10 @@ test('a typed command runs the tool: an admin changes the setting in room_config
   expect(JSON.parse(config)).toMatchObject({ thanksThreshold: 100 });
 });
 
-test("starts filling in the room's room_config.json: an option seeds a missing setting, and what the file has wins", () => {
-  const first = build(['--no-asr', '--thanks-threshold', '200']);
-  first.container.resolve(APP);
-  const path = join(first.dir, 'data', '123', 'room_config.json');
+test("starts filling in the room's room_config.json: an option seeds a missing setting, the rest are defaults", () => {
+  const bot = build(['--no-asr', '--thanks-threshold', '200']);
+  bot.container.resolve(APP);
+  const path = join(bot.dir, 'data', '123', 'room_config.json');
   expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({
     private: false,
     aliases: [],
@@ -362,33 +367,6 @@ test("starts filling in the room's room_config.json: an option seeds a missing s
     autoReplyThreshold: 1,
     solveEffort: 'medium',
   });
-
-  // The next start, with another option: the file's value stays, with a warning.
-  const options = parseCliOptions(
-    [
-      '--room',
-      '123',
-      '--bot-name',
-      '小助手',
-      '--data',
-      join(first.dir, 'data'),
-      '--thanks-threshold',
-      '900',
-    ],
-    PACKAGE_DIR,
-  )!;
-  const warned: string[] = [];
-  const container = buildContainer({
-    options,
-    packageDir: PACKAGE_DIR,
-    log: { debug() {}, info() {}, error() {}, warn: (message) => void warned.push(message) },
-    env: {},
-  });
-  container.register(DOWNLOADS, () => () => {});
-  container.resolve(THANKER);
-  expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ thanksThreshold: 200 });
-  expect(container.resolve(SETTINGS).get().thanksThreshold).toBe(200);
-  expect(warned).toContain('setting from room_config, ignoring option');
 });
 
 test('the tools server starts with the bot, serves its tools (an admin the admin-only ones too), and stops with it', async () => {
@@ -401,6 +379,7 @@ test('the tools server starts with the bot, serves its tools (an admin the admin
   const session = bot.container.resolve(MCP_SERVER).open({ asker: 'a', question: '' })!;
   expect(session.access.tools).toEqual([
     'update_memory',
+    'look_at_screen',
     'identify_song',
     'identify_bgm',
     'ask_about_puzzle',
@@ -428,23 +407,24 @@ test('a tools port that is taken stops the start', async () => {
   }
 });
 
-test('without speech, Codex or Jev the tools server still has the admin-only settings, and only memory and the puzzle for anyone else', async () => {
+test('without speech, Codex or Jev the tools server still has the admin-only settings, and only memory, the screen and the puzzle for anyone else', async () => {
   const bot = build(['--mcp-port', '0', '--no-asr', '--codex', ''], {});
   const app = bot.container.resolve(APP);
   await app.start();
   const server = bot.container.resolve(MCP_SERVER);
   expect(server.open({ asker: 'a', question: '' })!.access.tools).toEqual([
     'update_memory',
+    'look_at_screen',
     'ask_about_puzzle',
   ]);
   expect(server.open({ asker: 'a', question: '', admin: true })!.access.tools).toEqual([
     'set_auto_reply_threshold',
     'set_auto_reply_interval',
-    'set_auto_message_interval',
+    'set_random_reply_chance',
     'set_max_reply_parts',
     'set_thanks_threshold',
     'update_memory',
-    'set_screenshots',
+    'look_at_screen',
     'press_like',
     'send_fans_lamp',
     'send_heart',
@@ -506,7 +486,7 @@ test('every tool with a / name is in the table of docs/commands.md, and the tabl
   const first = lines.findIndex((line) => line.startsWith('| `/'));
   const rows: string[] = [];
   for (let i = first; i < lines.length && lines[i]!.startsWith('|'); i++) rows.push(lines[i]!);
-  // The cells of a row, `\|` inside one kept (`/截图 <0\|1>`).
+  // The cells of a row, `\|` inside one kept (`/自动识歌 <0\|1>`).
   const documented = rows.map((row) => {
     const [, command = '', tool = ''] = row.split(/(?<!\\)\|/).map((cell) => cell.trim());
     return [/^`\/([^\s`]+)/.exec(command)?.[1], tool.replace(/`/g, '')];

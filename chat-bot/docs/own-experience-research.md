@@ -1,5 +1,7 @@
 # Giving the bot its own experiences
 
+> **Status (2026-11-01):** written before ideas 1 and 2 of "Ideas for our bot" were built, when the bot had only a fixed persona and no state of its own; kept as the research it was. Since then: idea 1 is built as `LifeWriter`, which writes the persona's day to `data/lives/<persona>/<date>.md` from `prompts/life.md` (Fairy's guide is `prompts/personas/fairy/life.md`), the latest days going into `{{persona}}` under `## 最近的日子`; idea 2 is `pnpm remember`'s thoughts after each stream (`memory/thoughts.md`, the latest 6 in `{{memory}}`). `prompts/auto-message.md` and the auto message are gone, so idea 3's premise is too; what's closest now is `randomReplyChance` (`/随机回复`, `asked-random` in `wording.md`), which hands a random chat to Claude to join in on or not. `prompts/personas/fairy.md` is now `prompts/personas/fairy/persona.md`.
+
 ## The problem
 
 When someone talks to the bot, it can only answer with what is already in the room: the streamer's words, the chat and its memory. A person brings their own life, opinions and curiosity into a conversation, so there is always something new to talk about. The bot has nothing of its own to bring up.

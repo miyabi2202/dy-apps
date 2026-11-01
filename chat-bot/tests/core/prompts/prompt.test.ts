@@ -37,6 +37,9 @@ test('{{asked}} says how the asker reached the bot, and names the tools a line m
   expect(buildPrompt('{{asked}}', { ...asked, unprompted: 'chat', topics: [] })).toBe(
     testWording('asked-chat', { asker: '阿明', said: '秒了' }),
   );
+  expect(buildPrompt('{{asked}}', { ...asked, unprompted: 'random' })).toBe(
+    testWording('asked-random', { asker: '阿明', said: '秒了' }),
+  );
 });
 
 test('{{asked}} puts what the asker said while waiting before their latest line, as one request', () => {
@@ -95,13 +98,6 @@ test('{{aliases}} says the room’s other names for the bot mean it too, and is 
     aliases: ['Fairy', '菲瑞'],
   });
   expect(filled).toMatch(/^你的人设是小猫\n.*「Fairy、菲瑞」/);
-});
-
-test('{{forbiddenTopics}} is the rules for topics as they are, and empty without them', () => {
-  expect(
-    buildPrompt('{{forbiddenTopics}}', { ...input, forbiddenTopics: '- 不碰投资理财\n' }),
-  ).toBe('- 不碰投资理财');
-  expect(buildPrompt('[{{forbiddenTopics}}]', input)).toBe('[]');
 });
 
 test('{{commonKnowledge}} gives Douyin common knowledge under a heading, and is empty without any', () => {

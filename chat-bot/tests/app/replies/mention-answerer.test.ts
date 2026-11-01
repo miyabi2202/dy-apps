@@ -4,11 +4,11 @@ import type { SettingsStore } from '../../../src/app/ports';
 import type { UserTalk } from '../../../src/app/ports';
 import { Transcript } from '../../../src/core/songs/transcript';
 import { fakeMemory, noteFile } from '../../support/fake-memory';
-import { Screenshots } from '../../../src/app/room/screenshots';
 import { fakeNames } from '../../support/fake-names';
 import { fakeRoom } from '../../support/fake-room';
 import { fakeSettings } from '../../support/fake-settings';
 import { NOW, fakeBus, fakeOutbox, silentLog } from '../../support/fakes';
+import { testWording } from '../../support/wording';
 
 const TEMPLATE = '{{history}}\n---\n{{asker}}: {{question}} ({{singleLength}})';
 
@@ -18,7 +18,6 @@ interface SetupOptions {
   maxPending?: number;
   template?: string;
   transcript?: Transcript;
-  screenshot?: () => Promise<Uint8Array>;
   ask?: () => Promise<string>;
   chatDir?: string;
   persona?: string;
@@ -30,9 +29,8 @@ interface SetupOptions {
 
 function setup(options: SetupOptions = {}) {
   const prompts: string[] = [];
-  const images: (Uint8Array | undefined)[] = [];
   const { outbox, sent } = fakeOutbox();
-  const settings = options.settings ?? fakeSettings({ screenshots: !!options.screenshot });
+  const settings = options.settings ?? fakeSettings();
   const room = fakeRoom({
     transcript: options.transcript,
     persona: () => options.persona ?? '',
@@ -42,14 +40,12 @@ function setup(options: SetupOptions = {}) {
     now: () => NOW,
   });
   const answerer = new MentionAnswerer({
-    ask: ({ prompt, image }) => {
+    ask: ({ prompt }) => {
       prompts.push(prompt);
-      images.push(image);
       return options.ask ? options.ask() : Promise.resolve(options.answer ?? '你好呀');
     },
     outbox,
     room,
-    screenshots: new Screenshots({ fetch: options.screenshot, settings, log: silentLog }),
     log: silentLog,
     promptTemplate: () => options.template ?? TEMPLATE,
     userTalk: options.userTalk,
@@ -71,7 +67,6 @@ function setup(options: SetupOptions = {}) {
     },
     answerer,
     prompts,
-    images,
     sent,
   };
 }
@@ -106,7 +101,7 @@ test('drops the sources list web search adds', async () => {
   expect(sent).toEqual(['@阿明 大约41.89万亲密度']);
 });
 
-test('passes the last minutes of what the streamer (or a guest) said or sang, and a screenshot', async () => {
+test('passes the last minutes of what the streamer (or a guest) said or sang', async () => {
   const transcript = new Transcript(30 * 60_000, () => NOW);
   const said = (minutesAgo: number, text: string, speech = 0.8, host = true) => {
     const end = NOW - minutesAgo * 60_000;
@@ -117,28 +112,15 @@ test('passes the last minutes of what the streamer (or a guest) said or sang, an
   said(1.75, '你那边卡了', 0.8, false);
   said(1.5, '寒江陪烟火', 0.05);
   said(1, '谢谢点赞');
-  const frame = new Uint8Array([0xff, 0xd8]);
-  const { ask, prompts, images } = setup({
+  const { ask, prompts } = setup({
     template: '{{now}}\n{{transcript}}',
     transcript,
-    screenshot: () => Promise.resolve(frame),
   });
   await ask();
 
   expect(prompts).toEqual([
     '08:00:00\n07:57:57 吕布一开始是文官\n07:58:12 （连线）你那边卡了\n07:58:27 （唱）寒江陪烟火\n07:58:57 谢谢点赞',
   ]);
-  expect(images).toEqual([frame]);
-});
-
-test('answers without a picture when the screenshot fails', async () => {
-  const { ask, sent, images } = setup({
-    screenshot: () => Promise.reject(new Error('房间未连接')),
-  });
-  await ask();
-
-  expect(images).toEqual([undefined]);
-  expect(sent).toEqual(['@阿明 你好呀']);
 });
 
 test('points Claude at the record folder, and tells it who it plays', async () => {
@@ -150,27 +132,6 @@ test('points Claude at the record folder, and tells it who it plays', async () =
   await ask();
 
   expect(prompts).toEqual(['/data/chat/1|你的人设是数学老师']);
-});
-
-test('tells Claude the room settings', async () => {
-  const settings = fakeSettings({ autoReplyThreshold: 1, thanksThreshold: 100 });
-  const { ask, prompts } = setup({ template: '{{settings}}', settings });
-  await ask({ userId: 'u-阿明' });
-  settings.set({ autoReplyThreshold: 0.6, thanksThreshold: 99999 });
-  await ask({ userId: 'u-阿明' });
-
-  expect(prompts).toEqual([
-    [
-      '直播间现在的设置（机器人管理员可以用指令修改）：',
-      '- 截图：关（你看不到直播画面）',
-      '- 自动回复：关闭',
-      '- 自动谢礼：5 分钟内送礼超过 100 钻的观众会收到感谢',
-      '- 自动识歌：关闭',
-    ].join('\n'),
-    expect.stringContaining(
-      '- 自动回复：开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 0.6，两次之间至少隔 60 秒）\n- 自动谢礼：关闭',
-    ),
-  ]);
 });
 
 test('drops what waits beyond the limit, answering the rest in order', async () => {
@@ -309,23 +270,35 @@ test('an answer may @ someone else instead of the asker', async () => {
   expect(sent).toEqual(['@🍄老杨 杨叔早上好，谢谢山药']);
 });
 
-test("the prompt sees the badges by the asker's name, from their latest chat line", async () => {
+test('the prompt says what the asker wears by their name, from their latest chat line', async () => {
   const { ask, prompts } = setup({ template: '{{askerBadges}}' });
   await ask({
     userId: 'u-阿明',
+    asker: '阿明',
     history: [
-      { ts: 1, userId: 'u-阿明', nickname: '阿明', content: '讲讲曲面积分', badges: ['V年'] },
-      { ts: 2, userId: 'u-小红', nickname: '小红', content: '同问', badges: ['V'] },
+      { ts: 1, userId: 'u-阿明', nickname: '阿明', content: '讲讲', badges: ['V'] },
+      {
+        ...{ ts: 2, userId: 'u-阿明', nickname: '阿明', content: '曲面积分' },
+        ...{ badges: ['V年', '荣誉'], fansClub: { level: 16 }, payLevel: 36 },
+      },
+      { ts: 3, userId: 'u-小红', nickname: '小红', content: '同问', badges: ['V'] },
     ],
   });
-  // Nobody's badges known (room-feed doesn't send them yet), or said on the stream: none.
+  // Nothing known by their name, or said on the stream: no line.
   await ask({
     userId: 'u-小红',
-    history: [{ ts: 3, userId: 'u-小红', nickname: '小红', content: '讲讲' }],
+    history: [{ ts: 4, userId: 'u-小红', nickname: '小红', content: '讲讲' }],
   });
   await ask({});
 
-  expect(prompts).toEqual(['V年', '（无）', '（无）']);
+  expect(prompts).toEqual([
+    testWording('asker-badges', {
+      asker: '阿明',
+      badges: 'V年、粉丝团灯牌 16 级、财富等级 36 级',
+    }),
+    '',
+    '',
+  ]);
 });
 
 test("the reply @s the whole nickname when it fits, and only a shortened @ goes without the room's 单推符号", async () => {

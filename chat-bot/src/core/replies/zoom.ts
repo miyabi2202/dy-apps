@@ -49,7 +49,7 @@ export function zoomScale(region: Region, asked = 2): number {
   return Math.max(1, Math.min(wanted, MAX_SIDE / Math.max(region.width, region.height)));
 }
 
-/** ffmpeg's arguments to cut `region` out of the JPEG at `file`, enlarged `scale` times, as a JPEG on stdout. */
+/** ffmpeg's arguments to cut `region` out of the JPEG at `file` (a path, or `pipe:0` for stdin), enlarged `scale` times, as a JPEG on stdout. */
 export function zoomArgs(file: string, region: Region, scale: number): string[] {
   const { x, y, width, height } = region;
   const w = Math.round(width * scale);

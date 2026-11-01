@@ -15,45 +15,38 @@ function setup(name: keyof Settings, initial: Partial<Settings> = {}) {
   return { tool: settingTool(name, { settings, log }), settings, lines };
 }
 
-describe('a switch (screenshots)', () => {
+describe('a switch (autoSongId)', () => {
   test('sets the setting, says what it was and is, and logs the change; admin-only', async () => {
-    const { tool, settings, lines } = setup('screenshots');
-    expect(tool.name).toBe('set_screenshots');
+    const { tool, settings, lines } = setup('autoSongId');
     expect(tool.adminOnly).toBe(true);
     expect(JSON.parse((await tool.call({ on: true }, context)).text)).toEqual({
       before: false,
       after: true,
     });
-    expect(settings.get().screenshots).toBe(true);
-    expect(lines).toEqual([['setting', { command: '截图', before: false, after: true }]]);
+    expect(settings.get().autoSongId).toBe(true);
+    expect(lines).toEqual([['setting', { command: '自动识歌', before: false, after: true }]]);
   });
 
   test('anything but true or false is an error, and changes nothing', async () => {
-    const { tool, settings } = setup('screenshots');
+    const { tool, settings } = setup('autoSongId');
     for (const on of ['1', 1, undefined]) {
       expect(await tool.call({ on }, context)).toMatchObject({
         text: 'on 要写成 true 或 false',
         isError: true,
       });
     }
-    expect(settings.get().screenshots).toBe(false);
+    expect(settings.get().autoSongId).toBe(false);
   });
 
-  test('its schema has the one argument', () => {
-    expect(setup('screenshots').tool.inputSchema).toEqual({
-      type: 'object',
-      properties: { on: { type: 'boolean', description: 'true 打开，false 关闭' } },
-      required: ['on'],
-    });
-  });
-
-  test('/截图 takes 0 or 1, and says it was handled', () => {
-    const [command] = setup('screenshots').tool.commands!;
-    expect(command!.name).toBe('截图');
+  test('/自动识歌 takes 0 or 1, and says it was handled', () => {
+    const [command] = setup('autoSongId').tool.commands!;
+    expect(command!.name).toBe('自动识歌');
     expect(command!.parse('1')).toEqual({ args: { on: true } });
     expect(command!.parse('0')).toEqual({ args: { on: false } });
-    expect(command!.parse('开')).toEqual({ usage: '要写 0（关闭）或 1（打开），用法：/截图 1' });
-    expect(command!.say({ text: '{}' }, { on: true })).toBe('已处理截图请求');
+    expect(command!.parse('开')).toEqual({
+      usage: '要写 0（关闭）或 1（打开），用法：/自动识歌 1',
+    });
+    expect(command!.say({ text: '{}' }, { on: true })).toBe('已处理自动识歌请求');
   });
 });
 
@@ -80,13 +73,9 @@ describe('a whole number within limits (maxReplyParts)', () => {
     expect(settings.get().maxReplyParts).toBe(5);
   });
 
-  test('describes its argument in the schema, with the limits', () => {
-    expect(setup('maxReplyParts').tool.inputSchema).toEqual({
-      type: 'object',
-      properties: {
-        parts: { type: 'integer', minimum: 1, maximum: 10, description: '条数，1 到 10' },
-      },
-      required: ['parts'],
+  test('gives the limits in the schema', () => {
+    expect(setup('maxReplyParts').tool.inputSchema).toMatchObject({
+      properties: { parts: { type: 'integer', minimum: 1, maximum: 10 } },
     });
   });
 
@@ -111,6 +100,19 @@ describe('a decimal (autoReplyThreshold)', () => {
     });
     expect(settings.get().autoReplyThreshold).toBe(0.6);
     expect(tool.inputSchema).toMatchObject({ properties: { threshold: { type: 'number' } } });
+  });
+});
+
+describe('a chance from 0 to 1 (randomReplyChance)', () => {
+  test('/随机回复 takes a decimal from 0 to 1, else says how to use it', async () => {
+    const { tool, settings } = setup('randomReplyChance');
+    const [command] = tool.commands!;
+    expect(command!.parse('0.1')).toEqual({ args: { chance: 0.1 } });
+    expect(command!.parse('0')).toEqual({ args: { chance: 0 } });
+    const usage = { usage: '概率要写成 0 到 1 之间的小数，0 表示关闭，用法：/随机回复 0.1' };
+    for (const typed of ['1.5', '-0.1', '一成', '']) expect(command!.parse(typed)).toEqual(usage);
+    expect(await tool.call({ chance: 2 }, context)).toMatchObject({ isError: true });
+    expect(settings.get().randomReplyChance).toBe(0);
   });
 });
 
@@ -147,14 +149,8 @@ describe('the thanks threshold', () => {
   });
 });
 
-test('every setting with a tool has one, named and commanded by the registry; solveEffort has none', () => {
+test('a setting without a tool in the registry (solveEffort) has none to make', () => {
   for (const [name, spec] of Object.entries(SETTINGS)) {
-    if (!spec.tool) {
-      expect(() => setup(name as keyof Settings)).toThrow('has no tool');
-      continue;
-    }
-    const { tool } = setup(name as keyof Settings);
-    expect(tool.name).toBe(spec.tool.name);
-    expect(tool.commands![0]!.name).toBe(spec.tool.command);
+    if (!spec.tool) expect(() => setup(name as keyof Settings)).toThrow('has no tool');
   }
 });

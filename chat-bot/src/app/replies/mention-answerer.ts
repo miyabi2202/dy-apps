@@ -20,7 +20,6 @@ import type { Outbox } from './outbox';
 import { Pending } from '../pending';
 import type { Admins, AskModel, BotTools, Log, UserTalk } from '../ports';
 import type { RoomState } from '../room/room-state';
-import type { Screenshots } from '../room/screenshots';
 import type { Streamer } from '../commands/streamer-admin';
 
 /** A question for Claude, or a fixed reply to send as one. */
@@ -33,7 +32,7 @@ export interface Mention {
   history: ChatLine[];
   /** What a fixed-reply tool says as it is: sent to the asker without asking a model. */
   fixedReply?: string;
-  /** Not an @: the bot heard the asker talk to or about it, in the chat or on the stream. */
+  /** Not an @: the bot heard the asker talk to or about it, in the chat or on the stream, or (`random`) their chat was handed to it at random. */
   unprompted?: Heard;
   /** The tools whose listen this line matched, named to Claude as a hint; it still decides. */
   topics?: readonly string[];
@@ -46,9 +45,9 @@ export interface Mention {
 export type { UnpromptedReply };
 
 /** The badges by `mention`'s asker's name, from their latest chat line it saw (none for speech). */
-function badgesOf({ userId, history }: Pick<Mention, 'userId' | 'history'>): readonly string[] {
-  if (!userId) return [];
-  return [...history].reverse().find((line) => line.userId === userId)?.badges ?? [];
+function badgesOf({ userId, history }: Pick<Mention, 'userId' | 'history'>) {
+  if (!userId) return undefined;
+  return [...history].reverse().find((line) => line.userId === userId);
 }
 
 export interface MentionAnswererOptions {
@@ -60,8 +59,6 @@ export interface MentionAnswererOptions {
     RoomState,
     'askerNote' | 'now' | 'prompt' | 'recentChat' | 'recentTranscript' | 'replyLimits'
   >;
-  /** The live video for a prompt, while screenshots are on; without it no prompt has a picture. */
-  screenshots?: Pick<Screenshots, 'take'>;
   log: Log;
   /** The prompt (see buildPrompt for what it can fill in), read each time so edits apply at once. */
   promptTemplate: () => string;
@@ -232,11 +229,9 @@ export class MentionAnswerer {
         earlier: mention.earlier,
       });
       log.debug('prompt', { prompt });
-      const image = await this.options.screenshots?.take();
       const started = room.now();
       const raw = await ask({
         prompt,
-        image,
         schema: MENTION_ANSWER_SCHEMA,
         ...(session && { botTools: session.access, timeoutMs: TOOLS_TIMEOUT_MS }),
       });
@@ -244,7 +239,6 @@ export class MentionAnswerer {
       log.info('claude answered', {
         answer: raw,
         ms: room.now() - started,
-        image: !!image,
         ...(mention.unprompted && { unprompted: mention.unprompted }),
         ...(calls.length && { tools: calls }),
       });

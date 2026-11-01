@@ -33,7 +33,7 @@ test('logs each new song once, however often it is asked', () => {
   ]);
 });
 
-test("ranks below the lyrics, above the pauses, and is off when the room's songBreaks leaves it out", () => {
+test('ranks below the lyrics and above the pauses', () => {
   const lines = [sung(10, '年轮说'), sung(30, '年轮说'), said(40), said(50), sung(80, '年轮说')];
   const lyrics: SongBreakSource = {
     name: 'lyrics',
@@ -41,14 +41,7 @@ test("ranks below the lyrics, above the pauses, and is off when the room's songB
   };
   const all = new SongSpans({ sources: [lyrics, setup().breaks] });
   expect(currentSong(lines, { spans: all.of(lines) })[0]?.text).toBe('唱80');
-
-  const withoutLyrics = new SongSpans({
-    sources: [lyrics, setup().breaks],
-    on: () => ['shazam'],
-  });
-  expect(currentSong(lines, { spans: withoutLyrics.of(lines) })[0]?.text).toBe('唱10');
-
-  const off = new SongSpans({ sources: [setup().breaks], on: () => ['lyrics'] });
-  expect(off.of(lines)).toEqual([]);
-  expect(currentSong(lines, { spans: off.of(lines) })[0]?.text).toBe('唱80');
+  // Alone, its same span holds the song together through the pause with talk.
+  const alone = new SongSpans({ sources: [setup().breaks] });
+  expect(currentSong(lines, { spans: alone.of(lines) })[0]?.text).toBe('唱10');
 });

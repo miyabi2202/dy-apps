@@ -384,15 +384,10 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
         timeZone: () => roomConfig().timeZone,
       });
     })
-    // Whether prompts get the live video is the setting `screenshots` (off unless --screenshot; /截图).
+    // The live video, for the tools that look at it; Claude decides when (look_at_screen).
     .register(
       SCREENSHOTS,
-      (c) =>
-        new Screenshots({
-          fetch: c.resolve(ROOM_API).screenshot,
-          settings: c.resolve(SETTINGS),
-          log: c.resolve(LOG),
-        }),
+      (c) => new Screenshots({ fetch: c.resolve(ROOM_API).screenshot, log: c.resolve(LOG) }),
     )
     // Every message the bot sends waits here, and goes out at least --send-interval seconds apart.
     .register(OUTBOX, (c) => {

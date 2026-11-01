@@ -15,8 +15,6 @@ test('makes a thing on first use, from other things, once', () => {
   expect(container.resolve(B)).toBe('AB');
   expect(container.resolve(A)).toBe('A');
   expect(made).toEqual(['b', 'a']);
-  expect(container.has(A)).toBe(true);
-  expect(container.has(C)).toBe(false);
 });
 
 test('a token registered again is replaced, until it has been made', () => {

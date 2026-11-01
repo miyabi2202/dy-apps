@@ -38,7 +38,7 @@ export function giftFrom(event: GiftEvent, newGifts: number, hidden = false): Gi
 
 /**
  * A room-feed room stream as the bot's RoomEvents; `hidden` tells, as each event comes, whether it's
- * a 私密 room (see userIdOf).
+ * a 私密 room (see viewerIdOf).
  */
 export function roomFeedEvents(
   client: Pick<RoomFeedClient, 'onComment' | 'onGift' | 'onStatus' | 'connect' | 'close'>,

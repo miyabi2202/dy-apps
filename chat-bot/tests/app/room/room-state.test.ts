@@ -1,4 +1,4 @@
-import { SETTING_DEFAULTS } from '../../../src/core/commands/settings';
+import { SETTING_DEFAULTS, settingsText } from '../../../src/core/commands/settings';
 import { ChatHistory } from '../../../src/core/chat/chat-history';
 import { Transcript } from '../../../src/core/songs/transcript';
 import { fakeMemory, noteFile, ROOM_FILE } from '../../support/fake-memory';
@@ -100,30 +100,16 @@ test('fills a prompt with the room, what is particular to it, and parts of the r
   ).toBe('（暂无）|40');
 });
 
-test('lists the settings as they are now, each in its place', () => {
-  const settings = fakeSettings({ screenshots: true, thanksThreshold: 100, autoSongId: true });
+test('lists the settings as they are now, read each time', () => {
+  const settings = fakeSettings({ thanksThreshold: 100 });
   const room = fakeRoom({ settings });
   const text = () => room.prompt('{{settings}}', { singleLength: 40, maxLength: 40 });
-  expect(text()).toBe(
-    [
-      '直播间现在的设置（机器人管理员可以用指令修改）：',
-      '- 截图：开（你能看到直播画面）',
-      '- 自动回复：关闭',
-      '- 自动谢礼：5 分钟内送礼超过 100 钻的观众会收到感谢',
-      '- 自动识歌：开（主播唱歌时，你会自己认出是什么歌并说出来）',
-    ].join('\n'),
-  );
+  expect(text()).toBe(settingsText(settings.get()));
+  expect(text()).toContain('- 自动谢礼：5 分钟内送礼超过 100 钻的观众会收到感谢');
 
-  settings.set({ autoReplyThreshold: 0.6, thanksThreshold: 99999, screenshots: false });
-  expect(text()).toBe(
-    [
-      '直播间现在的设置（机器人管理员可以用指令修改）：',
-      '- 截图：关（你看不到直播画面）',
-      '- 自动回复：开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 0.6，两次之间至少隔 60 秒）',
-      '- 自动谢礼：关闭',
-      '- 自动识歌：开（主播唱歌时，你会自己认出是什么歌并说出来）',
-    ].join('\n'),
-  );
+  settings.set({ thanksThreshold: 99999 });
+  expect(text()).toBe(settingsText(settings.get()));
+  expect(text()).toContain('- 自动谢礼：关闭');
 });
 
 test("knows what the bot's own account wears from its own latest chat, and keeps it once that scrolls away", () => {

@@ -1,8 +1,4 @@
-import {
-  backingGapSpans,
-  parseBackingLevel,
-  type BackingLevel,
-} from '../../../src/core/songs/backing-gaps';
+import { backingGapSpans, type BackingLevel } from '../../../src/core/songs/backing-gaps';
 import { combineSpans } from '../../../src/core/songs/song-breaks';
 import { currentSong, type TranscriptLine } from '../../../src/core/songs/transcript';
 
@@ -28,13 +24,6 @@ function levels(seconds: number, db: number, quiet: [number, number][] = []): Ba
   }
   return out;
 }
-
-test("reads the worker's backing levels", () => {
-  const text = JSON.stringify({ backing_level: { from: 100, to: 115.5, db: [-26.1, -80] } });
-  expect(parseBackingLevel(text)).toEqual({ from: 100_000, to: 115_500, db: [-26.1, -80] });
-  expect(parseBackingLevel(JSON.stringify({ start: 1, end: 2, text: 'backing_level' }))).toBeNull();
-  expect(parseBackingLevel('{"backing_level": {"from": 1}}')).toBeNull();
-});
 
 test('the backing stopping between two sung lines is a break; playing on through talk, one song', () => {
   const lines = [

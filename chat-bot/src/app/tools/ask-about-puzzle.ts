@@ -21,7 +21,7 @@ export interface AskAboutPuzzleOptions {
     RoomState,
     'prompt' | 'recentTranscript' | 'recentChat' | 'replyLimits' | 'now' | 'wording'
   >;
-  /** The live video, which a puzzle always gets, screenshots on or not. */
+  /** The live video, which a puzzle always gets. */
   screenshots: Pick<Screenshots, 'take'>;
   /** Where the answer goes once Codex has it, as a reply to the asker. */
   outbox: Pick<Outbox, 'push'>;
@@ -120,8 +120,7 @@ export function askAboutPuzzleTool(
       if (typeof question !== 'string') {
         return { text: 'question 要写成字符串', isError: true };
       }
-      // Always, as the puzzle is on the screen even while screenshots are off.
-      const image = await options.screenshots.take(true);
+      const image = await options.screenshots.take();
       const limits = room.replyLimits(options.maxLength);
       const prompt = room.prompt(options.prompt(), {
         transcript: room.recentTranscript(),

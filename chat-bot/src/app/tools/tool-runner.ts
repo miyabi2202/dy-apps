@@ -15,7 +15,6 @@ export interface ToolRunnerOptions {
   outbox: Pick<Outbox, 'push'>;
   room: Pick<RoomState, 'replyLimits'>;
   log: Log;
-  isAdmin: (userId: string | undefined) => boolean;
   /** Who may run admin-only tools, as viewers know them: 「只有主播和…才可以」 (config.json's `adminNames`). */
   adminNames?: string;
   /** Douyin's chat length limit, for the bot's own messages. */
@@ -24,7 +23,7 @@ export interface ToolRunnerOptions {
 }
 
 /**
- * Runs the tool a mention names with a `/` (`/截图 1`…), with no model, and tells the asker how
+ * Runs the tool a mention names with a `/` (`/自动谢礼 100`…), with no model, and tells the asker how
  * it went in a system message. A name nobody has is answered with the tools they may use, when
  * they have any; an admin-only tool from anyone but an admin, that only the streamer and the
  * admins may.

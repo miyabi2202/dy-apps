@@ -222,17 +222,6 @@ interface WorkerLine {
   backing?: { title?: unknown; artist?: unknown; at?: unknown } | null;
 }
 
-/** A line of the worker's output as a TranscriptLine, or null when it isn't a sentence. */
-export function parseWorkerLine(text: string): TranscriptLine | null {
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    return null;
-  }
-  return transcriptLineFrom(json);
-}
-
 /** A parsed line of the worker's output as a TranscriptLine, or null when it isn't a sentence. */
 export function transcriptLineFrom(json: unknown): TranscriptLine | null {
   const line = json as WorkerLine;
@@ -264,20 +253,6 @@ export function transcriptLineFrom(json: unknown): TranscriptLine | null {
         },
       }),
   };
-}
-
-/**
- * The worker's `{"ready": true}` (models loaded), `{"stream_ended": true, …}` or `{"busy": true}`
- * (the speech service is serving another bot), or null.
- */
-export function parseStatusLine(text: string): WorkerStatus | null {
-  if (!text.startsWith('{')) return null;
-  try {
-    return statusFrom(JSON.parse(text));
-  } catch {
-    // Not JSON: not a status.
-  }
-  return null;
 }
 
 /** What the worker says about itself: models loaded, the stream over, or another bot being served. */
