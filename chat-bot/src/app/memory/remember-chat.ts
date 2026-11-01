@@ -21,7 +21,8 @@ import {
   type RoomMemory,
   type Target,
 } from '@dy-apps/room-memory';
-import type { AskModel, Log, Thoughts } from '../ports';
+import { termKey } from '@dy-apps/to-learn';
+import type { AskModel, Log, Thoughts, ToLearnList } from '../ports';
 
 export interface RememberChatOptions {
   /** Claude, asked once per batch of viewers and once about the whole stream. */
@@ -47,6 +48,16 @@ export interface RememberChatOptions {
     /** Who the bot plays in the room, as every prompt has it. */
     persona: () => string;
     store: Pick<Thoughts, 'recent' | 'add'>;
+  };
+  /**
+   * What the stream had that the bot didn't understand, for `pnpm browse --todo` to learn
+   * (remember-to-learn.md asks for it); nothing without it.
+   */
+  toLearn?: {
+    prompt: () => string;
+    list: ToLearnList;
+    /** The terms the knowledge base has (titles and aliases): not asked about again. */
+    known: () => readonly string[];
   };
   /** Who the streamer is: their note is about the whole stream, not a viewer's. */
   streamer: Pick<Streamer, 'id'>;
@@ -121,6 +132,40 @@ function thoughtsOf(value: unknown): string[] {
     .slice(0, MAX_THOUGHTS);
 }
 
+/** At most this many things to learn a stream. */
+const MAX_TO_LEARN = 5;
+
+const TO_LEARN_SCHEMA = {
+  type: 'object',
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          term: { type: 'string', description: '在抖音上搜的词，短' },
+          question: { type: 'string', description: '想弄清楚的问题，一句话，不看上下文也懂' },
+        },
+        required: ['term', 'question'],
+        additionalProperties: false,
+      },
+      description: '这场直播里没懂、拿不准的东西，0 到 5 条',
+    },
+  },
+  required: ['items'],
+  additionalProperties: false,
+} as const;
+
+/** The items in an answer: those with a term, trimmed. */
+function toLearnOf(value: unknown): { term: string; question: string }[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const { term, question } = (entry ?? {}) as Record<string, unknown>;
+    if (typeof term !== 'string' || !term.trim()) return [];
+    return [{ term: term.trim(), question: typeof question === 'string' ? question.trim() : '' }];
+  });
+}
+
 /** What one run did. */
 export interface RememberResult {
   lines: number;
@@ -129,6 +174,8 @@ export interface RememberResult {
   failed: number;
   /** How many thoughts of its own the bot had about the stream. */
   thoughts: number;
+  /** How many things it put on the to-learn list. */
+  toLearn: number;
 }
 
 /**
@@ -139,7 +186,8 @@ export interface RememberResult {
  * fails is skipped. The mark moves on only when every question was answered, so a failed run is
  * read again next time. Then, with `thoughts`, the bot says what it made of the stream itself (see
  * reflect); a failure there is only logged, since reading it all again for that would add the
- * stream's summary twice.
+ * stream's summary twice. The same goes for `toLearn`: what of the stream it didn't understand,
+ * put on the to-learn list.
  */
 export class RememberChat {
   constructor(private readonly options: RememberChatOptions) {}
@@ -157,6 +205,7 @@ export class RememberChat {
       changes: 0,
       failed: 0,
       thoughts: 0,
+      toLearn: 0,
     };
     if (!lines.length) {
       log.info('nothing new to remember', { since });
@@ -165,7 +214,10 @@ export class RememberChat {
     log.info('remembering', { since, lines: lines.length });
     if (!this.options.isPrivate()) await this.notes(lines, result);
     const summary = await this.room(lines, result);
-    if (summary !== null) await this.reflect(lines, summary, result);
+    if (summary !== null) {
+      await this.reflect(lines, summary, result);
+      await this.wonder(lines, summary, result);
+    }
     if (!result.failed) mark.set(Math.max(...lines.map((line) => line.ms)));
     log.info('remembered', { ...result });
     return result;
@@ -294,6 +346,45 @@ export class RememberChat {
     thoughts.store.add(this.daysOf(lines), entries);
     result.thoughts = entries.length;
     log.info('thought about the stream', { thoughts: entries });
+  }
+
+  /**
+   * What in the stream the bot didn't understand or wasn't sure of, about Douyin and live rooms in
+   * general (a gift, a game, a 梗), never about someone: added to the to-learn list, unless the
+   * knowledge base or the list already has it. A failure is only logged, like reflect's.
+   */
+  private async wonder(
+    lines: readonly RecordLine[],
+    summary: string,
+    result: RememberResult,
+  ): Promise<void> {
+    const { toLearn, log } = this.options;
+    if (!toLearn) return;
+    const known = toLearn.known();
+    const answer = await this.ask(
+      fillTemplate(
+        toLearn.prompt(),
+        {
+          known: known.join('、') || '（无）',
+          open: toLearn.list.open().join('、') || '（无）',
+          summary: summary || '（无）',
+          digest: digestText(lines, { maxChars: 30_000 }),
+        },
+        { fillWhen: 'present' },
+      ),
+      TO_LEARN_SCHEMA,
+      'to-learn',
+    );
+    const wanted = toLearnOf(answer?.items);
+    if (!wanted.length) return;
+    const keys = new Set(known.map(termKey));
+    const from = `直播 ${this.daysOf(lines)}`;
+    const added = toLearn.list.add(
+      wanted.map((item) => ({ ...item, from })),
+      { known: (term) => keys.has(termKey(term)), max: MAX_TO_LEARN },
+    );
+    result.toLearn = added.length;
+    if (added.length) log.info('to learn', { items: added.map(({ term }) => term) });
   }
 
   /** The day the lines are from, `2026-10-30`, or the span of days when they run over several. */

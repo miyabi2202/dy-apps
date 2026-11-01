@@ -1,4 +1,5 @@
-import type { Question, Thoughts } from '../../../src/app/ports';
+import { addItems, openItems } from '@dy-apps/to-learn';
+import type { Question, Thoughts, ToLearnList } from '../../../src/app/ports';
 import { RememberChat } from '../../../src/app/memory/remember-chat';
 import { fakeMemory, noteFile, ROOM_FILE, STREAMS_FILE } from '../../support/fake-memory';
 
@@ -22,14 +23,17 @@ function setup({
   isPrivate = false,
   dayOf,
   thoughts,
+  toLearn,
 }: {
   record: string[];
-  answers: { notes?: unknown; room?: unknown; thoughts?: unknown };
+  answers: { notes?: unknown; room?: unknown; thoughts?: unknown; toLearn?: unknown };
   mark?: number;
   isPrivate?: boolean;
   dayOf?: (ms: number) => string;
   /** The bot's thoughts after earlier streams; none asks for no thoughts. */
   thoughts?: string[];
+  /** The to-learn list's text and the knowledge base's terms; none asks for nothing to learn. */
+  toLearn?: { text: string; known: string[] };
 }) {
   const { memory, store } = fakeMemory({ [ROOM_FILE]: '主播叫咿咿\n' });
   const asked: Question[] = [];
@@ -39,6 +43,15 @@ function setup({
     recent: (count) => (thoughts ?? []).slice(-count).join('\n'),
     add: (date, entries) => thoughts?.push(...entries.map((entry) => `${date}：${entry}`)),
   };
+  /** The to-learn list in memory, with the real line format. */
+  const list: ToLearnList = {
+    open: () => openItems(toLearn!.text).map((item) => item.term),
+    add(items, options) {
+      const before = openItems(toLearn!.text).length;
+      toLearn!.text = addItems(toLearn!.text, items, options);
+      return openItems(toLearn!.text).slice(before);
+    },
+  };
   const remember = new RememberChat({
     ask: (question) => {
       asked.push(question);
@@ -47,7 +60,9 @@ function setup({
           ? answers.notes
           : question.why === 'thoughts'
             ? answers.thoughts
-            : answers.room;
+            : question.why === 'to-learn'
+              ? answers.toLearn
+              : answers.room;
       return answer instanceof Error
         ? Promise.reject(answer)
         : Promise.resolve(JSON.stringify(answer));
@@ -63,6 +78,13 @@ function setup({
         prompt: () => 'THOUGHTS {{persona}} | {{thoughts}} | {{summary}} | {{digest}}',
         persona: () => 'Fairy',
         store: thoughtsStore,
+      },
+    }),
+    ...(toLearn && {
+      toLearn: {
+        prompt: () => 'TO-LEARN {{known}} | {{open}} | {{summary}} | {{digest}}',
+        list,
+        known: () => toLearn.known,
       },
     }),
     streamer: { id: () => 's-1' },
@@ -116,6 +138,7 @@ test("each regular's note gets the changes Claude names for them, the room and s
     changes: 4,
     failed: 0,
     thoughts: 0,
+    toLearn: 0,
   });
   expect(store.get(noteFile('s-1'))).toBe('说好下次唱《稻香》\n<!-- 2026-10-31 chat -->\n');
   expect(store.get(noteFile('u-1'))).toBe(
@@ -308,4 +331,70 @@ test('no thoughts asked when the room question failed, and a failed thought only
   expect(thinkingDown.asked.find((question) => question.why === 'thoughts')!.prompt).toContain(
     '| （无） |',
   );
+});
+
+test('then what it did not understand goes on the to-learn list, not what it knows or is learning', async () => {
+  const toLearn = {
+    text: '# 还要学的\n\n- [ ] 宇宙之心 — 是什么礼物？（手写）\n',
+    known: ['灯牌', '粉丝灯牌'],
+  };
+  const { remember, asked } = setup({
+    record: RECORD,
+    toLearn,
+    answers: {
+      notes: { notes: [] },
+      room: { room: [], streamer: [], summary: '唱了晴天' },
+      toLearn: {
+        items: [
+          { term: '公会赛', question: '抖音直播的公会赛是什么？' },
+          { term: '粉丝灯牌', question: '灯牌是什么？' },
+          { term: '「宇宙之心」', question: '又问一次' },
+          { term: ' ', question: '没有词' },
+          ...['一', '二', '三', '四', '五'].map((term) => ({ term: `词${term}`, question: '' })),
+        ],
+      },
+    },
+  });
+  const result = await remember.run();
+  const prompt = asked.find((question) => question.why === 'to-learn')!;
+  expect(prompt.prompt).toContain('TO-LEARN 灯牌、粉丝灯牌 | 宇宙之心 | 唱了晴天 |');
+  expect(prompt.tools).toEqual([]);
+  // Known and listed ones left out, at most five, each from the stream's day.
+  expect(openItems(toLearn.text).map(({ term, from }) => `${term} ${from}`)).toEqual([
+    '宇宙之心 手写',
+    '公会赛 直播 2026-10-24',
+    '词一 直播 2026-10-24',
+    '词二 直播 2026-10-24',
+    '词三 直播 2026-10-24',
+    '词四 直播 2026-10-24',
+  ]);
+  expect(toLearn.text).toContain(
+    '## 待学\n\n- [ ] 公会赛 — 抖音直播的公会赛是什么？（直播 2026-10-24）',
+  );
+  expect(result.toLearn).toBe(5);
+});
+
+test('nothing to learn is asked when the room question failed, and a failed one only logs', async () => {
+  const roomDown = setup({
+    record: RECORD,
+    toLearn: { text: '', known: [] },
+    answers: { notes: { notes: [] }, room: new Error('down') },
+  });
+  await roomDown.remember.run();
+  expect(roomDown.asked.some((question) => question.why === 'to-learn')).toBe(false);
+
+  const toLearn = { text: '', known: [] };
+  const down = setup({
+    record: RECORD,
+    toLearn,
+    answers: {
+      notes: { notes: [] },
+      room: { room: [], streamer: [], summary: '' },
+      toLearn: new Error('down'),
+    },
+  });
+  const result = await down.remember.run();
+  expect(result).toMatchObject({ failed: 0, toLearn: 0 });
+  expect(down.marks.value).toBe(T0 + 8000);
+  expect(toLearn.text).toBe('');
 });

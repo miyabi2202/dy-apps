@@ -18,6 +18,7 @@ import {
 import { memoryReadMark, readRecordSince } from '../adapters/files/remember-files';
 import { postsFile } from '../adapters/files/posts-file';
 import { thoughtsFile } from '../adapters/files/thoughts-file';
+import { toLearnFile } from '../adapters/files/to-learn-file';
 import { busFeature } from '../app/feature';
 import { RememberChat } from '../app/memory/remember-chat';
 import { botTalkFile, folderOf, userTalkFiles } from '../adapters/files/room-talk-files';
@@ -274,7 +275,8 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
       });
     })
     // `pnpm remember`: the chat record since last time, read into the notes and memory.md by Claude,
-    // and then what the bot itself made of it, in its persona (memory/thoughts.md).
+    // and then what the bot itself made of it, in its persona (memory/thoughts.md), and what it
+    // didn't understand, for `pnpm browse --todo` to learn (data/browse/to-learn.md).
     .register(REMEMBER_CHAT, (c) => {
       const [account, roomConfig, prompt] = [
         c.resolve(BOT_ACCOUNT),
@@ -293,6 +295,14 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
           prompt: prompt('rememberThoughts'),
           persona: () => c.resolve(ROOM).persona,
           store: c.resolve(THOUGHTS),
+        },
+        toLearn: {
+          prompt: prompt('rememberToLearn'),
+          list: toLearnFile(join(resolve(c.resolve(OPTIONS).dataDir), 'browse', 'to-learn.md')),
+          known: () =>
+            knowledgeFiles(
+              join(resolve(c.resolve(OPTIONS).dataDir), 'knowledge', 'douyin'),
+            )().flatMap(({ title, aliases }) => [title, ...aliases]),
         },
         streamer: c.resolve(STREAMER),
         bot: { name: account.nickname, id: account.uid },

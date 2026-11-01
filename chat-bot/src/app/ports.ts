@@ -87,6 +87,23 @@ export interface Thoughts {
 }
 
 /**
+ * The to-learn list (data/browse/to-learn.md, `@dy-apps/to-learn`'s format), which `pnpm browse
+ * --todo` works through: after a stream the bot adds what it didn't understand there.
+ */
+export interface ToLearnList {
+  /** The terms of the items not learned yet, in file order. */
+  open(): string[];
+  /**
+   * Adds the items not on the list (open or done) and not `known`, at most `max`, under 「待学」;
+   * gives the ones added.
+   */
+  add(
+    items: readonly { term: string; question: string; from: string }[],
+    options: { known: (term: string) => boolean; max: number },
+  ): { term: string; question: string; from: string }[];
+}
+
+/**
  * The streamer's own posts on Douyin, as `pnpm browse --streamer` wrote them to the room's
  * memory/posts.md: only read here.
  */

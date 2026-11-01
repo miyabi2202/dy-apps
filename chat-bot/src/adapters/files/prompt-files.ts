@@ -20,6 +20,7 @@ export const PROMPT_FILES = {
   rememberNotes: 'remember-notes.md',
   rememberRoom: 'remember-room.md',
   rememberThoughts: 'remember-thoughts.md',
+  rememberToLearn: 'remember-to-learn.md',
   life: 'life.md',
 } as const;
 
