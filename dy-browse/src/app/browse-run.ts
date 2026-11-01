@@ -15,6 +15,11 @@ export interface BrowseRunOptions {
   data: DataStore;
   log: Log;
   steps: readonly Step[];
+  /**
+   * Saves what the page showed when a step failed, as `screenshots/<name>.png` in `data`, and says
+   * where; null when no page was open. A failure to save is never the run's failure.
+   */
+  snapshot?: (name: string) => Promise<string | null>;
   /** Closes the browser and the workers; always called, after the lock is taken. */
   cleanup?: () => Promise<void>;
   now?: () => number;
@@ -58,6 +63,7 @@ export class BrowseRun {
       }
       return { code: 0, done, stopped: null };
     } catch (e) {
+      await this.snapshot();
       if (!(e instanceof RunStopped)) throw e;
       if (e instanceof EmptyReadError) this.saveBodies(e);
       log(e.message);
@@ -70,6 +76,15 @@ export class BrowseRun {
         lock.release();
       }
     }
+  }
+
+  /** What the page showed when the run failed, saved before the browser closes. */
+  private async snapshot(): Promise<void> {
+    const { snapshot, log } = this.options;
+    if (!snapshot) return;
+    const stamp = new Date((this.options.now ?? Date.now)()).toISOString().replace(/[:.]/g, '-');
+    const path = await snapshot(`${stamp}-failed`).catch(() => null);
+    if (path) log(`页面截图已保存：${path}`);
   }
 
   /** Keeps the raw bodies a reader got nothing from, in `screenshots/`, to see what Douyin sent. */

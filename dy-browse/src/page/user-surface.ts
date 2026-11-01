@@ -9,7 +9,18 @@ import {
   USER_POST,
   userUrl,
 } from '../douyin/page-map';
-import { clickCloseOrEscape, pageBlocked, waitForShown, wheelDown } from './page-helpers';
+import {
+  clickCloseOrEscape,
+  clickPostCommentButton,
+  clickRepliesButton,
+  dismissGuide,
+  waitForCommentsOrButton,
+  waitForGuide,
+  pageBlocked,
+  waitForRepliesButton,
+  waitForShown,
+  wheelDown,
+} from './page-helpers';
 
 /** The Playwright side of a user's page: one wait and one act per target, no pauses, no decisions. */
 export class PageUserSurface implements UserSurface {
@@ -60,6 +71,22 @@ export class PageUserSurface implements UserSurface {
     await this.page.locator(USER_POST).nth(index).click({ timeout: PAGE_WAIT.content });
   }
 
+  waitForGuide(): Promise<void> {
+    return waitForGuide(this.page);
+  }
+
+  dismissGuide(): Promise<void> {
+    return dismissGuide(this.page);
+  }
+
+  waitForCommentsOrButton(): Promise<'comments' | 'button'> {
+    return waitForCommentsOrButton(this.page);
+  }
+
+  clickCommentButton(): Promise<void> {
+    return clickPostCommentButton(this.page);
+  }
+
   waitForComments(): Promise<void> {
     return waitForShown(this.page, COMMENT_PANEL, PAGE_WAIT.comments);
   }
@@ -73,5 +100,13 @@ export class PageUserSurface implements UserSurface {
   }
   pressEscape(): Promise<void> {
     return this.page.keyboard.press('Escape');
+  }
+
+  waitForReplies(index: number): Promise<void> {
+    return waitForRepliesButton(this.page, index);
+  }
+
+  clickReplies(index: number): Promise<void> {
+    return clickRepliesButton(this.page, index);
   }
 }

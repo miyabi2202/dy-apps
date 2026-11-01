@@ -15,7 +15,21 @@ function setup({
   newest = ['n1', 'h2'],
   wall = null as 'captcha' | 'login' | null,
   max = 10,
-}: { hot?: string[]; newest?: string[]; wall?: 'captcha' | 'login' | null; max?: number } = {}) {
+  guide = false,
+  opens = 'comments',
+  shown = [] as string[],
+}: {
+  hot?: string[];
+  newest?: string[];
+  wall?: 'captcha' | 'login' | null;
+  max?: number;
+  /** Whether the guide over the first video shows. */
+  guide?: boolean;
+  /** What an opened post shows first. */
+  opens?: 'comments' | 'button';
+  /** The posts the grid shows a tile for; none named keeps them all. */
+  shown?: string[];
+} = {}) {
   const log: string[] = [];
   const tap = new FakeTap();
   const surface: SearchSurface = {
@@ -28,6 +42,8 @@ function setup({
       tap.push('search', result(['default1']));
       return Promise.resolve();
     },
+    waitForFilterMenu: () => Promise.resolve(void log.push('wait for 筛选')),
+    openFilterMenu: () => Promise.resolve(void log.push('hover 筛选')),
     waitForFilter: (f) => Promise.resolve(void log.push(`wait for filter ${f}`)),
     clickFilter: (f) => {
       log.push(`click filter ${f}`);
@@ -35,24 +51,42 @@ function setup({
       return Promise.resolve();
     },
     waitForResults: () => Promise.resolve(void log.push('wait for results')),
+    shownPosts: () => Promise.resolve(shown),
     relatedSearches: () => Promise.resolve(['页面上的相关搜索']),
-    waitForPost: (i) => Promise.resolve(void log.push(`wait for post ${i}`)),
-    clickPost: (i) => {
-      log.push(`click post ${i}`);
+    waitForPost: (i, id) => Promise.resolve(void log.push(`wait for post ${i} (${id})`)),
+    clickPost: (i, id) => {
+      log.push(`click post ${i} (${id})`);
       tap.push('comments', commentsBody([`评论${i}`]));
       return Promise.resolve();
     },
+    waitForGuide: () => {
+      if (!guide) return Promise.reject(new Error('timeout'));
+      log.push('wait for guide');
+      return Promise.resolve();
+    },
+    dismissGuide: () => {
+      guide = false;
+      log.push('click 我知道了');
+      return Promise.resolve();
+    },
+    waitForCommentsOrButton: () => {
+      log.push(opens === 'comments' ? 'wait for comments' : 'wait for comments: comment button');
+      return Promise.resolve(opens);
+    },
+    clickCommentButton: () => Promise.resolve(void log.push('click comment button')),
     waitForComments: () => Promise.resolve(void log.push('wait for comments')),
     waitForClose: () => Promise.resolve(void log.push('wait for close')),
     clickClose: () => Promise.resolve(void log.push('click close')),
     pressEscape: () => Promise.resolve(void log.push('press Escape')),
+    waitForReplies: (i) => Promise.resolve(void log.push(`wait for replies ${i}`)),
+    clickReplies: (i) => Promise.resolve(void log.push(`click replies ${i}`)),
   };
   const pace = new Pace({ wait: logWait(log), random: () => 0 });
   return { search: new TopicSearch(surface, tap, pace, max), log, tap };
 }
 
 describe('TopicSearch', () => {
-  it('searches as steps (box seen, pause, click; pause, type), then each filter as a step, then each post', async () => {
+  it('searches as steps (box seen, pause, click; pause, type), then each sort from the 筛选 menu as steps, then each post by its id', async () => {
     const { search, log } = setup({ hot: ['h1'], newest: ['n1'], max: 1 });
     await search.search('鸣潮');
     expect(log).toEqual([
@@ -65,33 +99,72 @@ describe('TopicSearch', () => {
       'type 鸣潮 and search',
       'wait for results',
       'wait 2000',
+      'wait for 筛选',
+      'wait 500',
+      'hover 筛选',
       'wait for filter 最热',
       'wait 500',
       'click filter 最热',
       'wait 2000',
       'wait for results',
-      'wait for post 0',
+      'wait 2000',
+      'wait for post 0 (h1)',
       'wait 500',
-      'click post 0',
+      'click post 0 (h1)',
       'wait for comments',
       'wait 1500',
       'wait for close',
       'wait 500',
       'click close',
+      'wait for 筛选',
+      'wait 500',
+      'hover 筛选',
       'wait for filter 最新',
       'wait 500',
       'click filter 最新',
       'wait 2000',
       'wait for results',
-      'wait for post 0',
+      'wait 2000',
+      'wait for post 0 (n1)',
       'wait 500',
-      'click post 0',
+      'click post 0 (n1)',
       'wait for comments',
       'wait 1500',
       'wait for close',
       'wait 500',
       'click close',
     ]);
+  });
+
+  it('clicks 我知道了 on the guide as a step the first time it shows, and opens the comments by their button as a step', async () => {
+    const { search, log } = setup({
+      hot: ['h1', 'h2'],
+      newest: [],
+      max: 2,
+      guide: true,
+      opens: 'button',
+    });
+    await search.search('鸣潮');
+    const post0 = log.indexOf('click post 0 (h1)');
+    expect(log.slice(post0 + 1, post0 + 9)).toEqual([
+      'wait for guide',
+      'wait 500',
+      'click 我知道了',
+      'wait for comments: comment button',
+      'wait 500',
+      'click comment button',
+      'wait for comments',
+      'wait 1500',
+    ]);
+    expect(log.filter((l) => l === 'click 我知道了')).toHaveLength(1);
+    expect(log.filter((l) => l === 'click comment button')).toHaveLength(2);
+  });
+
+  it('reads only the posts the grid shows a tile for, when it names its tiles', async () => {
+    const { search, log } = setup({ hot: ['pinned', 'h1'], newest: ['n1'], shown: ['h1', 'n1'] });
+    const found = await search.search('鸣潮');
+    expect(found.hot.map((p) => p.id)).toEqual(['h1']);
+    expect(log.some((l) => l.includes('(pinned)'))).toBe(false);
   });
 
   it('opens the home page only for the first search of a run', async () => {

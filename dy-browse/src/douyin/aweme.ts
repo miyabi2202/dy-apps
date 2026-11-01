@@ -26,6 +26,23 @@ export function arr(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+/**
+ * The JSON objects of a body sent in chunks, as search's `general/search/stream/` is (seen on the
+ * first topic run, 2026-11-01: a hex length line, then a JSON line, and so on); a plain JSON body
+ * is one.
+ */
+export function parseBodies(body: string): Json[] {
+  const whole = parseBody(body);
+  if (whole) return [whole];
+  return body
+    .split('\n')
+    .filter((line) => line.trimStart().startsWith('{'))
+    .flatMap((line) => {
+      const json = parseBody(line);
+      return json ? [json] : [];
+    });
+}
+
 /** A body's JSON, or null when it isn't JSON (or isn't an object). */
 export function parseBody(body: string): Json | null {
   try {

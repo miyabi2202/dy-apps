@@ -33,6 +33,7 @@ import type {
   AskModel,
   BotAccount,
   BotTalk,
+  BrowseThoughts,
   CropImage,
   DefinedTool,
   Embedder,
@@ -179,6 +180,8 @@ export const THANKER = token<GiftThanker>('thanker');
 export const LIFE = token<LifeLog>('life');
 /** What the browsing account watched, in data/browse/watched/ (written by `pnpm browse --feed`). */
 export const WATCHED = token<Watched>('watched');
+/** Her thoughts from browsing, in data/browse/thoughts/ (written after a `pnpm browse` run). */
+export const BROWSE_THOUGHTS = token<BrowseThoughts>('browseThoughts');
 export const LIFE_WRITER = token<LifeWriter>('lifeWriter');
 
 // songs.ts: naming the songs sung; null without what they need.

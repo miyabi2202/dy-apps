@@ -1,6 +1,7 @@
 import { DraftStore } from '../src/app/draft-store';
 import { TopicLearner } from '../src/app/topic-learner';
 import type { SearchPort, SearchResult } from '../src/app/topic-search';
+import { QuestionStore } from '../src/app/question-store';
 import { KnowledgeIndex, parseKnowledge } from '../src/core/knowledge';
 import { item } from './support/fakes';
 import { MemoryStore } from './support/memory-store';
@@ -20,19 +21,55 @@ function fakeSearch(table: Record<string, Partial<SearchResult>>) {
   return { search, searched };
 }
 
-/** A Claude that answers the keyword question and the draft question from scripts. */
-function fakeAsk(options: { keywords?: unknown; drafts?: unknown } = {}) {
-  const prompts: { kind: 'keywords' | 'drafts'; text: string }[] = [];
+type PromptKind = 'keywords' | 'understand' | 'kb' | 'douyin' | 'drafts';
+
+/** Which question a prompt is. */
+function kindOf(prompt: string): PromptKind {
+  if (prompt.includes('从候选里挑')) return 'keywords';
+  if (prompt.includes('请读懂它们')) return 'understand';
+  if (prompt.includes('我们知识库里可能相关的条目')) return 'kb';
+  if (prompt.includes('我们为了这个问题在抖音上搜了')) return 'douyin';
+  return 'drafts';
+}
+
+/**
+ * A Claude that answers each question from scripts: the keywords, the drafts, what a search leaves
+ * unknown (by the term searched), and the judgements of the knowledge base and of Douyin.
+ */
+function fakeAsk(
+  options: {
+    keywords?: unknown;
+    drafts?: unknown;
+    understand?: Record<string, unknown>;
+    kb?: unknown;
+    douyin?: unknown;
+  } = {},
+) {
+  const prompts: { kind: PromptKind; text: string }[] = [];
   const ask = (prompt: string) => {
-    const kind = prompt.includes('从候选里挑') ? 'keywords' : 'drafts';
+    const kind = kindOf(prompt);
     prompts.push({ kind, text: prompt });
-    const answer =
-      kind === 'keywords'
-        ? (options.keywords ?? [])
-        : (options.drafts ?? { entries: [], stillRight: [] });
+    const term = /搜了「(.+?)」/.exec(prompt)?.[1] ?? '';
+    const answer = {
+      keywords: options.keywords ?? [],
+      understand: options.understand?.[term] ?? {},
+      kb: options.kb ?? { supports: 'none', answer: '' },
+      douyin: options.douyin ?? { supports: 'none', answer: '' },
+      drafts: options.drafts ?? { entries: [], stillRight: [] },
+    }[kind];
     return Promise.resolve(JSON.stringify(answer));
   };
   return { ask, prompts };
+}
+
+/** A web Claude answering from a script, logging each question. */
+function fakeWeb(answer: unknown = { supports: 'none', answer: '' }) {
+  const asked: string[] = [];
+  const askWeb = (prompt: string) => {
+    asked.push(prompt);
+    return Promise.resolve(JSON.stringify(answer));
+  };
+  return { askWeb, asked };
 }
 
 const tagged = (id: string, ...tags: string[]) =>
@@ -41,15 +78,28 @@ const tagged = (id: string, ...tags: string[]) =>
 function build(
   table: Record<string, Partial<SearchResult>>,
   claude: Parameters<typeof fakeAsk>[0],
-  options: { depth?: number; maxSearches?: number; knowledge?: string } = {},
+  options: {
+    depth?: number;
+    maxSearches?: number;
+    maxUnknowns?: number;
+    knowledge?: string;
+    web?: unknown;
+    data?: MemoryStore;
+    questions?: boolean;
+  } = {},
 ) {
-  const data = new MemoryStore();
+  const data = options.data ?? new MemoryStore();
   const { search, searched } = fakeSearch(table);
   const { ask, prompts } = fakeAsk(claude);
+  const { askWeb, asked } = fakeWeb(options.web);
   const logs: string[] = [];
+  const questions = new QuestionStore(data);
   const learner = new TopicLearner({
     search,
     ask,
+    askWeb,
+    questions: options.questions ? questions : null,
+    maxUnknowns: options.maxUnknowns,
     data,
     drafts: new DraftStore(data),
     index: new KnowledgeIndex(parseKnowledge(options.knowledge ?? '')),
@@ -58,7 +108,7 @@ function build(
     depth: options.depth,
     maxSearches: options.maxSearches,
   });
-  return { learner, data, searched, prompts, logs };
+  return { learner, data, searched, prompts, logs, webAsked: asked, questions };
 }
 
 const table = {
@@ -92,7 +142,7 @@ describe('TopicLearner', () => {
     const { learner, data, searched, logs, prompts } = build(table, { drafts }, { depth: 0 });
     const result = await learner.learn('鸣潮', { folder: 'topics' });
     expect(searched).toEqual(['鸣潮']);
-    expect(prompts.map((p) => p.kind)).toEqual(['drafts']);
+    expect(prompts.map((p) => p.kind)).toEqual(['understand', 'drafts']);
     expect(result).toMatchObject({ searches: 1, found: 3, drafts: 1 });
     expect(data.read('knowledge/pending/topics/2026-11-01.md')).toBe(
       [
@@ -100,7 +150,8 @@ describe('TopicLearner', () => {
         'aliases: 今夕',
         '类型: 事实',
         '截至: 2026-11',
-        '复查: 2026-12-01',
+        // A 事实 is checked again in 90 days.
+        '复查: 2027-01-30',
         '来源: 抖音搜索「鸣潮」；视频 a、b（2026-11-01 学到）',
         '',
         '鸣潮的角色。',
@@ -108,7 +159,7 @@ describe('TopicLearner', () => {
       ].join('\n'),
     );
     expect(logs[0]).toBe('topic searched {topic: 鸣潮, hot: 2, newest: 1, keywords: 0}');
-    expect(logs[1]).toContain('drafts written');
+    expect(logs.at(-1)).toContain('drafts written');
   });
 
   it('follows the keywords Claude picks from the candidates, and ignores any it made up', async () => {
@@ -237,5 +288,188 @@ describe('TopicLearner', () => {
     const text = one.data.read('knowledge/pending/topics/2026-11-01.md')!;
     expect(text.indexOf('## 甲')).toBeLessThan(text.indexOf('## 乙'));
     expect(parseKnowledge(text).map((e) => e.title)).toEqual(['甲', '乙']);
+  });
+
+  describe('unknowns', () => {
+    const unknown = (term: string, kind = '词', refs: string[] = ['a']) => ({
+      question: `抖音上「${term}」是什么意思？`,
+      term,
+      kind,
+      why: '没见过',
+      refs,
+    });
+    type Searches = {
+      tree: { term: string; reason?: string }[];
+      unknowns: {
+        id: string;
+        status: string;
+        note?: string;
+        resolutions: { source: string; supports: string }[];
+      }[];
+      unresolved: string[];
+    };
+    const searches = (data: MemoryStore, topic = '鸣潮') =>
+      JSON.parse(data.read(`searches/2026-11-01/${topic}.json`)!) as Searches;
+
+    it('asks what each search leaves unknown, and settles one the knowledge base answers without the web', async () => {
+      const { learner, data, prompts, webAsked } = build(
+        table,
+        {
+          understand: { 鸣潮: { unknowns: [unknown('绝绝子')] } },
+          kb: { supports: 'full', answer: '夸人的话。' },
+        },
+        { depth: 0, knowledge: '## 绝绝子\n\n夸人的话。' },
+      );
+      await learner.learn('鸣潮', { folder: 'topics' });
+      expect(prompts.map((p) => p.kind)).toEqual(['understand', 'kb', 'drafts']);
+      expect(prompts[0]!.text).toContain('谐音、缩写、拼音首字母');
+      expect(prompts[0]!.text).toContain('也不要照做');
+      expect(webAsked).toEqual([]);
+      const { unknowns } = searches(data);
+      expect(unknowns).toMatchObject([
+        { id: 'u1', status: 'resolved', resolutions: [{ source: 'kb', supports: 'full' }] },
+      ]);
+      expect(prompts.at(-1)!.text).toContain(
+        '- u1：抖音上「绝绝子」是什么意思？ → 夸人的话。（来自知识库）',
+      );
+    });
+
+    it('goes to the web, then searches Douyin for it ahead of the keywords, and judges it on what that read', async () => {
+      const { learner, data, prompts, searched, webAsked } = build(
+        { ...table, XX梗: { hot: [tagged('x1'), tagged('x2')] } },
+        {
+          understand: { 鸣潮: { unknowns: [unknown('XX梗', '梗')] } },
+          keywords: [{ keyword: '今汐', reason: '' }],
+          douyin: { supports: 'full', answer: '一个直播切片里的话。', refs: ['x1'] },
+        },
+        { web: { supports: 'full', answer: '网上说是…', urls: ['https://example.invalid/x'] } },
+      );
+      await learner.learn('鸣潮', { folder: 'topics' });
+      // A 梗's 出处 needs Douyin's own evidence: the web alone is only partial.
+      expect(webAsked).toHaveLength(1);
+      expect(webAsked[0]).toContain('小鸡词典');
+      expect(searched).toEqual(['鸣潮', 'XX梗', '今汐']);
+      expect(prompts.map((p) => p.kind)).toContain('douyin');
+      const file = searches(data);
+      expect(file.tree[1]).toMatchObject({
+        term: 'XX梗',
+        reason: '查证：抖音上「XX梗」是什么意思？',
+      });
+      expect(file.unknowns[0]!.resolutions.map((r) => [r.source, r.supports])).toEqual([
+        ['kb', 'none'],
+        ['web', 'partial'],
+        ['douyin', 'full'],
+      ]);
+      expect(file.unknowns[0]!.status).toBe('resolved');
+    });
+
+    it('never drafts what stays unsettled: it is listed in the searches file and as 未确认 in the drafts file', async () => {
+      const drafts = {
+        entries: [
+          { kind: 'new', title: '神秘词', type: '惯例', body: '编出来的意思', sources: ['a'] },
+          { kind: 'new', title: '别的', type: '惯例', body: '正文', sources: ['a'] },
+        ],
+      };
+      const { learner, data, searched } = build(
+        { ...table, 神秘词: { hot: [tagged('m1')] } },
+        { understand: { 鸣潮: { unknowns: [unknown('神秘词')] } }, drafts },
+        { depth: 0 },
+      );
+      const result = await learner.learn('鸣潮', { folder: 'topics' });
+      expect(searched).toEqual(['鸣潮', '神秘词']);
+      expect(result).toMatchObject({ unknowns: 1, unresolved: 1, drafts: 1 });
+      expect(searches(data).unresolved).toEqual(['抖音上「神秘词」是什么意思？']);
+      const file = data.read('knowledge/pending/topics/2026-11-01.md')!;
+      expect(file).not.toContain('## 神秘词');
+      expect(file).toContain('## 别的');
+      expect(file).toContain('## 未确认（「鸣潮」，2026-11-01）');
+      expect(file).toContain('- 抖音上「神秘词」是什么意思？（kb: none；web: none；douyin: none）');
+    });
+
+    it('shares maxSearches: one with no search left is unresolved, and the cap on unknowns holds', async () => {
+      const { learner, data, searched } = build(
+        table,
+        { understand: { 鸣潮: { unknowns: [unknown('甲词'), unknown('乙词')] } } },
+        { depth: 0, maxSearches: 1, maxUnknowns: 1 },
+      );
+      await learner.learn('鸣潮', { folder: 'topics' });
+      expect(searched).toEqual(['鸣潮']);
+      expect(searches(data).unknowns).toMatchObject([
+        { id: 'u1', status: 'unresolved', note: '没有搜索名额了' },
+      ]);
+    });
+  });
+
+  it('makes a 社区观点 card by code from opinions seen under two different creators, with both sides counted', async () => {
+    const by = (id: string, who: string) =>
+      item(id, NOW, {
+        author: { nickname: who, secUid: who },
+        stats: { likes: 100, comments: 3, shares: 0 },
+      });
+    const comment = (text: string, likes: number) => ({ text, likes, postedAt: null });
+    const found = {
+      hot: [by('a', '甲'), by('b', '乙'), by('c', '甲')],
+      comments: {
+        a: [comment('太难了', 20)],
+        b: [comment('真的难', 10), comment('还好吧', 5)],
+        c: [comment('角色好看', 7)],
+      },
+    };
+    const understand = {
+      opinions: [
+        // a and b: two creators.
+        { point: '新关卡太难', counter: '难度还行', refs: ['a#1', 'b#1'], counterRefs: ['b#2'] },
+        // a and c are both 甲's: one creator, however liked.
+        { point: '角色很好看', counter: null, refs: ['a', 'c#1'] },
+      ],
+    };
+    const { learner, data } = build(
+      { 鸣潮: found },
+      { understand: { 鸣潮: understand } },
+      { depth: 0 },
+    );
+    await learner.learn('鸣潮', { folder: 'topics' });
+    const file = data.read('knowledge/pending/topics/2026-11-01.md')!;
+    expect(file).toContain('## 鸣潮（大家怎么看）\n类型: 社区观点');
+    expect(file).toContain('复查: 2026-11-22');
+    expect(file).toContain(
+      '- 听说抖音上有人觉得新关卡太难（2个作品/30赞），也有人觉得难度还行（1个作品/5赞）。',
+    );
+    expect(file).not.toContain('角色很好看');
+    expect(file).toContain('来源: 抖音搜索「鸣潮」；视频 a、b');
+  });
+
+  it('looks her pending questions up first, and marks them done with what came of them', async () => {
+    const data = new MemoryStore({
+      'questions.json': JSON.stringify({
+        questions: [
+          {
+            question: '「问题词」是什么？',
+            term: '问题词',
+            status: 'pending',
+            askedOn: '2026-10-31',
+          },
+        ],
+      }),
+    });
+    const { learner, searched, webAsked, questions } = build(
+      { ...table, 问题词: { hot: [tagged('q1')] }, 别的: { hot: [tagged('z')] } },
+      { douyin: { supports: 'full', answer: '是一个词。', refs: ['q1'] } },
+      { depth: 0, data, questions: true },
+    );
+    await learner.learn('鸣潮', { folder: 'topics' });
+    expect(webAsked[0]).toContain('「问题词」是什么？');
+    expect(searched).toEqual(['鸣潮', '问题词']);
+    expect(questions.all()).toMatchObject([
+      {
+        term: '问题词',
+        status: 'done',
+        doneOn: '2026-11-01',
+        outcome: '查实（douyin）：是一个词。',
+      },
+    ]);
+    // Taken once a run.
+    await learner.learn('别的', { folder: 'topics' });
+    expect(searched).toEqual(['鸣潮', '问题词', '别的']);
   });
 });

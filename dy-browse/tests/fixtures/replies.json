@@ -1,0 +1,38 @@
+{
+  "_fixture": "HAND-WRITTEN GUESS (reply list, /aweme/v1/web/comment/list/reply/: comments[] with cid, reply_id = the comment they're under, text, digg_count, create_time, user), not a real capture. Replace after the first manual run.",
+  "status_code": 0,
+  "has_more": 1,
+  "cursor": 3,
+  "comments": [
+    {
+      "cid": "r1",
+      "reply_id": "c1",
+      "reply_to_reply_id": "0",
+      "text": "是去年那个直播切片里出来的",
+      "digg_count": 45,
+      "create_time": 1761961000,
+      "user": {
+        "uid": "999333",
+        "sec_uid": "MS4wLjABAAAAreplier1",
+        "nickname": "路人丁秘密昵称",
+        "avatar_thumb": { "url_list": ["https://example.invalid/r1.jpg"] }
+      }
+    },
+    {
+      "cid": "r2",
+      "reply_id": "c1",
+      "text": "",
+      "digg_count": 1,
+      "user": { "nickname": "空回复" }
+    },
+    {
+      "cid": "r3",
+      "reply_id": "c1",
+      "reply_to_reply_id": "r1",
+      "text": "对，原视频已经删了",
+      "digg_count": 3,
+      "create_time": 1761961200,
+      "user": { "uid": "999444", "nickname": "路人戊秘密昵称" }
+    }
+  ]
+}

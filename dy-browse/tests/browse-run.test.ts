@@ -30,6 +30,10 @@ function setup({
     data,
     log: (m) => logs.push(m),
     steps,
+    snapshot: (name: string) => {
+      events.push(`snapshot ${name}`);
+      return Promise.resolve(`screenshots/${name}.png`);
+    },
     cleanup: () => Promise.resolve(void events.push('cleanup')),
     now: () => Date.UTC(2026, 10, 1, 12),
   });
@@ -46,6 +50,25 @@ const step = (name: string, events: string[], act: () => void = () => {}): Step 
 });
 
 describe('BrowseRun', () => {
+  it('saves what the page showed when a step fails, before the browser closes, and says where', async () => {
+    const { run, logs, events } = setup({
+      steps: [
+        step('a', [], () => {
+          throw new Error('timeout');
+        }),
+      ],
+    });
+    await expect(run.run()).rejects.toThrow('timeout');
+    expect(events).toEqual(['snapshot 2026-11-01T12-00-00-000Z-failed', 'cleanup']);
+    expect(logs).toContain('页面截图已保存：screenshots/2026-11-01T12-00-00-000Z-failed.png');
+  });
+
+  it('takes no screenshot when every step runs', async () => {
+    const { run, events } = setup({ steps: [] });
+    await run.run();
+    expect(events).toEqual(['cleanup']);
+  });
+
   it('holds the lock for the whole run, does the steps in order, and lets go at the end', async () => {
     const events: string[] = [];
     let held: LockInfo | null = null;
@@ -121,7 +144,7 @@ describe('BrowseRun', () => {
     expect(outcome.stopped).toContain('验证码');
     expect(events).toEqual([]);
     expect(logs.at(-1)).toContain('验证码');
-    expect(ev).toEqual(['cleanup']);
+    expect(ev).toEqual(['snapshot 2026-11-01T12-00-00-000Z-failed', 'cleanup']);
   });
 
   it('saves the raw bodies of a reader that got nothing, to screenshots/, and stops loudly', async () => {
@@ -157,7 +180,7 @@ describe('BrowseRun', () => {
       steps: [{ name: 'a', run: () => Promise.reject(new Error('boom')) }],
     });
     await expect(run.run()).rejects.toThrow('boom');
-    expect(events).toEqual(['cleanup']);
+    expect(events).toEqual(['snapshot 2026-11-01T12-00-00-000Z-failed', 'cleanup']);
     expect(store.info).toBeNull();
   });
 });

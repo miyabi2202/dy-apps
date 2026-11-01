@@ -2,6 +2,7 @@ import type { FeedLog, Trends, WatchedLog } from './feed-logs';
 import type { FeedRunLimits, FeedScroller, FeedStop } from './feed-scroller';
 import type { Log } from './ports';
 import type { Trend } from '../core/trends';
+import type { ReadItem } from '../core/types';
 import type { ItemReader } from './video-reader';
 
 export interface FeedRunOptions {
@@ -20,6 +21,8 @@ export interface FeedRunResult {
   withComments: number;
   stoppedBy: FeedStop;
   trends: Trend[];
+  /** The videos watched to the end, with their comments and material, for the run's reflection. */
+  reads: ReadItem[];
 }
 
 /**
@@ -34,9 +37,11 @@ export class FeedRun {
     const { scroller, feedLog, watchedLog, trends, log, reader } = this.options;
     const { entries, stoppedBy } = await scroller.run(limits, (entry) => feedLog.append(entry));
     const watched = entries.filter((e) => e.action !== 'skip');
-    for (const { item } of watched) {
+    const reads: ReadItem[] = [];
+    for (const { item, comments } of watched) {
       const material = reader ? await reader.read(item) : null;
       watchedLog.add(item, material);
+      reads.push({ item, comments, material });
     }
     const counted = trends.record(entries.map((e) => e.item));
     const result: FeedRunResult = {
@@ -45,6 +50,7 @@ export class FeedRun {
       withComments: entries.filter((e) => e.action === 'watchWithComments').length,
       stoppedBy,
       trends: counted,
+      reads,
     };
     log(
       `feed session {watched: ${result.watched}, skipped: ${result.skipped}, comments: ${result.withComments}, stoppedBy: ${stoppedBy}}`,

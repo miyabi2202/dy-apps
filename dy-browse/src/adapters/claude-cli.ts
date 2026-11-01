@@ -1,5 +1,5 @@
 // Much reduced from chat-bot's adapters/models/claude-cli.ts: one prompt in, the answer's text out,
-// no tools, no MCP.
+// no MCP, and no tools but the ones named (none by default).
 import { spawn } from 'node:child_process';
 import type { AskClaude } from '../app/ports';
 
@@ -10,6 +10,12 @@ export interface ClaudeCliOptions {
   timeoutMs?: number;
   /** `--model`: an alias like `opus` or a full name; Claude Code's default when unset. */
   model?: string | null;
+  /**
+   * `--tools`: the only built-in tools it may use, comma-separated (`WebSearch,WebFetch` to look
+   * unknowns up); '' (the default) turns every tool off. The ones named are also allowed without
+   * asking, since `-p` can't ask.
+   */
+  tools?: string;
   spawnProcess?: typeof spawn;
 }
 
@@ -37,11 +43,15 @@ export function resultFrom(output: string): string {
   throw new Error('claude gave no result');
 }
 
-/** `claude -p` with every tool off and no saved session: the text of what browsing found goes in, text comes out. */
+/**
+ * `claude -p` with every tool off (or only `tools`) and no saved session: the text of what browsing
+ * found goes in, text comes out.
+ */
 export function claudeCli({
   command = 'claude',
   timeoutMs = 300_000,
   model = null,
+  tools = '',
   spawnProcess = spawn,
 }: ClaudeCliOptions = {}): AskClaude {
   const args = [
@@ -52,7 +62,8 @@ export function claudeCli({
     'stream-json',
     '--verbose',
     '--tools',
-    '',
+    tools,
+    ...(tools ? ['--allowedTools', tools] : []),
     '--strict-mcp-config',
     '--no-session-persistence',
     ...(model ? ['--model', model] : []),

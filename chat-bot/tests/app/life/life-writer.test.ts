@@ -1,5 +1,5 @@
 import { LifeWriter } from '../../../src/app/life/life-writer';
-import type { LifeDay, LifeLog, Question, Watched } from '../../../src/app/ports';
+import type { BrowseThoughts, LifeDay, LifeLog, Question, Watched } from '../../../src/app/ports';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { silentLog } from '../../support/fakes';
@@ -30,6 +30,7 @@ function setup({
   persona = 'fairy',
   guide = '六分街的设定',
   watched,
+  browseThoughts,
 }: {
   answer?: string;
   life?: ReturnType<typeof fakeLife>;
@@ -39,6 +40,8 @@ function setup({
   guide?: string | null;
   /** What her account watched; none without. */
   watched?: Watched;
+  /** Her thoughts from browsing; none without. */
+  browseThoughts?: BrowseThoughts;
 } = {}) {
   let now = SATURDAY;
   const questions: Question[] = [];
@@ -49,10 +52,11 @@ function setup({
       return reply();
     },
     promptTemplate: () =>
-      '人设：{{persona}}\n设定：{{guide}}\n最近：\n{{recentLife}}\n{{watched}}今天：{{today}}',
+      '人设：{{persona}}\n设定：{{guide}}\n最近：\n{{recentLife}}\n{{watched}}{{browseThoughts}}今天：{{today}}',
     life,
     watched,
-    wording: (name, values) => `[${name}]\n${values?.watched}`,
+    browseThoughts,
+    wording: (name, values) => `[${name}]\n${values?.watched ?? values?.thoughts}`,
     persona: () => persona ?? undefined,
     personaText: (name) => `${name} 的人设`,
     guide: () => guide,
@@ -165,4 +169,35 @@ test('the real wording and life.md: the block fills {{watched}}, and says to wri
   expect(block).toContain('一个字也别写抖音上的事');
   const template = readFileSync(join(__dirname, '..', '..', '..', 'prompts', 'life.md'), 'utf8');
   expect(template).toContain('{{watched}}');
+});
+
+test("{{browseThoughts}} lists her thoughts from browsing yesterday and today, at most four, and is empty when there's none", async () => {
+  const asked: { dates: readonly string[]; limit: number }[] = [];
+  const browseThoughts: BrowseThoughts = {
+    recent(dates, limit) {
+      asked.push({ dates, limit });
+      return ['那个翻唱比原曲还好听', '想试试视频里的猫饭'];
+    },
+  };
+  const some = setup({ browseThoughts });
+  await some.writer.tick();
+  expect(asked).toEqual([{ dates: ['2026-10-30', '2026-10-31'], limit: 4 }]);
+  expect(some.questions[0]!.prompt).toContain(
+    '[browse-thoughts]\n- 那个翻唱比原曲还好听\n- 想试试视频里的猫饭',
+  );
+
+  const none = setup({ browseThoughts: { recent: () => [] } });
+  await none.writer.tick();
+  expect(none.questions[0]!.prompt).not.toContain('[browse-thoughts]');
+  const without = setup();
+  await without.writer.tick();
+  expect(without.questions[0]!.prompt).not.toContain('[browse-thoughts]');
+});
+
+test('the real wording and life.md: the browse-thoughts block fills {{browseThoughts}}, only for a persona who browses', () => {
+  const block = testWording('browse-thoughts', { thoughts: '- 想试试猫饭' });
+  expect(block).toContain('- 想试试猫饭');
+  expect(block).toContain('设定里写了她会刷抖音');
+  const template = readFileSync(join(__dirname, '..', '..', '..', 'prompts', 'life.md'), 'utf8');
+  expect(template).toContain('{{browseThoughts}}');
 });

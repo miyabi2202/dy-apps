@@ -32,6 +32,8 @@ export interface StreamerPostsResult {
   new: number;
   older: number;
   file: string;
+  /** The posts read, with their comments and material, for the run's reflection. */
+  reads: ReadItem[];
 }
 
 /**
@@ -67,7 +69,7 @@ export class StreamerPosts {
     const { fresh, older } = pick(listed);
     const chosen = [...fresh, ...older];
     log(`posts read {new: ${fresh.length}, older: ${older.length}}`);
-    if (!chosen.length) return { new: 0, older: 0, file: postsFile };
+    if (!chosen.length) return { new: 0, older: 0, file: postsFile, reads: [] };
 
     const readItems: ReadItem[] = [];
     for (const item of chosen) {
@@ -97,7 +99,7 @@ export class StreamerPosts {
       `${dir}/mark.json`,
       JSON.stringify({ newestAt, readIds } satisfies PostsMark, null, 2),
     );
-    return { new: fresh.length, older: older.length, file };
+    return { new: fresh.length, older: older.length, file, reads: readItems };
   }
 
   private async lines(ask: AskClaude, items: readonly ReadItem[]): Promise<Map<string, string>> {

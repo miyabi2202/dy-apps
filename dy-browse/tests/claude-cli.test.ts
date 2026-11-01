@@ -43,6 +43,17 @@ describe('claudeCli', () => {
     expect(call!.stdin).toBe(userMessage('问题') + '\n');
   });
 
+  it('turns on only the tools named, and allows them without asking', async () => {
+    const { spawnProcess, calls } = fakeSpawn(`${success}\n`);
+    await claudeCli({ spawnProcess, tools: 'WebSearch,WebFetch' })('查一下');
+    const { args } = calls[0]!;
+    expect(args[args.indexOf('--tools') + 1]).toBe('WebSearch,WebFetch');
+    expect(args[args.indexOf('--allowedTools') + 1]).toBe('WebSearch,WebFetch');
+    const { spawnProcess: none, calls: noneCalls } = fakeSpawn(`${success}\n`);
+    await claudeCli({ spawnProcess: none })('x');
+    expect(noneCalls[0]!.args).not.toContain('--allowedTools');
+  });
+
   it('rejects with the exit code when claude fails', async () => {
     const { spawnProcess } = fakeSpawn('', 1);
     await expect(claudeCli({ spawnProcess })('x')).rejects.toThrow('claude exited with 1');

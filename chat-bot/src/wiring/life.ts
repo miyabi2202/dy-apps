@@ -1,6 +1,6 @@
 import { join, resolve } from 'node:path';
 import { lifeFiles } from '../adapters/files/life-files';
-import { watchedFiles } from '../adapters/files/watched-files';
+import { browseThoughtsFiles, watchedFiles } from '../adapters/files/watched-files';
 import {
   livePersonaBase,
   liveText,
@@ -14,6 +14,7 @@ import type { FeatureRegistry } from './features';
 import {
   ASK_CLAUDE,
   BOT_NAMES,
+  BROWSE_THOUGHTS,
   LIFE,
   LIFE_WRITER,
   WATCHED,
@@ -29,7 +30,8 @@ import {
  * The personas' own days: a shared persona with a life.md in chat-bot/prompts/personas/<name>/ gets a
  * day written each day she's played (data/lives/<name>/<date>.md), and every room playing her shows
  * the latest at the end of her persona. Her account's own browsing of Douyin (data/browse/watched/) goes
- * into her day's prompt as `{{watched}}`.
+ * into her day's prompt as `{{watched}}`, and her thoughts from it (data/browse/thoughts/) as
+ * `{{browseThoughts}}`.
  */
 export function registerLife(container: Container, features: FeatureRegistry): void {
   features.add('life', (c) => {
@@ -46,6 +48,10 @@ export function registerLife(container: Container, features: FeatureRegistry): v
     .register(WATCHED, (c) =>
       watchedFiles(join(resolve(c.resolve(OPTIONS).dataDir), 'browse', 'watched')),
     )
+    // Her thoughts after a browse run, read on every use.
+    .register(BROWSE_THOUGHTS, (c) =>
+      browseThoughtsFiles(join(resolve(c.resolve(OPTIONS).dataDir), 'browse', 'thoughts')),
+    )
     .register(LIFE_WRITER, (c) => {
       const sharedDir = join(c.resolve(PROMPTS_DIR), 'personas');
       const roomConfig = c.resolve(ROOM_CONFIG);
@@ -55,6 +61,7 @@ export function registerLife(container: Container, features: FeatureRegistry): v
         promptTemplate: c.resolve(PROMPT)('life'),
         life: c.resolve(LIFE),
         watched: c.resolve(WATCHED),
+        browseThoughts: c.resolve(BROWSE_THOUGHTS),
         wording: liveWording(join(c.resolve(PROMPTS_DIR), 'wording.md')),
         persona: livePersonaBase({
           roomDir: c.resolve(ROOM_DIR),

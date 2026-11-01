@@ -1,5 +1,5 @@
 {
-  "_fixture": "HAND-WRITTEN GUESS (comment list: comments[] with text, digg_count, create_time, user), not a real capture. Replace after the first manual run.",
+  "_fixture": "HAND-WRITTEN GUESS (comment list: comments[] with cid, text, digg_count, create_time, reply_comment_total, user), not a real capture. Replace after the first manual run.",
   "status_code": 0,
   "has_more": 0,
   "cursor": 20,
@@ -9,6 +9,7 @@
       "text": "这个梗我也刷到好几次了",
       "digg_count": 321,
       "create_time": 1761960000,
+      "reply_comment_total": 4,
       "user": {
         "uid": "999111",
         "sec_uid": "MS4wLjABAAAAcommenter1",
@@ -28,6 +29,7 @@
       "text": "求出处",
       "digg_count": 12,
       "create_time": 1761960900,
+      "reply_comment_total": 0,
       "user": { "uid": "999222", "nickname": "路人丙秘密昵称" }
     }
   ]

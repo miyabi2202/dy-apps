@@ -27,6 +27,9 @@ export function lifeLines(entries: readonly string[]): string {
 /** How many of the videos the persona watched the prompt shows. */
 export const WATCHED_SHOWN = 5;
 
+/** How many of the persona's thoughts from browsing Douyin the prompt shows. */
+export const BROWSE_THOUGHTS_SHOWN = 4;
+
 /** The day before `date` (`YYYY-MM-DD`). */
 export function dayBefore(date: string): string {
   const [year, month, day] = date.split('-').map(Number);

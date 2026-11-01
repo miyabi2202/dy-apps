@@ -20,11 +20,22 @@ export interface BrowseItem {
   imageUrls: string[];
 }
 
-/** A comment: its text, likes and date, and nothing about who wrote it, so nothing downstream can store a name. */
+/**
+ * A comment: its text, likes and date, and nothing about who wrote it, so nothing downstream can
+ * store a name. Its own id (Douyin's `cid`) is kept only to match the replies under it.
+ */
 export interface Comment {
   text: string;
   likes: number;
   postedAt: number | null;
+  /** The comment's own id, to tell which replies are under it; never the writer's. */
+  id?: string;
+  /** How many replies Douyin says it has; unknown when the JSON didn't say. */
+  replyCount?: number;
+  /** The replies under it (楼中楼) that were opened, when they were. */
+  replies?: Comment[];
+  /** It asks what something is or where it's from (「啥意思」「出处」…): see `asksSomething`. */
+  asks?: boolean;
 }
 
 /** What a reader found in one captured response. */

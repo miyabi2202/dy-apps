@@ -1,5 +1,6 @@
 import { errorMessage } from '../../core/errors';
 import {
+  BROWSE_THOUGHTS_SHOWN,
   dayBefore,
   lifeLines,
   lifeText,
@@ -12,7 +13,7 @@ import { fillTemplate } from '../../core/prompts/template';
 import type { Wording } from '../../core/prompts/wording';
 import { askJson } from '../models/ask-json';
 import { ModelFeature } from '../models/model-feature';
-import type { AskModel, LifeLog, Log, Watched } from '../ports';
+import type { AskModel, BrowseThoughts, LifeLog, Log, Watched } from '../ports';
 
 export interface LifeWriterOptions {
   /** Claude. */
@@ -25,7 +26,12 @@ export interface LifeWriterOptions {
    * none, and the block is empty. The real one reads data/browse/watched/ (see registerLife).
    */
   watched?: Watched;
-  /** The sentences around them (wording.md's `watched`); without it the block is empty. */
+  /**
+   * Her own thoughts from browsing Douyin, today's and yesterday's, for `{{browseThoughts}}`; none,
+   * and the block is empty. The real one reads data/browse/thoughts/ (see registerLife).
+   */
+  browseThoughts?: BrowseThoughts;
+  /** The sentences around them (wording.md's `watched`, `browse-thoughts`); without it the blocks are empty. */
   wording?: Wording;
   /** The shared persona the room plays now (its persona file's `base`); none for no life. */
   persona: () => string | undefined;
@@ -130,6 +136,7 @@ export class LifeWriter extends ModelFeature<Day, string[]> {
       guide: guide.trim(),
       recentLife: lifeText(life.recent(persona, days)) || '（还没有）',
       watched: this.watchedBlock(today.slice(0, 10)),
+      browseThoughts: this.browseThoughtsBlock(today.slice(0, 10)),
       today,
     });
   }
@@ -139,6 +146,15 @@ export class LifeWriter extends ModelFeature<Day, string[]> {
     const { watched, wording } = this.options;
     const lines = watched?.recent([dayBefore(date), date], WATCHED_SHOWN) ?? [];
     return lines.length && wording ? wording('watched', { watched: watchedList(lines) }) : '';
+  }
+
+  /** The `{{browseThoughts}}` block: what she thought browsing today and yesterday, at most a few; empty without any. */
+  private browseThoughtsBlock(date: string): string {
+    const { browseThoughts, wording } = this.options;
+    const lines = browseThoughts?.recent([dayBefore(date), date], BROWSE_THOUGHTS_SHOWN) ?? [];
+    return lines.length && wording
+      ? wording('browse-thoughts', { thoughts: watchedList(lines) })
+      : '';
   }
 
   protected async ask({ persona }: Day, prompt: string): Promise<string[] | undefined> {

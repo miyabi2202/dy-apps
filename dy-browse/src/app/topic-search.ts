@@ -14,10 +14,16 @@ export interface SearchSurface extends PostGridSurface {
   clickSearchBox(): Promise<void>;
   /** Types the topic as typed input and presses Enter. */
   typeAndSearch(topic: string): Promise<void>;
+  /** Waits for 筛选, whose menu has the sorts; throws when it doesn't show in time. */
+  waitForFilterMenu(): Promise<void>;
+  /** Hovers 筛选, which opens its menu. */
+  openFilterMenu(): Promise<void>;
   waitForFilter(filter: SearchFilter): Promise<void>;
   clickFilter(filter: SearchFilter): Promise<void>;
   /** Waits for the result tiles; throws when they don't show in time. */
   waitForResults(): Promise<void>;
+  /** The ids of the posts the result grid shows a tile for, in no set order. */
+  shownPosts(): Promise<string[]>;
   /** The related searches the page shows (相关搜索), when they're only in its HTML. */
   relatedSearches(): Promise<string[]>;
 }
@@ -41,8 +47,9 @@ const RESULTS_SETTLE_MS = 2000;
 
 /**
  * A topic searched as a person does, each a Pace step: the search box seen, a pause, a click; a
- * pause, the topic typed and Enter; then the page's own 最热 and 最新 filters, each seen, a pause, a
- * click, and the posts read from the JSON the page fetched; each post opened for its comments.
+ * pause, the topic typed and Enter; then the page's own 最热 and 最新 sorts, each from the 筛选
+ * menu (筛选 seen, a pause, a hover; the sort seen, a pause, a click), and the posts read from the
+ * JSON the page fetched; each post opened by its tile for its comments.
  */
 export class TopicSearch implements SearchPort {
   private opened = false;
@@ -82,19 +89,32 @@ export class TopicSearch implements SearchPort {
       tap.drain('search');
       await orBlocked(surface, () =>
         pace.step(
+          () => surface.waitForFilterMenu(),
+          () => surface.openFilterMenu(),
+        ),
+      );
+      await orBlocked(surface, () =>
+        pace.step(
           () => surface.waitForFilter(filter),
           () => surface.clickFilter(filter),
         ),
       );
+      // The tiles show as the answer streams in, and its body is whole only once the stream ends
+      // (the first topic run read too early, 2026-11-01): a pause, the tiles, another pause.
+      await pace.wait(RESULTS_SETTLE_MS);
+      await orBlocked(surface, () => surface.waitForResults());
       await pace.wait(RESULTS_SETTLE_MS);
       const bodies = tap.drain('search');
       for (const body of bodies) for (const word of readRelated(body)) related.add(word);
-      const items = uniqueById(readAll(bodies, readSearch).items).slice(0, this.max);
-      if (filter === '最热') requireItems('搜索结果', bodies, items);
+      const read = uniqueById(readAll(bodies, readSearch).items);
+      if (filter === '最热') requireItems('搜索结果', bodies, read);
+      // Only the posts the grid shows a tile for: the stream also sends some it doesn't (seen on
+      // the first topic run, 2026-11-01). No tiles named at all keeps them all.
+      const shown = new Set(await surface.shownPosts());
+      const items = (shown.size ? read.filter((p) => shown.has(p.id)) : read).slice(0, this.max);
       lists[filter] = items;
-      await orBlocked(surface, () => surface.waitForResults());
       for (const [index, post] of items.entries())
-        comments[post.id] = await this.comments.read(index);
+        comments[post.id] = await this.comments.read(index, post.id);
     }
     for (const word of await surface.relatedSearches().catch(() => [])) related.add(word);
     const hot = lists.最热;

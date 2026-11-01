@@ -75,6 +75,24 @@ export class KnowledgeIndex {
     );
   }
 
+  /**
+   * The entries about `term`, at most `max`: those whose heading or an alias is it, holds it or is
+   * held by it first, then those whose body says it. For looking an unknown up, and for the entries a
+   * `--topic` search may change.
+   */
+  lookup(term: string, max = 3): KnowledgeEntry[] {
+    const t = term.trim().toLowerCase();
+    if (t.length < 2) return [];
+    const named = this.entries.filter((e) =>
+      [e.title, ...e.aliases].some((name) => {
+        const n = name.toLowerCase();
+        return n.length >= 2 && (n.includes(t) || t.includes(n));
+      }),
+    );
+    const said = this.entries.filter((e) => !named.includes(e) && e.text.toLowerCase().includes(t));
+    return [...named, ...said].slice(0, max);
+  }
+
   /** The entries whose heading or alias appears in `text`. */
   mentionedIn(text: string): KnowledgeEntry[] {
     const said = text.toLowerCase();

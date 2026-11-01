@@ -48,6 +48,9 @@ function setup(now = day(11, 1), foundBy: Record<string, number> = {}) {
           drafts: 0,
           stillRight: 0,
           file: null,
+          reads: [],
+          unknowns: 0,
+          unresolved: 0,
         });
       },
     },
@@ -103,7 +106,16 @@ describe('KnowledgeRun', () => {
       learner: {
         learn: (t) => (
           second.seen.push(t),
-          Promise.resolve({ searches: 1, found: 5, drafts: 0, stillRight: 0, file: null })
+          Promise.resolve({
+            searches: 1,
+            found: 5,
+            drafts: 0,
+            stillRight: 0,
+            file: null,
+            reads: [],
+            unknowns: 0,
+            unresolved: 0,
+          })
         ),
       },
       log: () => {},

@@ -50,12 +50,31 @@ export function postsBody(ids: readonly string[], hasMore: boolean): object {
   };
 }
 
-export function commentsBody(texts: readonly string[]): object {
+/** A comment list body: comment i has `i` likes, id `c<i>`, and `replyCounts[i]` replies (none by default). */
+export function commentsBody(
+  texts: readonly string[],
+  replyCounts: readonly number[] = [],
+): object {
   return {
     comments: texts.map((text, i) => ({
+      cid: `c${i}`,
       text,
       digg_count: i,
+      reply_comment_total: replyCounts[i] ?? 0,
       user: { nickname: '某人', uid: '1' },
+    })),
+  };
+}
+
+/** A reply list body: the replies under comment `parentId`. */
+export function repliesBody(parentId: string, texts: readonly string[]): object {
+  return {
+    comments: texts.map((text, i) => ({
+      cid: `${parentId}-r${i}`,
+      reply_id: parentId,
+      text,
+      digg_count: i,
+      user: { nickname: '回复的人', uid: '2' },
     })),
   };
 }

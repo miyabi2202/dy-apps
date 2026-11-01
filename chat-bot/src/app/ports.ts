@@ -65,6 +65,15 @@ export interface Watched {
 }
 
 /**
+ * The persona's own thoughts from browsing Douyin (`pnpm browse` writes them after a run to
+ * data/browse/thoughts/<date>.md, a line each): only read here, for her days (see LifeWriter).
+ */
+export interface BrowseThoughts {
+  /** The latest `limit` lines of those `dates` (`YYYY-MM-DD`), oldest first, each as a plain sentence; empty when none. */
+  recent(dates: readonly string[], limit: number): string[];
+}
+
+/**
  * The bot's own thoughts after each stream in a room (see RememberChat): what it made of it, in its
  * persona's voice, one a line with the day it's about. Only ever added to.
  */

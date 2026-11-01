@@ -22,6 +22,8 @@ import { FeedScroller } from './app/feed-scroller';
 import { jsonStateStore } from './app/json-state-store';
 import { KnowledgeRun } from './app/knowledge-run';
 import { LazyItemReader } from './app/lazy-reader';
+import { QuestionStore } from './app/question-store';
+import { Reflection, RunDigest } from './app/reflection';
 import { RunLock } from './app/run-lock';
 import { resolveSecUid } from './app/sec-uid';
 import { StreamerPosts } from './app/streamer-posts';
@@ -45,6 +47,8 @@ import { PageUserSurface } from './page/user-surface';
 
 const PACKAGE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_DIR = dirname(PACKAGE_DIR);
+/** The persona who browses: her folder in chat-bot/prompts/personas/. */
+const PERSONA = 'fairy';
 
 const log = (message: string) => console.log(`[dy-browse] ${message}`);
 
@@ -83,6 +87,12 @@ async function main(): Promise<number> {
   const login = new LoginFile(join(REPO_DIR, 'room-feed', 'data', 'cookie.json'));
   const knowledgeSource = new FileKnowledgeSource(join(botDataDir, 'knowledge'));
   const ask = claudeCli({ model: options.model });
+  // Looking unknowns up on the web: only WebSearch and WebFetch.
+  const askWeb = claudeCli({ model: options.model, tools: 'WebSearch,WebFetch' });
+  // Her persona and life guide, read when she reflects (chat-bot's prompts, read-only).
+  const personas = new FileDataStore(join(REPO_DIR, 'chat-bot', 'prompts', 'personas'));
+  const questions = new QuestionStore(data);
+  const digest = new RunDigest();
 
   // Built on first use, after the run has started.
   let opened: BrowseSession | null = null;
@@ -143,19 +153,24 @@ async function main(): Promise<number> {
     knowledgeSource.files().flatMap((file) => parseKnowledge(file.text, file.folder)),
   );
   const drafts = new DraftStore(bot);
+  // One learner for the run, so its allowance of unknowns and her questions span every topic.
+  let built: TopicLearner | null = null;
   const learner = async () => {
     const { page, pace, tap } = await browser();
-    return new TopicLearner({
+    built ??= new TopicLearner({
       search: new TopicSearch(new PageSearchSurface(page), tap, pace),
       ask,
+      askWeb,
       data,
       drafts,
       index,
       log,
       reader,
+      questions,
       depth: options.depth,
       maxSearches: options.maxSearches,
     });
+    return built;
   };
 
   const steps: Step[] = [];
@@ -176,6 +191,7 @@ async function main(): Promise<number> {
           reader,
           olderPerRun: options.olderPosts,
         }).run(roomId, secUid);
+        digest.addStreamer(roomId, result.reads);
         log(`posts.md：${result.file}`);
       },
     });
@@ -183,7 +199,12 @@ async function main(): Promise<number> {
   for (const topic of options.topics) {
     steps.push({
       name: `搜索 ${topic}`,
-      run: async () => void (await (await learner()).learn(topic, { folder: options.into })),
+      run: async () => {
+        const result = await (
+          await learner()
+        ).learn(topic, { folder: options.into, existing: index.lookup(topic, 5) });
+        digest.add('topic', result.reads, result.unknowns);
+      },
     });
   }
   if (options.knowledge) {
@@ -191,11 +212,18 @@ async function main(): Promise<number> {
     steps.push({
       name: `知识库${folder ? ` ${folder}` : ''}`,
       run: async () => {
+        const topics = await learner();
         const run = new KnowledgeRun({
           source: knowledgeSource,
           data,
           drafts,
-          learner: await learner(),
+          learner: {
+            learn: async (topic, how) => {
+              const result = await topics.learn(topic, how);
+              digest.add('knowledge', result.reads, result.unknowns);
+              return result;
+            },
+          },
           log,
         });
         await run.run({ folder, maxTopics: options.maxTopics });
@@ -211,7 +239,7 @@ async function main(): Promise<number> {
           pace,
           dwell: randomDwell(),
         });
-        await new FeedRun({
+        const result = await new FeedRun({
           scroller,
           feedLog: new FeedLog(data),
           watchedLog: new WatchedLog(bot),
@@ -219,9 +247,31 @@ async function main(): Promise<number> {
           log,
           reader,
         }).run({ minutes: options.minutes, maxVideos: options.maxVideos });
+        digest.add('feed', result.reads);
       },
     });
   }
+  // Last: her reflection on what the run read, when it read enough. A failed one is only logged.
+  steps.push({
+    name: '感想',
+    run: async () => {
+      const reflection = new Reflection({
+        ask,
+        persona: () =>
+          [`${PERSONA}/persona.md`, `${PERSONA}/life.md`]
+            .map((file) => personas.read(file) ?? '')
+            .join('\n\n'),
+        data,
+        bot,
+        questions,
+        log,
+        now,
+      });
+      await reflection.reflect(digest).catch((e: unknown) => {
+        log(`reflection failed {why: ${e instanceof Error ? e.message : String(e)}}`);
+      });
+    },
+  });
 
   const cleanup = async () => {
     await reader.close();
@@ -237,7 +287,22 @@ async function main(): Promise<number> {
       });
   });
 
-  const outcome = await new BrowseRun({ guard, lock, data, log, steps, cleanup, now }).run();
+  const snapshot = async (name: string) => {
+    if (!opened) return null;
+    const path = join(dataDir, 'screenshots', `${name}.png`);
+    await opened.page.screenshot({ path });
+    return path;
+  };
+  const outcome = await new BrowseRun({
+    guard,
+    lock,
+    data,
+    log,
+    steps,
+    snapshot,
+    cleanup,
+    now,
+  }).run();
   return outcome.code;
 }
 

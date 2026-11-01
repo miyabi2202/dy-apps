@@ -4,6 +4,7 @@ import {
   readComments,
   readFeed,
   readRelated,
+  readReplies,
   readSearch,
   readUserPosts,
 } from '../src/douyin/answers';
@@ -84,16 +85,51 @@ describe('readSearch', () => {
     expect(readRelated(fixture('search.json'))).toEqual(['鸣潮 卡池', '鸣潮 今汐', '鸣潮 抽卡']);
     expect(readRelated('nope')).toEqual([]);
   });
+
+  it('reads every chunk of a streamed search body, and the searches suggested on each result', () => {
+    const chunk = (ids: string[], words: string[]) =>
+      JSON.stringify({
+        status_code: 0,
+        has_more: 1,
+        data: ids.map((id) => ({
+          type: 1,
+          aweme_info: {
+            aweme_id: id,
+            desc: `视频${id}`,
+            suggest_words: { suggest_words: [{ words: words.map((word) => ({ word })) }] },
+          },
+        })),
+      });
+    // As general/search/stream/ sends it: a hex length line before each JSON line.
+    const body = [
+      'e4c2',
+      chunk(['1'], ['虚拟主播']),
+      '7b6',
+      '{"time_cost":{}}',
+      'bda7b',
+      chunk(['2', '3'], ['默播', '虚拟主播']),
+    ].join('\n');
+    const { items, hasMore } = readSearch(body);
+    expect(items.map((i) => i.id)).toEqual(['1', '2', '3']);
+    expect(hasMore).toBe(true);
+    expect(readRelated(body)).toEqual(['虚拟主播', '默播']);
+  });
 });
 
 describe('readComments', () => {
   const body = fixture('comments.json');
   const { items } = readComments(body);
 
-  it('copies text, likes and date, and leaves blank comments out', () => {
+  it('copies text, likes, date, its own id and reply count, and leaves blank comments out', () => {
     expect(items).toEqual([
-      { text: '这个梗我也刷到好几次了', likes: 321, postedAt: 1761960000000 },
-      { text: '求出处', likes: 12, postedAt: 1761960900000 },
+      {
+        text: '这个梗我也刷到好几次了',
+        likes: 321,
+        postedAt: 1761960000000,
+        id: 'c1',
+        replyCount: 4,
+      },
+      { text: '求出处', likes: 12, postedAt: 1761960900000, id: 'c3', replyCount: 0 },
     ]);
   });
 
@@ -104,6 +140,40 @@ describe('readComments', () => {
     for (const name of ['路人甲秘密昵称', '路人乙秘密昵称', '999111'])
       expect(out).not.toContain(name);
     for (const comment of items)
-      expect(Object.keys(comment).sort()).toEqual(['likes', 'postedAt', 'text']);
+      expect(Object.keys(comment).sort()).toEqual([
+        'id',
+        'likes',
+        'postedAt',
+        'replyCount',
+        'text',
+      ]);
+  });
+});
+
+describe('readReplies', () => {
+  const body = fixture('replies.json');
+  const { items, hasMore } = readReplies(body);
+
+  it('reads each reply with the comment it is under, blank ones left out', () => {
+    expect(items).toEqual([
+      {
+        parentId: 'c1',
+        reply: { text: '是去年那个直播切片里出来的', likes: 45, postedAt: 1761961000000, id: 'r1' },
+      },
+      {
+        parentId: 'c1',
+        reply: { text: '对，原视频已经删了', likes: 3, postedAt: 1761961200000, id: 'r3' },
+      },
+    ]);
+    expect(hasMore).toBe(true);
+    expect(readReplies('nope')).toEqual({ items: [], hasMore: false });
+  });
+
+  it('keeps nothing of who wrote them', () => {
+    const out = JSON.stringify(items);
+    for (const key of ['uid', 'sec_uid', 'nickname', 'avatar', 'user'])
+      expect(out).not.toContain(key);
+    for (const name of ['路人丁秘密昵称', '路人戊秘密昵称', '999333'])
+      expect(out).not.toContain(name);
   });
 });

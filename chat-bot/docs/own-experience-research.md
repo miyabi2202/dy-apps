@@ -62,7 +62,7 @@ Start with 1 and 3 together, because 3 needs 1 to have new material to choose fr
 
 ## Browsing Douyin
 
-> **Status (2026-11-01):** a design with an implementation plan; nothing built yet. It fits beside `LifeWriter` (idea 1, built) and the knowledge base (`docs/knowledge-base-plan.md`), and doesn't replace either.
+> **Status (2026-11-01):** a design with an implementation plan; phases 1–7 are built (see "Implementation plan"), tested against fakes, not yet run against douyin.com. It fits beside `LifeWriter` (idea 1, built) and the knowledge base (`docs/knowledge-base-plan.md`), and doesn't replace either.
 
 A life written by a model is made up, however consistent it is. Browsing gives the bot material it didn't invent: a video it watched, a sound it heard in five videos this week, what the streamer posted yesterday. Viewers can check it, and the bot can bring it up the way a person does: 「今天刷到一个…」, 「你昨天发的那条我看了」.
 
@@ -191,10 +191,11 @@ Most of what's worth knowing is in the text around a video and what's said in it
 - **No screening while learning.** Anything may be learned; the forbidden rules apply when the bot speaks, as they do now.
 - **Never during a stream.** `pnpm browse` runs only when no stream is on, so its speech instance never shares the GPU with the live one.
 - **OCR is Apple Vision**, through the `ocrmac` Python package (macOS's `VNRecognizeTextRequest`, `zh-Hans`, `zh-Hant` and `en`). It's free, fast on Apple Silicon and needs no model download. It's macOS only, which is where the bot runs; RapidOCR is the fallback if that ever changes.
+- **Commenting (stage 2) is done from the same account, 默认关闭, as Fairy (decided 2026-11-01).** Comments are posted from the live-room account that browses and streams, speaking as Fairy's persona; no separate account. To start: at most 1 comment a day, only under the streamer's own posts (never under posts chosen by keyword or the feed), only drafts a person approved, a content filter before review and again before sending. Stage 3 checks each posted comment's visibility logged out, and pauses posting on any hidden comment, warning pop-up or captcha (see "Commenting" below). The AI-content labelling rules (《人工智能生成合成内容标识办法》, in force 2025-09-01, and Douyin's AIGC rules) put the responsibility on the operator. Stage 1 is unchanged by this: drafts are written in Fairy's voice and nothing is sent.
 
 ### Implementation plan
 
-**Status, 2026-11-01:** phases 1 to 6 below are built and tested against fakes; the pages' selectors and Douyin's JSON field names are guesses until the first real run (see `dy-browse/README.md`, "The first manual run"). The later phases, at the end, are not built. The design above planned an HTTP service on port 8760 with a `dy-browse-protocol` package and a client in `chat-bot/`; what was built is simpler: a library plus its own command line, `pnpm browse` at the repo root, with no HTTP service, no port 8760 and no protocol package. The streamer's posts, the watched videos and the knowledge drafts are written straight into `chat-bot/data/`, where the bot already reads.
+**Status, 2026-11-01:** phases 1 to 7 below are built and tested against fakes; the pages' selectors and Douyin's JSON field names are guesses until the first real run (see `dy-browse/README.md`, "The first manual run"). The later phases, at the end, are not built. The design above planned an HTTP service on port 8760 with a `dy-browse-protocol` package and a client in `chat-bot/`; what was built is simpler: a library plus its own command line, `pnpm browse` at the repo root, with no HTTP service, no port 8760 and no protocol package. The streamer's posts, the watched videos and the knowledge drafts are written straight into `chat-bot/data/`, where the bot already reads.
 
 #### The shape
 
@@ -213,12 +214,15 @@ One new shared package, one new package and one new command:
 chat-bot/data/                        read by the bot
   <房间号>/memory/posts.md             the streamer's posts, a dated line each; the latest lines go into {{memory}} (postsFile, read on every use)
   browse/watched/<date>.md            what the feed session watched, a line a video; LifeWriter's {{watched}} (watchedFiles)
+  browse/thoughts/<date>.md           her takes after a run, a line each; LifeWriter's {{browseThoughts}} (browseThoughtsFiles)
+  <房间号>/memory/thoughts.md           also her bring-ups after a --streamer run, in its own `date：…` format
   knowledge/pending/<folder>/<date>.md     drafts, reviewed like the others there
   knowledge/pending/still-right-<date>.md  entries found still right (move 复查 on)
 
 dy-browse/data/                       its own state
   browse.lock  state/<date>.json  streamer/<房间号>/mark.json  knowledge-visits.json  trends.json
   searches/<date>/<topic>.json  feed/<date>.jsonl  media/<id>/  screenshots/
+  questions.json  comments/<date>.md
 ```
 
 All the paths come from options (`--data`, `--bot-data`), so tests use temp dirs or an in-memory store. dy-browse doesn't change anyone's `note.md`, so room-memory's `Author` has no `'browse'` yet; add it there (with its parsing) when it does.
@@ -257,6 +261,37 @@ With none of `--feed`, `--streamer`, `--topic`, `--knowledge`, it says so and ex
 #### Phase 6: LifeWriter (built); trend drafts are not
 
 `LifeWriter` gets a `watched` port (`Watched` in `app/ports.ts`, `watchedFiles` over `data/browse/watched/`, wired in `wiring/life.ts`), and `prompts/life.md` a `{{watched}}` block (wording.md's `watched`): today's and yesterday's lines, at most 5, with the instruction to use them only if the persona's guide says she browses Douyin, and to write nothing about Douyin otherwise; empty when there are none. Fairy's `life.md` already says she browses.
+
+#### Phase 7: understanding what was read, looking it up, and her reflection (built, stage 1)
+
+**Status, 2026-11-01:** built and tested against fakes; nothing is ever posted. The details are in `dy-browse/README.md` ("Learning a topic", "Her reflection").
+
+- **Comments carry more.** Prompts show all 20 comments of a post, most liked first, clipped to 150 characters, each with a ref (`<post id>#3`); a search shows up to 12 posts within about 9000 characters.
+- **Replies, targeted.** Under at most 3 comments of each opened post the replies (楼中楼) are opened, a Pace step each: the comments that ask (啥意思, 什么梗, 出处, 是谁, … in `core/comments.ts`) first, then the most liked. The replies are read from `/aweme/v1/web/comment/list/reply/` (a guess, like the other readers), never with anything of who wrote them; a comment keeps its own id (`cid`) only to match them. Replies that don't show are skipped.
+- **Understand step.** After each search, one Claude call gives `unknowns` (standalone questions with a term, a kind and refs; 谐音, 缩写 and 拼音首字母 always count; questions in the comments are a strong signal; 5 a search, 8 a run), `opinions` (key points with the other side) and `claims`.
+- **Staged lookups**, each recorded with its support (`full`/`partial`/`none`): the knowledge base, the web (`claude -p` with only `WebSearch,WebFetch`), then a Douyin search of its own at the front of the queue (sharing `--max-searches`), judged on what it read. What isn't `full` after that is never a card: it's listed as unresolved in the searches file and as `未确认` in the drafts file. A 梗's 出处 must rest on a Douyin post or reply.
+- **Drafts.** A new type, `梗` (含义/出处/例句/类型), only when used in 2 different posts. `社区观点` cards are written by code from the counted opinions, kept only when seen under 2 different creators, both sides with their counts, as hearsay, never web-checked. 事实 and 规则 only from a post or a `full` lookup; no single comment makes a 规则 or a fact about a person. Every card keeps its provenance (post ids, the search path, URLs); 复查 by type (事实/规则 90 days, 惯例 60, 梗 30, 社区观点 21). `--topic` passes the knowledge base's entries about the topic too, so drafts can be changes or "still right".
+- **Her reflection**, in Fairy's voice, at the end of every run that read enough (an importance score by code; below it, skipped and logged): her `takes` to `browse/thoughts/<date>.md` (LifeWriter's `{{browseThoughts}}`, wording.md's `browse-thoughts`), her `questions` to `dy-browse/data/questions.json` (deduped, 3 a run, looked up first by the next `--topic` or `--knowledge` run), `bringUp` (only after `--streamer`) to the room's `memory/thoughts.md`, and `commentDrafts` (0–2) to `dy-browse/data/comments/<date>.md`, a review list with `可发送: 是` only under the streamer's own posts. There is no code that sends.
+
+#### Research basis
+
+- **SAFE** (Search-Augmented Factuality Evaluator, Wei et al. 2024): each unknown is rewritten as a standalone question (no pronouns, the term and where it was seen) before it's searched.
+- **Self-RAG** (Asai et al. 2023): every lookup stage is recorded with a support label (`full`/`partial`/`none`), and only `full` lets a fact through.
+- **Key Point Analysis** (Bar-Haim et al. 2020) for the opinions, counted by code, and **Community Notes**' bridging idea for keeping one: seen under different creators, not just liked a lot.
+- **CHIME** (a schema for explaining internet memes) for the 梗 card: 含义, 出处, 例句, 类型; and 出处 needs Douyin's own evidence, since models confabulate meme origins.
+- **FreshQA** (Vu et al. 2023): fast-changing knowledge goes stale, so 复查 depends on the type (梗 30 days, 社区观点 21).
+- **Generative Agents** (Park et al. 2023): reflect only once enough important things have piled up (an importance threshold), here a simple score by code.
+- **Inner Thoughts** (Liu et al. 2024): thoughts formed away from the conversation and kept to bring up when it fits, here `bringUp` into the room's thoughts.
+- **ElizaOS**-style draft queue: the agent writes what it would post, a person approves it; nothing goes out by itself.
+
+#### Commenting (stage 2 and 3, not built)
+
+Decided (see "Decided" above): from 默认关闭, as Fairy. What stage 2 has to do before anything is sent:
+
+- **The risk lands on the live-room account.** A comment that looks automated can get the account 禁言, lower its 健康分, or be hidden silently: a hidden comment looks normal from its own account, so stage 3 checks every posted comment's visibility logged out, and pauses posting on any hidden comment, warning pop-up or captcha.
+- **AI content rules.** 《人工智能生成合成内容标识办法》 (in force 2025-09-01) and Douyin's AIGC rules (label AI-made content; a virtual persona registered, with a real-name operator) put the responsibility on the operator.
+- **Caps and filters.** 1 comment a day to start; a content filter (the forbidden topics and words the bot already has) before review and again before sending; only drafts a person approved, still fresh (`过期`).
+- **Where.** Only the streamer's own posts (`可发送: 是`), never posts chosen by keyword or the feed.
 
 #### Later phases (not built)
 
