@@ -7,7 +7,7 @@ import { SETTINGS, SETTING_NAMES, type Settings } from './core/commands/settings
 import { DEFAULT_TRANSCRIPT_WINDOW_MS } from './core/songs/transcript';
 
 export const USAGE =
-  `Usage: pnpm start --room <房间号> --bot-name <机器人账号昵称> [--bot-id <账号 uid>] [--port ${DEFAULT_PORT}]\n` +
+  `Usage: pnpm start --room <房间号> [--port ${DEFAULT_PORT}]\n` +
   '       [--prompt prompt.md] [--history 100] [--max-reply 49] [--max-parts 5] [--tools WebSearch,WebFetch,Read,Glob,Grep]\n' +
   '       [--model opus] [--system <系统提示>] [--logs logs/]\n' +
   '       [--no-asr] [--transcript-minutes 5] [--queue 20]\n' +
@@ -19,8 +19,6 @@ export const USAGE =
 export interface CliOptions {
   roomId: string;
   port: number;
-  botName: string;
-  botId?: string;
   promptFile: string;
   historySize: number;
   maxReplyLength: number;
@@ -92,8 +90,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
       ...settingFlags,
       room: { type: 'string' },
       port: { type: 'string', default: String(DEFAULT_PORT) },
-      'bot-name': { type: 'string' },
-      'bot-id': { type: 'string' },
       prompt: { type: 'string', default: join(packageDir, 'prompts', 'prompt.md') },
       history: { type: 'string', default: '100' },
       'max-reply': { type: 'string', default: String(DOUYIN_CHAT_LIMIT) },
@@ -134,10 +130,9 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
   });
   const roomId = values.room ?? '';
   const port = parsePort(values.port);
-  const botName = values['bot-name'];
   // 0 is allowed here (the OS picks a port), unlike room-feed's.
   const mcpPort = values['mcp-port'] === '0' ? 0 : parsePort(values['mcp-port']);
-  if (!isRoomId(roomId) || port === null || mcpPort === null || !botName) return null;
+  if (!isRoomId(roomId) || port === null || mcpPort === null) return null;
   const given = settingsGiven(values);
   // A setting given as something that isn't a number, 0 or more (`--max-parts abc`), is a mistake: say
   // so, rather than write it into the room's room_config.json for good.
@@ -145,8 +140,6 @@ export function parseCliOptions(args: string[], packageDir: string): CliOptions 
   return {
     roomId,
     port,
-    botName,
-    botId: values['bot-id'],
     promptFile: values.prompt,
     historySize: Number(values.history),
     maxReplyLength: Number(values['max-reply']),

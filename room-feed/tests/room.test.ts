@@ -129,6 +129,19 @@ function setup({ ended = false } = {}) {
 }
 
 describe('Room', () => {
+  it('logs who the page is logged in as, or that the login is gone', async () => {
+    const { clock, pages, room, log } = setup();
+    room.start();
+    await clock.advance(0);
+    pages[0]!.handlers.onAccount({ uid: '769', nickname: '默认关闭', displayId: '281' });
+    pages[0]!.handlers.onAccount('loggedOut');
+    expect(room.info().account).toBe('loggedOut');
+    expect(log.slice(1)).toEqual([
+      '[room-feed] 登录的抖音账号：默认关闭（uid 769，抖音号 281）',
+      '[room-feed] 抖音说没有登录（登录可能过期了）：收不到礼物，也不能发弹幕。先运行 pnpm room-feed login',
+    ]);
+  });
+
   it('goes live on the first push frame and sends each message once', async () => {
     const { clock, pages, room, events, statuses } = setup();
     room.start();

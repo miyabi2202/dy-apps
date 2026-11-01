@@ -1,9 +1,9 @@
 /**
  * Reads the room's chat record since last time into what the bot remembers (see RememberChat):
  * each regular's note.md, the room's memory.md and the streamer's note. Run after a stream, with
- * the same options as the bot:
+ * the same options as the bot; the bot's account is the one the room's room_config.json kept:
  *
- *     pnpm remember --room 259175310675 --bot-name 默认关闭 --bot-id 7692586790687114297
+ *     pnpm remember --room 259175310675
  */
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';

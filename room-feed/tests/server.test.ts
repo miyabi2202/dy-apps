@@ -18,6 +18,7 @@ class FakeRoom implements ServedRoom {
       roomId: this.roomId,
       status: this.status,
       meta: { nickname: '主播', uid: '7', secUid: '', avatar: '', title: '' },
+      account: { uid: '769', nickname: '默认关闭', displayId: '281' },
     };
   }
   onEvent(listener: (event: RoomEvent) => void) {
@@ -162,11 +163,14 @@ describe('the event stream', () => {
 });
 
 describe('the HTTP API', () => {
-  it('describes the room with the login expiry', async () => {
+  it('describes the room with the login expiry and the account the page is logged in as', async () => {
     const res = await fetch(`http://${base}/api/rooms/123`);
 
     expect(await res.json()).toMatchObject({
-      room: { roomId: '123', status: 'connecting', meta: { uid: '7' }, login: { expiresAt: 99 } },
+      room: {
+        ...{ roomId: '123', status: 'connecting', meta: { uid: '7' }, login: { expiresAt: 99 } },
+        account: { uid: '769', nickname: '默认关闭', displayId: '281' },
+      },
     });
   });
 

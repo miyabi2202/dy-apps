@@ -1,4 +1,5 @@
 import type { RawProtoMessage } from './douyin/proto';
+import type { Account } from './douyin/user-me';
 import type {
   FansLampResult,
   HeartResult,
@@ -17,6 +18,8 @@ export interface RoomPageHandlers {
    * this room's, so room-feed should stop rather than reopen. Called once, instead of `onClosed`.
    */
   onWrongRoom(why: string): void;
+  /** Who the page is logged in as, or that Douyin doesn't take the login, once it says. */
+  onAccount(account: Account): void;
 }
 
 /** The live room open in Chrome: Douyin's page does the signing, we only watch and type. */

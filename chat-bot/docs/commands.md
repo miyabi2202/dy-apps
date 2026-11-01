@@ -267,7 +267,7 @@ Each file is entries with a `§` line between them. The tool can `add` an entry,
 
 ### Reading the chat into memory
 
-Most of what's worth knowing about regulars is in their chat with each other, not in what they say to the bot. `pnpm remember` (with the same `--room`, `--bot-name`, `--bot-id` and `--data` as the bot; `src/remember.ts`, `src/app/memory/remember-chat.ts`) reads the room's chat record since it last ran (`data/<房间号>/memory_read.txt`; the last 12 hours the first time) and asks Claude, with no tools:
+Most of what's worth knowing about regulars is in their chat with each other, not in what they say to the bot. `pnpm remember` (with the same `--room` and `--data` as the bot, and the bot's account from `room_config.json`'s `bot`, which the bot writes in at start; `src/remember.ts`, `src/app/memory/remember-chat.ts`) reads the room's chat record since it last ran (`data/<房间号>/memory_read.txt`; the last 12 hours the first time) and asks Claude, with no tools:
 
 - for each viewer who sent at least 5 chats since then, 8 a question, with their own chats and their note: changes to their note (`remember-notes.md`). Not in a 私密 room, and never the bot's or the streamer's chat;
 - once for the whole stream (the streamer's speech and everyone's chat, songs sung left out), with `memory.md` and the streamer's note: changes to both (`remember-room.md`);

@@ -92,7 +92,7 @@ function errorMessage(e: unknown): string {
 /**
  * room-feed's HTTP and WebSocket server, for one room:
  * - `ws://…/ws?roomId=<id>&types=chat,gift`: the room's events and status frames
- * - `GET /api/rooms/<id>`: the room's status, its streamer and the login's expiry
+ * - `GET /api/rooms/<id>`: the room's status, its streamer, the login's expiry and the account logged in
  * - `POST /api/rooms/<id>/chat` `{ text }`: send a chat as the logged-in account
  * - `POST /api/rooms/<id>/like` `{ likes }`: hold the like key (z) on the player until about that
  *   many likes have gone, by Douyin's counter, or until Douyin says 手速太快了

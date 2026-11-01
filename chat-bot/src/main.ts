@@ -1,12 +1,16 @@
 /**
  * Entry point: reads the options, builds the bot (see wiring/) and starts it.
  *
- *     pnpm start --room 259175310675 --bot-name 默认关闭
+ *     pnpm start --room 259175310675
+ *
+ * The bot's own account is the one room-feed says it's logged in as: the bot waits for it.
  */
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RoomFeedApi } from './adapters/room-feed/room-feed-api';
 import { createLogger } from './adapters/winston-logger';
+import { waitForAccount } from './app/room/bot-account';
 import { parseCliOptions, USAGE } from './cli-options';
 import { errorMessage } from './core/errors';
 import { APP, buildContainer } from './wiring';
@@ -22,7 +26,20 @@ if (!options) {
 }
 
 const log = createLogger(resolve(options.logsDir));
-const app = buildContainer({ options, packageDir, log, env: process.env }).resolve(APP);
+// Stopped while it waits for room-feed: nothing has started yet.
+const quit = () => {
+  log.on('finish', () => process.exit(0));
+  log.end();
+};
+process.once('SIGINT', quit);
+process.once('SIGTERM', quit);
+const bot = await waitForAccount({
+  account: new RoomFeedApi(options.port, options.roomId).account,
+  log,
+});
+process.off('SIGINT', quit);
+process.off('SIGTERM', quit);
+const app = buildContainer({ options, bot, packageDir, log, env: process.env }).resolve(APP);
 const shutdown = ({ code = 0, ...options }: { quitSpeech?: boolean; code?: number } = {}) => {
   app.stop(options);
   log.on('finish', () => process.exit(code));

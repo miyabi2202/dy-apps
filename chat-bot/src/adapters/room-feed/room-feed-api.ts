@@ -1,4 +1,4 @@
-import { RoomFeedHttp } from '@dy-apps/room-feed-protocol';
+import { RoomFeedHttp, type RoomAccount } from '@dy-apps/room-feed-protocol';
 import type {
   FindStreamer,
   PressLike,
@@ -12,8 +12,8 @@ import type {
 /**
  * One live room's HTTP API on room-feed (see RoomFeedHttp), as the bot's ports: send chat, like,
  * send the 灯牌 or a 小心心,
- * get the stream URL and a screenshot of the player (once the room is live), and who the
- * streamer is.
+ * get the stream URL and a screenshot of the player (once the room is live), who the
+ * streamer is, and which account room-feed is logged in as.
  */
 export class RoomFeedApi {
   private readonly http: RoomFeedHttp;
@@ -40,4 +40,8 @@ export class RoomFeedApi {
   };
 
   readonly screenshot: Screenshot = () => this.http.screenshot();
+
+  /** The account room-feed's page is logged in as, `loggedOut`, or null while it hasn't said. */
+  readonly account = async (): Promise<RoomAccount | 'loggedOut' | null> =>
+    (await this.http.roomInfo())?.account ?? null;
 }

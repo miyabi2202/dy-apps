@@ -47,6 +47,11 @@ export interface RoomConfig extends Settings {
   persona?: string;
   /** The room's streamer (`streamer`), which the bot writes in once room-feed says who it is. */
   streamer?: { uid: string; nickname: string };
+  /**
+   * The bot's own Douyin account (`bot`), which the bot writes in once room-feed says which it is
+   * logged in as: for `pnpm remember`, which runs after room-feed has gone.
+   */
+  bot?: { uid: string; nickname: string };
 }
 
 /** Every field a room's room_config.json is filled in with (see fillRoomConfig), and its default. */
@@ -108,12 +113,18 @@ export function roomConfigFrom(
   );
   const streamer = field(
     'streamer',
-    () => (raw.streamer === undefined ? undefined : streamerOf(raw.streamer)),
+    () => (raw.streamer === undefined ? undefined : accountOf(raw.streamer, 'streamer')),
     last.streamer,
+  );
+  const bot = field(
+    'bot',
+    () => (raw.bot === undefined ? undefined : accountOf(raw.bot, 'bot')),
+    last.bot,
   );
   return {
     private: isPrivate,
     ...(streamer && { streamer }),
+    ...(bot && { bot }),
     ...(onSing && { onSing }),
     ...(persona && { persona }),
     ...(songBreaks && { songBreaks }),
@@ -192,10 +203,10 @@ function nameList(raw: unknown, name: string, example: string): string[] {
 }
 
 /** `streamer` as a uid and nickname, or an error saying what's wrong with it. */
-function streamerOf(raw: unknown): { uid: string; nickname: string } {
+function accountOf(raw: unknown, name: string): { uid: string; nickname: string } {
   const { uid, nickname } = (raw ?? {}) as Record<string, unknown>;
   if (typeof uid !== 'string' || !uid.trim() || typeof nickname !== 'string') {
-    throw new Error('streamer must be { "nickname": "…", "uid": "…" }');
+    throw new Error(`${name} must be { "nickname": "…", "uid": "…" }`);
   }
   return { uid: uid.trim(), nickname };
 }

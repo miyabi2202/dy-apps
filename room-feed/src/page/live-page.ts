@@ -15,6 +15,7 @@ import type {
 } from '@dy-apps/room-feed-protocol';
 import { PAGE_WAIT, PLAYER_CLICK } from '../douyin/page-map';
 import { parseRoomMeta } from '../douyin/room-meta';
+import { isUserMe, readUserMe, type UserMeAnswer } from '../douyin/user-me';
 import { LikeHold } from '../like-hold';
 import { PageShots } from '../page-shots';
 import { RoomEndedError } from '../errors';
@@ -134,6 +135,20 @@ export class LivePage implements RoomPage {
     // change when the player reconnects.
     this.page.on('request', (req) => {
       if (STREAM_URL.test(req.url())) this.requestedStream = req.url();
+    });
+    // Who the page is logged in as: the first answer that says.
+    let accountTold = false;
+    this.page.on('response', (res) => {
+      if (accountTold || !isUserMe(res.url())) return;
+      res
+        .json()
+        .then((body: UserMeAnswer) => {
+          const account = readUserMe(body ?? {});
+          if (!account || accountTold || this.closed) return;
+          accountTold = true;
+          this.handlers.onAccount(account);
+        })
+        .catch(() => {});
     });
     this.page.on('response', (res) => {
       if (!isEnterOf(res.url(), this.roomId)) return;

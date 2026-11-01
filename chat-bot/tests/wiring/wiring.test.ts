@@ -27,6 +27,7 @@ import {
   ROOM_API,
   ROOM_EVENTS,
   SETTINGS,
+  BOT_ACCOUNT,
   SONG_BREAK_SOURCES,
   SONG_ID,
   SPAWN_WORKER,
@@ -49,6 +50,8 @@ function build(
   env: { JEV_API_KEY?: string } = { JEV_API_KEY: 'key' },
   /** Files to put in the room's folder (`data/123/`) first, by path in it. */
   roomFiles: Record<string, string> = {},
+  /** The account room-feed said; none for `pnpm remember`, which reads room_config.json's. */
+  account: { uid: string; nickname: string } | null = { uid: 'bot-1', nickname: '小助手' },
 ) {
   const dir = mkdtempSync(join(tmpdir(), 'chat-bot-wiring-'));
   for (const [path, text] of Object.entries(roomFiles)) {
@@ -58,7 +61,7 @@ function build(
   writeFileSync(join(dir, 'config.json'), JSON.stringify({ admins: ['7001'], adminNames: '雅' }));
   const options = parseCliOptions(
     [
-      ...['--room', '123', '--bot-name', '小助手', '--bot-id', 'bot-1', '--send-interval', '0'],
+      ...['--room', '123', '--send-interval', '0'],
       ...['--data', join(dir, 'data'), '--logs', dir, '--config', join(dir, 'config.json')],
       ...args,
     ],
@@ -71,7 +74,13 @@ function build(
     warn: (message) => void logged.push(['warn', message]),
     error: (message) => void logged.push(['error', message]),
   };
-  const container = buildContainer({ options, packageDir: PACKAGE_DIR, log, env });
+  const container = buildContainer({
+    options,
+    ...(account && { bot: account }),
+    packageDir: PACKAGE_DIR,
+    log,
+    env,
+  });
 
   const sent: string[] = [];
   const prompts: string[] = [];
@@ -575,4 +584,22 @@ test('the streamer is room-feed’s word on who it is, else the room_config.json
   const streamer = bot.container.resolve(STREAMER);
   expect(streamer.current()).toBeNull();
   expect(streamer.id()).toBe('7');
+});
+
+test('the account room-feed said is kept in room_config.json, which pnpm remember reads it from', () => {
+  const started = build(['--no-asr']);
+  started.container.resolve(APP);
+  const path = join(started.dir, 'data', '123', 'room_config.json');
+  expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({
+    bot: { nickname: '小助手', uid: 'bot-1' },
+  });
+
+  const config = {
+    'room_config.json': JSON.stringify({ bot: { nickname: '小助手', uid: 'bot-1' } }),
+  };
+  const remembering = build(['--no-asr'], {}, config, null);
+  expect(remembering.container.resolve(BOT_ACCOUNT)).toEqual({ nickname: '小助手', uid: 'bot-1' });
+  expect(() => build(['--no-asr'], {}, {}, null).container.resolve(BOT_ACCOUNT)).toThrow(
+    "the bot's account isn't known",
+  );
 });

@@ -143,11 +143,13 @@ export function fillRoomConfig(
 }
 
 /**
- * Writes `streamer` into the room's `room_config.json` as `"streamer": { "nickname", "uid" }`,
- * keeping everything else in it. A file that doesn't parse is left alone.
+ * Writes the room's streamer, or the bot's own account, into its `room_config.json` as
+ * `"streamer"` or `"bot": { "nickname", "uid" }`, keeping everything else in it. A file that
+ * doesn't parse is left alone.
  */
-export function saveStreamer(
+export function saveAccount(
   path: string,
+  field: 'streamer' | 'bot',
   { uid, nickname }: Streamer,
   {
     log,
@@ -157,8 +159,8 @@ export function saveStreamer(
 ): void {
   try {
     const config = JSON.parse(read(path)) as Record<string, unknown>;
-    write(path, `${JSON.stringify({ ...config, streamer: { nickname, uid } }, null, 2)}\n`);
+    write(path, `${JSON.stringify({ ...config, [field]: { nickname, uid } }, null, 2)}\n`);
   } catch (err) {
-    log.warn('could not write the streamer into room_config.json', { error: errorMessage(err) });
+    log.warn(`could not write the ${field} into room_config.json`, { error: errorMessage(err) });
   }
 }

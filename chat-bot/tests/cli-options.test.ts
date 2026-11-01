@@ -1,7 +1,6 @@
 import { parseCliOptions } from '../src/cli-options';
 
-const parse = (...args: string[]) =>
-  parseCliOptions(['--room', '416362684969', '--bot-name', 'x', ...args], '/pkg');
+const parse = (...args: string[]) => parseCliOptions(['--room', '416362684969', ...args], '/pkg');
 
 test('the command line says which settings it gave, and the rest stay the room’s own', () => {
   expect(parse()?.given).toEqual({});

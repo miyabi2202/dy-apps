@@ -13,7 +13,7 @@ import {
   fillRoomConfig,
   roomConfigFile,
   roomFiles,
-  saveStreamer,
+  saveAccount,
 } from '../adapters/files/room-files';
 import { memoryReadMark, readRecordSince } from '../adapters/files/remember-files';
 import { thoughtsFile } from '../adapters/files/thoughts-file';
@@ -42,6 +42,7 @@ import type { Container } from './container';
 import type { FeatureRegistry } from './features';
 import {
   ADMINS,
+  BOT_ACCOUNT,
   BOT_NAMES,
   BOT_CONFIG,
   BOT_TALK,
@@ -183,7 +184,8 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
       return new StreamerAdmin({
         admins: liveAdmins(resolve(c.resolve(OPTIONS).configFile), { log }),
         find: c.resolve(ROOM_API).streamer,
-        onFound: (streamer) => saveStreamer(c.resolve(ROOM_FILES).config, streamer, { log }),
+        onFound: (streamer) =>
+          saveAccount(c.resolve(ROOM_FILES).config, 'streamer', streamer, { log }),
         log,
       });
     })
@@ -270,8 +272,8 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
     // `pnpm remember`: the chat record since last time, read into the notes and memory.md by Claude,
     // and then what the bot itself made of it, in its persona (memory/thoughts.md).
     .register(REMEMBER_CHAT, (c) => {
-      const [options, roomConfig, prompt] = [
-        c.resolve(OPTIONS),
+      const [account, roomConfig, prompt] = [
+        c.resolve(BOT_ACCOUNT),
         c.resolve(ROOM_CONFIG),
         c.resolve(PROMPT),
       ];
@@ -289,7 +291,7 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
           store: c.resolve(THOUGHTS),
         },
         streamer: c.resolve(STREAMER),
-        bot: { name: options.botName, id: options.botId },
+        bot: { name: account.nickname, id: account.uid },
         isPrivate: () => roomConfig().private,
         dayOf: (ms) => localDate(ms, roomConfig().timeZone).slice(0, 10),
         log: c.resolve(LOG),
@@ -375,10 +377,10 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
     // nickname before it @s them, and where the streamer is: every time in the prompts is in their
     // time zone (Beijing time when not known).
     .register(BOT_NAMES, (c) => {
-      const [options, roomConfig] = [c.resolve(OPTIONS), c.resolve(ROOM_CONFIG)];
+      const [account, roomConfig] = [c.resolve(BOT_ACCOUNT), c.resolve(ROOM_CONFIG)];
       return new BotNames({
-        botName: options.botName,
-        botId: options.botId,
+        botName: account.nickname,
+        botId: account.uid,
         aliases: () => roomConfig().aliases,
         atTrimStart: () => roomConfig().atTrimStart,
         timeZone: () => roomConfig().timeZone,
@@ -408,7 +410,7 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
         new RoomFeed({
           events: c.resolve(ROOM_EVENTS),
           bus: c.resolve(BUS),
-          bot: { nickname: c.resolve(OPTIONS).botName, userId: c.resolve(OPTIONS).botId },
+          bot: { nickname: c.resolve(BOT_ACCOUNT).nickname, userId: c.resolve(BOT_ACCOUNT).uid },
           history: c.resolve(HISTORY),
           log: c.resolve(LOG),
           record: c.resolve(RECORD),

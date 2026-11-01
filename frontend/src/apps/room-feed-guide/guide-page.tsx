@@ -72,8 +72,7 @@ export function GuidePage() {
               不需要任何编程基础，跟着一步一步做就行。
             </p>
             <Callout kind="tip">
-              Git、Node.js 和程序要用的零部件都从国内镜像下载。只有第 7 步从 GitHub 下载 room-feed
-              本身，国内有时会慢或者失败，多试几次就好。
+              Git、Node.js、room-feed 本身和程序要用的零部件，都从国内可以直接打开的地方下载。
             </Callout>
             <p {...stylex.props(styles.lead)}>
               整个过程分为 {STEPS.length} 步，第一次大约需要 <b>20～30 分钟</b>：

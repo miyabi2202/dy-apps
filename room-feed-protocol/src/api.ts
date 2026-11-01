@@ -23,6 +23,14 @@ export interface RoomMeta {
   title: string;
 }
 
+/** The Douyin account room-feed's page is logged in as (its webcast/user/me/). */
+export interface RoomAccount {
+  uid: string;
+  nickname: string;
+  /** The 抖音号 shown on the profile. */
+  displayId: string;
+}
+
 /** `GET /api/rooms/<id>`. */
 export interface RoomInfoAnswer {
   room: {
@@ -32,6 +40,11 @@ export interface RoomInfoAnswer {
     meta: RoomMeta | null;
     /** The saved Douyin login; null when not logged in (no gifts, no sending chat). */
     login: { expiresAt: number | null } | null;
+    /**
+     * The account the room page is logged in as, or `loggedOut` when Douyin doesn't take the
+     * saved login (expired, say); null until the page has said.
+     */
+    account: RoomAccount | 'loggedOut' | null;
   };
 }
 

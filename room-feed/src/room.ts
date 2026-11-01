@@ -1,5 +1,6 @@
 import { normalize } from './douyin/normalize';
 import { isStreamEnd, type RawProtoMessage } from './douyin/proto';
+import type { Account } from './douyin/user-me';
 import type {
   FansLampResult,
   HeartResult,
@@ -74,6 +75,7 @@ export class Room {
   private status: RoomStatus = 'connecting';
   private page: RoomPage | null = null;
   private meta: RoomMeta | null = null;
+  private account: Account | null = null;
   /** Bumped on each open and reopen; handlers of an older page check it and stay quiet. */
   private attempt = 0;
   private failures = 0;
@@ -114,7 +116,7 @@ export class Room {
   }
 
   info(): Omit<RoomInfoAnswer['room'], 'login'> {
-    return { roomId: this.roomId, status: this.status, meta: this.meta };
+    return { roomId: this.roomId, status: this.status, meta: this.meta, account: this.account };
   }
 
   /** Returns a function that removes the listener. */
@@ -224,6 +226,15 @@ export class Room {
         },
         onWrongRoom: (why) => {
           if (current()) void this.end(why, 'wrongRoom');
+        },
+        onAccount: (account) => {
+          if (!current()) return;
+          this.account = account;
+          this.log(
+            account === 'loggedOut'
+              ? '[room-feed] 抖音说没有登录（登录可能过期了）：收不到礼物，也不能发弹幕。先运行 pnpm room-feed login'
+              : `[room-feed] 登录的抖音账号：${account.nickname}（uid ${account.uid}，抖音号 ${account.displayId}）`,
+          );
         },
       });
     } catch (e) {

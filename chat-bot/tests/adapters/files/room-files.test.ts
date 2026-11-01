@@ -2,7 +2,7 @@ import { SETTING_DEFAULTS } from '../../../src/core/commands/settings';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { roomConfigFile, roomFiles, saveStreamer } from '../../../src/adapters/files/room-files';
+import { roomConfigFile, roomFiles, saveAccount } from '../../../src/adapters/files/room-files';
 
 test('room_config.json starts not private, and is read again as it changes', () => {
   const { config } = roomFiles(mkdtempSync(join(tmpdir(), 'room-files-')));
@@ -59,22 +59,24 @@ test('room_config.json starts not private, and is read again as it changes', () 
   }
 });
 
-test('writes the streamer into room_config.json, keeping the rest', () => {
+test("writes the streamer, and the bot's own account, into room_config.json, keeping the rest", () => {
   const { config } = roomFiles(mkdtempSync(join(tmpdir(), 'room-files-')));
   writeFileSync(config, '{ "private": true }');
   const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
-  saveStreamer(config, { uid: '7500039236442915865', nickname: '晨曦FM ⁹⁰¹' }, { log });
+  saveAccount(config, 'streamer', { uid: '7500039236442915865', nickname: '晨曦FM ⁹⁰¹' }, { log });
   expect(JSON.parse(readFileSync(config, 'utf8'))).toEqual({
     private: true,
     streamer: { nickname: '晨曦FM ⁹⁰¹', uid: '7500039236442915865' },
   });
+  saveAccount(config, 'bot', { uid: '769', nickname: '默认关闭' }, { log });
   expect(roomConfigFile(config, { log }).get()).toMatchObject({
     private: true,
     streamer: { nickname: '晨曦FM ⁹⁰¹', uid: '7500039236442915865' },
+    bot: { nickname: '默认关闭', uid: '769' },
   });
 
   writeFileSync(config, '{ "private": ');
-  saveStreamer(config, { uid: '1', nickname: '阿明' }, { log });
+  saveAccount(config, 'streamer', { uid: '1', nickname: '阿明' }, { log });
   expect(readFileSync(config, 'utf8')).toBe('{ "private": ');
   expect(log.warn).toHaveBeenCalled();
 });

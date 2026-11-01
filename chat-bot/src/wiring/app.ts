@@ -3,6 +3,7 @@ import type { Container } from './container';
 import {
   ADMINS,
   APP,
+  BOT_ACCOUNT,
   AUTO_REPLY,
   BOT,
   BOT_CONFIG,
@@ -60,7 +61,7 @@ export function registerApp(container: Container): void {
         log.info('starting', {
           roomId: options.roomId,
           port: options.port,
-          botName: options.botName,
+          botName: c.resolve(BOT_ACCOUNT).nickname,
           asr: options.asr,
           admins: config.admins,
           persona: room.persona,

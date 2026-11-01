@@ -31,6 +31,7 @@ import type { LyricsBreaks } from '../app/songs/lyrics-breaks';
 import type { Outbox } from '../app/replies/outbox';
 import type {
   AskModel,
+  BotAccount,
   BotTalk,
   CropImage,
   DefinedTool,
@@ -69,6 +70,8 @@ import { token } from './container';
 
 // Given to buildContainer: what the entry knows.
 export const OPTIONS = token<CliOptions>('options');
+/** The bot's own account: as room-feed said at start, else as the room's room_config.json kept it. */
+export const BOT_ACCOUNT = token<BotAccount>('botAccount');
 export const PACKAGE_DIR = token<string>('packageDir');
 /** chat-bot/prompts/: every text the models are sent (the prompts, wording.md, the shared personas). */
 export const PROMPTS_DIR = token<string>('promptsDir');

@@ -12,7 +12,7 @@ export interface GuideSection {
   body: ReactNode;
 }
 
-const CLONE_URL = 'https://github.com/miyabi2202/dy-apps.git';
+const CLONE_URL = 'https://cnb.cool/miyabi2202/dy-apps.git';
 /** Installs only what room-feed needs, not the rest of the repo's tools. */
 const INSTALL = 'pnpm install --filter @dy-apps/room-feed --prod';
 /** A made-up room number for the commands; readers put their own in its place. */
@@ -329,8 +329,8 @@ Resolving deltas: 100% ..., done.`}
           和弹幕墙等小工具都在这个文件夹里。
         </P>
         <Callout>
-          这一步从 GitHub 下载，国内有时会很慢或者中途失败。失败了就再执行一次同样的命令；如果提示{' '}
-          <C>already exists</C>，见文末 <A href="#faq">常见问题</A>。
+          万一中途失败了，就再执行一次同样的命令；如果提示 <C>already exists</C>，见文末{' '}
+          <A href="#faq">常见问题</A>。
         </Callout>
         <H3>7.3 进入程序文件夹</H3>
         <Cmd>cd dy-apps</Cmd>
@@ -444,11 +444,17 @@ Resolving deltas: 100% ..., done.`}
 [room-feed] 已启动：直播间 ${EXAMPLE_ROOM}，端口 8757
 [room-feed] 事件流：ws://localhost:8757/ws?roomId=${EXAMPLE_ROOM}
 [room-feed] 正在打开直播间 ${EXAMPLE_ROOM}…
+[room-feed] 登录的抖音账号：你的昵称（uid 7692586790687114297，抖音号 28100824821）
 [room-feed] 已连上直播间 ${EXAMPLE_ROOM} 的弹幕`}
         </Out>
         <P>
           <b>出现最后一行“已连上直播间……的弹幕”，就是连接成功了</b> 🎉
         </P>
+        <Callout>
+          “登录的抖音账号”后面是抖音认的那个账号，看看是不是你登录的那个。如果这里显示的是
+          “抖音说没有登录（登录可能过期了）”，说明登录已经失效了，按 <A href="#step-9">第 9 步</A>
+          重新登录，再重新启动 room-feed。
+        </Callout>
         <Callout>
           直播间还没开播时，会看到“一直没收到弹幕推送（可能还没开播）”。不用管它，room-feed
           会每隔一会儿自己重新试，开播后就会连上。
@@ -488,8 +494,8 @@ Resolving deltas: 100% ..., done.`}
         <Cmd>cd dy-apps</Cmd>
         <Cmd>{`pnpm room-feed --room ${EXAMPLE_ROOM}`}</Cmd>
         <P>
-          如果启动时提示“还没有登录”，说明登录过期了，先运行一次 <C>pnpm room-feed login</C>
-          （第 9 步）。
+          如果启动时提示“还没有登录”，或者打开直播间后提示“抖音说没有登录”，说明登录过期了，先运行一次{' '}
+          <C>pnpm room-feed login</C>（第 9 步）。
         </P>
         <H3>更新到最新版本</H3>
         <P>
@@ -519,9 +525,9 @@ Resolving deltas: 100% ..., done.`}
           <C>git clone</C> 很慢、卡住不动，或者报 <C>Failed to connect</C> / <C>timed out</C>
         </H3>
         <P>
-          GitHub 在国内有时不稳定。按 <Kbd>Ctrl</Kbd> + <Kbd>C</Kbd> 停掉，过一会儿再执行一次{' '}
+          网络不稳定时按 <Kbd>Ctrl</Kbd> + <Kbd>C</Kbd> 停掉，过一会儿再执行一次{' '}
           <A href="#step-7">7.2 步</A>
-          的命令。换个时间（比如早上）或者换个网络（比如手机热点）往往就好了。
+          的命令。换个网络（比如手机热点）往往就好了。
         </P>
         <H3>
           <C>git clone</C> 提示 <C>already exists and is not an empty directory</C>
@@ -558,8 +564,8 @@ Resolving deltas: 100% ..., done.`}
         </P>
         <H3>能看到弹幕，却一直没有礼物消息</H3>
         <P>
-          说明没有登录，或者登录过期了。看启动时第一行是不是“还没有登录”，是的话按{' '}
-          <A href="#step-9">第 9 步</A>重新登录，再重新启动 room-feed。
+          说明没有登录，或者登录过期了。看启动时第一行是不是“还没有登录”，或者打开直播间后有没有
+          “抖音说没有登录”，是的话按 <A href="#step-9">第 9 步</A>重新登录，再重新启动 room-feed。
         </P>
         <H3>
           启动后提示端口 <C>8757</C> 已被占用

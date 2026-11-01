@@ -25,6 +25,12 @@ export interface Admins {
   has(userId: string): boolean;
 }
 
+/** The bot's own Douyin account: the one room-feed's page is logged in as. */
+export interface BotAccount {
+  uid: string;
+  nickname: string;
+}
+
 /** Who the room's streamer is, or null while it isn't known yet. */
 export type FindStreamer = () => Promise<{ uid: string; nickname: string } | null>;
 
