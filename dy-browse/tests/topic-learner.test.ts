@@ -1,7 +1,6 @@
 import { DraftStore } from '../src/app/draft-store';
 import { TopicLearner } from '../src/app/topic-learner';
 import type { SearchPort, SearchResult } from '../src/app/topic-search';
-import { QuestionStore } from '../src/app/question-store';
 import { BlockedError } from '../src/core/errors';
 import { KnowledgeIndex, parseKnowledge } from '../src/core/knowledge';
 import { item } from './support/fakes';
@@ -90,7 +89,6 @@ function build(
     knowledge?: string;
     web?: unknown;
     data?: MemoryStore;
-    questions?: boolean;
   } = {},
 ) {
   const data = options.data ?? new MemoryStore();
@@ -98,12 +96,10 @@ function build(
   const { ask, prompts } = fakeAsk(claude);
   const { askWeb, asked } = fakeWeb(options.web);
   const logs: string[] = [];
-  const questions = new QuestionStore(data);
   const learner = new TopicLearner({
     search,
     ask,
     askWeb,
-    questions: options.questions ? questions : null,
     maxUnknowns: options.maxUnknowns,
     data,
     drafts: new DraftStore(data),
@@ -113,7 +109,7 @@ function build(
     depth: options.depth,
     maxSearches: options.maxSearches,
   });
-  return { learner, data, searched, prompts, logs, webAsked: asked, questions };
+  return { learner, data, searched, prompts, logs, webAsked: asked };
 }
 
 const table = {
@@ -509,37 +505,38 @@ describe('TopicLearner', () => {
     expect(file).toContain('今汐很强');
   });
 
-  it('looks her pending questions up first, and marks them done with what came of them', async () => {
-    const data = new MemoryStore({
-      'questions.json': JSON.stringify({
-        questions: [
-          {
-            question: '「问题词」是什么？',
-            term: '问题词',
-            status: 'pending',
-            askedOn: '2026-10-31',
-          },
-        ],
-      }),
-    });
-    const { learner, searched, webAsked, questions } = build(
-      { ...table, 问题词: { hot: [tagged('q1')] }, 别的: { hot: [tagged('z')] } },
+  it('looks a carried question up first, as the topic search’s first unknown, and says what came of it', async () => {
+    const { learner, searched, webAsked } = build(
+      { 问题词: { hot: [tagged('q1')] }, 别的: { hot: [tagged('z')] } },
       { douyin: { supports: 'full', answer: '是一个词。', refs: ['q1'] } },
-      { depth: 0, data, questions: true },
+      { depth: 0 },
     );
-    await learner.learn('鸣潮', { folder: 'topics' });
+    const result = await learner.learn('问题词', {
+      folder: 'topics',
+      carry: { question: '「问题词」是什么？', why: '直播里有人问' },
+    });
     expect(webAsked[0]).toContain('「问题词」是什么？');
-    expect(searched).toEqual(['鸣潮', '问题词']);
-    expect(questions.all()).toMatchObject([
-      {
-        term: '问题词',
-        status: 'done',
-        doneOn: '2026-11-01',
-        outcome: '查实（douyin）：是一个词。',
-      },
-    ]);
-    // Taken once a run.
-    await learner.learn('别的', { folder: 'topics' });
-    expect(searched).toEqual(['鸣潮', '问题词', '别的']);
+    // Its Douyin search is the topic's own: searched once, judged on what it read.
+    expect(searched).toEqual(['问题词']);
+    expect(result.carried).toEqual({ status: 'resolved', answer: '是一个词。', source: 'douyin' });
+    expect(result.searchFile).toBe('searches/2026-11-01/问题词.json');
+    // Not counted as an unknown the search raised.
+    expect(result.unknowns).toBe(0);
+    // Without a carry there's nothing to report.
+    const other = await learner.learn('别的', { folder: 'topics' });
+    expect(other.carried).toBeNull();
+  });
+
+  it('reports a carried question it could not settle, with why', async () => {
+    const { learner } = build(
+      { 问题词: { hot: [tagged('q1')] } },
+      { douyin: { supports: 'none', answer: '', refs: [] } },
+      { depth: 0 },
+    );
+    const result = await learner.learn('问题词', {
+      folder: 'topics',
+      carry: { question: '「问题词」是什么？' },
+    });
+    expect(result.carried).toMatchObject({ status: 'unresolved' });
   });
 });

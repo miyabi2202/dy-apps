@@ -1,6 +1,5 @@
-import { QuestionStore } from '../src/app/question-store';
 import { Reflection, RunDigest } from '../src/app/reflection';
-import { newQuestions, sameTerm } from '../src/core/questions';
+import { TO_LEARN_FILE, ToLearnList } from '../src/app/to-learn-list';
 import {
   commentDraftsText,
   importanceOf,
@@ -38,8 +37,7 @@ const answer = {
 };
 
 /** A reflection over in-memory data, with Claude answering `reply`. */
-function setup(reply: unknown = answer, data = new MemoryStore()) {
-  const bot = new MemoryStore();
+function setup(reply: unknown = answer, data = new MemoryStore(), bot = new MemoryStore()) {
   const prompts: string[] = [];
   const logs: string[] = [];
   const reflection = new Reflection({
@@ -50,7 +48,8 @@ function setup(reply: unknown = answer, data = new MemoryStore()) {
     persona: () => '你是 Fairy。',
     data,
     bot,
-    questions: new QuestionStore(data),
+    toLearn: new ToLearnList(bot),
+    known: (term) => term === '知识库有的',
     log: (m) => logs.push(m),
     now: () => NOW,
   });
@@ -166,10 +165,11 @@ describe('Reflection', () => {
     expect(bot.read('123/memory/thoughts.md')).toBe(
       '2026-11-01：看主人的作品时想到，下次可以提：主人那条翻唱好听\n',
     );
-    // 鸣潮 was searched before: only the new question is kept.
-    expect(new QuestionStore(data).pending()).toEqual([
-      { question: '「新词」是什么意思？', term: '新词', status: 'pending', askedOn: '2026-11-01' },
+    // 鸣潮 was searched before: only the new question goes on the to-learn list.
+    expect(new ToLearnList(bot).open()).toMatchObject([
+      { term: '新词', question: '「新词」是什么意思？', from: '刷抖音时好奇 2026-11-01' },
     ]);
+    expect(bot.read(TO_LEARN_FILE)).toContain('`pnpm browse --todo`');
     expect(data.read('comments/2026-11-01.md')).toBe(
       [
         '# 2026-11-01 想留的评论（草稿，只供审阅；什么都没有发送，也没有发送的代码）',
@@ -238,26 +238,42 @@ describe('parseReflection', () => {
   });
 });
 
-describe('questions', () => {
-  it('drops one about a term searched or pending, or asked twice, and keeps at most the cap', () => {
-    const pending = [{ question: 'q', term: '旧问题', status: 'pending' as const, askedOn: 'x' }];
-    const asked = ['鸣潮', '「旧问题」', '新一', '新一', '新二', '新三', '新四'].map((term) => ({
-      question: `${term}?`,
-      term,
-    }));
-    expect(
-      newQuestions(asked, { searched: ['鸣潮 卡池'], pending, max: 3 }).map((q) => q.term),
-    ).toEqual(['新一', '新二', '新三']);
-    expect(sameTerm('鸣潮', '鸣潮 卡池')).toBe(true);
-    expect(sameTerm('鸣', '鸣潮')).toBe(false);
-  });
-
-  it('carries a question over until a run marks it done', () => {
-    const data = new MemoryStore();
-    const store = new QuestionStore(data);
-    store.add([{ question: '「甲」是什么？', term: '甲词' }], '2026-11-01', 3);
-    store.done('甲词', '2026-11-02', '查实');
-    expect(store.pending()).toEqual([]);
-    expect(store.all()[0]).toMatchObject({ status: 'done', doneOn: '2026-11-02', outcome: '查实' });
+describe('her questions on the to-learn list', () => {
+  it('drops one about a term searched, known, or already on the list (open or done)', async () => {
+    const bot = new MemoryStore({
+      [TO_LEARN_FILE]: '# 表\n\n- [ ] 旧问题 — 旧？（手写）\n- [x] 学过的 — 学过？（手写）→ 学到\n',
+    });
+    const data = new MemoryStore({
+      'searches/2026-10-31/x.json': JSON.stringify({ tree: [{ term: '鸣潮 卡池' }] }),
+    });
+    const asking = (...terms: string[]) => ({
+      ...answer,
+      questions: terms.map((term) => ({ question: `${term}?`, term })),
+    });
+    const first = await setup(asking('鸣潮', '「旧问题」', '新一'), data, bot).reflection.reflect(
+      digest(),
+    );
+    expect(first!.questions).toBe(1);
+    const second = await setup(
+      asking('学过的', '知识库有的', '新 一'),
+      data,
+      bot,
+    ).reflection.reflect(digest());
+    expect(second!.questions).toBe(0);
+    expect(new ToLearnList(bot).open().map((i) => i.term)).toEqual(['旧问题', '新一']);
+    // The person's lines stay as they were; the new one goes under ## 待学.
+    expect(bot.read(TO_LEARN_FILE)).toBe(
+      [
+        '# 表',
+        '',
+        '- [ ] 旧问题 — 旧？（手写）',
+        '- [x] 学过的 — 学过？（手写）→ 学到',
+        '',
+        '## 待学',
+        '',
+        '- [ ] 新一 — 新一?（刷抖音时好奇 2026-11-01）',
+        '',
+      ].join('\n'),
+    );
   });
 });

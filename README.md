@@ -15,6 +15,7 @@ Small live-stream apps, served as one site: an index page at `/` and each app on
 | `room-feed-protocol/`                | What room-feed sends and answers: events, status frames, HTTP API types, URLs      |
 | `lyrics-search/`                     | Names a song from the lines sung with NetEase's lyrics search, for the chat bot    |
 | `room-memory/`                       | What the chat bot remembers: memory files, limits, who may change what, archive    |
+| `to-learn/`                          | The bot's to-learn list: its line format, read leniently and written strictly      |
 | `room-feed/`                         | The server that reads a live room in Chrome and sends its chat and gifts on        |
 | `douyin-chrome/`                     | What room-feed and dy-browse share to work Douyin in Chrome: Pace, login, launch   |
 | `dy-browse/`                         | `pnpm browse`: browses Douyin after a stream and writes what it learns for the bot |
@@ -94,6 +95,7 @@ room-memory/              # @dy-apps/room-memory: what the chat bot remembers (m
   src/file-memory.ts      #   fileMemory: the RoomMemory interface over the files, with read, write, append and the day injected; the archive of changed entries and the streams' summaries (memory/)
   src/policy.ts           #   who may change what: the room's memory for admins, a note its person's own, what pnpm remember may rewrite
   src/entry.ts            #   entries between § lines, each with its <!-- date tool|chat --> trailer; change.ts: add / replace / remove; limits.ts
+to-learn/                 # @dy-apps/to-learn: the to-learn list (chat-bot/data/browse/to-learn.md): parse, add (deduped), tick off; termKey
 room-feed/                # @dy-apps/room-feed: one live room's events, run with tsx (see "room-feed" below)
   src/main.ts             #   entry: `login` or `--room` (cli-options.ts), the real objects wired
   src/room.ts             #   Room: keeps the room page open, reopens it when chat drops, chat queue

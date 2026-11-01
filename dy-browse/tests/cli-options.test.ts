@@ -46,6 +46,21 @@ describe('parseOptions', () => {
     expect(o.secUid).toBe('MS4w');
   });
 
+  it('reads --todo with and without a count, as something to do', () => {
+    expect(parseOptions(['--todo']).todo).toBe(3);
+    expect(parseOptions(['--todo', '5']).todo).toBe(5);
+    expect(parseOptions(['--todo=2', '--into', 'douyin'])).toMatchObject({
+      todo: 2,
+      into: 'douyin',
+    });
+    // A following flag is not a count, and it combines with the other modes.
+    const o = parseOptions(['--todo', '--topic', '鸣潮', '--knowledge', 'douyin']);
+    expect(o).toMatchObject({ todo: 3, topics: ['鸣潮'], knowledge: { folder: 'douyin' } });
+    expect(parseOptions(['--feed']).todo).toBeNull();
+    expect(() => parseOptions(['--todo', '0'])).toThrow(UsageError);
+    expect(() => parseOptions(['--todo=abc'])).toThrow('--todo');
+  });
+
   it('reads --knowledge with and without a folder', () => {
     expect(parseOptions(['--knowledge']).knowledge).toEqual({ folder: null });
     expect(parseOptions(['--knowledge', 'douyin']).knowledge).toEqual({ folder: 'douyin' });
@@ -116,5 +131,15 @@ describe('parseOptions', () => {
     });
     expect(() => parseOptions(['--undo-review', 'yesterday'])).toThrow(UsageError);
     expect(parseOptions(['--feed']).review).toBeNull();
+  });
+
+  it('reviews with Sonnet unless --review-model names another, apart from --model', () => {
+    expect(parseOptions(['--review']).reviewModel).toBe('claude-sonnet-5-5');
+    expect(parseOptions(['--review', '--model', 'claude-opus-5-5']).reviewModel).toBe(
+      'claude-sonnet-5-5',
+    );
+    expect(parseOptions(['--review', '--review-model', 'claude-opus-5-5']).reviewModel).toBe(
+      'claude-opus-5-5',
+    );
   });
 });

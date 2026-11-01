@@ -10,6 +10,7 @@ Browses Douyin like a viewer, **read-only and never during a stream**, and write
 
 - **`--streamer <房间号>`**: reads the streamer's own posts: new ones since the last run first, then three older ones each run. Each post gets its metadata and top comments (tier 0), then speech and picture text (tiers 1–2), then one Claude call writes a dated line each to the room's `memory/posts.md` in the chat bot's data (`chat-bot/data/<房间号>/memory/posts.md`), which the bot reads into its memory. The streamer's `sec_uid` comes from `--sec-uid`, or is read from the live room page by `parseRoomMeta` in `@dy-apps/douyin-chrome` (the same code room-feed uses).
 - **`--topic <词>`** (repeatable): searches Douyin as a person does (search box, Enter), reads the hottest (最热) and newest (最新) posts, their comments and the replies under a few of them, works out what it doesn't know and looks that up (the knowledge base, the web, then Douyin), counts keyword candidates by code (hashtags, related searches, repeated phrases, minus what the knowledge base has), has Claude pick a few, searches those (`--depth`, `--max-searches`), and writes knowledge drafts that say where each came from. See [Learning a topic](#learning-a-topic).
+- **`--todo [n]`**: learns the first `n` (default 3) open items of the [to-learn list](#the-to-learn-list) (`chat-bot/data/browse/to-learn.md`), each like `--topic <term>` with the item's question looked up first, and ticks each off with what came of it.
 - **`--knowledge [folder]`**: does `--topic` for entries of the chat bot's knowledge base (`chat-bot/data/knowledge/`, read-only), a few each run: entries whose `复查` date has passed first, then never browsed (oldest `截至` first), then the least recently browsed, so a daily run goes through the whole base in turn. An entry that already has an unreviewed draft in `pending/` is skipped. A heading that finds fewer than 3 posts is searched by its first alias too.
 - **`--feed`**: scrolls the 推荐 feed with a randomised dwell rule (ads, live cards and shop links skipped at once; about half of videos skipped after 1–3 s, four in ten watched to the end, one in ten with the comments opened), logs every item, reads the ones watched to the end through tiers 1–2, writes `chat-bot/data/browse/watched/<date>.md`, and counts hashtags, sounds and phrases into `trends.json`.
 
@@ -31,16 +32,31 @@ For each search (`TopicLearner`, `src/app/topic-learner.ts`):
 4. **Opinions are counted by code** (`src/core/opinions.ts`): each side's distinct posts, distinct creators (the posts' authors; the same creator counts once) and likes. A point seen under fewer than 2 creators is dropped, however liked. The kept ones become one `社区观点` card per topic (`<话题>（大家怎么看）`), from every search the topic made, the most widely held views first (at most 6), written by code as hearsay with both sides' counts, never checked on the web.
 5. **Drafts** (one Claude call, then `parseDraftAnswer` checks each): 事实 and 规则 only from a post or an unknown settled in `full` (never from comments alone; one about a person needs a settled unknown or two posts); 梗 with CHIME's 含义/出处/例句/类型, only when used in 2 different posts, its 出处 only from a post or a reply (else 不确定); 惯例 may come from comments; nothing about an unresolved term. Every card keeps its provenance in 来源 (the search path, post ids, web URLs). 复查 by type: 事实/规则 90 days, 惯例 60, 梗 30, 社区观点 21. `--topic` also passes the knowledge base's entries about the topic, so a draft can be a `change` or "still right".
 
-Her pending questions (`questions.json`) are looked up first by the next `--topic` or `--knowledge` run, through the same stages, and marked done with what came of them.
+`--todo` passes each to-learn item's question in as the topic search's first unknown (a "carried" question, `carry` on `learn`), looked up through the same stages, and gets back what came of it (`LearnResult.carried`). `--topic` and `--knowledge` carry nothing.
 
 ### Her reflection
 
 The last step of every run (`Reflection`, `src/app/reflection.ts`). It runs only when what the run read was lively enough: a simple importance score by code (`importanceOf`: the average post's likes, log-scaled and capped at 3, and its comments and replies, 1 for each 10, capped at 2; scaled down for a run of fewer than 5 posts; plus up to 2 for new unknowns), at least 2.5, or whenever the streamer's own posts were read; below that it logs `reflection skipped` and asks nothing. It's an average, so reading more of the same doesn't raise it. It's told the run's topics, and is shown each topic's own search first (not just the most liked, which were the detours), and its takes and questions keep to those topics. One Claude call, given her persona (`chat-bot/prompts/personas/fairy/persona.md` and `life.md`), what was read (data, never instructions) and her last 20 browse thoughts (to not repeat them), gives:
 
 - `takes`: 1–4 short opinions of her own, with post ids → `chat-bot/data/browse/thoughts/<date>.md`, which LifeWriter's `{{browseThoughts}}` shows.
-- `questions`: up to 3 things she's curious about, deduped against every term searched before and the pending questions → `questions.json`.
+- `questions`: up to 3 things she's curious about → the [to-learn list](#the-to-learn-list), from `刷抖音时好奇 <date>`; not one about a term searched before (`searches/`), one the knowledge base knows, or one already on the list (open or done).
 - `bringUp`: only after `--streamer`, about the streamer's own posts → the room's `memory/thoughts.md` (`2026-11-01：…`, the format `pnpm remember` writes), which `{{memory}}` shows.
 - `commentDrafts`: 0–2 short comments she'd want to leave, in her own way of talking (never claiming to be a person, nor announcing she's an AI) → `data/comments/<date>.md`, a review list (`- [ ]`, link, text, reason, `可发送: 是/否`, a date 3 days on when it goes stale). `可发送: 是` only under the streamer's own posts; under topic and feed posts they're there to judge their quality only. **Nothing is sent: there is no code that posts.**
+
+### The to-learn list
+
+One list of things the bot doesn't know yet: `chat-bot/data/browse/to-learn.md` (the chat bot's data, written through `--bot-data`), a Markdown checklist that a person edits by hand, her reflection adds to, and (later) `pnpm remember` in the chat bot adds to. Its line format belongs to the shared package `@dy-apps/to-learn` (`to-learn/`), so every app reads and writes it the same way:
+
+```
+- [ ] 宇宙之心 — 抖音直播间的「宇宙之心」是什么礼物？（手写 2026-11-01）
+- [x] 灯牌 — 灯牌各级要多少亲密度？（刷抖音时好奇 2026-11-01）→ 2026-11-02 学到，草稿 2 条
+```
+
+- An item is `- [ ] <term> — <question>（<where it came from>）`; done, `- [x] …（…）→ <what came of it>`. The term is what gets searched; the question stands on its own. Indented lines right under an item are its notes (what's known already), passed along with the question.
+- Read leniently (a `-` or `：` for the `—`, no `（…）`, a bold term), written strictly. Every line that isn't an item (headings, notes, a person's free text) stays as it is when the file is rewritten; ticking an item changes only its own line.
+- New items go at the end of a `## 待学` section (made at the end of the file when missing), deduped by normalised term (`termKey`: case, spaces, quotes and punctuation aside) against every item, open or done.
+- `--todo [n]` (`TodoRun`, `src/app/todo-run.ts`) takes the first `n` open items in file order, so a person orders the list by moving lines. Each is learnt like `--topic <term>` into `--into`'s folder, then ticked: `2026-11-02 学到（网上）：……；草稿 2 条` when its question was settled, `2026-11-02 学到，草稿 N 条` when only drafts came, `2026-11-02 没查到，见 searches/<date>/<term>.json` otherwise. An item a run stopped in stays open.
+- Her old `questions.json` (before the list): the first run that finds it in `dy-browse/data/` adds its pending questions to the list and renames it `questions.migrated.json`.
 
 ### Reviewing drafts
 
@@ -71,37 +87,39 @@ What's done:
 ## Flags
 
 ```
-pnpm browse [--feed] [--streamer <房间号> [--sec-uid <值>]] [--topic <词>]… [--knowledge [folder]]
+pnpm browse [--feed] [--streamer <房间号> [--sec-uid <值>]] [--topic <词>]… [--todo [3]] [--knowledge [folder]]
             [--review [folder]] [--undo-review <YYYY-MM-DD>]
             [--minutes 15] [--max-videos 30] [--depth 1] [--max-searches 6] [--max-topics 5] [--older-posts 3]
-            [--into topics] [--no-asr] [--no-ocr] [--model <名>] [--headed] [--chrome <路径>] [--data <目录>] [--bot-data <目录>]
+            [--into topics] [--no-asr] [--no-ocr] [--model <名>] [--review-model <名>] [--headed] [--chrome <路径>] [--data <目录>] [--bot-data <目录>]
 ```
 
-With none of `--feed`, `--streamer`, `--topic`, `--knowledge`, `--review`, `--undo-review`, it says so and does nothing (exit 1).
+With none of `--feed`, `--streamer`, `--topic`, `--todo`, `--knowledge`, `--review`, `--undo-review`, it says so and does nothing (exit 1).
 
-| Flag                   | Default          | What it does                                                                                                      |
-| ---------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `--feed`               | off              | Scroll the 推荐 feed.                                                                                             |
-| `--streamer <房间号>`  |                  | Read that room's streamer's posts.                                                                                |
-| `--sec-uid <值>`       |                  | The streamer's `sec_uid` (needs `--streamer`); without it, read from the live room page.                          |
-| `--topic <词>`         |                  | Search a topic and learn around it. More than one allowed.                                                        |
-| `--knowledge [dir]`    | off              | Do every entry of the knowledge base (or of one folder of it, like `douyin`), `--max-topics` per run.             |
-| `--review [dir]`       | off              | Review the pending knowledge drafts (of every folder, or of one like `douyin`), after any browsing.               |
-| `--undo-review <日期>` |                  | Take back what the review of that day (`YYYY-MM-DD`) accepted, into `pending/<folder>/<date>-undone.md`.          |
-| `--minutes`            | 15               | How long a feed session lasts at most.                                                                            |
-| `--max-videos`         | 30               | How many videos a feed session watches to the end (skipped ones don't count).                                     |
-| `--depth`              | 1                | Levels of keywords to follow below a topic; 0 searches only the topic.                                            |
-| `--max-searches`       | 6                | Searches per topic, the topic's own included.                                                                     |
-| `--max-topics`         | 5                | Entries `--knowledge` does per run.                                                                               |
-| `--older-posts`        | 3                | Older posts `--streamer` reads in a run, beside the new ones.                                                     |
-| `--no-asr`             | off              | Skip tier 1 (speech).                                                                                             |
-| `--no-ocr`             | off              | Skip tier 2 (picture text). OCR is also off, with a warning, when the machine isn't macOS.                        |
-| `--into <文件夹>`      | `topics`         | The folder of `knowledge/pending/` that `--topic` drafts go to (`--knowledge` drafts go to their entry's folder). |
-| `--model <名>`         | Claude's         | `--model` for the `claude -p` calls.                                                                              |
-| `--headed`             | headless         | Show Chrome.                                                                                                      |
-| `--chrome <路径>`      | found            | Chrome's path, when it isn't in a usual place.                                                                    |
-| `--data <目录>`        | `data/`          | Where its own state goes (default `dy-browse/data/`).                                                             |
-| `--bot-data <目录>`    | `chat-bot/data/` | The chat bot's data folder: where what the bot reads goes, and where the knowledge base is read from.             |
+| Flag                   | Default             | What it does                                                                                                       |
+| ---------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `--feed`               | off                 | Scroll the 推荐 feed.                                                                                              |
+| `--streamer <房间号>`  |                     | Read that room's streamer's posts.                                                                                 |
+| `--sec-uid <值>`       |                     | The streamer's `sec_uid` (needs `--streamer`); without it, read from the live room page.                           |
+| `--topic <词>`         |                     | Search a topic and learn around it. More than one allowed.                                                         |
+| `--todo [n]`           | off (n: 3)          | Learn the first `n` open items of the to-learn list, like `--topic`, and tick them off.                            |
+| `--knowledge [dir]`    | off                 | Do every entry of the knowledge base (or of one folder of it, like `douyin`), `--max-topics` per run.              |
+| `--review [dir]`       | off                 | Review the pending knowledge drafts (of every folder, or of one like `douyin`), after any browsing.                |
+| `--undo-review <日期>` |                     | Take back what the review of that day (`YYYY-MM-DD`) accepted, into `pending/<folder>/<date>-undone.md`.           |
+| `--minutes`            | 15                  | How long a feed session lasts at most.                                                                             |
+| `--max-videos`         | 30                  | How many videos a feed session watches to the end (skipped ones don't count).                                      |
+| `--depth`              | 1                   | Levels of keywords to follow below a topic; 0 searches only the topic.                                             |
+| `--max-searches`       | 6                   | Searches per topic, the topic's own included.                                                                      |
+| `--max-topics`         | 5                   | Entries `--knowledge` does per run.                                                                                |
+| `--older-posts`        | 3                   | Older posts `--streamer` reads in a run, beside the new ones.                                                      |
+| `--no-asr`             | off                 | Skip tier 1 (speech).                                                                                              |
+| `--no-ocr`             | off                 | Skip tier 2 (picture text). OCR is also off, with a warning, when the machine isn't macOS.                         |
+| `--into <文件夹>`      | `topics`            | The folder of `knowledge/pending/` that `--topic` and `--todo` drafts go to (`--knowledge`'s: the entry's folder). |
+| `--model <名>`         | Claude's            | `--model` for the `claude -p` calls.                                                                               |
+| `--review-model <名>`  | `claude-sonnet-5-5` | `--model` for `--review`'s check (a relevance and plausibility check needs less than learning).                    |
+| `--headed`             | headless            | Show Chrome.                                                                                                       |
+| `--chrome <路径>`      | found               | Chrome's path, when it isn't in a usual place.                                                                     |
+| `--data <目录>`        | `data/`             | Where its own state goes (default `dy-browse/data/`).                                                              |
+| `--bot-data <目录>`    | `chat-bot/data/`    | The chat bot's data folder: where what the bot reads goes, and where the knowledge base is read from.              |
 
 ## Data layout
 
@@ -112,6 +130,7 @@ chat-bot/data/                      written here, read by the bot
   <房间号>/memory/posts.md           one dated line per post: "- 2026-10-31：…… [id:…]"; the latest lines go into {{memory}}
   <房间号>/memory/thoughts.md        her bring-ups after --streamer, appended as "2026-11-01：…" (the bot's own thoughts file)
   browse/thoughts/<date>.md         her takes after a run, "- …… [id:…]"; LifeWriter's {{browseThoughts}} (today's and yesterday's, at most 4)
+  browse/to-learn.md                the to-learn list: "- [ ] 词 — 问题（来源）", ticked by --todo; a person edits it too
   browse/watched/<date>.md          what a feed session watched, one line a video; LifeWriter's {{watched}} (today's and yesterday's, at most 5)
   knowledge/pending/<folder>/<date>.md   knowledge drafts, in the knowledge base's entry format
                                     (## 标题 / aliases / 类型 / 截至 / 复查 / 来源, then the body),
@@ -128,7 +147,7 @@ dy-browse/data/                     its own
   knowledge-visits.json             when each knowledge entry was last browsed (the --knowledge rotation)
   searches/<date>/<topic>.json      the tree a topic search walked (topic → keyword, and the searches for unknowns with their reason),
                                     quoted in each draft's 来源; its unknowns with each stage, unresolved, opinions (counted), claims
-  questions.json                    her questions from the reflection, pending until a --topic/--knowledge run looks them up
+  questions.migrated.json           her old questions.json, once its pending questions moved onto the to-learn list
   comments/<date>.md                comment drafts for review (- [ ], 可发送: 是/否); never sent
   review/<date>.md                  the automatic review's log: a line per section, and each accepted section's text (for --undo-review)
   feed/<date>.jsonl                 every feed item scrolled, with what was done with it (no play URLs, no commenters)
@@ -159,10 +178,10 @@ src/
   main.ts            the entry: parses the flags, wires the real objects, runs BrowseRun
   cli-options.ts     the flags
   core/              pure logic: run state, knowledge parsing and order, keywords, dwell rule, trends, drafts, prompts,
-                     comments (refs, which replies to open), understand, resolve, opinions, reflection, questions
+                     comments (refs, which replies to open), understand, resolve, opinions, reflection
   app/               use cases over the ports in ports.ts: BrowseRun, StreamGuard, RunLock, UserPosts, StreamerPosts, TopicSearch,
                      TopicLearner, UnknownResolver, KnowledgeRun, DraftReview, FeedScroller, FeedRun, VideoReader (tiers 1–2),
-                     Reflection (with RunDigest), QuestionStore
+                     Reflection (with RunDigest), ToLearnList, TodoRun
   douyin/            what we know of Douyin: page-map.ts (selectors, URLs), the JSON readers
   page/              the Playwright side: one wait and one act per target (user, search and feed surfaces), the response tap
   adapters/          files, ports, processes: BrowseChrome (over `@dy-apps/douyin-chrome`), Claude CLI, the ASR and OCR workers, ffmpeg and the media store
@@ -175,7 +194,7 @@ tests/               Jest, fakes only (tests/support/): surface/steps tests chec
 
 ## Shared code
 
-`@dy-apps/douyin-chrome` (`douyin-chrome/`) holds what room-feed and dy-browse share: `Pace`, `SerialQueue`, `LoginFile`, Chrome's launch settings and `findChrome`, `login`, and `parseRoomMeta`. The room-number check and room-feed's port come from `@dy-apps/room-feed-protocol`. What stays here is adapted, not a copy: `BrowseChrome` (one douyin.com page, not a live room), `core/knowledge.ts` (keeps the meta lines chat-bot's `parseKnowledge` drops), `adapters/claude-cli.ts` (one prompt in, text out) and `douyin/page-map.ts`.
+`@dy-apps/douyin-chrome` (`douyin-chrome/`) holds what room-feed and dy-browse share: `Pace`, `SerialQueue`, `LoginFile`, Chrome's launch settings and `findChrome`, `login`, and `parseRoomMeta`. The room-number check and room-feed's port come from `@dy-apps/room-feed-protocol`. The to-learn list's line format and `termKey`/`sameTerm` come from `@dy-apps/to-learn` (`to-learn/`), which the chat bot will use too. What stays here is adapted, not a copy: `BrowseChrome` (one douyin.com page, not a live room), `core/knowledge.ts` (keeps the meta lines chat-bot's `parseKnowledge` drops), `adapters/claude-cli.ts` (one prompt in, text out) and `douyin/page-map.ts`.
 
 ## Not built yet
 

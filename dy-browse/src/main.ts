@@ -23,12 +23,13 @@ import { FeedScroller } from './app/feed-scroller';
 import { jsonStateStore } from './app/json-state-store';
 import { KnowledgeRun } from './app/knowledge-run';
 import { LazyItemReader } from './app/lazy-reader';
-import { QuestionStore } from './app/question-store';
 import { Reflection, RunDigest } from './app/reflection';
 import { RunLock } from './app/run-lock';
 import { resolveSecUid } from './app/sec-uid';
 import { StreamerPosts } from './app/streamer-posts';
 import { StreamGuard } from './app/stream-guard';
+import { migrateQuestions, OLD_QUESTIONS_FILE, ToLearnList } from './app/to-learn-list';
+import { TodoRun } from './app/todo-run';
 import { TopicLearner } from './app/topic-learner';
 import { TopicSearch } from './app/topic-search';
 import { UserPosts } from './app/user-posts';
@@ -92,7 +93,8 @@ async function main(): Promise<number> {
   const askWeb = claudeCli({ model: options.model, tools: 'WebSearch,WebFetch' });
   // Her persona and life guide, read when she reflects (chat-bot's prompts, read-only).
   const personas = new FileDataStore(join(REPO_DIR, 'chat-bot', 'prompts', 'personas'));
-  const questions = new QuestionStore(data);
+  // The to-learn list (the chat bot's browse/to-learn.md): her questions go on it, --todo learns it.
+  const toLearn = new ToLearnList(bot);
   const digest = new RunDigest();
 
   // Built on first use, after the run has started.
@@ -154,7 +156,7 @@ async function main(): Promise<number> {
     knowledgeSource.files().flatMap((file) => parseKnowledge(file.text, file.folder)),
   );
   const drafts = new DraftStore(bot);
-  // One learner for the run, so its allowance of unknowns and her questions span every topic.
+  // One learner for the run, so its allowance of unknowns spans every topic.
   let built: TopicLearner | null = null;
   const learner = async () => {
     const { page, pace, tap } = await browser();
@@ -167,17 +169,25 @@ async function main(): Promise<number> {
       index,
       log,
       reader,
-      questions,
       depth: options.depth,
       maxSearches: options.maxSearches,
     });
     return built;
   };
 
-  // The automatic review of the drafts: the web-enabled Claude, a pass of its own. No browser.
-  const review = new DraftReview({ bot, data, ask: askWeb, log, now });
+  // The automatic review of the drafts: a web-enabled Claude of its own (Sonnet by default,
+  // --review-model), a pass apart from the one that drafted. No browser.
+  const reviewAsk = claudeCli({ model: options.reviewModel, tools: 'WebSearch,WebFetch' });
+  const review = new DraftReview({ bot, data, ask: reviewAsk, log, now });
 
   const steps: Step[] = [];
+  // Once: her pending questions from the old questions.json move onto the to-learn list.
+  if (data.read(OLD_QUESTIONS_FILE) !== null) {
+    steps.push({
+      name: '把 questions.json 挪进待学清单',
+      run: () => Promise.resolve(void migrateQuestions(data, toLearn, log)),
+    });
+  }
   const undoDate = options.undoReview;
   if (undoDate) {
     steps.push({
@@ -215,6 +225,31 @@ async function main(): Promise<number> {
           await learner()
         ).learn(topic, { folder: options.into, existing: index.lookup(topic, 5) });
         digest.add('topic', result.reads, result.unknowns, { name: topic, own: result.ownReads });
+      },
+    });
+  }
+  if (options.todo) {
+    const count = options.todo;
+    steps.push({
+      name: `待学清单前 ${count} 条`,
+      run: async () => {
+        await new TodoRun({
+          list: toLearn,
+          // The browser opens only when there's an item to learn.
+          learner: {
+            learn: async (topic, how) => {
+              const result = await (await learner()).learn(topic, how);
+              digest.add('topic', result.reads, result.unknowns, {
+                name: topic,
+                own: result.ownReads,
+              });
+              return result;
+            },
+          },
+          existing: (term) => index.lookup(term, 5),
+          log,
+          now,
+        }).run({ count, folder: options.into });
       },
     });
   }
@@ -276,7 +311,11 @@ async function main(): Promise<number> {
   // Last: her reflection on what the run read, when it read enough (only when it browsed). A failed
   // one is only logged.
   const browsed =
-    options.feed || !!options.streamer || options.topics.length > 0 || !!options.knowledge;
+    options.feed ||
+    !!options.streamer ||
+    options.topics.length > 0 ||
+    !!options.todo ||
+    !!options.knowledge;
   if (browsed)
     steps.push({
       name: '感想',
@@ -289,7 +328,8 @@ async function main(): Promise<number> {
               .join('\n\n'),
           data,
           bot,
-          questions,
+          toLearn,
+          known: (term) => index.known(term),
           log,
           now,
         });

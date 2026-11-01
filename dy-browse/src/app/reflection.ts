@@ -10,10 +10,11 @@ import {
   type ReflectionAnswer,
   type ReadTopic,
 } from '../core/reflection';
+import { sameTerm } from '@dy-apps/to-learn';
 import { dateOf } from '../core/text';
 import type { ReadItem } from '../core/types';
 import type { AskClaude, DataStore, Log } from './ports';
-import type { QuestionStore } from './question-store';
+import type { ToLearnList } from './to-learn-list';
 
 /** Where her thoughts from browsing go, under the chat bot's `data/`. */
 export const THOUGHTS_DIR = 'browse/thoughts';
@@ -57,11 +58,14 @@ export interface ReflectionOptions {
   ask: AskClaude;
   /** Her persona (persona.md, then life.md), read when she reflects. */
   persona: () => string;
-  /** dy-browse's `data/`: the comment drafts and `questions.json` (through `questions`). */
+  /** dy-browse's `data/`: the comment drafts, and the terms searched before (`searches/`). */
   data: DataStore;
   /** The chat bot's `data/`: her browse thoughts, and the room's `memory/thoughts.md`. */
   bot: DataStore;
-  questions: QuestionStore;
+  /** The to-learn list her questions go on. */
+  toLearn: ToLearnList;
+  /** A term the bot already knows (the knowledge base): not a question to keep. */
+  known?: (term: string) => boolean;
   log: Log;
   now?: () => number;
   /** The least a run must have read (importanceOf) to be reflected on. */
@@ -79,7 +83,7 @@ export interface ReflectionResult {
  * Her reflection at the end of a run, in her own voice, once the run read enough (Generative
  * Agents' threshold, with a simple importance score by code; below it, nothing is asked). One
  * Claude call gives her takes (to `browse/thoughts/<date>.md`, which her days are written from),
- * her questions (to `questions.json`, looked up by the next `--topic` or `--knowledge` run), what to
+ * her questions (onto the to-learn list, `browse/to-learn.md`, which `--todo` learns), what to
  * bring up next stream (only on a run that read the streamer's posts: the room's
  * `memory/thoughts.md`, which `{{memory}}` shows), and comment drafts (to `comments/<date>.md`, a
  * review list). Nothing is ever posted: there is no code that sends.
@@ -125,13 +129,17 @@ export class Reflection {
   }
 
   private keep(answer: ReflectionAnswer, today: string, roomId: string | null): ReflectionResult {
-    const { bot, data, questions } = this.options;
+    const { bot, data, toLearn, known = () => false } = this.options;
     if (answer.takes.length) {
       const path = `${THOUGHTS_DIR}/${today}.md`;
       if (bot.read(path) === null) bot.write(path, `# ${today} 刷抖音时的想法\n\n`);
       bot.append(path, answer.takes.map((t) => `${takeLine(t)}\n`).join(''));
     }
-    const added = questions.add(answer.questions, today, MAX_QUESTIONS);
+    const searched = this.searchedTerms();
+    const added = toLearn.add(
+      answer.questions.map((q) => ({ ...q, from: `刷抖音时好奇 ${today}` })),
+      { known: (t) => known(t) || searched.some((s) => sameTerm(s, t)), max: MAX_QUESTIONS },
+    );
     if (roomId && answer.bringUp.length) {
       // The room's memory/thoughts.md, in its own format: `2026-10-31：…`, a line each.
       bot.append(
@@ -155,6 +163,22 @@ export class Reflection {
       bringUp: roomId ? answer.bringUp.length : 0,
       commentDrafts: answer.commentDrafts.length,
     };
+  }
+
+  /** Every term searched so far, from the trees in `searches/`. */
+  private searchedTerms(): string[] {
+    const { data } = this.options;
+    const terms = new Set<string>();
+    for (const path of data.list('searches')) {
+      if (!path.endsWith('.json')) continue;
+      try {
+        const file = JSON.parse(data.read(path) ?? '{}') as { tree?: { term?: unknown }[] };
+        for (const node of file.tree ?? []) if (typeof node.term === 'string') terms.add(node.term);
+      } catch {
+        // a broken file has no terms
+      }
+    }
+    return [...terms];
   }
 
   /** Her latest browse thoughts, the newest last, without the dash and the ids. */

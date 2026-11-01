@@ -6,6 +6,7 @@ packages:
   - room-feed-protocol
   - lyrics-search
   - room-memory
+  - to-learn
   - dy-browse
 
 allowBuilds:

@@ -12,6 +12,8 @@ export interface BrowseOptions {
   knowledge: { folder: string | null } | null;
   /** `--review [folder]`: null when not asked; folder null for every pending folder. */
   review: { folder: string | null } | null;
+  /** `--todo [n]`: how many open items of the to-learn list to learn; null when not asked. */
+  todo: number | null;
   /** `--undo-review <date>`: the day whose automatic review is taken back. */
   undoReview: string | null;
   minutes: number;
@@ -26,6 +28,8 @@ export interface BrowseOptions {
   /** The pending folder `--topic` drafts go to. */
   into: string;
   model: string | null;
+  /** The model of `--review`'s check, which needs less than learning does: Sonnet by default. */
+  reviewModel: string;
   headed: boolean;
   chrome: string | null;
   dataDir: string | null;
@@ -34,48 +38,62 @@ export interface BrowseOptions {
   help: boolean;
 }
 
-export const USAGE = `pnpm browse [--feed] [--streamer <房间号> [--sec-uid <值>]] [--topic <词>]… [--knowledge [folder]]
+/** `--review`'s model: a relevance and plausibility check doesn't need Opus, at half the price. */
+export const DEFAULT_REVIEW_MODEL = 'claude-sonnet-5-5';
+
+export const USAGE = `pnpm browse [--feed] [--streamer <房间号> [--sec-uid <值>]] [--topic <词>]… [--todo [3]] [--knowledge [folder]]
             [--review [folder]] [--undo-review <YYYY-MM-DD>]
             [--minutes 15] [--max-videos 30] [--depth 1] [--max-searches 6] [--max-topics 5] [--older-posts 3]
-            [--into topics] [--no-asr] [--no-ocr] [--model <名>] [--headed] [--chrome <路径>] [--data <目录>]
+            [--into topics] [--no-asr] [--no-ocr] [--model <名>] [--review-model <名>] [--headed] [--chrome <路径>] [--data <目录>]
 
-At least one of --feed, --streamer, --topic, --knowledge, --review or --undo-review is needed. Never runs during a stream.`;
+At least one of --feed, --streamer, --topic, --todo, --knowledge, --review or --undo-review is needed. Never runs during a stream.`;
 
-/** The flags that take an optional folder. */
-const OPTIONAL_FOLDER = ['knowledge', 'review'] as const;
-type OptionalFolder = (typeof OPTIONAL_FOLDER)[number];
+/** The flags that take an optional value: a folder, or (`--todo`) a count. */
+const OPTIONAL_VALUE = ['knowledge', 'review', 'todo'] as const;
+type OptionalValue = (typeof OPTIONAL_VALUE)[number];
+
+/** Whether a following word is the flag's value: a count for `--todo`, any non-flag for a folder. */
+const IS_VALUE: Record<OptionalValue, (word: string) => boolean> = {
+  knowledge: (word) => !word.startsWith('-'),
+  review: (word) => !word.startsWith('-'),
+  todo: (word) => /^\d+$/.test(word),
+};
 
 /**
- * `--knowledge` and `--review` take an optional folder, which parseArgs can't do: a following word
- * that doesn't start with `-` is the folder; it's taken out of the arguments before parseArgs sees
- * them.
+ * `--knowledge` and `--review` take an optional folder, and `--todo` an optional count, which
+ * parseArgs can't do: a following word that is a value is taken; it's taken out of the arguments
+ * before parseArgs sees them.
  */
-function takeOptionalFolders(argv: readonly string[]): {
+function takeOptionalValues(argv: readonly string[]): {
   rest: string[];
-  taken: Record<OptionalFolder, { folder: string | null } | null>;
+  taken: Record<OptionalValue, { value: string | null } | null>;
 } {
   const rest: string[] = [];
-  const taken: Record<OptionalFolder, { folder: string | null } | null> = {
+  const taken: Record<OptionalValue, { value: string | null } | null> = {
     knowledge: null,
     review: null,
+    todo: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    const name = OPTIONAL_FOLDER.find((n) => arg === `--${n}` || arg.startsWith(`--${n}=`));
+    const name = OPTIONAL_VALUE.find((n) => arg === `--${n}` || arg.startsWith(`--${n}=`));
     if (!name) {
       rest.push(arg);
     } else if (arg === `--${name}`) {
       const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('-')) {
-        taken[name] = { folder: next };
+      if (next !== undefined && IS_VALUE[name](next)) {
+        taken[name] = { value: next };
         i++;
-      } else taken[name] = { folder: null };
+      } else taken[name] = { value: null };
     } else {
-      taken[name] = { folder: arg.slice(`--${name}=`.length) || null };
+      taken[name] = { value: arg.slice(`--${name}=`.length) || null };
     }
   }
   return { rest, taken };
 }
+
+const folderOf = (taken: { value: string | null } | null) =>
+  taken ? { folder: taken.value } : null;
 
 function positive(name: string, value: string | undefined, fallback: number, min = 1): number {
   if (value === undefined) return fallback;
@@ -87,10 +105,10 @@ function positive(name: string, value: string | undefined, fallback: number, min
 
 /** The command line as options; throws UsageError for what can't be run. */
 export function parseOptions(argv: readonly string[]): BrowseOptions {
-  const {
-    rest,
-    taken: { knowledge, review },
-  } = takeOptionalFolders(argv);
+  const { rest, taken } = takeOptionalValues(argv);
+  const knowledge = folderOf(taken.knowledge);
+  const review = folderOf(taken.review);
+  const todo = taken.todo ? positive('todo', taken.todo.value ?? undefined, 3) : null;
   let values;
   try {
     ({ values } = parseArgs({
@@ -112,6 +130,7 @@ export function parseOptions(argv: readonly string[]): BrowseOptions {
         'no-ocr': { type: 'boolean' },
         into: { type: 'string' },
         model: { type: 'string' },
+        'review-model': { type: 'string' },
         headed: { type: 'boolean' },
         chrome: { type: 'string' },
         data: { type: 'string' },
@@ -142,6 +161,7 @@ export function parseOptions(argv: readonly string[]): BrowseOptions {
     topics,
     knowledge,
     review,
+    todo,
     undoReview,
     minutes: positive('minutes', values.minutes, 15),
     maxVideos: positive('max-videos', values['max-videos'], 30),
@@ -153,16 +173,17 @@ export function parseOptions(argv: readonly string[]): BrowseOptions {
     ocr: !values['no-ocr'],
     into: values.into ?? 'topics',
     model: values.model ?? null,
+    reviewModel: values['review-model'] ?? DEFAULT_REVIEW_MODEL,
     headed: values.headed ?? false,
     chrome: values.chrome ?? null,
     dataDir: values.data ?? null,
     botDataDir: values['bot-data'] ?? null,
     help: values.help ?? false,
   };
-  const nothing = !options.feed && !streamer && !topics.length && !knowledge;
+  const nothing = !options.feed && !streamer && !topics.length && !todo && !knowledge;
   if (!options.help && nothing && !review && !undoReview) {
     throw new UsageError(
-      '没有要做的事：用 --feed、--streamer、--topic、--knowledge、--review 或 --undo-review 之一。',
+      '没有要做的事：用 --feed、--streamer、--topic、--todo、--knowledge、--review 或 --undo-review 之一。',
     );
   }
   return options;

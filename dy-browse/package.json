@@ -13,6 +13,7 @@
   "dependencies": {
     "@dy-apps/douyin-chrome": "workspace:*",
     "@dy-apps/room-feed-protocol": "workspace:*",
+    "@dy-apps/to-learn": "workspace:*",
     "playwright-core": "^1.62.1",
     "tsx": "^4.23.13"
   },

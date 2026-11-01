@@ -77,6 +77,7 @@ export default tseslint.config(
       'chat-bot/tests/**/*.ts',
       'lyrics-search/tests/**/*.ts',
       'room-memory/tests/**/*.ts',
+      'to-learn/tests/**/*.ts',
       'room-feed/tests/**/*.ts',
       'douyin-chrome/tests/**/*.ts',
       'dy-browse/tests/**/*.ts',

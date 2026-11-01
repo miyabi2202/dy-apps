@@ -1,3 +1,4 @@
+import { termKey } from '@dy-apps/to-learn';
 import {
   formatDraft,
   parseDraftAnswer,
@@ -16,7 +17,6 @@ import {
   type CountedOpinion,
 } from '../core/opinions';
 import { draftsPrompt, keywordsPrompt, type PromptNode } from '../core/prompts';
-import { termKey } from '../core/questions';
 import { settled, type Resolution } from '../core/resolve';
 import { dateOf, jsonFrom } from '../core/text';
 import type { ReadItem } from '../core/types';
@@ -30,7 +30,6 @@ import {
 } from '../core/understand';
 import type { DraftStore } from './draft-store';
 import type { AskClaude, DataStore, Log } from './ports';
-import type { QuestionStore } from './question-store';
 import type { SearchPort, SearchResult } from './topic-search';
 import { uniqueById } from './read-answers';
 import { UnknownResolver } from './unknown-resolver';
@@ -54,8 +53,6 @@ export interface TopicLearnerOptions {
   maxKeywords?: number;
   /** Unknowns looked up over all the topics this learner does (a run's). */
   maxUnknowns?: number;
-  /** Her pending questions, looked up first, then marked done; none to leave them. */
-  questions?: QuestionStore | null;
   /** Tiers 1–2 for each post read; none to stop at the text and comments. */
   reader?: ItemReader | null;
 }
@@ -77,12 +74,12 @@ export interface TrackedUnknown {
   /** `u1`, `u2`…: what the drafts prompt cites it by. */
   id: string;
   unknown: Unknown;
-  /** The search it was raised by; `questions.json` for one of her questions. */
+  /** The search it was raised by; `to-learn.md` for the question a `--todo` item carried. */
   from: string;
   resolutions: Resolution[];
   status: 'open' | 'resolved' | 'unresolved';
   note?: string;
-  /** One of her own questions (from `questions.json`). */
+  /** The question the caller carried in (a to-learn item's), not one a search raised. */
   carried?: boolean;
 }
 
@@ -100,6 +97,26 @@ export interface LearnResult {
   /** Unknowns raised by this topic's searches. */
   unknowns: number;
   unresolved: number;
+  /** Where the walk was written: `searches/<date>/<topic>.json` in dy-browse's `data/`. */
+  searchFile: string;
+  /** What came of the carried question; null when none was carried (or the run had no room for it). */
+  carried: CarriedOutcome | null;
+}
+
+/** What came of a carried question. */
+export interface CarriedOutcome {
+  status: 'resolved' | 'unresolved';
+  /** The answer that settled it, and where it came from. */
+  answer?: string;
+  source?: Resolution['source'];
+  note?: string;
+}
+
+/** A question to look up first, with the topic: a to-learn item's. */
+export interface Carry {
+  question: string;
+  /** Why it's asked (what's known already), for the lookups. */
+  why?: string;
 }
 
 interface Queued {
@@ -131,7 +148,6 @@ export class TopicLearner {
   /** Unknowns still allowed this run, and the terms already raised (so each is looked up once). */
   private unknownsLeft: number;
   private readonly raised = new Set<string>();
-  private carriedTaken = false;
   private unknownIds = 0;
 
   constructor(private readonly options: TopicLearnerOptions) {
@@ -151,7 +167,11 @@ export class TopicLearner {
 
   async learn(
     topic: string,
-    { folder, existing = [] }: { folder: string; existing?: readonly KnowledgeEntry[] },
+    {
+      folder,
+      existing = [],
+      carry,
+    }: { folder: string; existing?: readonly KnowledgeEntry[]; carry?: Carry },
   ): Promise<LearnResult> {
     const { ask, data, drafts, index, log } = this.options;
     const date = dateOf(this.now());
@@ -163,7 +183,9 @@ export class TopicLearner {
     const unknowns: TrackedUnknown[] = [];
     const opinions: CountedOpinion[] = [];
     const claims: (Claim & { from: string })[] = [];
-    const carried = this.takeCarried();
+    // The carried question is the first unknown of the topic's own search, looked up like any other.
+    const asked = carry ? this.carry(topic, carry) : [];
+    const carried = [...asked];
     let found = 0;
 
     while (queue.length && tree.length < this.maxSearches) {
@@ -262,11 +284,11 @@ export class TopicLearner {
         tracked.note = '没有搜索名额了';
       }
     }
-    this.finishCarried([...unknowns, ...carried], date);
     const unresolved = unknowns.filter((u) => u.status === 'unresolved');
     const reads = nodes.flatMap((n) => n.items);
+    const searchFile = `searches/${date}/${safeName(topic)}.json`;
     data.write(
-      `searches/${date}/${safeName(topic)}.json`,
+      searchFile,
       JSON.stringify(
         {
           topic,
@@ -288,6 +310,8 @@ export class TopicLearner {
       ownReads: [...(nodes.find((n) => n.term === topic)?.items ?? [])],
       unknowns: unknowns.filter((u) => !u.carried).length,
       unresolved: unresolved.length,
+      searchFile,
+      carried: asked[0] ? outcomeOf(asked[0]) : null,
     };
     if (found === 0) return { ...base, drafts: 0, stillRight: 0, file: null };
 
@@ -370,36 +394,12 @@ export class TopicLearner {
     return out;
   }
 
-  /** Her pending questions, as unknowns, the first time this learner learns (within the run's allowance). */
-  private takeCarried(): TrackedUnknown[] {
-    const { questions } = this.options;
-    if (!questions || this.carriedTaken) return [];
-    this.carriedTaken = true;
+  /** The caller's question about `term`, as an unknown (within the run's allowance, once a run). */
+  private carry(term: string, { question, why }: Carry): TrackedUnknown[] {
     return this.admit(
-      questions.pending().map((q) => ({
-        question: q.question,
-        term: q.term,
-        kind: '其他' as const,
-        why: '她自己好奇，想查的',
-        refs: [],
-      })),
-      'questions.json',
+      [{ question, term, kind: '其他' as const, why: why || '待学清单上的', refs: [] }],
+      'to-learn.md',
     ).map((tracked) => ({ ...tracked, carried: true }));
-  }
-
-  /** Marks her questions that were looked up done, with what came of them. */
-  private finishCarried(tracked: readonly TrackedUnknown[], date: string): void {
-    for (const t of tracked) {
-      if (!t.carried) continue;
-      const last = t.resolutions.at(-1);
-      this.options.questions?.done(
-        t.unknown.term,
-        date,
-        t.status === 'resolved' && last
-          ? `查实（${last.source}）：${last.answer}`
-          : `没查实${t.note ? `（${t.note}）` : ''}`,
-      );
-    }
   }
 
   /** An unknown judged on what its Douyin search read: settled, or left unresolved. */
@@ -460,7 +460,15 @@ export class TopicLearner {
   }
 }
 
-const SOURCE_NAMES: Record<Resolution['source'], string> = {
+function outcomeOf(tracked: TrackedUnknown): CarriedOutcome {
+  const last = tracked.resolutions.at(-1);
+  if (tracked.status === 'resolved' && last) {
+    return { status: 'resolved', answer: last.answer, source: last.source };
+  }
+  return { status: 'unresolved', ...(tracked.note ? { note: tracked.note } : {}) };
+}
+
+export const SOURCE_NAMES: Record<Resolution['source'], string> = {
   kb: '知识库',
   web: '网上',
   douyin: '抖音',
