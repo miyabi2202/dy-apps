@@ -26,11 +26,11 @@ const MIN_PER_ROOM = 40;
 interface RoomConfigJson {
   aliases?: { name: string }[];
   streamer?: { uid?: string; nickname?: string };
+  /** The bot's own account, which the bot writes in at start (as room-feed says it). */
+  bot?: { uid?: string; nickname?: string };
   persona?: string;
 }
 
-/** The bot's own nickname (README / AGENTS.md); the rooms' aliases are added per room. */
-const BOT_NICKNAMES = ['默认关闭'];
 /** The bot's transcript window (DEFAULT_TRANSCRIPT_WINDOW_MS). */
 const SPEECH_WINDOW_MS = 5 * 60_000;
 /** A gap this long in a room's record ends a stream. */
@@ -179,7 +179,18 @@ function main() {
         ? JSON.parse(readFileSync(join(dir, 'room_config.json'), 'utf8'))
         : {}
     ) as RoomConfigJson;
-    const botNames = [...new Set([...BOT_NICKNAMES, ...(config.aliases ?? []).map((a) => a.name)])];
+    // The bot's own nickname, as the room's room_config.json kept it, and the room's aliases.
+    if (!config.bot?.nickname) {
+      console.warn(
+        `${room}: no bot in room_config.json (start the bot there once); only its aliases are its names`,
+      );
+    }
+    const botNames = [
+      ...new Set([
+        ...(config.bot?.nickname ? [config.bot.nickname] : []),
+        ...(config.aliases ?? []).map((a) => a.name),
+      ]),
+    ];
 
     const pool: PoolItem[] = [];
     const add = (kind: PoolItem['kind'], text: string) =>

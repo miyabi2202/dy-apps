@@ -10,8 +10,12 @@ const input = {
   maxLength: 200,
 };
 
-test('{{intro}} is what the bot says about itself, under a heading, and empty without it', () => {
-  const filled = buildPrompt('{{intro}}', { ...input, intro: '我是「默认关闭」\n' });
+test('{{intro}} is what the bot says about itself, with its name, under a heading, and empty without it', () => {
+  const filled = buildPrompt('{{intro}}', {
+    ...input,
+    botName: '默认关闭',
+    intro: '我是「{{botName}}」\n',
+  });
   expect(filled).toContain('关于你自己');
   expect(filled.endsWith('我是「默认关闭」')).toBe(true);
   expect(buildPrompt('{{intro}}', { ...input, intro: ' \n' })).toBe('');

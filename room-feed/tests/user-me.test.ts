@@ -2,11 +2,11 @@ import { isUserMe, readUserMe } from '../src/douyin/user-me';
 
 describe('readUserMe', () => {
   it('reads the logged-in account, and that Douyin takes no login (20003)', () => {
-    const me = { id_str: '7692586790687114297', nickname: '默认关闭', display_id: '28100824821' };
+    const me = { id_str: '1234567890123456789', nickname: '默认关闭', display_id: '12345678901' };
     expect(readUserMe({ status_code: 0, data: me })).toEqual({
-      uid: '7692586790687114297',
+      uid: '1234567890123456789',
       nickname: '默认关闭',
-      displayId: '28100824821',
+      displayId: '12345678901',
     });
     expect(readUserMe({ status_code: 20003, data: {} })).toBe('loggedOut');
   });

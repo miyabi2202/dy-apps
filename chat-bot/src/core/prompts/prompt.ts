@@ -135,7 +135,7 @@ export type PromptInput = RoomPromptInput & PromptDetails;
  * the bot's own nickname, `{{memory}}` what the bot remembers about the room and about the
  * streamer and its own thoughts after the last streams, each under a heading (empty without any), `{{askerNote}}` what it remembers about
  * the asker, likewise, `{{commonKnowledge}}` Douyin's own common knowledge (灯牌…), likewise, `{{intro}}`
- * what the bot says about itself, likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
+ * what the bot says about itself (its own `{{botName}}` filled in), likewise, `{{limitations}}` what it can't do and why, likewise, `{{botTalk}}` what the bot said lately, `{{userHistory}}` the asker's past
  * exchanges with it and `{{userChat}}` their own recent messages (each `（暂无）` when there's
  * none), `{{askerBadges}}` a line on what they wear by their name (`V年`, 灯牌, 财富; empty when not known), `{{settings}}` the room's settings as a list
  * (empty when not given), and `{{forbiddenTopics}}` the rules for topics not to take up, as they are.
@@ -202,7 +202,10 @@ export function buildPrompt(template: string, input: PromptInput): string {
     commonKnowledge: input.commonKnowledge?.trim()
       ? wording('common-knowledge', { knowledge: input.commonKnowledge.trim() })
       : '',
-    intro: intro?.trim() ? wording('intro', { intro: intro.trim() }) : '',
+    // intro.md names the bot by {{botName}}: whichever account room-feed is logged in as.
+    intro: intro?.trim()
+      ? wording('intro', { intro: fillTemplate(intro.trim(), { botName }) })
+      : '',
     limitations: input.limitations?.trim()
       ? wording('limitations', { limitations: input.limitations.trim() })
       : '',

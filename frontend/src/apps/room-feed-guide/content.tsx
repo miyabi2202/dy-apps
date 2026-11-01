@@ -444,7 +444,7 @@ Resolving deltas: 100% ..., done.`}
 [room-feed] 已启动：直播间 ${EXAMPLE_ROOM}，端口 8757
 [room-feed] 事件流：ws://localhost:8757/ws?roomId=${EXAMPLE_ROOM}
 [room-feed] 正在打开直播间 ${EXAMPLE_ROOM}…
-[room-feed] 登录的抖音账号：你的昵称（uid 7692586790687114297，抖音号 28100824821）
+[room-feed] 登录的抖音账号：你的昵称（uid 1234567890123456789，抖音号 12345678901）
 [room-feed] 已连上直播间 ${EXAMPLE_ROOM} 的弹幕`}
         </Out>
         <P>
