@@ -430,10 +430,6 @@ Resolving deltas: 100% ..., done.`}
           在 <C>dy-apps</C> 文件夹里输入下面的命令，<b>把最后的数字换成你的房间号</b>：
         </P>
         <Cmd>{`pnpm room-feed --room ${EXAMPLE_ROOM}`}</Cmd>
-        <Callout>
-          嫌只复制数字麻烦的话，把整个直播间链接放在 <C>--room</C> 后面也可以，room-feed
-          会自己取出房间号。
-        </Callout>
         <P>
           如果弹出 <b>“Windows 安全中心警报 / Windows Defender 防火墙已阻止此应用的部分功能”</b>
           ，点击 <b>允许访问</b>。
