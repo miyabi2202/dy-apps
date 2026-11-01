@@ -29,6 +29,8 @@ export interface ToolListen {
   mentioned?: (text: string) => string | null;
   /** Said to the room as it is when the streamer's speech matches `trigger` (tool.json's listen.speech, its fixedReply). */
   speechReply?: string;
+  /** The chance a chat matching `trigger` is answered, for a tool without `when` (tool.json's listen.chance); every one without it. */
+  chance?: number;
 }
 
 /** A tool's listen block with the tool's name, for the judge, the look-now and the picker. */

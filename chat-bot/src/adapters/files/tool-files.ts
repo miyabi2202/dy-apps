@@ -104,6 +104,7 @@ export function loadToolDefinitions(
             ...(listen.trigger && { trigger: listen.trigger }),
             ...(mentioned && { mentioned }),
             ...(listen.speech && rest.fixedReply !== undefined && { speechReply: rest.fixedReply }),
+            ...(listen.chance !== undefined && { chance: listen.chance }),
           },
         }),
       },

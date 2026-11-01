@@ -89,7 +89,25 @@ test('listen needs a when or a trigger alone, a trigger that compiles, and a men
     'listen.mentions must be a file inside the room folder',
   );
   expect(parse({ ...CAN_SING, listen: { when: 'w', level: 1 } })).toBe(
-    'listen has an unknown field "level" (use when, trigger, mentions, speech)',
+    'listen has an unknown field "level" (use when, trigger, mentions, speech, chance)',
+  );
+});
+
+test('listen.chance is a share of a trigger alone, above 0 up to 1', () => {
+  const meme = { name: 'wuwa_meme', description: '鸣潮的梗', guidance: 'guidance.md' };
+  const parseOne = (listen: unknown) =>
+    parseToolDefinition({ ...meme, listen }, { folder: 'wuwa-meme' });
+  expect(parseOne({ trigger: 'Bon voyage', chance: 0.33 })).toMatchObject({
+    listen: { trigger: /Bon voyage/, chance: 0.33 },
+  });
+  expect(parseOne({ trigger: 'Bon voyage', chance: 1 })).toMatchObject({ listen: { chance: 1 } });
+  for (const chance of [0, 1.5, '0.3']) {
+    expect(parseOne({ trigger: 'Bon voyage', chance })).toBe(
+      'listen.chance must be a number above 0, up to 1',
+    );
+  }
+  expect(parseOne({ when: 'w', trigger: 'x', chance: 0.5 })).toBe(
+    'listen.chance needs a trigger alone, without when or speech',
   );
 });
 

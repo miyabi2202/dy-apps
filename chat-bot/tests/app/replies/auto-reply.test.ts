@@ -903,6 +903,30 @@ test('a chat matching the trigger of a tool with no when is answered at once, wi
   ]);
 });
 
+test('a trigger with a chance answers only the chats whose roll is under it; the rest are left alone', async () => {
+  const rolls = [0.5, 0.2];
+  const meme = { name: 'wuwa_meme', trigger: /[Bb]on voyage/, chance: 0.33 };
+  const ran = aliasSetup(
+    [
+      () => {
+        ran.call('小红', 'Bon voyage', 'u-小红');
+        ran.call('阿明', 'bon voyage～', 'u-阿明');
+      },
+    ],
+    { picks: [] },
+    { topics: () => [meme], random: () => rolls.shift() ?? 0 },
+  );
+  await ran.autoReply.run();
+
+  expect(ran.replies.map((r) => [r.nickname, r.question, r.topics])).toEqual([
+    ['阿明', 'bon voyage～', ['wuwa_meme']],
+  ]);
+  expect(rolls).toEqual([]);
+  expect(ran.names('trigger left by chance')).toEqual([
+    { tools: ['wuwa_meme'], who: '小红', text: 'Bon voyage' },
+  ]);
+});
+
 test("each chat, the streamer's too, is handed to Claude with randomReplyChance, auto-reply off; not the bot's own, nor an @ of it", async () => {
   const rolls = [0.1, 0.9, 0.2];
   const ran = aliasSetup(

@@ -65,7 +65,7 @@ export interface AutoReplyOptions {
   focus?: () => readonly string[];
   /** Jev's score above which a line is answered at once, without the picker (SURE_ABOUT_BOT without it). */
   sureThreshold?: number;
-  /** A number from 0 up to 1, rolled for each chat against randomReplyChance; tests pass a fixed one. */
+  /** A number from 0 up to 1, rolled for each chat against randomReplyChance and a trigger's chance; tests pass a fixed one. */
   random?: () => number;
 }
 
@@ -174,7 +174,8 @@ export class AutoReply {
    * at once, without the judge or the picker (Claude may still say nothing). One matching a tool's
    * listen trigger (主播会唱xxx吗) is surely for the bot, so it looks now instead of at the next
    * check; one matching the trigger of a tool that listens for nothing else (no `when`) is
-   * answered at once, like a name. The rest wait for it, so the room has time to answer. A chat
+   * answered at once, like a name, or, with the tool's `chance`, only that often (the rest are
+   * left alone). The rest wait for it, so the room has time to answer. A chat
    * from someone in `focus` is answered at once whatever it says, auto-reply on or off. Any other
    * chat, the streamer's too, is handed to Claude at once with `randomReplyChance` (auto-reply on
    * or off), to join in on or leave.
@@ -200,11 +201,19 @@ export class AutoReply {
       this.callsBot(line, name, { nickname, userId, question: content, heard: 'chat' });
       return;
     }
-    const triggered = on
-      ? this.chatTopics()
-          .filter((topic) => !topic.when && topic.trigger?.test(content))
-          .map((topic) => topic.name)
-      : [];
+    const matched =
+      on && line?.candidate
+        ? this.chatTopics().filter((topic) => !topic.when && topic.trigger?.test(content))
+        : [];
+    const random = this.options.random ?? Math.random;
+    const triggered = matched
+      .filter((topic) => topic.chance === undefined || random() < topic.chance)
+      .map((topic) => topic.name);
+    if (line && matched.length && !triggered.length) {
+      const tools = matched.map((topic) => topic.name);
+      this.options.log.info('trigger left by chance', { tools, who: line.who, text: content });
+      return;
+    }
     if (line?.candidate && triggered.length) {
       this.called.set(lineKey(line), line.ts);
       this.options.log.info('trigger matched', { tools: triggered, who: line.who, text: content });

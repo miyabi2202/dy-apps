@@ -16,6 +16,11 @@ export interface ListenDefinition {
    * minute (能理解的扣 1 → 1). Needs a `trigger` alone and a `fixedReply`.
    */
   speech?: true;
+  /**
+   * With a `trigger` alone (no `when`, not `speech`): the chance, above 0 up to 1, that a chat
+   * matching it is answered; the rest are left alone. Every one without it.
+   */
+  chance?: number;
 }
 
 /**
@@ -58,7 +63,7 @@ const FIELDS = [
   'except',
   'listen',
 ];
-const LISTEN_FIELDS = ['when', 'trigger', 'mentions', 'speech'];
+const LISTEN_FIELDS = ['when', 'trigger', 'mentions', 'speech', 'chance'];
 const NAME = /^[a-z][a-z0-9_]*$/;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -69,8 +74,9 @@ const isText = (value: unknown): value is string => typeof value === 'string' &&
 /**
  * `json` (a parsed tool.json) as a ToolDefinition, or what's wrong with it. It holds `name`,
  * `description`, one of `guidance` and `fixedReply`, and optionally `adminOnly`, `only`, `except`
- * and `listen { when?, trigger?, mentions?, speech? }` (a `trigger` alone, without `when`, is a tool
- * that listens for nothing else; `speech` has it heard in the streamer's speech too); a field it doesn't know is an error, since a typo
+ * and `listen { when?, trigger?, mentions?, speech?, chance? }` (a `trigger` alone, without `when`, is a tool
+ * that listens for nothing else; `speech` has it heard in the streamer's speech too; `chance` has
+ * only that share of the chats matching it answered); a field it doesn't know is an error, since a typo
  * in the repo should fail loudly. `{{streamerNames}}` in `description`, `listen.when` and
  * `listen.trigger` is what viewers call the streamer (see streamerNamesIn).
  */
@@ -134,13 +140,21 @@ function parseListen(listen: unknown, streamerNames: readonly string[]): ListenD
   if (unknown !== undefined) {
     return `listen has an unknown field "${unknown}" (use ${LISTEN_FIELDS.join(', ')})`;
   }
-  const { when, trigger, mentions, speech } = listen;
+  const { when, trigger, mentions, speech, chance } = listen;
   if (when !== undefined && !isText(when)) return 'listen.when must be a non-empty string';
   if (speech !== undefined && speech !== true) return 'listen.speech must be true';
   if (speech && (when !== undefined || trigger === undefined)) {
     return 'listen.speech needs a trigger alone, without when';
   }
   if (when === undefined && trigger === undefined) return 'listen needs a when, or a trigger alone';
+  if (chance !== undefined) {
+    if (typeof chance !== 'number' || !(chance > 0 && chance <= 1)) {
+      return 'listen.chance must be a number above 0, up to 1';
+    }
+    if (when !== undefined || trigger === undefined || speech) {
+      return 'listen.chance needs a trigger alone, without when or speech';
+    }
+  }
   if (when === undefined && mentions !== undefined) return 'listen.mentions needs a when';
   let pattern: RegExp | null = null;
   if (trigger !== undefined) {
@@ -159,6 +173,7 @@ function parseListen(listen: unknown, streamerNames: readonly string[]): ListenD
     trigger: pattern,
     ...(mentions !== undefined && { mentions }),
     ...(speech && { speech }),
+    ...(chance !== undefined && { chance }),
   };
 }
 
