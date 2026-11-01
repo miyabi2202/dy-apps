@@ -2,19 +2,24 @@ import { DraftStore } from '../src/app/draft-store';
 import { TopicLearner } from '../src/app/topic-learner';
 import type { SearchPort, SearchResult } from '../src/app/topic-search';
 import { QuestionStore } from '../src/app/question-store';
+import { BlockedError } from '../src/core/errors';
 import { KnowledgeIndex, parseKnowledge } from '../src/core/knowledge';
 import { item } from './support/fakes';
 import { MemoryStore } from './support/memory-store';
 
 const NOW = new Date(2026, 10, 1, 12).getTime();
 
-/** A search that answers from a table of what each term finds, and logs what was searched. */
-function fakeSearch(table: Record<string, Partial<SearchResult>>) {
+/**
+ * A search that answers from a table of what each term finds (an error: the search fails with it),
+ * and logs what was searched.
+ */
+function fakeSearch(table: Record<string, Partial<SearchResult> | Error>) {
   const searched: string[] = [];
   const search: SearchPort = {
     search: (topic) => {
       searched.push(topic);
       const found = table[topic] ?? {};
+      if (found instanceof Error) return Promise.reject(found);
       return Promise.resolve({ topic, hot: [], newest: [], related: [], comments: {}, ...found });
     },
   };
@@ -76,7 +81,7 @@ const tagged = (id: string, ...tags: string[]) =>
   item(id, NOW, { hashtags: tags, desc: `视频${id}` });
 
 function build(
-  table: Record<string, Partial<SearchResult>>,
+  table: Record<string, Partial<SearchResult> | Error>,
   claude: Parameters<typeof fakeAsk>[0],
   options: {
     depth?: number;
@@ -195,6 +200,33 @@ describe('TopicLearner', () => {
     await wide.learner.learn('鸣潮', { folder: 'topics' });
     // 二级词 is a candidate of 今汐's posts but depth 1 stops there.
     expect(wide.searched).toEqual(['鸣潮', '今汐', '抽卡', '鸣潮 卡池']);
+  });
+
+  it('skips a search that fails on its own, says so, and goes on', async () => {
+    const failing = {
+      ...table,
+      今汐: new Error('locator.waitFor: Timeout 20000ms exceeded.\nCall log: …'),
+    };
+    const keywords = [
+      { keyword: '今汐', reason: '' },
+      { keyword: '抽卡', reason: '' },
+    ];
+    const { learner, searched, logs } = build(failing, { keywords }, { depth: 1 });
+    await learner.learn('鸣潮', { folder: 'topics' });
+    expect(searched).toEqual(['鸣潮', '今汐', '抽卡']);
+    expect(logs).toContain(
+      'search skipped {term: 今汐, why: locator.waitFor: Timeout 20000ms exceeded.}',
+    );
+  });
+
+  it('still stops at a captcha or login wall in any search', async () => {
+    const walled = { ...table, 今汐: new BlockedError('captcha') };
+    const { learner } = build(
+      walled,
+      { keywords: [{ keyword: '今汐', reason: '' }] },
+      { depth: 1 },
+    );
+    await expect(learner.learn('鸣潮', { folder: 'topics' })).rejects.toBeInstanceOf(BlockedError);
   });
 
   it('does not search a term the knowledge base already has', async () => {
@@ -437,6 +469,44 @@ describe('TopicLearner', () => {
     );
     expect(file).not.toContain('角色很好看');
     expect(file).toContain('来源: 抖音搜索「鸣潮」；视频 a、b');
+  });
+
+  it('makes one 社区观点 card for the topic, from the opinions of every search it made', async () => {
+    const by = (id: string, who: string) =>
+      item(id, NOW, { author: { nickname: who, secUid: who }, hashtags: ['今汐'] });
+    const comment = (text: string) => ({ text, likes: 3, postedAt: null });
+    const twoCreators = (point: string, a: string, b: string) => ({
+      point,
+      counter: null,
+      refs: [`${a}#1`, `${b}#1`],
+    });
+    const found = {
+      鸣潮: {
+        hot: [by('a', '甲'), by('b', '乙')],
+        comments: { a: [comment('x')], b: [comment('y')] },
+      },
+      今汐: {
+        hot: [by('c', '丙'), by('d', '丁')],
+        comments: { c: [comment('x')], d: [comment('y')] },
+      },
+    };
+    const { learner, data } = build(
+      found,
+      {
+        keywords: [{ keyword: '今汐', reason: '' }],
+        understand: {
+          鸣潮: { opinions: [twoCreators('新关卡太难', 'a', 'b')] },
+          今汐: { opinions: [twoCreators('今汐很强', 'c', 'd')] },
+        },
+      },
+      { depth: 1 },
+    );
+    await learner.learn('鸣潮', { folder: 'topics' });
+    const file = data.read('knowledge/pending/topics/2026-11-01.md')!;
+    expect(file.match(/（大家怎么看）/g)).toHaveLength(1);
+    expect(file).toContain('## 鸣潮（大家怎么看）');
+    expect(file).toContain('新关卡太难');
+    expect(file).toContain('今汐很强');
   });
 
   it('looks her pending questions up first, and marks them done with what came of them', async () => {

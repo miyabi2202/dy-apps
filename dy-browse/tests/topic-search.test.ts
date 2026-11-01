@@ -18,6 +18,7 @@ function setup({
   guide = false,
   opens = 'comments',
   shown = [] as string[],
+  single = false,
 }: {
   hot?: string[];
   newest?: string[];
@@ -29,6 +30,8 @@ function setup({
   opens?: 'comments' | 'button';
   /** The posts the grid shows a tile for; none named keeps them all. */
   shown?: string[];
+  /** Whether the results show in one column, with no grid, until 多列 is clicked. */
+  single?: boolean;
 } = {}) {
   const log: string[] = [];
   const tap = new FakeTap();
@@ -50,7 +53,20 @@ function setup({
       tap.push('search', result(f === '最热' ? hot : newest));
       return Promise.resolve();
     },
-    waitForResults: () => Promise.resolve(void log.push('wait for results')),
+    waitForResults: () => {
+      if (single) {
+        log.push('wait for results: none');
+        return Promise.reject(new Error('timeout'));
+      }
+      log.push('wait for results');
+      return Promise.resolve();
+    },
+    waitForGridToggle: () => Promise.resolve(void log.push('wait for 多列')),
+    clickGridToggle: () => {
+      single = false;
+      log.push('click 多列');
+      return Promise.resolve();
+    },
     shownPosts: () => Promise.resolve(shown),
     relatedSearches: () => Promise.resolve(['页面上的相关搜索']),
     waitForPost: (i, id) => Promise.resolve(void log.push(`wait for post ${i} (${id})`)),
@@ -160,11 +176,43 @@ describe('TopicSearch', () => {
     expect(log.filter((l) => l === 'click comment button')).toHaveLength(2);
   });
 
+  it('clicks 多列 as a step when the results show with no grid, and waits for the grid again', async () => {
+    const { search, log } = setup({ hot: ['h1'], newest: [], max: 1, single: true });
+    await search.search('辣条公主');
+    const at = log.indexOf('wait for results: none');
+    expect(log.slice(at, at + 5)).toEqual([
+      'wait for results: none',
+      'wait for 多列',
+      'wait 500',
+      'click 多列',
+      'wait for results',
+    ]);
+  });
+
   it('reads only the posts the grid shows a tile for, when it names its tiles', async () => {
     const { search, log } = setup({ hot: ['pinned', 'h1'], newest: ['n1'], shown: ['h1', 'n1'] });
     const found = await search.search('鸣潮');
     expect(found.hot.map((p) => p.id)).toEqual(['h1']);
     expect(log.some((l) => l.includes('(pinned)'))).toBe(false);
+  });
+
+  it('opens a post once in a run: not again in the other list, nor under another term', async () => {
+    const { search, log } = setup({ hot: ['h1', 'both'], newest: ['both', 'n1'] });
+    const first = await search.search('鸣潮');
+    const second = await search.search('今汐');
+    const opened = log.filter((l) => l.startsWith('click post'));
+    expect(opened).toEqual(['click post 0 (h1)', 'click post 1 (both)', 'click post 1 (n1)']);
+    // The second search found the same posts: it gives their comments without opening them.
+    expect(second.comments['both']).toEqual(first.comments['both']);
+    expect(second.comments['n1']!.length).toBeGreaterThan(0);
+  });
+
+  it('gives a term searched before in the run what it found then, without searching again', async () => {
+    const { search, log } = setup({ hot: ['h1'], newest: ['n1'] });
+    const first = await search.search('爱播');
+    log.length = 0;
+    expect(await search.search('爱播')).toBe(first);
+    expect(log).toEqual([]);
   });
 
   it('opens the home page only for the first search of a run', async () => {

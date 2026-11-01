@@ -45,6 +45,8 @@ export type SearchFilter = keyof typeof SEARCH_FILTERS;
  * `waterfall_item_<aweme id>`), and one post tile in a user's page.
  */
 export const SEARCH_RESULT = '[id^="waterfall_item_"]';
+/** The toggle that shows the results as a grid again (多列, beside 单列). */
+export const SEARCH_GRID_TOGGLE = '多列';
 export const searchResultOf = (id: string) => `[id="waterfall_item_${id}"]`;
 export const USER_POST = '[data-e2e="user-post-list"] li';
 

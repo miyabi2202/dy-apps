@@ -1,4 +1,5 @@
 import { Pace } from '@dy-apps/douyin-chrome';
+import { RunStopped } from '../core/errors';
 import type { BrowseItem, Comment } from '../core/types';
 import { readRelated, readSearch } from '../douyin/answers';
 import type { SearchFilter } from '../douyin/page-map';
@@ -22,6 +23,9 @@ export interface SearchSurface extends PostGridSurface {
   clickFilter(filter: SearchFilter): Promise<void>;
   /** Waits for the result tiles; throws when they don't show in time. */
   waitForResults(): Promise<void>;
+  /** Waits for 多列, which turns the results back into a grid; throws when it doesn't show in time. */
+  waitForGridToggle(): Promise<void>;
+  clickGridToggle(): Promise<void>;
   /** The ids of the posts the result grid shows a tile for, in no set order. */
   shownPosts(): Promise<string[]>;
   /** The related searches the page shows (相关搜索), when they're only in its HTML. */
@@ -53,6 +57,10 @@ const RESULTS_SETTLE_MS = 2000;
  */
 export class TopicSearch implements SearchPort {
   private opened = false;
+  /** What each term searched in this run found, by the term in lower case. */
+  private readonly searchedBefore = new Map<string, SearchResult>();
+  /** The comments of every post opened in this run, by post id. */
+  private readonly readBefore = new Map<string, Comment[]>();
   private readonly comments: PostComments;
 
   constructor(
@@ -66,6 +74,15 @@ export class TopicSearch implements SearchPort {
   }
 
   async search(topic: string): Promise<SearchResult> {
+    // A term searched before in this run (under another topic) is what it found then.
+    const before = this.searchedBefore.get(topic.toLowerCase());
+    if (before) return before;
+    const result = await this.searchOnPage(topic);
+    this.searchedBefore.set(topic.toLowerCase(), result);
+    return result;
+  }
+
+  private async searchOnPage(topic: string): Promise<SearchResult> {
     const { surface, pace, tap } = this;
     if (!this.opened) {
       await orBlocked(surface, () => pace.afterSeen(() => surface.openHome()));
@@ -79,7 +96,7 @@ export class TopicSearch implements SearchPort {
       ),
     );
     await pace.afterSeen(() => surface.typeAndSearch(topic));
-    await orBlocked(surface, () => surface.waitForResults());
+    await this.showResults();
     await pace.wait(RESULTS_SETTLE_MS);
 
     const comments: Record<string, Comment[]> = {};
@@ -102,7 +119,7 @@ export class TopicSearch implements SearchPort {
       // The tiles show as the answer streams in, and its body is whole only once the stream ends
       // (the first topic run read too early, 2026-11-01): a pause, the tiles, another pause.
       await pace.wait(RESULTS_SETTLE_MS);
-      await orBlocked(surface, () => surface.waitForResults());
+      await this.showResults();
       await pace.wait(RESULTS_SETTLE_MS);
       const bodies = tap.drain('search');
       for (const body of bodies) for (const word of readRelated(body)) related.add(word);
@@ -113,8 +130,12 @@ export class TopicSearch implements SearchPort {
       const shown = new Set(await surface.shownPosts());
       const items = (shown.size ? read.filter((p) => shown.has(p.id)) : read).slice(0, this.max);
       lists[filter] = items;
-      for (const [index, post] of items.entries())
-        comments[post.id] = await this.comments.read(index, post.id);
+      for (const [index, post] of items.entries()) {
+        // A post read before in this run (in the other list, or under another term) isn't opened again.
+        const known = this.readBefore.get(post.id);
+        comments[post.id] = known ?? (await this.comments.read(index, post.id));
+        this.readBefore.set(post.id, comments[post.id]!);
+      }
     }
     for (const word of await surface.relatedSearches().catch(() => [])) related.add(word);
     const hot = lists.最热;
@@ -122,6 +143,30 @@ export class TopicSearch implements SearchPort {
     const newest = lists.最新.filter((p) => !seen.has(p.id));
     related.delete(topic);
     return { topic, hot, newest, related: [...related], comments };
+  }
+
+  /**
+   * Waits for the result grid. A search that names a user can show its results in one column
+   * (单列), with no grid (seen on a topic run, 2026-11-01): then 多列 seen, a pause, a click, and
+   * the grid waited for again.
+   */
+  private async showResults(): Promise<void> {
+    const { surface, pace } = this;
+    const shown = await orBlocked(surface, () => surface.waitForResults()).then(
+      () => true,
+      (e: unknown) => {
+        if (e instanceof RunStopped) throw e;
+        return false;
+      },
+    );
+    if (shown) return;
+    await orBlocked(surface, () =>
+      pace.step(
+        () => surface.waitForGridToggle(),
+        () => surface.clickGridToggle(),
+      ),
+    );
+    await orBlocked(surface, () => surface.waitForResults());
   }
 }
 

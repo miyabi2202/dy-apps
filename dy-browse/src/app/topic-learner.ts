@@ -5,9 +5,16 @@ import {
   type Draft,
   type UnsettledNote,
 } from '../core/drafts';
+import { EmptyReadError, RunStopped } from '../core/errors';
 import { keywordCandidates, type Candidate } from '../core/keywords';
 import type { KnowledgeEntry, KnowledgeIndex } from '../core/knowledge';
-import { countOpinions, keptOpinions, opinionDraft, type CountedOpinion } from '../core/opinions';
+import {
+  countOpinions,
+  keptOpinions,
+  opinionDraft,
+  topOpinions,
+  type CountedOpinion,
+} from '../core/opinions';
 import { draftsPrompt, keywordsPrompt, type PromptNode } from '../core/prompts';
 import { termKey } from '../core/questions';
 import { settled, type Resolution } from '../core/resolve';
@@ -24,7 +31,7 @@ import {
 import type { DraftStore } from './draft-store';
 import type { AskClaude, DataStore, Log } from './ports';
 import type { QuestionStore } from './question-store';
-import type { SearchPort } from './topic-search';
+import type { SearchPort, SearchResult } from './topic-search';
 import { uniqueById } from './read-answers';
 import { UnknownResolver } from './unknown-resolver';
 import type { ItemReader } from './video-reader';
@@ -88,6 +95,8 @@ export interface LearnResult {
   file: string | null;
   /** Everything read, for the run's reflection. */
   reads: ReadItem[];
+  /** What the topic's own search read (not its keywords' or unknowns'), for the reflection to keep to. */
+  ownReads: ReadItem[];
   /** Unknowns raised by this topic's searches. */
   unknowns: number;
   unresolved: number;
@@ -165,7 +174,14 @@ export class TopicLearner {
         continue;
       }
       searched.add(key);
-      const result = await this.options.search.search(next.term);
+      const result = await this.searchOrSkip(next);
+      if (!result) {
+        if (next.unknown) {
+          next.unknown.status = 'unresolved';
+          next.unknown.note = '抖音搜索没成功';
+        }
+        continue;
+      }
       const posts = uniqueById([...result.hot, ...result.newest]);
       const items: ReadItem[] = [];
       for (const item of posts) {
@@ -269,6 +285,7 @@ export class TopicLearner {
       searches: tree.length,
       found,
       reads,
+      ownReads: [...(nodes.find((n) => n.term === topic)?.items ?? [])],
       unknowns: unknowns.filter((u) => !u.carried).length,
       unresolved: unresolved.length,
     };
@@ -301,12 +318,10 @@ export class TopicLearner {
         unresolved: unresolved.map((u) => u.unknown.term),
       },
     );
-    const byTerm = new Map<string, CountedOpinion[]>();
-    for (const o of keptOpinions(opinions)) byTerm.set(o.term, [...(byTerm.get(o.term) ?? []), o]);
-    const cards: Draft[] = [
-      ...answer.drafts,
-      ...[...byTerm].flatMap(([term, list]) => opinionDraft(term, list) ?? []),
-    ];
+    // One card for the topic, its most widely held views first, however many searches they came from.
+    const views = topOpinions(keptOpinions(opinions));
+    const card = opinionDraft(topic, views);
+    const cards: Draft[] = card ? [...answer.drafts, card] : answer.drafts;
     const formatted = cards.map((draft) =>
       formatDraft(draft, { today: date, path: pathOf(draft.from || topic, tree, topic) }),
     );
@@ -391,6 +406,25 @@ export class TopicLearner {
   private async judge(tracked: TrackedUnknown, items: readonly ReadItem[]): Promise<void> {
     tracked.resolutions.push(await this.resolver.onDouyin(tracked.unknown, items));
     tracked.status = settled(tracked.resolutions) ? 'resolved' : 'unresolved';
+  }
+
+  /**
+   * One search, or null when it failed for a reason of its own (a page that showed no grid, a
+   * follow-up search that read nothing): logged, and the walk goes on. A captcha or login wall, a
+   * stream starting, or the topic's own search reading nothing still stops the run.
+   */
+  private async searchOrSkip(next: Queued): Promise<SearchResult | null> {
+    try {
+      return await this.options.search.search(next.term);
+    } catch (e) {
+      const skippable =
+        !(e instanceof RunStopped) || (e instanceof EmptyReadError && next.level > 0);
+      if (!skippable) throw e;
+      this.options.log(
+        `search skipped {term: ${next.term}, why: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}}`,
+      );
+      return null;
+    }
   }
 
   /** Candidates counted by code; Claude only chooses among them, and only a candidate counts. */

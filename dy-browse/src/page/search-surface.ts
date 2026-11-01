@@ -7,6 +7,7 @@ import {
   PAGE_WAIT,
   RELATED_SEARCHES,
   SEARCH_FILTER_MENU,
+  SEARCH_GRID_TOGGLE,
   SEARCH_FILTERS,
   SEARCH_INPUT,
   SEARCH_RESULT,
@@ -80,6 +81,18 @@ export class PageSearchSurface implements SearchSurface {
 
   waitForResults(): Promise<void> {
     return waitForShown(this.page, SEARCH_RESULT, PAGE_WAIT.content);
+  }
+
+  private gridToggle() {
+    return this.page.getByText(SEARCH_GRID_TOGGLE, { exact: true }).first();
+  }
+
+  waitForGridToggle(): Promise<void> {
+    return this.gridToggle().waitFor({ state: 'visible', timeout: PAGE_WAIT.filter });
+  }
+
+  async clickGridToggle(): Promise<void> {
+    await this.gridToggle().click({ timeout: PAGE_WAIT.filter });
   }
 
   async shownPosts(): Promise<string[]> {

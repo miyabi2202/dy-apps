@@ -60,8 +60,8 @@ export function understandPrompt(term: string, items: readonly ReadItem[]): stri
     '1. unknowns：你其实不确定的东西（梗、人、事件、词）。只列你真的不知道或拿不准的，别列常识。',
     '   - 谐音、缩写、拼音首字母（比如 yyds、xswl、绝绝子的变体）一律算不知道，就算你觉得自己懂。',
     '   - 标了〔提问〕的评论（有人问「啥意思」「出处」「是谁」）是很强的信号：大家都不懂的，多半值得查。',
-    '   - question 要能单独拿出去问：不用代词，写出词本身和在哪儿看到的，比如「抖音直播里『XX』是什么意思、出处是什么？」。',
-    '   - term 是要查的那个词本身；kind 只能是 梗、人、事件、词、其他；why 写为什么拿不准；refs 写在哪些作品或评论里看到的。',
+    '   - question 要能单独拿出去问：不用代词，写出词本身，只问核心（是谁、什么意思、什么事、出处），比如「抖音直播里『XX』是什么意思、出处是什么？」。评论里顺带说的细节（谁赢了、为什么、某个说法）别塞进 question，那会让人只能答一半；在哪儿看到的、评论里怎么说的写进 why。',
+    '   - term 是要查的那个词本身，照抖音上的写法，能直接拿去搜：不加括号说明，不写「A / B」两种写法（说明和别的写法放进 question）；kind 只能是 梗、人、事件、词、其他；why 写为什么拿不准；refs 写在哪些作品或评论里看到的。',
     `   - 最多 ${MAX_UNKNOWNS_PER_SEARCH} 个，最值得查的在前。`,
     '2. opinions：大家的主要观点（像关键点分析那样归纳），每个一句话（point）；有相反的看法就写进 counter，没有就写 null；refs 和 counterRefs 分别写支持这一方的评论或作品编号。只归纳，不评价对错。',
     '3. claims：评论或作品里当事实说的、能去核实的说法（claim），各带 refs。一条评论里既有说法又有态度的，把说法拆出来放这里，态度放 opinions。',
@@ -89,8 +89,19 @@ function list(value: unknown): Record<string, unknown>[] {
 }
 
 /**
- * What the model answered for a search, checked: an unknown needs a question and a term (a
- * question that doesn't name its term gets it added, so it stands on its own), and a kind from the
+ * A term as it can be typed into Douyin's search: without a note in brackets, and the first of
+ * `A / B`, as the model sometimes writes it anyway (`仙贝 / 雪饼（直播间）`, seen on a topic run,
+ * 2026-11-01).
+ */
+export function searchable(term: string): string {
+  const bare = term.replace(/[（(][^（）()]*[）)]/g, '').trim();
+  const first = bare.split(/\s*[/／|｜]\s*/)[0]!.trim();
+  return first || term.trim();
+}
+
+/**
+ * What the model answered for a search, checked: an unknown needs a question and a term, made
+ * `searchable` (a question that doesn't name its term gets it added, so it stands on its own), and a kind from the
  * list (else 其他); at most `max` of them. An opinion needs a point and a ref; a claim, text and a
  * ref. Refs that aren't among `known` are dropped.
  */
@@ -102,10 +113,11 @@ export function parseUnderstanding(
   const json = jsonFrom(answer) as Record<string, unknown> | undefined;
   const unknowns: Unknown[] = [];
   for (const u of list(json?.unknowns)) {
-    const term = text(u.term);
+    const written = text(u.term);
+    const term = searchable(written);
     let question = text(u.question);
     if (!term || !question) continue;
-    if (!question.includes(term)) question = `${question}（指「${term}」）`;
+    if (!question.includes(term)) question = `${question}（指「${written}」）`;
     if (unknowns.some((other) => other.term === term)) continue;
     unknowns.push({
       question,

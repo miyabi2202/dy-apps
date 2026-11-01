@@ -64,6 +64,19 @@ export function countOpinions(
 }
 
 /** The opinions seen under at least `min` different creators: what's worth keeping as a 社区观点. */
+/** The most a topic's opinion card lists. */
+export const MAX_OPINIONS_PER_CARD = 6;
+
+/** The views held most widely (most creators, then most likes), at most `max`. */
+export function topOpinions(
+  opinions: readonly CountedOpinion[],
+  max = MAX_OPINIONS_PER_CARD,
+): CountedOpinion[] {
+  return [...opinions]
+    .sort((a, b) => b.side.creators - a.side.creators || b.side.likes - a.side.likes)
+    .slice(0, max);
+}
+
 export function keptOpinions(
   counted: readonly CountedOpinion[],
   min = MIN_OPINION_CREATORS,
@@ -77,16 +90,30 @@ const counts = (side: SideCount) => `${side.posts}个作品/${side.likes}赞`;
  * A 社区观点 card for a search's kept opinions, written by code, never checked on the web: each
  * point as hearsay with its counts, and the other side with its own when there is one. Null with none.
  */
+/**
+ * An opinion as it follows 「有人觉得」: without a lead-in of its own (「也有观众说」「大家觉得」…) or
+ * a full stop at the end, which the model often writes (seen on a topic run, 2026-11-01: 「有人觉得也有人觉得…。（…）。」).
+ */
+export function view(text: string): string {
+  return text
+    .trim()
+    .replace(
+      /^(?:(?:但|不过|而)?(?:也|还)?(?:有|不少|很多|一些|部分)?(?:人|观众|网友|粉丝|大家|评论)(?:们)?(?:都|也|还)?(?:觉得|认为|说|表示|吐槽|调侃|提到)[，,：:]?\s*)+/,
+      '',
+    )
+    .replace(/[。.！!；;，,\s]+$/, '');
+}
+
 export function opinionDraft(term: string, opinions: readonly CountedOpinion[]): Draft | null {
   if (!opinions.length) return null;
   const lines = opinions.map((o) => {
     const other =
       o.counter && o.counterSide
-        ? `，也有人觉得${o.counter}（${counts(o.counterSide)}）`
+        ? `，也有人觉得${view(o.counter)}（${counts(o.counterSide)}）`
         : o.counter
           ? `，也有人不这么看`
           : '';
-    return `- 听说抖音上有人觉得${o.point}（${counts(o.side)}）${other}。`;
+    return `- 听说抖音上有人觉得${view(o.point)}（${counts(o.side)}）${other}。`;
   });
   const sources = [
     ...new Set(opinions.flatMap((o) => [...o.side.postIds, ...(o.counterSide?.postIds ?? [])])),

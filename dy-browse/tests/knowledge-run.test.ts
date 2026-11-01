@@ -49,6 +49,7 @@ function setup(now = day(11, 1), foundBy: Record<string, number> = {}) {
           stillRight: 0,
           file: null,
           reads: [],
+          ownReads: [],
           unknowns: 0,
           unresolved: 0,
         });
@@ -113,6 +114,7 @@ describe('KnowledgeRun', () => {
             stillRight: 0,
             file: null,
             reads: [],
+            ownReads: [],
             unknowns: 0,
             unresolved: 0,
           })

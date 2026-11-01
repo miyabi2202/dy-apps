@@ -1,7 +1,13 @@
 import { QuestionStore } from '../src/app/question-store';
 import { Reflection, RunDigest } from '../src/app/reflection';
 import { newQuestions, sameTerm } from '../src/core/questions';
-import { commentDraftsText, importanceOf, parseReflection } from '../src/core/reflection';
+import {
+  commentDraftsText,
+  importanceOf,
+  parseReflection,
+  postsToShow,
+  reflectionPrompt,
+} from '../src/core/reflection';
 import type { ReadItem } from '../src/core/types';
 import { item } from './support/fakes';
 import { MemoryStore } from './support/memory-store';
@@ -60,22 +66,83 @@ function digest(): RunDigest {
 }
 
 describe('importanceOf', () => {
-  it('counts posts, a little more for likes, comments, and new unknowns', () => {
+  const five = (likes: number, comments: number) =>
+    ['a', 'b', 'c', 'd', 'e'].map((id) => read(id, likes, comments));
+
+  it('is how lively the average post was: its likes, log-scaled, and its comments', () => {
     expect(importanceOf([])).toBe(0);
-    expect(importanceOf([read('a', 0, 0)])).toBe(1);
-    expect(importanceOf([read('a', 999, 10)])).toBe(3.5);
-    expect(importanceOf([], 3)).toBe(6);
+    expect(importanceOf([read('a', 0, 0)])).toBe(0);
+    // log10(1000) / 2 for the likes, 10 comments / 10.
+    expect(importanceOf(five(999, 10))).toBe(2.5);
+    // Likes and comments are capped, so one viral post can't carry a run.
+    expect(importanceOf(five(1e9, 100))).toBe(5);
+  });
+
+  it('does not rise with more of the same, and is scaled down for a run of fewer than five posts', () => {
+    expect(importanceOf([...five(999, 10), ...five(999, 10)])).toBe(2.5);
+    expect(importanceOf([read('a', 999, 10)])).toBe(0.5);
+  });
+
+  it('adds a little for each new unknown, at most 2', () => {
+    expect(importanceOf(five(999, 10), 3)).toBe(4);
+    expect(importanceOf(five(999, 10), 10)).toBe(4.5);
+  });
+});
+
+describe('postsToShow', () => {
+  it('shows each topic’s own search first, in turn, then the rest by likes', () => {
+    const own1 = [read('t1a', 10), read('t1b', 20)];
+    const own2 = [read('t2a', 5)];
+    const detour = [read('viral', 1e6)];
+    const shown = postsToShow(
+      [...own1, ...own2, ...detour],
+      [
+        { name: '星守护', own: own1 },
+        { name: '灯牌等级', own: own2 },
+      ],
+      3,
+    );
+    expect(shown.map((r) => r.item.id)).toEqual(['t1b', 't2a', 't1a']);
+  });
+
+  it('shows the most liked when the run searched no topic', () => {
+    expect(postsToShow([read('a', 1), read('b', 9)], [], 1).map((r) => r.item.id)).toEqual(['b']);
+  });
+});
+
+describe('reflectionPrompt', () => {
+  it('names the topics and keeps her takes and questions to them', () => {
+    const prompt = reflectionPrompt({
+      persona: '你是 Fairy。',
+      modes: ['topic'],
+      reads: [read('a')],
+      topics: [{ name: '星守护', own: [read('a')] }],
+      recentThoughts: [],
+      streamerPosts: new Set(),
+      today: '2026-11-01',
+    });
+    expect(prompt).toContain('这次她搜的话题是 「星守护」');
+    expect(prompt).toContain('只问和这些话题有关的');
+    expect(prompt).toContain('别特意说自己是 AI');
   });
 });
 
 describe('Reflection', () => {
+  it('reflects on the streamer’s new posts however quiet they were', async () => {
+    const { reflection, prompts } = setup();
+    const quiet = new RunDigest();
+    quiet.addStreamer('123', [read('s1', 0, 0)]);
+    expect(await reflection.reflect(quiet)).not.toBeNull();
+    expect(prompts).toHaveLength(1);
+  });
+
   it('skips, asking nothing, when the run read too little', async () => {
     const { reflection, prompts, logs } = setup();
     const small = new RunDigest();
     small.add('topic', [read('a', 0, 0)]);
     expect(await reflection.reflect(small)).toBeNull();
     expect(prompts).toEqual([]);
-    expect(logs).toEqual(['reflection skipped {score: 1, min: 10}']);
+    expect(logs).toEqual(['reflection skipped {score: 0, min: 2.5}']);
   });
 
   it('writes her takes, keeps new questions, brings up the streamer’s posts, and lists comment drafts', async () => {
@@ -125,7 +192,7 @@ describe('Reflection', () => {
   it('brings nothing up on a run that did not read the streamer’s posts', async () => {
     const { reflection, bot } = setup();
     const feed = new RunDigest();
-    feed.add('feed', [read('s1'), read('f1'), read('f2')]);
+    feed.add('feed', [read('s1'), read('f1'), read('f2'), read('f3'), read('f4')]);
     const result = await reflection.reflect(feed);
     expect(result!.bringUp).toBe(0);
     expect([...bot.files.keys()].some((k) => k.includes('memory'))).toBe(false);

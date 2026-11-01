@@ -1,9 +1,9 @@
 import { asksSomething, numberedComments, repliesToOpen } from '../src/core/comments';
 import { KnowledgeIndex, parseKnowledge } from '../src/core/knowledge';
-import { countSide } from '../src/core/opinions';
+import { countSide, view } from '../src/core/opinions';
 import { itemText, itemsWithin } from '../src/core/prompts';
 import { parseResolution } from '../src/core/resolve';
-import { parseUnderstanding, refsOf } from '../src/core/understand';
+import { parseUnderstanding, refsOf, searchable } from '../src/core/understand';
 import type { Comment, ReadItem } from '../src/core/types';
 import { item } from './support/fakes';
 
@@ -63,6 +63,19 @@ describe('comments', () => {
   });
 });
 
+describe('searchable', () => {
+  it('drops a note in brackets and keeps the first of two spellings', () => {
+    expect(searchable('仙贝 / 雪饼（直播间）')).toBe('仙贝');
+    expect(searchable('博弈（恐怖游戏直播）')).toBe('博弈');
+    expect(searchable('灯牌(粉丝团)')).toBe('灯牌');
+    expect(searchable('先天乌萨奇圣体')).toBe('先天乌萨奇圣体');
+  });
+
+  it('keeps a term that is only a note as it was', () => {
+    expect(searchable('（主播）')).toBe('（主播）');
+  });
+});
+
 describe('parseUnderstanding', () => {
   const known = new Set(['a', 'a#1', 'b', 'b#1.1']);
 
@@ -116,6 +129,20 @@ describe('parseUnderstanding', () => {
       opinions: [],
       claims: [],
     });
+  });
+});
+
+describe('view', () => {
+  it('drops a lead-in the model wrote itself, and the full stop, so 「有人觉得」 reads once', () => {
+    expect(view('也有观众说，给主播开了星守护以后反被拉黑。')).toBe('给主播开了星守护以后反被拉黑');
+    expect(view('也有人觉得也有人觉得并不算贵')).toBe('并不算贵');
+    expect(view('大家觉得这几版翻唱很好听。')).toBe('这几版翻唱很好听');
+    expect(view('也有人认为沉溺回忆会伤害自己。')).toBe('沉溺回忆会伤害自己');
+  });
+
+  it('leaves an opinion with no lead-in as it is', () => {
+    expect(view('人设崩了')).toBe('人设崩了');
+    expect(view('星守护挺贵')).toBe('星守护挺贵');
   });
 });
 

@@ -8,6 +8,7 @@ import {
   takeLine,
   type BrowseMode,
   type ReflectionAnswer,
+  type ReadTopic,
 } from '../core/reflection';
 import { dateOf } from '../core/text';
 import type { ReadItem } from '../core/types';
@@ -30,11 +31,14 @@ export class RunDigest {
   private readonly read: ReadItem[] = [];
   newUnknowns = 0;
   streamer: { roomId: string; postIds: Set<string> } | null = null;
+  /** The topics searched, each with what its own search read. */
+  readonly topics: ReadTopic[] = [];
 
-  add(mode: BrowseMode, reads: readonly ReadItem[], newUnknowns = 0): void {
+  add(mode: BrowseMode, reads: readonly ReadItem[], newUnknowns = 0, topic?: ReadTopic): void {
     this.modes.add(mode);
     this.read.push(...reads);
     this.newUnknowns += newUnknowns;
+    if (topic) this.topics.push(topic);
   }
 
   addStreamer(roomId: string, reads: readonly ReadItem[]): void {
@@ -87,7 +91,8 @@ export class Reflection {
     const { ask, persona, log, minImportance = MIN_IMPORTANCE, now = Date.now } = this.options;
     const reads = digest.reads();
     const score = importanceOf(reads, digest.newUnknowns);
-    if (score < minImportance) {
+    // The streamer's own new posts are always worth a thought (and something to bring up).
+    if (score < minImportance && !digest.streamer?.postIds.size) {
       log(`reflection skipped {score: ${score}, min: ${minImportance}}`);
       return null;
     }
@@ -99,6 +104,7 @@ export class Reflection {
           persona: persona(),
           modes: [...digest.modes],
           reads,
+          topics: digest.topics,
           recentThoughts: this.recentThoughts(),
           streamerPosts,
           today,

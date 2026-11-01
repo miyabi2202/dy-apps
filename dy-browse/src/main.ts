@@ -203,7 +203,7 @@ async function main(): Promise<number> {
         const result = await (
           await learner()
         ).learn(topic, { folder: options.into, existing: index.lookup(topic, 5) });
-        digest.add('topic', result.reads, result.unknowns);
+        digest.add('topic', result.reads, result.unknowns, { name: topic, own: result.ownReads });
       },
     });
   }
@@ -220,7 +220,10 @@ async function main(): Promise<number> {
           learner: {
             learn: async (topic, how) => {
               const result = await topics.learn(topic, how);
-              digest.add('knowledge', result.reads, result.unknowns);
+              digest.add('knowledge', result.reads, result.unknowns, {
+                name: topic,
+                own: result.ownReads,
+              });
               return result;
             },
           },
