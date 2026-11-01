@@ -1,5 +1,5 @@
 import { LikeHold, type LikeSurface } from '../src/like-hold';
-import { Pace } from '../src/pace';
+import { Pace } from '@dy-apps/douyin-chrome';
 
 /** A pace on a fake clock: pauses (random 0, so 500 ms) are logged, the 100 ms key repeats aren't. */
 function fakePace(log: string[], tick: (ms: number) => void = () => {}): Pace {

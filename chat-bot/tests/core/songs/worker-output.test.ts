@@ -33,7 +33,7 @@ test('what is not JSON, or fits none of them, is nothing', () => {
   expect(said?.kind).toBe('line');
 });
 
-test("a sentence keeps the recording the worker heard playing, but only a named one", () => {
+test('a sentence keeps the recording the worker heard playing, but only a named one', () => {
   const played = (played: unknown) => {
     const output = parseWorkerOutput(JSON.stringify({ start: 1, end: 2, text: '花', played }));
     return output?.kind === 'line' ? output.line.played : 'not a line';

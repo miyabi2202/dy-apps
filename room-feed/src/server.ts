@@ -16,7 +16,7 @@ import {
   type StatusFrame,
   type StreamAnswer,
 } from '@dy-apps/room-feed-protocol';
-import type { SavedLogin } from './login-file';
+import type { SavedLogin } from '@dy-apps/douyin-chrome';
 import { httpStatusOf } from './errors';
 import type { Room } from './room';
 

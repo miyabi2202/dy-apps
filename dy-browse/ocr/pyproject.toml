@@ -1,0 +1,12 @@
+[project]
+name = "dy-apps-dy-browse-ocr"
+version = "0.1.0"
+description = "OCR worker for dy-browse: Apple Vision through ocrmac (macOS only)."
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  # Only installs on macOS: Vision is Apple's.
+  "ocrmac>=1.0 ; sys_platform == 'darwin'",
+]
+
+[tool.uv]
+package = false

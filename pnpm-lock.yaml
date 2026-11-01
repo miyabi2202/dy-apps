@@ -88,6 +88,68 @@ importers:
         specifier: ~6.0.3
         version: 6.0.3
 
+  douyin-chrome:
+    dependencies:
+      '@dy-apps/room-feed-protocol':
+        specifier: workspace:*
+        version: link:../room-feed-protocol
+      playwright-core:
+        specifier: ^1.62.1
+        version: 1.63.0
+    devDependencies:
+      '@swc/core':
+        specifier: ^1.16.13
+        version: 1.16.13
+      '@swc/jest':
+        specifier: ^0.2.39
+        version: 0.2.39(@swc/core@1.16.13)
+      '@types/jest':
+        specifier: ^30.0.0
+        version: 30.0.0
+      '@types/node':
+        specifier: ^26.6.3
+        version: 26.6.3
+      jest:
+        specifier: ^30.5.2
+        version: 30.5.2(@types/node@26.6.3)
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
+  dy-browse:
+    dependencies:
+      '@dy-apps/douyin-chrome':
+        specifier: workspace:*
+        version: link:../douyin-chrome
+      '@dy-apps/room-feed-protocol':
+        specifier: workspace:*
+        version: link:../room-feed-protocol
+      playwright-core:
+        specifier: ^1.62.1
+        version: 1.63.0
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.15
+    devDependencies:
+      '@swc/core':
+        specifier: ^1.16.13
+        version: 1.16.13
+      '@swc/jest':
+        specifier: ^0.2.39
+        version: 0.2.39(@swc/core@1.16.13)
+      '@types/jest':
+        specifier: ^30.0.0
+        version: 30.0.0
+      '@types/node':
+        specifier: ^26.6.3
+        version: 26.6.3
+      jest:
+        specifier: ^30.5.2
+        version: 30.5.2(@types/node@26.6.3)
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
   frontend:
     dependencies:
       '@dimforge/rapier2d-compat':
@@ -194,6 +256,9 @@ importers:
 
   room-feed:
     dependencies:
+      '@dy-apps/douyin-chrome':
+        specifier: workspace:*
+        version: link:../douyin-chrome
       '@dy-apps/room-feed-protocol':
         specifier: workspace:*
         version: link:../room-feed-protocol

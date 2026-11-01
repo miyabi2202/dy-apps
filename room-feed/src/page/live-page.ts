@@ -14,14 +14,13 @@ import type {
   RoomMeta,
 } from '@dy-apps/room-feed-protocol';
 import { PAGE_WAIT, PLAYER_CLICK } from '../douyin/page-map';
-import { parseRoomMeta } from '../douyin/room-meta';
+import { parseRoomMeta, Pace } from '@dy-apps/douyin-chrome';
 import { isUserMe, readUserMe, type UserMeAnswer } from '../douyin/user-me';
 import { LikeHold } from '../like-hold';
 import { PageShots } from '../page-shots';
 import { RoomEndedError } from '../errors';
 import { FansLamp } from '../fans-lamp';
 import { HeartGift } from '../heart-gift';
-import { Pace } from '../pace';
 import { PushTracker } from '../push-tracker';
 import type { RoomPage, RoomPageHandlers } from '../room-page';
 import { PageChatSurface } from './chat-surface';

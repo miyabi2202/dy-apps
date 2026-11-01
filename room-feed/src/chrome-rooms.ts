@@ -1,7 +1,6 @@
 import { chromium, type Browser } from 'playwright-core';
-import { BROWSER_ARGS, hideAutomation, USER_AGENT } from './chrome';
+import { BROWSER_ARGS, browserCookies, hideAutomation, USER_AGENT } from '@dy-apps/douyin-chrome';
 import { VIEWPORT } from './douyin/page-map';
-import { browserCookies } from './login-file';
 import { LivePage } from './page/live-page';
 import type { OpenRoomPage } from './room-page';
 

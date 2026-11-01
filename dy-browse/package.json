@@ -1,0 +1,27 @@
+{
+  "name": "@dy-apps/dy-browse",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browses Douyin like a viewer, read-only and never during a stream: the streamer's posts, topic search and the 推荐 feed, written to files for the chat bot to learn from.",
+  "license": "MIT",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "jest -c jest.config.js"
+  },
+  "dependencies": {
+    "@dy-apps/douyin-chrome": "workspace:*",
+    "@dy-apps/room-feed-protocol": "workspace:*",
+    "playwright-core": "^1.62.1",
+    "tsx": "^4.23.13"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.16.13",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.3",
+    "jest": "^30.5.2",
+    "typescript": "~6.0.3"
+  }
+}

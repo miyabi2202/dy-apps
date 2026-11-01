@@ -10,7 +10,7 @@ Every step that clicks or types on the page goes in three parts, as a person wou
 2. **Pause** 500–1000 ms, at random.
 3. **Act**: the click, or the typing.
 
-Never act before the target is seen, and never the moment it is. `Pace` (`src/pace.ts`) is the one place this lives: `pace.step(ready, act)` for a target to wait for, `pace.afterSeen(act)` for one a check has just seen. Don't write a pause of your own, and don't rely on Playwright's own wait inside `click()` or `fill()`: by the time it finds the target, the pause has already gone by.
+Never act before the target is seen, and never the moment it is. `Pace` (in `@dy-apps/douyin-chrome`, `douyin-chrome/src/pace.ts`, shared with dy-browse) is the one place this lives: `pace.step(ready, act)` for a target to wait for, `pace.afterSeen(act)` for one a check has just seen. Don't write a pause of your own, and don't rely on Playwright's own wait inside `click()` or `fill()`: by the time it finds the target, the pause has already gone by.
 
 Closing a panel is a step too: `closeRightPanel` (`src/right-panel.ts`) sees the ×, pauses, then clicks it.
 

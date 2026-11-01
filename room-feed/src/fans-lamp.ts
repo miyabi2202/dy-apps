@@ -1,7 +1,7 @@
 import type { FansLampResult } from '@dy-apps/room-feed-protocol';
 import { closeDownloadGuide, type DownloadGuide } from './download-guide';
 import { PageActionError } from './errors';
-import { Pace } from './pace';
+import { Pace } from '@dy-apps/douyin-chrome';
 import { closeRightPanel, type RightPanel } from './right-panel';
 
 /** What the 灯牌 costs: with fewer diamonds, nothing is clicked. */

@@ -84,14 +84,13 @@ The browser is a service of its own, like room-feed, not something an MCP tool s
 - **Packages:** a new workspace package, `dy-browse/`, for the service. Chrome, the saved login, `hideAutomation`, `Pace` and `SerialQueue` move out of room-feed into a shared package that both import, since packages never import from each other. The service's API types and client go in a small protocol package, as room-feed's do.
 - **Pacing:** every click, keystroke and scroll follows `room-feed/AGENTS.md`: wait for the target, pause 500–1000 ms, act. The steps are classes over a surface interface; only the surfaces in `src/page/` touch Playwright.
 - **Reading data:** it browses like a person and reads the JSON that Douyin's own page fetches as it scrolls (`page.on('response')` on the feed, post-list, search and comment calls). Douyin's scripts sign those requests, so we don't have to, and the data is cleaner than the page's HTML.
-- **API:** a small local HTTP API (port 8760) serves `pnpm browse`, and later thin MCP tools for Claude (look up a video, search a topic).
+- **API:** none for now: `pnpm browse` is a library plus a command line (the design had a small local HTTP API on port 8760; see the Implementation plan). Thin MCP tools for Claude (look up a video, search a topic) come later.
 
 ### Which account
 
-- **The feed account matters.** The 推荐 feed learns from how long the account lingers, so whatever the bot watches longest, it gets more of. The bot's own account (默认关闭) would grow a taste of its own that stays the same across streams. That's appealing, but it ties the account to the experiment and puts its anti-bot risk on the account that streams.
-- **The knowledge-base plan already decided against that risk:** a browser there runs on a separate profile, "so the streaming account never takes the anti-bot risk".
-- **Recommendation:** start on a separate logged-in account, with its own login file (`dy-browse/data/cookie.json`, written by `pnpm dy-browse login`) and Chrome profile. Logged out, the feed is generic. Move to the bot's own account only if the drift turns out to be worth it.
-- **Streamer mode and topic search:** a streamer's posts and search results are public, so they need no particular account. Search does lean on the account's history, though, and Douyin may ask a logged-out browser to log in after a few searches, so they run on the same separate account as the feed.
+- **The bot's own account, 默认关闭 (decided 2026-11-01).** Every mode browses as the account that streams. The 推荐 feed learns from how long the account lingers, so the bot grows a taste of its own, the same one across streams and in its days: that's wanted.
+- **One login.** `dy-browse` reads room-feed's saved login (`room-feed/data/cookie.json`), so `pnpm room-feed login` is the only login to keep alive, and an expired one is fixed once for both. It opens its own Chrome, with its own profile, never room-feed's; since it never runs during a stream, the two are never logged in at once.
+- **The risk is taken knowingly.** `docs/knowledge-base-plan.md` keeps its own browser on a separate profile "so the streaming account never takes the anti-bot risk"; browsing takes that risk on purpose. What keeps it small: read-only, `Pace` on every step, daily caps, and a run that stops at the first captcha or login wall and says so, rather than retrying. If Douyin starts limiting the account (chat not showing up in rooms, captchas), stop browsing first.
 
 ### Watching
 
@@ -180,7 +179,6 @@ Most of what's worth knowing is in the text around a video and what's said in it
 
 ### Open questions
 
-- **The feed account:** a separate account, or the bot's own with its drift?
 - **Feed output:** should the feed feed only Fairy's days, or every persona's? A persona's taste could shape its dwell rule.
 - **Where post memories live:** in `memory.md` itself, or in `memory/posts.md` recalled only when it fits (the plan starts with the file).
 - **Overlap with `pnpm learn`:** topic search is a new source for the knowledge base, beside B站 and the wiki in `docs/knowledge-base-plan.md`. It could be `pnpm learn --douyin` instead of part of `pnpm browse`; the browser would be the same either way.
@@ -189,6 +187,207 @@ Most of what's worth knowing is in the text around a video and what's said in it
 **Decided (2026-11-01):**
 
 - **Fairy browses Douyin herself.** It's her hobby on this side, apart from 六分街. Her life guide (`prompts/personas/fairy/life.md`) and persona (`prompts/personas/fairy/persona.md`) now say so: she may write about videos she really watched, only those given to her, as they are, with her own view, and never moves Douyin's people into 新艾利都. With none given, she writes no Douyin at all.
+- **Browsing is done as 默认关闭**, the bot's own account, with room-feed's saved login (see "Which account"). Its feed grows the bot's own taste, and the account takes the anti-bot risk knowingly.
+- **No screening while learning.** Anything may be learned; the forbidden rules apply when the bot speaks, as they do now.
+- **Never during a stream.** `pnpm browse` runs only when no stream is on, so its speech instance never shares the GPU with the live one.
+- **OCR is Apple Vision**, through the `ocrmac` Python package (macOS's `VNRecognizeTextRequest`, `zh-Hans`, `zh-Hant` and `en`). It's free, fast on Apple Silicon and needs no model download. It's macOS only, which is where the bot runs; RapidOCR is the fallback if that ever changes.
+
+### Implementation plan
+
+**Status, 2026-11-01:** phases 1 to 6 below are built and tested against fakes; the pages' selectors and Douyin's JSON field names are guesses until the first real run (see `dy-browse/README.md`, "The first manual run"). The later phases, at the end, are not built. The design above planned an HTTP service on port 8760 with a `dy-browse-protocol` package and a client in `chat-bot/`; what was built is simpler: a library plus its own command line, `pnpm browse` at the repo root, with no HTTP service, no port 8760 and no protocol package. The streamer's posts, the watched videos and the knowledge drafts are written straight into `chat-bot/data/`, where the bot already reads.
+
+#### The shape
+
+One new shared package, one new package and one new command:
+
+| Piece                                       | Where          | What it does                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@dy-apps/douyin-chrome` (`douyin-chrome/`) | shared package | Finding Chrome, `hideAutomation`, the user agent and flags, `login()`, `LoginFile`, `Pace`, `SerialQueue`, `parseRoomMeta`. Imported by room-feed and dy-browse.                                                                                                                                |
+| `@dy-apps/dy-browse` (`dy-browse/`)         | library + CLI  | Chrome as 默认关闭 (room-feed's saved login), one `Pace` for every page action, the JSON readers, the feed log, media, the speech and OCR workers, Claude (`claude -p`), drafts. Started with `pnpm browse` from the repo root, like `pnpm room-feed`. The chat bot's container isn't involved. |
+
+`dy-browse` has its own hand-wired `main.ts`, in layers (`core/`, `app/`, `douyin/`, `adapters/`, `page/`; lint enforces that the first three know neither Node nor Playwright). It refuses to run while port 8757 (room-feed) or 8758 (the speech service) listens, and holds `dy-browse/data/browse.lock`; `chat-bot/AGENTS.md` checks that lock before starting a bot. It imports `@dy-apps/douyin-chrome` and `@dy-apps/room-feed-protocol` (`isRoomId`, `DEFAULT_PORT`) as `workspace:*` dependencies; the site doesn't import either, so `SHARED_LIBS`, `aliases.js` and `tsconfig.json` in `frontend/` are unchanged.
+
+**Where it writes** (none of it in git):
+
+```
+chat-bot/data/                        read by the bot
+  <房间号>/memory/posts.md             the streamer's posts, a dated line each; the latest lines go into {{memory}} (postsFile, read on every use)
+  browse/watched/<date>.md            what the feed session watched, a line a video; LifeWriter's {{watched}} (watchedFiles)
+  knowledge/pending/<folder>/<date>.md     drafts, reviewed like the others there
+  knowledge/pending/still-right-<date>.md  entries found still right (move 复查 on)
+
+dy-browse/data/                       its own state
+  browse.lock  state/<date>.json  streamer/<房间号>/mark.json  knowledge-visits.json  trends.json
+  searches/<date>/<topic>.json  feed/<date>.jsonl  media/<id>/  screenshots/
+```
+
+All the paths come from options (`--data`, `--bot-data`), so tests use temp dirs or an in-memory store. dy-browse doesn't change anyone's `note.md`, so room-memory's `Author` has no `'browse'` yet; add it there (with its parsing) when it does.
+
+**The command line** (`dy-browse/src/cli-options.ts`, `node:util`'s `parseArgs`):
+
+```
+pnpm browse [--feed] [--streamer <房间号> [--sec-uid <值>]] [--topic <词>]… [--knowledge [folder]]
+            [--minutes 15] [--max-videos 30] [--depth 1] [--max-searches 6] [--max-topics 5]
+            [--into topics] [--no-asr] [--no-ocr] [--model <名>] [--headed] [--chrome <路径>]
+            [--data <目录>] [--bot-data <目录>]
+```
+
+With none of `--feed`, `--streamer`, `--topic`, `--knowledge`, it says so and exits 1. The streamer's `sec_uid` is `--sec-uid`, or is read from the live room page by `parseRoomMeta`. (The design took it from `room_config.json`; that isn't built.)
+
+#### Phase 1: the shared browser package (built)
+
+`douyin-chrome/` holds what room-feed's `chrome.ts`, `login.ts`, `login-file.ts`, `pace.ts`, `serial-queue.ts` and `douyin/room-meta.ts` were, moved with `git mv`, and their tests; room-feed imports it, and `eslint.config.js` has the "knows nothing of Playwright" rule for `pace.ts`, `serial-queue.ts` and `room-meta.ts` there. room-feed's behaviour is unchanged.
+
+#### Phase 2: the feed log (built)
+
+`FeedScroller` over a `FeedSurface` (one wait and one act per target, all through `Pace`), the response tap that reads the JSON the page fetched, `randomDwell` (ads, live cards and shop links skipped at once; about half of videos skipped after 1–3 s, four in ten watched to the end, one in ten with the comments opened), and `FeedLog` (`feed/<date>.jsonl`, tier 0 only, never a commenter's name or id). A captcha or login wall stops the run at the first one.
+
+#### Phase 3: streamer mode (built)
+
+`UserPosts` (open `douyin.com/user/<sec_uid>`, read the post list as it loads, open each post for its comments) and `StreamerPosts`: new posts since the mark first, then three older ones a run, each through tiers 0–2 (`VideoReader`: speech by the batch transcriber over chat-bot's `transcribe.py` as a child process, picture text by Apple Vision through `ocrmac`, the media deleted after use), then one Claude call for a line a post, appended to `chat-bot/data/<房间号>/memory/posts.md`. In chat-bot, `postsFile` reads it on every use and `RoomState` puts its latest lines (8, at most 1200 characters) after the thoughts in `{{memory}}`, under `wording.md`'s `posts`.
+
+#### Phase 4: topic search (built)
+
+`TopicSearch` (search box, Enter, 最热, 最新, each result opened for its comments), keyword candidates counted by code and picked by Claude (`--depth`, `--max-searches`), `--knowledge` (entries whose 复查 has passed first, then never browsed, then the least recently browsed, `--max-topics` a run), and drafts in `chat-bot/data/knowledge/pending/`, each saying where it came from.
+
+#### Phase 5: feed processing (built)
+
+`FeedRun`: scroll, log every item, read the videos watched to the end through tiers 1–2, write `chat-bot/data/browse/watched/<date>.md`, and count hashtags, sounds and phrases into `trends.json` (a trend: 3 or more videos on 2 or more days).
+
+#### Phase 6: LifeWriter (built); trend drafts are not
+
+`LifeWriter` gets a `watched` port (`Watched` in `app/ports.ts`, `watchedFiles` over `data/browse/watched/`, wired in `wiring/life.ts`), and `prompts/life.md` a `{{watched}}` block (wording.md's `watched`): today's and yesterday's lines, at most 5, with the instruction to use them only if the persona's guide says she browses Douyin, and to write nothing about Douyin otherwise; empty when there are none. Fairy's `life.md` already says she browses.
+
+#### Later phases (not built)
+
+- **Trend drafts.** `TrendDrafts` takes the trends from `trends.json` that the knowledge base lacks, drops those the embedding service finds close to something the bot already knows, asks Claude for one entry each, and writes `knowledge/pending/memes/<date>.md` (`类型: 社区观点` or `事实`, `截至` this month, `复查` a month on, video ids as 来源; a meaning it can't give from the material is `不确定`). Run at the end of `--feed`.
+- **Tier 3.** A few frames of a video to Claude, for what speech and picture text don't show.
+- **Daily caps.** `caps/<date>.json` with a limit on sessions, videos and pages a day.
+- **MCP tools.** `search_douyin { query }` (hot and newest titles with sounds and stats, comments summarised, tier 0 only, cached a day per query) and `look_up_video { url }`, which need a way for a running bot to ask for a page; with no service, that means starting `pnpm browse` from the tool, which can't happen during a stream. Rethink that (a service, or a cache `pnpm browse` fills) before building.
+- **The `sec_uid` in `room_config.json`**, saved from room-feed's `GET /api/rooms/<房间号>`, so `--streamer` needs no page read.
+
+## Sources, chosen by arguments
+
+`pnpm browse` (run from `chat-bot/`, like `pnpm remember`) does any of these in a run:
+
+- `--feed`: scroll the 推荐 feed and take what Douyin recommends. This is for random things: what's going around, new memes and sounds, whatever the bot's taste leads to. What it gives is shared by every room.
+- `--streamer <房间号>`: read that room's streamer's own posts, new ones since the last run first, then older ones a few at a time. Their posts are at `douyin.com/user/<sec_uid>`; room-feed reads the streamer's `sec_uid` from the room page (`room-feed/src/douyin/room-meta.ts`, `meta.secUid` in `GET /api/rooms/<房间号>`), and the bot will keep it in the room's `room_config.json` beside the streamer's `uid` (it keeps only `nickname` and `uid` today). What it gives belongs to that room.
+- `--topic <词>` (more than one allowed): search Douyin for the topic, read its hottest and most recent posts, then search a few keywords those posts bring up, to learn around it (see "Topic search"). What it gives goes to the knowledge base, for review.
+- `--knowledge [folder]`: do `--topic` for every entry in the local knowledge base (`data/knowledge/`, or one folder of it, like `douyin`), a few each run, the ones most due first.
+
+`pnpm browse --feed --streamer 416362684969` does both; `pnpm browse --topic 鸣潮 --topic 至此间` searches two topics. With none, it says so and does nothing. `--minutes` caps how long a feed session lasts, and `--max-videos` how many videos it watches to the end.
+
+### The browser
+
+The browser is a service of its own, like room-feed, not something an MCP tool starts. Starting Chrome and loading the login for every `claude -p` question would be slow and look automated. One service also keeps every page action in one queue, with one pace. `pnpm browse` is its client: the service browses and downloads, the client (in the chat bot, where the models, the knowledge base, the days and the memories are) does the rest.
+
+- **Packages:** a new workspace package, `dy-browse/`, for the service. Chrome, the saved login, `hideAutomation`, `Pace` and `SerialQueue` move out of room-feed into a shared package that both import, since packages never import from each other. The service's API types and client go in a small protocol package, as room-feed's do.
+- **Pacing:** every click, keystroke and scroll follows `room-feed/AGENTS.md`: wait for the target, pause 500–1000 ms, act. The steps are classes over a surface interface; only the surfaces in `src/page/` touch Playwright.
+- **Reading data:** it browses like a person and reads the JSON that Douyin's own page fetches as it scrolls (`page.on('response')` on the feed, post-list, search and comment calls). Douyin's scripts sign those requests, so we don't have to, and the data is cleaner than the page's HTML.
+- **API:** none for now: `pnpm browse` is a library plus a command line (the design had a small local HTTP API on port 8760; see the Implementation plan). Thin MCP tools for Claude (look up a video, search a topic) come later.
+
+### Which account
+
+- **The bot's own account, 默认关闭 (decided 2026-11-01).** Every mode browses as the account that streams. The 推荐 feed learns from how long the account lingers, so the bot grows a taste of its own, the same one across streams and in its days: that's wanted.
+- **One login.** `dy-browse` reads room-feed's saved login (`room-feed/data/cookie.json`), so `pnpm room-feed login` is the only login to keep alive, and an expired one is fixed once for both. It opens its own Chrome, with its own profile, never room-feed's; since it never runs during a stream, the two are never logged in at once.
+- **The risk is taken knowingly.** `docs/knowledge-base-plan.md` keeps its own browser on a separate profile "so the streaming account never takes the anti-bot risk"; browsing takes that risk on purpose. What keeps it small: read-only, `Pace` on every step, daily caps, and a run that stops at the first captcha or login wall and says so, rather than retrying. If Douyin starts limiting the account (chat not showing up in rooms, captchas), stop browsing first.
+
+### Watching
+
+- **Before watching:** the feed's JSON says what each item is before the bot "watches" it: title, hashtags, music, author, stats and type.
+- **Skipping:** ads (the feed flags them), live-room cards and shop links are skipped. Image posts (图文) are read with OCR on their images, or skipped.
+- **The dwell rule:** skip some after 1–3 s, watch some to the end, open the comments on a few, with some randomness. Always lingering on the funniest or most-commented videos would steer the feed into a meme bubble.
+- **Session length:** 10–20 minutes, once or twice a day.
+- **Streamer mode:** watches every post, since there are few.
+
+### Topic search
+
+Given a topic, it learns what Douyin says about it now, and what's next to it:
+
+1. **Search.** Open `douyin.com`, type the topic into the search box and press Enter, as a person would, each a paced step; that lands on `douyin.com/search/<topic>`. It reads the results from the search API's JSON, the same way the feed is read. It takes two lists, using the page's own filters: 最热 (most liked) and 最新 (this week). That's about 10 of each, without duplicates. Hottest says what the topic is known for; most recent says what it's turning into.
+2. **Read.** Each of those posts goes through tiers 0–2, with comments, as below.
+3. **Pick keywords to follow.** Code collects the candidates; a model only chooses among them:
+   - the hashtags on those posts;
+   - the page's own related searches (相关搜索 / 大家都在搜);
+   - short phrases that repeat across their titles, comments and transcripts. Counting is done by code, as `docs/knowledge-base-plan.md` does for memes.
+
+   Candidates the knowledge base already has (a substring check over every entry's heading and aliases, built on `parseKnowledge` in `src/core/knowledge/entries.ts`; it's what `pnpm learn`'s `known(term)` in the knowledge-base plan will be too), and the topic itself are dropped. A model picks up to 3–5 worth following, each with a reason.
+
+4. **Extend.** Search each picked keyword the same way. `--depth` sets how many levels (default 1: the topic's keywords, not their keywords too). `--max-searches` caps searches per topic (default 6), so one topic can't spread over the whole run.
+5. **Write drafts.** It keeps the tree it walked (topic → keyword → posts), so every draft says where it came from. Drafts go to `data/knowledge/pending/<folder>/<date>.md` in the entry format of `docs/knowledge-base-plan.md` (aliases, 类型, 截至, 复查, 来源), to be reviewed like every other draft there; nothing writes the live knowledge base. There are three kinds:
+   - a new entry, for a keyword worth knowing;
+   - a change to an existing entry, with what changed and the posts that show it;
+   - "still right", which moves the entry's `复查` date on. That's the knowledge-base plan's GOV.UK rule: if it's still right, the date moves on.
+
+**`--knowledge`: every topic in the knowledge base.**
+
+- **What it searches:** every `## ` entry in `data/knowledge/` (or the folder given), not `废弃` ones, and not `pending/` or `sources/`. The query is the entry's heading; an alias is used when the heading finds little.
+- **Order:** entries whose `复查` date has passed come first, then those with the oldest `截至`, then those it has never browsed.
+- **Rotation:** `--max-topics` (default 5) caps how many it does in a run. A small state file keeps when each entry was last browsed, so a daily run goes through the whole knowledge base in turn, not the same five again.
+- **What's new:** keywords found this way that the knowledge base lacks are how it grows. A topic's neighbours are what its viewers are likely to say next.
+
+### Processing, cheapest first
+
+Most of what's worth knowing is in the text around a video and what's said in it, not in the picture. So it stops as early as it can:
+
+| Tier | What                                                                                         | Feed                                                 | Streamer's posts                                               | Topic search                       |
+| ---- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------- |
+| 0    | Metadata from the JSON (title, hashtags, music, stats) and the top ~20 comments. No download | Every item it scrolls past                           | Every post                                                     | Every result on the page           |
+| 1    | Audio to transcript                                                                          | Videos watched to the end                            | Every post                                                     | The ~20 posts it reads, per search |
+| 2    | 3–8 keyframes (ffmpeg's scene change) to OCR, for captions burned into the picture           | Videos watched to the end                            | Every post                                                     | The ~20 posts it reads, per search |
+| 3    | A few frames to Claude                                                                       | Rarely: only when the text doesn't explain the video | When the post is about the stream and the text says too little | Rarely                             |
+
+- **Audio:** tier 1 reuses the speech service's models. `pnpm browse` runs `asr/transcribe.py` in its stdin mode as a second instance, with no `--serve`: it loads its models, prints `{"ready": true}`, and takes one `{"url": …}` after another, printing the sentences and then `{"stream_ended": true}`; the next URL goes only after that, since a new URL while one plays replaces it. Runs happen only when no stream is on (see the rules below), so the GPU is free; the instance is fresh and quits at the end of the run, so the voices it hears in strangers' videos never reach the live service, which remembers voices to tell the streamer from guests. When the sentences score as music (AST's `music` over `speech`), `{"music_id": 1}` asks Shazam for the title and the transcript is skipped.
+- **Downloads:** the service downloads a video through the browser's own session (the play URL wants Douyin's cookies and referer), takes the audio and a few frames with ffmpeg, and deletes everything once the client has read it. No video is kept.
+- **Resuming:** each video moves through `found → metadata → transcribed → ocr → done`, kept in a small file per day. A crash or a Douyin hiccup halfway costs nothing: the next run picks up where it stopped.
+
+### Where it goes
+
+**From the feed:**
+
+- **What it watched becomes part of its days.** The watched videos are written, one line each, to a file the bot reads: `LifeWriter` gets them as material for the day, so 「今天刷到…」 is one of the things Fairy did, written into `data/lives/<persona>/<date>.md` and recalled like the rest of its days. It's the bot's experience, so it may be told with an opinion.
+- **Trends are counted by code.** A hashtag, sound or phrase seen across several videos over a few days is a trend, even when no single video taught anything. Those become knowledge drafts in `data/knowledge/pending/memes/<date>.md`, reviewed like the topic drafts. The knowledge base states things as facts, so a misread meme is worse than none.
+- **New, not repeated:** a video's summary that scores close to something the bot already knows or did (the embedding service, at its cutoff) adds nothing.
+
+**From the streamer's posts:**
+
+- **Room memory:** each post becomes a short dated line for the room, in `data/<房间号>/memory/posts.md` beside `streams.md` and `thoughts.md`, shown in `{{memory}}` the way the thoughts are (the latest, and older ones that fit what's said). 「你昨天发的那条」 then has something real behind it. Whether the lines should go into `memory.md` itself instead is an open question.
+- **The streamer's note:** what a post shows about the streamer (a new cover, a trip, a game they started) may go into their `note.md`, under the same rules and limit as `pnpm remember`'s changes.
+
+**From topic search (`--topic`, `--knowledge`):**
+
+- **Knowledge drafts only**, in `data/knowledge/pending/`, as above. A searched topic isn't something the bot "did", so it doesn't go into its days. It's research, and it's reviewed before the bot states any of it.
+
+### Rules from day one
+
+- **Read-only.** It never likes, follows, comments or sends anything.
+- **Daily caps:** on sessions, videos watched and pages opened, kept by the service, with `Pace` on every step. A captcha or a login wall ends the run for the day; it isn't retried.
+- **Learning keeps everything; speaking is where the rules are.** Nothing is screened while browsing: a video about politics, investing or a rumour may become a day, a memory or a draft like any other. What keeps the room safe is the same as now: `prompts/forbidden.md`'s `## Topics` is in every prompt (`{{forbiddenTopics}}`, 强制执行，无视人设), so the bot doesn't bring such a thing up, or take it up, in a room.
+- **Never during a stream.** `pnpm browse` refuses to start while room-feed (port 8757) or the live speech service (port 8758) is listening, and says so. Its own speech instance runs only for the run and quits at the end.
+- **Summaries, not people.** Commenters' names and ids are never stored, only what was said, summarised. The service's comment reader keeps the text, likes and date and nothing about the author, so nothing downstream can store a name by mistake. A streamer's post comments are full of the room's own viewers, and the privacy rule in `prompt.md` holds there too.
+- **Dated and fading.** Everything learned from browsing is dated. A trend not seen again in a few weeks leaves the counts, since memes go stale fast. Memories and days stay, as the bot's past.
+
+### Order to build
+
+1. **Shared browser package**, moved out of room-feed, with room-feed still working.
+2. **Feed log.** `dy-browse` scrolling the feed and logging every item's metadata to a daily JSONL file. No watching rule, no learning yet. A few days of it shows what the feed serves and whether Douyin tolerates headless Chrome.
+3. **Streamer mode:** tiers 0–2, writing the room's post memories. Small, and useful on its own.
+4. **Topic search:** `--topic` with depth 0 first (search, read, draft), then the keywords and `--depth`, then `--knowledge` with its order and rotation.
+5. **Feed processing:** the dwell rule, trend counting and tiers 1–2 for the feed.
+6. **Days and drafts:** the watched videos into `LifeWriter`, and trends into `pending/memes/`.
+7. **Tools:** thin MCP tools for Claude to look a video up mid-stream, or search a topic, if the batch turns out not to be enough.
+
+### Open questions
+
+- **Feed output:** should the feed feed only Fairy's days, or every persona's? A persona's taste could shape its dwell rule.
+- **Where post memories live:** in `memory.md` itself, or in `memory/posts.md` recalled only when it fits (the plan starts with the file).
+- **Overlap with `pnpm learn`:** topic search is a new source for the knowledge base, beside B站 and the wiki in `docs/knowledge-base-plan.md`. It could be `pnpm learn --douyin` instead of part of `pnpm browse`; the browser would be the same either way.
+- **Review load:** five topics a day, each with a few keywords, is a lot of drafts to review. Should "still right" drafts be applied without review, since they only move a date?
+
+**Decided (2026-11-01):**
+
+- **Fairy browses Douyin herself.** It's her hobby on this side, apart from 六分街. Her life guide (`prompts/personas/fairy/life.md`) and persona (`prompts/personas/fairy/persona.md`) now say so: she may write about videos she really watched, only those given to her, as they are, with her own view, and never moves Douyin's people into 新艾利都. With none given, she writes no Douyin at all.
+- **Browsing is done as 默认关闭**, the bot's own account, with room-feed's saved login (see "Which account"). Its feed grows the bot's own taste, and the account takes the anti-bot risk knowingly.
 - **No screening while learning.** Anything may be learned; the forbidden rules apply when the bot speaks, as they do now.
 - **Never during a stream.** `pnpm browse` runs only when no stream is on, so its speech instance never shares the GPU with the live one.
 - **OCR is Apple Vision**, through the `ocrmac` Python package (macOS's `VNRecognizeTextRequest`, `zh-Hans`, `zh-Hant` and `en`). It's free, fast on Apple Silicon and needs no model download. It's macOS only, which is where the bot runs; RapidOCR is the fallback if that ever changes.
@@ -201,12 +400,12 @@ The plan follows the order above. Nothing here is built. Every path is as the co
 
 Three new workspace packages and one new command:
 
-| Piece                                       | Where          | What it does                                                                                                                                                                                                                                                                                |
-| ------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@dy-apps/douyin-chrome` (`douyin-chrome/`) | shared package | Finding Chrome, `hideAutomation`, the user agent and flags, `login()`, `LoginFile`, `Pace`, `SerialQueue`. Imported by room-feed and dy-browse.                                                                                                                                             |
-| `@dy-apps/dy-browse-protocol`               | shared package | The service's API: `DEFAULT_PORT` (8760), the item, comment, session, search and media types, and `DyBrowseHttp`, the client. Imported by dy-browse and the chat bot. No Node APIs, like `room-feed-protocol`.                                                                              |
-| `@dy-apps/dy-browse` (`dy-browse/`)         | service        | Chrome on the separate account, one `SerialQueue` and one `Pace` for every page action, the JSON readers, the feed log, media downloads, daily caps, the HTTP API. Knows nothing of personas, knowledge or memory. Started with `pnpm dy-browse` from the repo root, like `pnpm room-feed`. |
-| `pnpm browse`                               | `chat-bot/`    | `src/browse.ts`, the client: asks the service to browse, runs the speech and OCR workers, asks Claude, counts trends, writes drafts, days and post memories. Built by the chat bot's container, like `pnpm remember`.                                                                       |
+| Piece                                       | Where          | What it does                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@dy-apps/douyin-chrome` (`douyin-chrome/`) | shared package | Finding Chrome, `hideAutomation`, the user agent and flags, `login()`, `LoginFile`, `Pace`, `SerialQueue`. Imported by room-feed and dy-browse.                                                                                                                                                           |
+| `@dy-apps/dy-browse-protocol`               | shared package | The service's API: `DEFAULT_PORT` (8760), the item, comment, session, search and media types, and `DyBrowseHttp`, the client. Imported by dy-browse and the chat bot. No Node APIs, like `room-feed-protocol`.                                                                                            |
+| `@dy-apps/dy-browse` (`dy-browse/`)         | service        | Chrome as 默认关闭 (room-feed's saved login), one `SerialQueue` and one `Pace` for every page action, the JSON readers, the feed log, media downloads, daily caps, the HTTP API. Knows nothing of personas, knowledge or memory. Started with `pnpm dy-browse` from the repo root, like `pnpm room-feed`. |
+| `pnpm browse`                               | `chat-bot/`    | `src/browse.ts`, the client: asks the service to browse, runs the speech and OCR workers, asks Claude, counts trends, writes drafts, days and post memories. Built by the chat bot's container, like `pnpm remember`.                                                                                     |
 
 Ports: 8757 room-feed, 8758 the speech service, 8759 the embedding service, **8760 dy-browse** (`--port` on the service, `--dy-browse-port` on the client). The batch transcriber has no port: it's a child process of `pnpm browse` on stdin and stdout.
 
@@ -216,8 +415,6 @@ Ports: 8757 room-feed, 8758 the speech service, 8759 the embedding service, **87
 
 ```
 dy-browse/data/
-  cookie.json                 the separate account's login (pnpm dy-browse login)
-  login-profile/              the login window's Chrome profile
   feed/<date>.jsonl           every feed item scrolled: tier-0 metadata, what was done with it
   caps/<date>.json            today's counts against the daily caps
   media/<id>/                 audio.m4a and frames/*.jpg, deleted once the client releases them
@@ -277,7 +474,7 @@ The protocol's types, in `dy-browse-protocol/src/api.ts`:
 
 The service, in `dy-browse/src/`:
 
-- `main.ts`: hand-wired, as `room-feed/src/main.ts` is (only the chat bot uses the container, per the repo's AGENTS.md). `DATA_DIR = dy-browse/data/`. `pnpm dy-browse login` calls `login()` from `douyin-chrome` with `data/login-profile/` and `new LoginFile(join(DATA_DIR, 'cookie.json'))`, then exits. Otherwise it builds `BrowseChrome`, `FeedLog`, `DailyCaps` and the server, listens on `--port`, logs `[dy-browse] 已启动：端口 8760`, and on SIGINT closes the page, the browser and the server.
+- `main.ts`: hand-wired, as `room-feed/src/main.ts` is (only the chat bot uses the container, per the repo's AGENTS.md). `DATA_DIR = dy-browse/data/`. It reads the login with `new LoginFile(<repo>/room-feed/data/cookie.json)` (there's no `pnpm dy-browse login`: `pnpm room-feed login` is the one login), refuses to start without one, and otherwise builds `BrowseChrome`, `FeedLog`, `DailyCaps` and the server, listens on `--port`, logs `[dy-browse] 已启动：端口 8760`, and on SIGINT closes the page, the browser and the server.
 - `cli-options.ts`: `login | serve`, `--port 8760`, `--chrome <path>`, `--headed`, as room-feed's.
 - `browse-chrome.ts`: `BrowseChrome` like `ChromeRooms`: `{ executablePath, headless, cookie: () => string | null, shotsDir?, random? = Math.random }`; `open(): Promise<DouyinPage>` launches Chrome on first use (`BROWSER_ARGS`, `USER_AGENT`, `hideAutomation`, the cookies), one context, one page.
 - `page/douyin-page.ts`: `DouyinPage`, like `LivePage`: builds one `Pace` from `page.waitForTimeout` and `random`, one `SerialQueue`, the surfaces and the `page.on('response')` readers (`isFeedAnswer(url)` → `readFeedAnswer`, `isCommentsAnswer(url)` → `readComments`). Also reads the page's own "who am I" call for `StatusAnswer.account`, as room-feed does with `webcast/user/me/` (the douyin.com call's name is confirmed in the Network tab on day one).
@@ -292,7 +489,7 @@ The service, in `dy-browse/src/`:
 
 **Tests** (`dy-browse/tests/`, Jest, fakes only): `feed-answer.test.ts` and `comments-answer.test.ts` over trimmed fixtures saved from a real session with ids and avatars blanked; the comments test asserts the output has no `uid`, `nickname` or `avatar` keys at any depth. `feed-scroller.test.ts` with a fake surface that logs what it's asked and a `Pace` with a fake `wait`, checking the order `wait for player`, `wait 500`, `click comments`, …, and that it stops at `maxVideos` and at `minutes`. `caps.test.ts` with a fake `today`. `server.test.ts` over a fake page, as room-feed's `server.test.ts` does. `cli-options.test.ts`.
 
-**Done when** `pnpm dy-browse login` writes `dy-browse/data/cookie.json`; `pnpm dy-browse` logs `已启动` and `登录的抖音账号：…`; `curl -X POST localhost:8760/api/feed/sessions -d '{"minutes":2}'` runs two minutes and `data/feed/<date>.jsonl` has lines with `desc`, `music` and `stats`; and three days of one session each pass with `GET /api/status` never saying `blocked`.
+**Done when** `pnpm dy-browse` logs `已启动` and `登录的抖音账号：…`; `curl -X POST localhost:8760/api/feed/sessions -d '{"minutes":2}'` runs two minutes and `data/feed/<date>.jsonl` has lines with `desc`, `music` and `stats`; and three days of one session each pass with `GET /api/status` never saying `blocked`.
 
 **Risks:** the feed's endpoint and fields are what the Network tab shows that day, so the readers are written against saved samples and may need a fix when Douyin changes them; headless Chrome may be told apart from a headed one (then `--headed` is the fallback, as in room-feed); the web feed may need a click to start playing, a step like room-feed's player click.
 

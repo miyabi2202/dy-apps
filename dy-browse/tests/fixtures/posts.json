@@ -1,0 +1,46 @@
+{
+  "_fixture": "HAND-WRITTEN GUESS (user post list: aweme_list, has_more, max_cursor), not a real capture. Replace after the first manual run.",
+  "status_code": 0,
+  "has_more": 1,
+  "max_cursor": 1761000000000,
+  "aweme_list": [
+    {
+      "aweme_id": "7400000000000000003",
+      "desc": "今天唱了新歌 #翻唱",
+      "create_time": 1761955200,
+      "aweme_type": 0,
+      "text_extra": [{ "hashtag_name": "翻唱" }],
+      "music": { "title": "海阔天空", "author": "Beyond" },
+      "statistics": { "digg_count": 900, "comment_count": 40, "share_count": 2 },
+      "author": { "nickname": "主播小A", "sec_uid": "MS4wLjABAAAAstreamer" },
+      "video": {
+        "duration": 60000,
+        "play_addr": { "url_list": ["https://v.example.invalid/3.mp4"] }
+      }
+    },
+    {
+      "aweme_id": "7400000000000000002",
+      "desc": "昨天的直播回放剪辑",
+      "create_time": 1761868800,
+      "aweme_type": 0,
+      "statistics": { "digg_count": 300, "comment_count": 10, "share_count": 1 },
+      "author": { "nickname": "主播小A", "sec_uid": "MS4wLjABAAAAstreamer" },
+      "video": {
+        "duration": 30000,
+        "play_addr": { "url_list": ["https://v.example.invalid/2.mp4"] }
+      }
+    },
+    {
+      "aweme_id": "7400000000000000001",
+      "desc": "旅行 vlog",
+      "create_time": 1761782400,
+      "aweme_type": 0,
+      "statistics": { "digg_count": 100, "comment_count": 5, "share_count": 0 },
+      "author": { "nickname": "主播小A", "sec_uid": "MS4wLjABAAAAstreamer" },
+      "video": {
+        "duration": 45000,
+        "play_addr": { "url_list": ["https://v.example.invalid/1.mp4"] }
+      }
+    }
+  ]
+}

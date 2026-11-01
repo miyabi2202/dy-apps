@@ -1,6 +1,6 @@
 import type { LikeResult } from '@dy-apps/room-feed-protocol';
 import { LikeTally } from './like-tally';
-import { Pace } from './pace';
+import { Pace } from '@dy-apps/douyin-chrome';
 
 /** How often a held key sends keydown again, about as often as a held key repeats. */
 const LIKE_REPEAT_MS = 100;

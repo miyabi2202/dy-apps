@@ -1,7 +1,7 @@
 import type { HeartResult } from '@dy-apps/room-feed-protocol';
 import { closeDownloadGuide, type DownloadGuide } from './download-guide';
 import { PageActionError } from './errors';
-import { Pace } from './pace';
+import { Pace } from '@dy-apps/douyin-chrome';
 import { closeRightPanel, type RightPanel } from './right-panel';
 
 /** The gift it sends, by its name in the gift panel's search: 1 diamond. */

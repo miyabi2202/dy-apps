@@ -11,7 +11,7 @@ export interface PaceOptions {
 }
 
 /**
- * How room-feed works Douyin's page, one step at a time, as a person would: wait for what the
+ * How room-feed and dy-browse work Douyin's page, one step at a time, as a person would: wait for what the
  * step acts on to show, pause 500–1000 ms (at random), then act (a click, typing). Never act before the
  * target is seen, and never act the moment it is.
  */

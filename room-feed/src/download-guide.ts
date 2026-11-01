@@ -1,4 +1,4 @@
-import type { Pace } from './pace';
+import type { Pace } from '@dy-apps/douyin-chrome';
 
 /**
  * Douyin's 「下载电脑客户端」 popup, which the page shows now and then (a minute or so in, or not at

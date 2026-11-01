@@ -23,3 +23,17 @@ export function lifeLines(entries: readonly string[]): string {
     .map((entry) => `- ${entry}`)
     .join('\n');
 }
+
+/** How many of the videos the persona watched the prompt shows. */
+export const WATCHED_SHOWN = 5;
+
+/** The day before `date` (`YYYY-MM-DD`). */
+export function dayBefore(date: string): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(Date.UTC(year!, month! - 1, day! - 1)).toISOString().slice(0, 10);
+}
+
+/** `lines` as the prompt lists them, a `- ` each. */
+export function watchedList(lines: readonly string[]): string {
+  return lines.map((line) => `- ${line}`).join('\n');
+}

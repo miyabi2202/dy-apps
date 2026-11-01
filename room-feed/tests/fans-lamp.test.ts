@@ -4,7 +4,7 @@ import {
   type PanelFrame,
   type PanelTarget,
 } from '../src/fans-lamp';
-import { Pace } from '../src/pace';
+import { Pace } from '@dy-apps/douyin-chrome';
 
 /** What one opening of the panel shows: the targets of each of its frames. */
 interface Opening {

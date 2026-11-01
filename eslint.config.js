@@ -78,6 +78,8 @@ export default tseslint.config(
       'lyrics-search/tests/**/*.ts',
       'room-memory/tests/**/*.ts',
       'room-feed/tests/**/*.ts',
+      'douyin-chrome/tests/**/*.ts',
+      'dy-browse/tests/**/*.ts',
     ],
     languageOptions: { globals: globals.jest },
   },
@@ -204,7 +206,6 @@ export default tseslint.config(
       'room-feed/src/fans-lamp.ts',
       'room-feed/src/heart-gift.ts',
       'room-feed/src/like-hold.ts',
-      'room-feed/src/pace.ts',
       'room-feed/src/right-panel.ts',
       'room-feed/src/download-guide.ts',
       'room-feed/src/room.ts',
@@ -219,6 +220,61 @@ export default tseslint.config(
             {
               group: ['playwright-core', 'playwright-core/*'],
               message: 'Steps know nothing of Playwright: the page surfaces in page/ do.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // douyin-chrome: Pace, SerialQueue and parseRoomMeta know nothing of Playwright; chrome.ts and
+  // login.ts do.
+  {
+    files: [
+      'douyin-chrome/src/pace.ts',
+      'douyin-chrome/src/serial-queue.ts',
+      'douyin-chrome/src/room-meta.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['playwright-core', 'playwright-core/*'],
+              message: 'Steps know nothing of Playwright: the page surfaces do.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // dy-browse: the logic (core/, app/, douyin/) knows neither Node nor Playwright; files, processes,
+  // Claude and the browser are in adapters/ and page/, and the entry (main.ts) wires them.
+  {
+    files: [
+      'dy-browse/src/core/**/*.ts',
+      'dy-browse/src/app/**/*.ts',
+      'dy-browse/src/douyin/**/*.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['playwright-core', 'playwright-core/*'],
+              message: 'Steps know nothing of Playwright: the page surfaces in page/ do.',
+            },
+            {
+              group: ['node:*'],
+              message: 'File and process I/O lives in adapters/, which implement app/ports.ts.',
+            },
+            {
+              group: ['**/adapters/*', '**/page/*'],
+              message:
+                'core, app and douyin never import adapters/ or page/: the entry wires them.',
             },
           ],
         },

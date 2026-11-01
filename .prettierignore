@@ -9,3 +9,4 @@ chat-bot/data
 chat-bot/logs
 room-feed/data
 room-memory/tests/fixtures
+dy-browse/data

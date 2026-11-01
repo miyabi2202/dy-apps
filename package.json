@@ -9,6 +9,7 @@
   },
   "scripts": {
     "room-feed": "pnpm --filter @dy-apps/room-feed start",
+    "browse": "pnpm --filter @dy-apps/dy-browse start",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint --max-warnings 0 .",
     "test": "pnpm -r test",

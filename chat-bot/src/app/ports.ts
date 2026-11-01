@@ -56,6 +56,15 @@ export interface LifeLog {
 }
 
 /**
+ * The videos the persona's account watched while browsing Douyin (`pnpm browse --feed` writes them
+ * to data/browse/watched/<date>.md, a line a video): only read here, for her days (see LifeWriter).
+ */
+export interface Watched {
+  /** The latest `limit` lines of those `dates` (`YYYY-MM-DD`), oldest first, each as a plain sentence; empty when none. */
+  recent(dates: readonly string[], limit: number): string[];
+}
+
+/**
  * The bot's own thoughts after each stream in a room (see RememberChat): what it made of it, in its
  * persona's voice, one a line with the day it's about. Only ever added to.
  */
@@ -66,6 +75,15 @@ export interface Thoughts {
   all(): string[];
   /** Adds `entries`, each about the stream on `date` (`2026-10-31`, or a span of days). */
   add(date: string, entries: readonly string[]): void;
+}
+
+/**
+ * The streamer's own posts on Douyin, as `pnpm browse --streamer` wrote them to the room's
+ * memory/posts.md: only read here.
+ */
+export interface Posts {
+  /** The latest few, oldest first, `2026-10-31：…` a line, within a size cap; empty when there are none. */
+  recent(): string;
 }
 
 /**

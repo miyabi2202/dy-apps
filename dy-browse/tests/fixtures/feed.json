@@ -1,0 +1,75 @@
+{
+  "_fixture": "HAND-WRITTEN GUESS from the field names Douyin's web API is known to use, not a real capture. Replace with a trimmed real response (ids and avatars blanked) after the first manual run.",
+  "status_code": 0,
+  "has_more": 1,
+  "aweme_list": [
+    {
+      "aweme_id": "7300000000000000001",
+      "desc": "新出的鸣潮角色太帅了 #鸣潮 #今汐 @某人",
+      "create_time": 1761955200,
+      "aweme_type": 0,
+      "is_ads": false,
+      "text_extra": [
+        { "type": 1, "hashtag_name": "鸣潮" },
+        { "type": 1, "hashtag_name": "今汐" },
+        { "type": 1, "hashtag_name": "鸣潮" },
+        { "type": 0, "user_id": "123" }
+      ],
+      "music": { "title": "原声 - 某某", "author": "某某" },
+      "statistics": { "digg_count": 12000, "comment_count": 345, "share_count": 67 },
+      "author": {
+        "nickname": "游戏剪辑君",
+        "sec_uid": "MS4wLjABAAAAfake1",
+        "avatar_thumb": { "url_list": ["https://example.invalid/a.jpg"] }
+      },
+      "video": {
+        "duration": 15200,
+        "play_addr": {
+          "url_list": [
+            "//v26.example.invalid/video/tos/1.mp4",
+            "https://backup.example.invalid/1.mp4"
+          ]
+        }
+      }
+    },
+    {
+      "aweme_id": "7300000000000000002",
+      "desc": "今天的穿搭图",
+      "create_time": 1761958800,
+      "aweme_type": 68,
+      "text_extra": [],
+      "music": { "title": "春天里", "author": "汪峰" },
+      "statistics": { "digg_count": 80, "comment_count": 3, "share_count": 0 },
+      "author": { "nickname": "穿搭日记", "sec_uid": "MS4wLjABAAAAfake2" },
+      "images": [
+        { "url_list": ["https://example.invalid/i1.jpeg"] },
+        { "url_list": ["https://example.invalid/i2.jpeg"] }
+      ]
+    },
+    {
+      "aweme_id": "7300000000000000003",
+      "desc": "限时优惠 点击购买",
+      "aweme_type": 0,
+      "is_ads": true,
+      "raw_ad_data": { "creative_id": 1 },
+      "statistics": { "digg_count": 5 },
+      "author": { "nickname": "某品牌", "sec_uid": "MS4wLjABAAAAfake3" }
+    },
+    {
+      "aweme_id": "7300000000000000004",
+      "desc": "直播中",
+      "aweme_type": 101,
+      "room_id": "7300000000000000099",
+      "author": { "nickname": "某主播", "sec_uid": "MS4wLjABAAAAfake4" }
+    },
+    {
+      "aweme_id": "7300000000000000005",
+      "desc": "同款链接在下面",
+      "aweme_type": 201,
+      "product_info": { "id": "p1" },
+      "author": { "nickname": "带货号", "sec_uid": "MS4wLjABAAAAfake5" }
+    },
+    { "desc": "no id: left out" },
+    "not an object"
+  ]
+}

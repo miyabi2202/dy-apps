@@ -1,10 +1,12 @@
 packages:
   - frontend
   - chat-bot
+  - douyin-chrome
   - room-feed
   - room-feed-protocol
   - lyrics-search
   - room-memory
+  - dy-browse
 
 allowBuilds:
   '@parcel/watcher': true

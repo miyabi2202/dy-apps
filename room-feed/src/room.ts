@@ -13,7 +13,7 @@ import type {
 } from '@dy-apps/room-feed-protocol';
 import { NotLiveError, RoomEndedError } from './errors';
 import type { OpenRoomPage, RoomPage } from './room-page';
-import { SerialQueue } from './serial-queue';
+import { SerialQueue } from '@dy-apps/douyin-chrome';
 
 /** Cancels what `schedule` set up. */
 type Cancel = () => void;

@@ -41,6 +41,8 @@ export interface RoomStateOptions {
    * latest, and older ones that fit what's being said; see MemoryRecall).
    */
   thoughts?: () => string;
+  /** The streamer's own latest posts on Douyin (memory/posts.md) for `{{memory}}`, read each time. */
+  posts?: () => string;
   /** Who the streamer is, for their note and for leaving the asker's own out. */
   streamer?: Pick<Streamer, 'id'>;
   /** Whether the room is 私密 (room_config.json's `private`): viewers' notes are left out there. */
@@ -154,6 +156,7 @@ export class RoomState {
       memory: memory?.roomText(),
       streamerNote: streamerId ? memory?.noteText(streamerId) : undefined,
       thoughts: this.options.thoughts?.(),
+      posts: this.options.posts?.(),
       commonKnowledge: this.options.commonKnowledge?.(),
       intro: intro?.(),
       limitations: limitations?.(),

@@ -1,0 +1,34 @@
+{
+  "_fixture": "HAND-WRITTEN GUESS (comment list: comments[] with text, digg_count, create_time, user), not a real capture. Replace after the first manual run.",
+  "status_code": 0,
+  "has_more": 0,
+  "cursor": 20,
+  "comments": [
+    {
+      "cid": "c1",
+      "text": "这个梗我也刷到好几次了",
+      "digg_count": 321,
+      "create_time": 1761960000,
+      "user": {
+        "uid": "999111",
+        "sec_uid": "MS4wLjABAAAAcommenter1",
+        "nickname": "路人甲秘密昵称",
+        "avatar_thumb": { "url_list": ["https://example.invalid/c1.jpg"] }
+      },
+      "reply_comment": [{ "text": "回复里的话", "user": { "nickname": "路人乙秘密昵称" } }]
+    },
+    {
+      "cid": "c2",
+      "text": "  ",
+      "digg_count": 5,
+      "user": { "nickname": "空评论" }
+    },
+    {
+      "cid": "c3",
+      "text": "求出处",
+      "digg_count": 12,
+      "create_time": 1761960900,
+      "user": { "uid": "999222", "nickname": "路人丙秘密昵称" }
+    }
+  ]
+}

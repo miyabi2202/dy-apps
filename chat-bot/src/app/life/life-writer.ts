@@ -1,11 +1,18 @@
 import { errorMessage } from '../../core/errors';
-import { lifeLines, lifeText } from '../../core/prompts/life';
+import {
+  dayBefore,
+  lifeLines,
+  lifeText,
+  WATCHED_SHOWN,
+  watchedList,
+} from '../../core/prompts/life';
 import { localDate } from '../../core/prompts/local-time';
 import { parseJsonObject } from '../../core/replies/json-answer';
 import { fillTemplate } from '../../core/prompts/template';
+import type { Wording } from '../../core/prompts/wording';
 import { askJson } from '../models/ask-json';
 import { ModelFeature } from '../models/model-feature';
-import type { AskModel, LifeLog, Log } from '../ports';
+import type { AskModel, LifeLog, Log, Watched } from '../ports';
 
 export interface LifeWriterOptions {
   /** Claude. */
@@ -13,6 +20,13 @@ export interface LifeWriterOptions {
   /** The prompt (life.md), read each time so edits apply at once. */
   promptTemplate: () => string;
   life: LifeLog;
+  /**
+   * The videos her account watched browsing Douyin, today's and yesterday's, for `{{watched}}`;
+   * none, and the block is empty. The real one reads data/browse/watched/ (see registerLife).
+   */
+  watched?: Watched;
+  /** The sentences around them (wording.md's `watched`); without it the block is empty. */
+  wording?: Wording;
   /** The shared persona the room plays now (its persona file's `base`); none for no life. */
   persona: () => string | undefined;
   /** That shared persona's text, as it is in chat-bot/prompts/personas/<persona>/persona.md. */
@@ -115,8 +129,16 @@ export class LifeWriter extends ModelFeature<Day, string[]> {
       persona: personaText(persona).trim(),
       guide: guide.trim(),
       recentLife: lifeText(life.recent(persona, days)) || '（还没有）',
+      watched: this.watchedBlock(today.slice(0, 10)),
       today,
     });
+  }
+
+  /** The `{{watched}}` block: the videos she watched today and yesterday, at most a few; empty without any. */
+  private watchedBlock(date: string): string {
+    const { watched, wording } = this.options;
+    const lines = watched?.recent([dayBefore(date), date], WATCHED_SHOWN) ?? [];
+    return lines.length && wording ? wording('watched', { watched: watchedList(lines) }) : '';
   }
 
   protected async ask({ persona }: Day, prompt: string): Promise<string[] | undefined> {

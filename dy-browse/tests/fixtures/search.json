@@ -1,0 +1,60 @@
+{
+  "_fixture": "HAND-WRITTEN GUESS (search results: data[].aweme_info, related words), not a real capture. Replace after the first manual run.",
+  "status_code": 0,
+  "has_more": 1,
+  "data": [
+    {
+      "type": 1,
+      "aweme_info": {
+        "aweme_id": "7500000000000000001",
+        "desc": "鸣潮 3.0 新版本前瞻 #鸣潮 #3.0",
+        "create_time": 1761955200,
+        "aweme_type": 0,
+        "text_extra": [{ "hashtag_name": "鸣潮" }, { "hashtag_name": "3.0" }],
+        "music": { "title": "原声", "author": "官方" },
+        "statistics": { "digg_count": 50000, "comment_count": 900, "share_count": 300 },
+        "author": { "nickname": "游戏资讯", "sec_uid": "MS4wLjABAAAAs1" },
+        "video": {
+          "duration": 90000,
+          "play_addr": { "url_list": ["https://v.example.invalid/s1.mp4"] }
+        }
+      }
+    },
+    {
+      "type": 1,
+      "aweme_info": {
+        "aweme_id": "7500000000000000002",
+        "desc": "鸣潮 今汐 抽卡出货 #鸣潮 #今汐",
+        "create_time": 1761958800,
+        "aweme_type": 0,
+        "text_extra": [{ "hashtag_name": "鸣潮" }, { "hashtag_name": "今汐" }],
+        "statistics": { "digg_count": 2000, "comment_count": 60, "share_count": 9 },
+        "author": { "nickname": "抽卡玩家", "sec_uid": "MS4wLjABAAAAs2" },
+        "video": {
+          "duration": 20000,
+          "play_addr": { "url_list": ["https://v.example.invalid/s2.mp4"] }
+        }
+      }
+    },
+    {
+      "type": 3,
+      "aweme_mix_info": {
+        "mix_items": [
+          {
+            "aweme_id": "7500000000000000003",
+            "desc": "合集里的一条 #鸣潮",
+            "statistics": { "digg_count": 10 },
+            "author": { "nickname": "合集作者", "sec_uid": "MS4wLjABAAAAs3" }
+          }
+        ]
+      }
+    },
+    {
+      "type": 999,
+      "word_list": [{ "word": "鸣潮 今汐" }, { "word": "鸣潮 抽卡" }, { "word": "鸣潮 今汐" }]
+    }
+  ],
+  "suggest_words": {
+    "suggest_words": [{ "words": [{ "word": "鸣潮 卡池" }, { "word": "" }] }]
+  }
+}

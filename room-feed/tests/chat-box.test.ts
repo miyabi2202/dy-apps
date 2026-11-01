@@ -1,5 +1,5 @@
 import { ChatBox, type ChatSurface } from '../src/chat-box';
-import { Pace } from '../src/pace';
+import { Pace } from '@dy-apps/douyin-chrome';
 
 /** A chat box holding `left` (what an earlier chat left), logging what it's asked, in order. */
 function setup({

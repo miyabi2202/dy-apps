@@ -140,3 +140,20 @@ test("{{memory}} ends with the bot's own thoughts after the last streams, and le
   );
   expect(buildPrompt('{{memory}}', { ...input, thoughts: ' ' })).toBe('');
 });
+
+test("{{memory}} shows the streamer's latest posts after the thoughts, and leaves them out when there are none", () => {
+  const filled = buildPrompt('{{memory}}', {
+    ...input,
+    memory: '主播叫咿咿\n',
+    thoughts: '2026-10-31：想问的',
+    posts: '2026-10-30：翻唱了稻香\n',
+  });
+  expect(filled).toContain('主播自己最近在抖音上发的作品');
+  expect(filled).toContain('2026-10-30：翻唱了稻香');
+  expect(filled.indexOf('想问的')).toBeLessThan(filled.indexOf('翻唱了稻香'));
+  // Posts with nothing else remembered still come.
+  expect(buildPrompt('{{memory}}', { ...input, posts: '2026-10-30：翻唱了稻香' })).toContain(
+    '翻唱了稻香',
+  );
+  expect(buildPrompt('{{memory}}', { ...input, posts: ' ' })).toBe('');
+});

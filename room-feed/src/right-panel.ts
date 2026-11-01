@@ -1,4 +1,4 @@
-import type { Pace } from './pace';
+import type { Pace } from '@dy-apps/douyin-chrome';
 
 /** The panel on the right of the room page (the 粉丝团 one, the gift one, …), as far as closing it goes. */
 export interface RightPanel {

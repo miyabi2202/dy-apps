@@ -12,3 +12,4 @@ playwright/.cache
 .wrangler
 storybook-static
 room-feed/data
+dy-browse/data

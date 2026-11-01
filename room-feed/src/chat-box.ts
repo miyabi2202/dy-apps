@@ -1,5 +1,5 @@
 import { PageActionError } from './errors';
-import { Pace } from './pace';
+import { Pace } from '@dy-apps/douyin-chrome';
 
 /** How long after Enter the box is looked at, to see that it emptied. */
 const SENT_LOOK_MS = 500;

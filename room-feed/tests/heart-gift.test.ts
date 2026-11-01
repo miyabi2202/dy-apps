@@ -1,5 +1,5 @@
 import { HeartGift, type GiftPanelSurface } from '../src/heart-gift';
-import { Pace } from '../src/pace';
+import { Pace } from '@dy-apps/douyin-chrome';
 
 /** A gift bar and panel whose balance and search are scripted; everything it's asked is logged, in order. */
 class FakeSurface implements GiftPanelSurface {

@@ -1,6 +1,9 @@
 import { LifeWriter } from '../../../src/app/life/life-writer';
-import type { LifeDay, LifeLog, Question } from '../../../src/app/ports';
+import type { LifeDay, LifeLog, Question, Watched } from '../../../src/app/ports';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { silentLog } from '../../support/fakes';
+import { testWording } from '../../support/wording';
 
 /** A life log in memory. */
 function fakeLife(
@@ -26,6 +29,7 @@ function setup({
   life = fakeLife(),
   persona = 'fairy',
   guide = '六分街的设定',
+  watched,
 }: {
   answer?: string;
   life?: ReturnType<typeof fakeLife>;
@@ -33,6 +37,8 @@ function setup({
   persona?: string | null;
   /** Her guide; null for none. */
   guide?: string | null;
+  /** What her account watched; none without. */
+  watched?: Watched;
 } = {}) {
   let now = SATURDAY;
   const questions: Question[] = [];
@@ -43,8 +49,10 @@ function setup({
       return reply();
     },
     promptTemplate: () =>
-      '人设：{{persona}}\n设定：{{guide}}\n最近：\n{{recentLife}}\n今天：{{today}}',
+      '人设：{{persona}}\n设定：{{guide}}\n最近：\n{{recentLife}}\n{{watched}}今天：{{today}}',
     life,
+    watched,
+    wording: (name, values) => `[${name}]\n${values?.watched}`,
     persona: () => persona ?? undefined,
     personaText: (name) => `${name} 的人设`,
     guide: () => guide,
@@ -119,4 +127,42 @@ test('a day another bot wrote first is kept, and a failed or empty answer is tri
   const empty = setup({ answer: '{"entries":["  "]}' });
   await empty.writer.tick();
   expect(empty.life.days.fairy).toBeUndefined();
+});
+
+test("{{watched}} lists what her account watched yesterday and today, at most five, and is empty when there's none", async () => {
+  const asked: { dates: readonly string[]; limit: number }[] = [];
+  const watched: Watched = {
+    recent(dates, limit) {
+      asked.push({ dates, limit });
+      return ['看了 @某人 的视频「猫」', '看了 @另一个人 的视频「做饭」'];
+    },
+  };
+  const some = setup({ watched });
+  await some.writer.tick();
+  expect(asked).toEqual([{ dates: ['2026-10-30', '2026-10-31'], limit: 5 }]);
+  expect(some.questions[0]!.prompt).toContain(
+    '[watched]\n- 看了 @某人 的视频「猫」\n- 看了 @另一个人 的视频「做饭」',
+  );
+
+  // The day before the first of a month is the last of the one before.
+  const first = setup({ watched });
+  first.at(Date.UTC(2026, 10, 1, 2, 0, 0));
+  await first.writer.tick();
+  expect(asked[1]!.dates).toEqual(['2026-10-31', '2026-11-01']);
+
+  const none = setup({ watched: { recent: () => [] } });
+  await none.writer.tick();
+  expect(none.questions[0]!.prompt).not.toContain('[watched]');
+  const without = setup();
+  await without.writer.tick();
+  expect(without.questions[0]!.prompt).not.toContain('[watched]');
+});
+
+test('the real wording and life.md: the block fills {{watched}}, and says to write nothing of Douyin unless her guide says she browses it', () => {
+  const block = testWording('watched', { watched: '- 看了 @某人 的视频「猫」' });
+  expect(block).toContain('- 看了 @某人 的视频「猫」');
+  expect(block).toContain('设定里写了她会刷抖音');
+  expect(block).toContain('一个字也别写抖音上的事');
+  const template = readFileSync(join(__dirname, '..', '..', '..', 'prompts', 'life.md'), 'utf8');
+  expect(template).toContain('{{watched}}');
 });

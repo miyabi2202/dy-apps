@@ -4,7 +4,7 @@ Not built yet. We can't test it until a login has actually been rejected, so thi
 
 ## The problem
 
-room-feed decides whether it's logged in only from `data/cookie.json`. `LoginFile.read()` (`src/login-file.ts`) checks the `expiresAt` that was saved when you logged in. Douyin can end a session long before then: you log out elsewhere, the session is kicked from 登录设备管理, or the account has to be verified again. When that happens:
+room-feed decides whether it's logged in only from `data/cookie.json`. `LoginFile.read()` (`douyin-chrome/src/login-file.ts`) checks the `expiresAt` that was saved when you logged in. Douyin can end a session long before then: you log out elsewhere, the session is kicked from 登录设备管理, or the account has to be verified again. When that happens:
 
 - `main.ts` still prints `已登录，有效期到 …`, and `GET /api/rooms/<id>` still reports `login: { expiresAt }`.
 - The page opens logged out. Chat still comes in, but gifts don't, and the first chat the bot sends fails with `找不到弹幕输入框（没有登录、被禁言，或者抖音改版了）`. That error looks the same as being muted or a Douyin page change.

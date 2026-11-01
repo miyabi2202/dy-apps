@@ -2,20 +2,22 @@
 
 Small live-stream apps, served as one site: an index page at `/` and each app on its own route. The site lives in one package, [`frontend/`](frontend) (`@dy-apps/frontend`), inside a pnpm workspace. Beside it, [`chat-bot/`](chat-bot) (`@dy-apps/chat-bot`) is a command-line bot, not a web page, and [`room-feed/`](room-feed) (`@dy-apps/room-feed`) the local server both get a live room's chat and gifts from.
 
-| Path                                 | What it is                                                                       |
-| ------------------------------------ | -------------------------------------------------------------------------------- |
-| `frontend/src/`                      | The site itself: index page, React Router, entry (`main.tsx`)                    |
-| `frontend/src/apps/tetris/`          | 方块干预实验室 at `/tetris`: block game with audience curses                     |
-| `frontend/src/apps/danmaku/`         | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                           |
-| `frontend/src/apps/gift-pile/`       | 嘉年华堆堆乐 at `/gift-pile`: icons fall from the top and pile up, up to 100k    |
-| `frontend/src/apps/room-feed-guide/` | room-feed Windows 安装教程 at `/room-feed-windows`, for streamers                |
-| `frontend/src/services/`             | Shared non-UI code: wall messages, likes, fake data and saved settings           |
-| `frontend/src/ui/`                   | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …) |
-| `chat-bot/`                          | A bot that chats in a live room: answers @s, joins in, names songs, thanks gifts |
-| `room-feed-protocol/`                | What room-feed sends and answers: events, status frames, HTTP API types, URLs    |
-| `lyrics-search/`                     | Names a song from the lines sung with NetEase's lyrics search, for the chat bot  |
-| `room-memory/`                       | What the chat bot remembers: memory files, limits, who may change what, archive  |
-| `room-feed/`                         | The server that reads a live room in Chrome and sends its chat and gifts on      |
+| Path                                 | What it is                                                                         |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| `frontend/src/`                      | The site itself: index page, React Router, entry (`main.tsx`)                      |
+| `frontend/src/apps/tetris/`          | 方块干预实验室 at `/tetris`: block game with audience curses                       |
+| `frontend/src/apps/danmaku/`         | 弹幕墙 at `/danmaku`: transparent chat overlay for OBS                             |
+| `frontend/src/apps/gift-pile/`       | 嘉年华堆堆乐 at `/gift-pile`: icons fall from the top and pile up, up to 100k      |
+| `frontend/src/apps/room-feed-guide/` | room-feed Windows 安装教程 at `/room-feed-windows`, for streamers                  |
+| `frontend/src/services/`             | Shared non-UI code: wall messages, likes, fake data and saved settings             |
+| `frontend/src/ui/`                   | Shared design tokens and components (Button, Panel, Field, MessageCard, Page, …)   |
+| `chat-bot/`                          | A bot that chats in a live room: answers @s, joins in, names songs, thanks gifts   |
+| `room-feed-protocol/`                | What room-feed sends and answers: events, status frames, HTTP API types, URLs      |
+| `lyrics-search/`                     | Names a song from the lines sung with NetEase's lyrics search, for the chat bot    |
+| `room-memory/`                       | What the chat bot remembers: memory files, limits, who may change what, archive    |
+| `room-feed/`                         | The server that reads a live room in Chrome and sends its chat and gifts on        |
+| `douyin-chrome/`                     | What room-feed and dy-browse share to work Douyin in Chrome: Pace, login, launch   |
+| `dy-browse/`                         | `pnpm browse`: browses Douyin after a stream and writes what it learns for the bot |
 
 ## Layout
 
@@ -99,11 +101,15 @@ room-feed/                # @dy-apps/room-feed: one live room's events, run with
   src/page/               #   the page in Chrome (Playwright): live-page.ts (push frames over CDP, stream URL, composition) and one surface per feature: chat-surface, fans-surface, gift-surface, like-surface, page-chrome
   src/like-tally.ts       #   LikeTally: Douyin's like counter added up over one hold
   src/heart-gift.ts       #   HeartGift: one 小心心 from the gift panel (更多 → search), checked by the balance
-  src/pace.ts             #   Pace: every click and typing waits for its target, pauses 500–1000 ms, then acts (AGENTS.md)
   src/right-panel.ts      #   closeRightPanel: the right panel's ×, as a paced step
   src/server.ts           #   HTTP + WebSocket for clients
   src/douyin/             #   Douyin's protobuf, its messages turned into events, the streamer from the page
-  src/login.ts            #   `login`: a Chrome window to log in, the cookie saved to data/cookie.json
+douyin-chrome/            # @dy-apps/douyin-chrome: what room-feed and dy-browse share to work Douyin in Chrome
+  src/pace.ts             #   Pace: every click and typing waits for its target, pauses 500–1000 ms, then acts (room-feed/AGENTS.md)
+  src/chrome.ts           #   findChrome, the user agent and launch arguments; login.ts: `login`, a Chrome window to log in (the cookie saved by login-file.ts)
+  src/serial-queue.ts     #   SerialQueue; room-meta.ts: the streamer and sec_uid from a live room's page
+dy-browse/                # @dy-apps/dy-browse: browses Douyin like a viewer, after a stream only; run with `pnpm browse` (see "dy-browse" below)
+  src/                    #   core/ (logic), app/ (use cases), douyin/ (page map, JSON readers), page/ (Playwright), adapters/ (files, processes), main.ts
 eslint.config.js          # lint for the whole repo, including which folders may import which
 .prettierrc.json          # repo-wide formatting (+ .prettierignore)
 package.json              # private root: lint/format tools and the repo-wide checks
@@ -150,6 +156,16 @@ Every shape here is a type in [`room-feed-protocol/`](room-feed-protocol) (`@dy-
 Apps connect through `RoomFeedClient` to `ws://localhost:<port>/ws?roomId=<id>`. Enter the port (`8757` by default) and the room ID (the number in `live.douyin.com/<id>`). The address is always `localhost`, so room-feed must run on the same computer as the browser or OBS showing the page. That also works from the deployed HTTPS site, because browsers allow `ws://localhost` from secure pages.
 
 Status: both apps pick fake data or a live room in their 数据来源 panel. The danmaku wall shows the room's chat, gifts and likes; tetris turns its gifts into curses, one draw per diamond.
+
+## dy-browse (browsing Douyin)
+
+[`dy-browse/`](dy-browse) (`@dy-apps/dy-browse`) browses Douyin like a viewer, read-only and **only when no stream is on** (it refuses while room-feed's or the speech service's port listens). It reads the streamer's own posts, searches topics, goes through the chat bot's knowledge base and scrolls the 推荐 feed, with room-feed's saved login, and writes what it learns where the bot reads it: `chat-bot/data/<房间号>/memory/posts.md`, `chat-bot/data/browse/watched/`, `chat-bot/data/knowledge/pending/`.
+
+```sh
+pnpm browse --streamer <房间号> --knowledge --feed
+```
+
+Flags, outputs and the first manual run are in [`dy-browse/README.md`](dy-browse/README.md). It has been tested against fakes only.
 
 ## Chat bot
 

@@ -1,8 +1,10 @@
 import { join, resolve } from 'node:path';
 import { lifeFiles } from '../adapters/files/life-files';
+import { watchedFiles } from '../adapters/files/watched-files';
 import {
   livePersonaBase,
   liveText,
+  liveWording,
   sharedLifeFile,
   sharedPersonaFile,
 } from '../adapters/files/prompt-files';
@@ -14,6 +16,7 @@ import {
   BOT_NAMES,
   LIFE,
   LIFE_WRITER,
+  WATCHED,
   LOG,
   OPTIONS,
   PROMPT,
@@ -25,7 +28,8 @@ import {
 /**
  * The personas' own days: a shared persona with a life.md in chat-bot/prompts/personas/<name>/ gets a
  * day written each day she's played (data/lives/<name>/<date>.md), and every room playing her shows
- * the latest at the end of her persona.
+ * the latest at the end of her persona. Her account's own browsing of Douyin (data/browse/watched/) goes
+ * into her day's prompt as `{{watched}}`.
  */
 export function registerLife(container: Container, features: FeatureRegistry): void {
   features.add('life', (c) => {
@@ -38,6 +42,10 @@ export function registerLife(container: Container, features: FeatureRegistry): v
   });
   container
     .register(LIFE, (c) => lifeFiles(join(resolve(c.resolve(OPTIONS).dataDir), 'lives')))
+    // What the browsing account watched (`pnpm browse --feed`), read on every use.
+    .register(WATCHED, (c) =>
+      watchedFiles(join(resolve(c.resolve(OPTIONS).dataDir), 'browse', 'watched')),
+    )
     .register(LIFE_WRITER, (c) => {
       const sharedDir = join(c.resolve(PROMPTS_DIR), 'personas');
       const roomConfig = c.resolve(ROOM_CONFIG);
@@ -46,6 +54,8 @@ export function registerLife(container: Container, features: FeatureRegistry): v
         ask: c.resolve(ASK_CLAUDE)('life'),
         promptTemplate: c.resolve(PROMPT)('life'),
         life: c.resolve(LIFE),
+        watched: c.resolve(WATCHED),
+        wording: liveWording(join(c.resolve(PROMPTS_DIR), 'wording.md')),
         persona: livePersonaBase({
           roomDir: c.resolve(ROOM_DIR),
           file: () => roomConfig().persona,

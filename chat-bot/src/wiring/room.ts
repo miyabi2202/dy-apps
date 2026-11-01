@@ -16,6 +16,7 @@ import {
   saveAccount,
 } from '../adapters/files/room-files';
 import { memoryReadMark, readRecordSince } from '../adapters/files/remember-files';
+import { postsFile } from '../adapters/files/posts-file';
 import { thoughtsFile } from '../adapters/files/thoughts-file';
 import { busFeature } from '../app/feature';
 import { RememberChat } from '../app/memory/remember-chat';
@@ -58,6 +59,7 @@ import {
   VECTORS,
   LOG,
   MEMORY,
+  POSTS,
   REMEMBER_CHAT,
   ASK_CLAUDE,
   OPTIONS,
@@ -225,6 +227,8 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
       });
     })
     .register(THOUGHTS, (c) => thoughtsFile(join(c.resolve(ROOM_DIR), 'memory', 'thoughts.md')))
+    // The streamer's own posts, which `pnpm browse --streamer` writes: read on every use.
+    .register(POSTS, (c) => postsFile(join(c.resolve(ROOM_DIR), 'memory', 'posts.md')))
     .register(VECTORS, (c) => vectorFiles(join(resolve(c.resolve(OPTIONS).dataDir), 'embeddings')))
     // Its latest thoughts and her latest days in every prompt, and, with the embedding service,
     // older ones that fit what's being said, looked for a moment after the room says something.
@@ -355,6 +359,7 @@ export function registerRoom(container: Container, features: FeatureRegistry): v
         }),
         memory: c.resolve(MEMORY),
         thoughts: () => c.resolve(RECALL).thoughtsText(),
+        posts: () => c.resolve(POSTS).recent(),
         streamer: c.resolve(STREAMER),
         isPrivate: () => roomConfig().private,
         // What viewers ask about Douyin itself (灯牌…), from the knowledge base (see KNOWLEDGE).

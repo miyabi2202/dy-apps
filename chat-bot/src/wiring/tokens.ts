@@ -43,11 +43,13 @@ import type {
   FetchLyrics,
   SearchLyrics,
   RoomRecord,
+  Posts,
   SettingsStore,
   SpawnWorker,
   Thoughts,
   UserTalk,
   VectorCache,
+  Watched,
 } from '../app/ports';
 import type { BotTool } from '../core/tools/bot-tool';
 import type { RememberChat } from '../app/memory/remember-chat';
@@ -146,6 +148,8 @@ export const USER_TALK = token<UserTalk>('userTalk');
 export const MEMORY = token<RoomMemory>('memory');
 /** The bot's own thoughts after the room's streams, in memory/thoughts.md. */
 export const THOUGHTS = token<Thoughts>('thoughts');
+/** The streamer's own posts, in memory/posts.md (written by `pnpm browse --streamer`). */
+export const POSTS = token<Posts>('posts');
 /** The vectors made for stored memories, in data/embeddings/, shared by every room's bot. */
 export const VECTORS = token<VectorCache>('vectors');
 /** Which of its own memories every prompt shows: the latest, and older ones that fit what's said. */
@@ -173,6 +177,8 @@ export const THANKER = token<GiftThanker>('thanker');
 // life.ts: the personas' own days.
 /** What happened to each shared persona on her own days, in data/lives/. */
 export const LIFE = token<LifeLog>('life');
+/** What the browsing account watched, in data/browse/watched/ (written by `pnpm browse --feed`). */
+export const WATCHED = token<Watched>('watched');
 export const LIFE_WRITER = token<LifeWriter>('lifeWriter');
 
 // songs.ts: naming the songs sung; null without what they need.

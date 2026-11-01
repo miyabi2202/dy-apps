@@ -5,10 +5,8 @@
 
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findChrome } from './chrome';
+import { findChrome, login, LoginFile } from '@dy-apps/douyin-chrome';
 import { parseCliOptions, USAGE } from './cli-options';
-import { login } from './login';
-import { LoginFile } from './login-file';
 import { Room } from './room';
 import { ChromeRooms } from './chrome-rooms';
 import { createRoomFeedServer } from './server';
