@@ -18,6 +18,23 @@ export interface PostGridSurface extends BlockSurface {
   waitForComments(): Promise<void>;
   waitForClose(): Promise<void>;
   clickClose(): Promise<void>;
+  /** Closes the post with Escape, for when its × isn't seen. */
+  pressEscape(): Promise<void>;
+}
+
+/**
+ * Closes what's open as a person does: its × seen, a pause, a click; or, when the × doesn't show
+ * (Douyin's isn't always where the page map says), a pause and Escape.
+ */
+export async function closePost(
+  surface: Pick<PostGridSurface, 'waitForClose' | 'clickClose' | 'pressEscape'>,
+  pace: Pace,
+): Promise<void> {
+  const seen = await surface.waitForClose().then(
+    () => true,
+    () => false,
+  );
+  await pace.afterSeen(() => (seen ? surface.clickClose() : surface.pressEscape()));
 }
 
 /**
@@ -46,10 +63,7 @@ export class PostComments {
     );
     if (shown) await pace.wait(COMMENTS_SETTLE_MS);
     const comments = readAll(tap.drain('comments'), readComments).items.slice(0, MAX_COMMENTS);
-    await pace.step(
-      () => surface.waitForClose(),
-      () => surface.clickClose(),
-    );
+    await closePost(surface, pace);
     return comments;
   }
 }

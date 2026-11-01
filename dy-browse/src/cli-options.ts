@@ -15,6 +15,8 @@ export interface BrowseOptions {
   depth: number;
   maxSearches: number;
   maxTopics: number;
+  /** Older posts `--streamer` reads in a run, beside the new ones. */
+  olderPosts: number;
   asr: boolean;
   ocr: boolean;
   /** The pending folder `--topic` drafts go to. */
@@ -29,7 +31,7 @@ export interface BrowseOptions {
 }
 
 export const USAGE = `pnpm browse [--feed] [--streamer <房间号> [--sec-uid <值>]] [--topic <词>]… [--knowledge [folder]]
-            [--minutes 15] [--max-videos 30] [--depth 1] [--max-searches 6] [--max-topics 5]
+            [--minutes 15] [--max-videos 30] [--depth 1] [--max-searches 6] [--max-topics 5] [--older-posts 3]
             [--into topics] [--no-asr] [--no-ocr] [--model <名>] [--headed] [--chrome <路径>] [--data <目录>]
 
 At least one of --feed, --streamer, --topic or --knowledge is needed. Never runs during a stream.`;
@@ -86,6 +88,7 @@ export function parseOptions(argv: readonly string[]): BrowseOptions {
         depth: { type: 'string' },
         'max-searches': { type: 'string' },
         'max-topics': { type: 'string' },
+        'older-posts': { type: 'string' },
         'no-asr': { type: 'boolean' },
         'no-ocr': { type: 'boolean' },
         into: { type: 'string' },
@@ -119,6 +122,7 @@ export function parseOptions(argv: readonly string[]): BrowseOptions {
     depth: positive('depth', values.depth, 1, 0),
     maxSearches: positive('max-searches', values['max-searches'], 6),
     maxTopics: positive('max-topics', values['max-topics'], 5),
+    olderPosts: positive('older-posts', values['older-posts'], 3),
     asr: !values['no-asr'],
     ocr: !values['no-ocr'],
     into: values.into ?? 'topics',

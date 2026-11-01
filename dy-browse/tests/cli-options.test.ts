@@ -14,6 +14,7 @@ describe('parseOptions', () => {
       depth: 1,
       maxSearches: 6,
       maxTopics: 5,
+      olderPosts: 3,
       asr: true,
       ocr: true,
       into: 'topics',
@@ -55,6 +56,7 @@ describe('parseOptions', () => {
     const o = parseOptions(['--knowledge', '--max-topics', '2']);
     expect(o.knowledge).toEqual({ folder: null });
     expect(o.maxTopics).toBe(2);
+    expect(parseOptions(['--streamer', '484088206186', '--older-posts', '30']).olderPosts).toBe(30);
   });
 
   it('reads the numbers and switches', () => {

@@ -48,6 +48,13 @@ export const COMMENTS_CLOSE = '[data-e2e="comment-close"], [data-e2e="video-comm
 export const NEXT_VIDEO_KEY = 'ArrowDown';
 
 /** What a captcha or a login wall looks like: any of these showing ends the run. */
+/**
+ * What a list shows when Douyin's call for it failed (「服务异常，重新刷新拉取数据」, seen on a user's
+ * 作品 on the first run, 2026-11-01), and the 刷新 link in it that asks again.
+ */
+export const SERVICE_ERROR = 'text=服务异常';
+export const SERVICE_RETRY = 'text=刷新 >> visible=true';
+
 export const BLOCK_SELECTORS = {
   captcha: '#captcha_container, .captcha_verify_container, [id*="captcha"]',
   login: '#login-pannel, [data-e2e="login-pannel"], #douyin_login_comp_flat_panel',

@@ -167,10 +167,15 @@ async function main(): Promise<number> {
         const { page, pace, tap } = await browser();
         const secUid = await resolveSecUid(roomId, options.secUid, pageRoomHtml(page, pace));
         const posts = new UserPosts(new PageUserSurface(page), tap, pace);
-        const result = await new StreamerPosts({ posts, data, bot, ask, log, reader }).run(
-          roomId,
-          secUid,
-        );
+        const result = await new StreamerPosts({
+          posts,
+          data,
+          bot,
+          ask,
+          log,
+          reader,
+          olderPerRun: options.olderPosts,
+        }).run(roomId, secUid);
         log(`posts.md：${result.file}`);
       },
     });

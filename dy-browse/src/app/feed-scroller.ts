@@ -1,3 +1,4 @@
+import { closePost } from './post-comments';
 import type { DwellAction, DwellRule } from '../core/dwell';
 import { EmptyReadError } from '../core/errors';
 import { Pace } from '@dy-apps/douyin-chrome';
@@ -20,6 +21,8 @@ export interface FeedSurface extends BlockSurface {
   waitForComments(): Promise<void>;
   waitForClose(): Promise<void>;
   clickClose(): Promise<void>;
+  /** Closes the comments with Escape, for when their × isn't seen. */
+  pressEscape(): Promise<void>;
 }
 
 /** What the scroller did with one item. */
@@ -135,12 +138,7 @@ export class FeedScroller {
     );
     if (shown) await pace.wait(FETCH_SETTLE_MS);
     const comments = readAll(tap.drain('comments'), readComments).items.slice(0, MAX_COMMENTS);
-    if (shown) {
-      await pace.step(
-        () => surface.waitForClose(),
-        () => surface.clickClose(),
-      );
-    }
+    if (shown) await closePost(surface, pace);
     return comments;
   }
 }

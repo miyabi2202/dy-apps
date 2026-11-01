@@ -29,7 +29,7 @@ It shares code with room-feed through `@dy-apps/douyin-chrome` (Chrome's launch 
 
 ```
 pnpm browse [--feed] [--streamer <房间号> [--sec-uid <值>]] [--topic <词>]… [--knowledge [folder]]
-            [--minutes 15] [--max-videos 30] [--depth 1] [--max-searches 6] [--max-topics 5]
+            [--minutes 15] [--max-videos 30] [--depth 1] [--max-searches 6] [--max-topics 5] [--older-posts 3]
             [--into topics] [--no-asr] [--no-ocr] [--model <名>] [--headed] [--chrome <路径>] [--data <目录>] [--bot-data <目录>]
 ```
 
@@ -47,6 +47,7 @@ With none of `--feed`, `--streamer`, `--topic`, `--knowledge`, it says so and do
 | `--depth`             | 1                | Levels of keywords to follow below a topic; 0 searches only the topic.                                            |
 | `--max-searches`      | 6                | Searches per topic, the topic's own included.                                                                     |
 | `--max-topics`        | 5                | Entries `--knowledge` does per run.                                                                               |
+| `--older-posts`       | 3                | Older posts `--streamer` reads in a run, beside the new ones.                                                     |
 | `--no-asr`            | off              | Skip tier 1 (speech).                                                                                             |
 | `--no-ocr`            | off              | Skip tier 2 (picture text). OCR is also off, with a warning, when the machine isn't macOS.                        |
 | `--into <文件夹>`     | `topics`         | The folder of `knowledge/pending/` that `--topic` drafts go to (`--knowledge` drafts go to their entry's folder). |

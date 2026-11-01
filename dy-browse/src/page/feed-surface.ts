@@ -50,4 +50,7 @@ export class PageFeedSurface implements FeedSurface {
   clickClose(): Promise<void> {
     return clickCloseOrEscape(this.page, COMMENTS_CLOSE);
   }
+  pressEscape(): Promise<void> {
+    return this.page.keyboard.press('Escape');
+  }
 }

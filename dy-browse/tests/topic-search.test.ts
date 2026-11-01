@@ -45,6 +45,7 @@ function setup({
     waitForComments: () => Promise.resolve(void log.push('wait for comments')),
     waitForClose: () => Promise.resolve(void log.push('wait for close')),
     clickClose: () => Promise.resolve(void log.push('click close')),
+    pressEscape: () => Promise.resolve(void log.push('press Escape')),
   };
   const pace = new Pace({ wait: logWait(log), random: () => 0 });
   return { search: new TopicSearch(surface, tap, pace, max), log, tap };

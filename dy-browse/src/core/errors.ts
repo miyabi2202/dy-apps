@@ -31,6 +31,16 @@ export class LockHeldError extends RunStopped {
   }
 }
 
+/** A list kept showing 「服务异常」 after every 刷新 it was given: the run ends there. */
+export class ServiceErrorStopped extends RunStopped {
+  constructor(
+    readonly what: string,
+    readonly tries: number,
+  ) {
+    super(`抖音的${what}一直显示「服务异常」（点了 ${tries} 次刷新），今天到此为止。`);
+  }
+}
+
 /** Douyin showed a captcha or a login wall: the run ends there, nothing is retried. */
 export class BlockedError extends RunStopped {
   constructor(readonly kind: 'captcha' | 'login') {

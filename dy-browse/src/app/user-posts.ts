@@ -1,4 +1,5 @@
 import { Pace } from '@dy-apps/douyin-chrome';
+import { ServiceErrorStopped } from '../core/errors';
 import type { BrowseItem, Comment } from '../core/types';
 import { readUserPosts } from '../douyin/answers';
 import { PostComments, type PostGridSurface } from './post-comments';
@@ -11,6 +12,11 @@ export interface UserSurface extends PostGridSurface {
   open(secUid: string): Promise<void>;
   /** Waits for the grid of posts; throws when it doesn't show in time. */
   waitForPosts(): Promise<void>;
+  /** Waits for the grid of posts or Douyin's 「服务异常」 in its place, and says which; throws when neither shows in time. */
+  waitForPostsOrError(): Promise<'posts' | 'error'>;
+  /** Waits for the 刷新 link in 「服务异常」. */
+  waitForRetry(): Promise<void>;
+  clickRetry(): Promise<void>;
   scrollPosts(): Promise<void>;
 }
 
@@ -26,6 +32,10 @@ export interface UserPostsPort {
 const SCROLL_SETTLE_MS = 1500;
 /** Scrolls before giving up on `until`, so a long profile can't run on. */
 const MAX_SCROLLS = 25;
+/** How many times 刷新 is clicked when the grid shows 「服务异常」 instead of the posts. */
+const MAX_RETRIES = 3;
+/** How long a person looks at 「服务异常」 before clicking 刷新, in ms. */
+const RETRY_AFTER_MS = 3000;
 
 /**
  * A user's page, opened and scrolled as a person would, each a Pace step: a pause, the address
@@ -50,7 +60,7 @@ export class UserPosts implements UserPostsPort {
     const { surface, pace, tap } = this;
     tap.drain('posts');
     await orBlocked(surface, () => pace.afterSeen(() => surface.open(secUid)));
-    await orBlocked(surface, () => surface.waitForPosts());
+    await orBlocked(surface, () => this.waitForGrid());
     const bodies: string[] = [];
     for (let scrolls = 0; ; scrolls++) {
       bodies.push(...tap.drain('posts'));
@@ -66,6 +76,23 @@ export class UserPosts implements UserPostsPort {
         ),
       );
       await pace.wait(SCROLL_SETTLE_MS);
+    }
+  }
+
+  /**
+   * The grid seen. Douyin sometimes shows 「服务异常，重新刷新拉取数据」 instead (its call for the posts
+   * failed); then, after a look, 刷新 is clicked as a step, up to MAX_RETRIES times.
+   */
+  private async waitForGrid(): Promise<void> {
+    const { surface, pace } = this;
+    for (let tries = 0; ; tries++) {
+      if ((await surface.waitForPostsOrError()) === 'posts') return;
+      if (tries >= MAX_RETRIES) throw new ServiceErrorStopped('作品列表', tries);
+      await pace.wait(RETRY_AFTER_MS);
+      await pace.step(
+        () => surface.waitForRetry(),
+        () => surface.clickRetry(),
+      );
     }
   }
 

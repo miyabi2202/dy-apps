@@ -41,6 +41,7 @@ function setup({
     waitForComments: () => Promise.resolve(void log.push('wait for comments')),
     waitForClose: () => Promise.resolve(void log.push('wait for close')),
     clickClose: () => Promise.resolve(void log.push('click close')),
+    pressEscape: () => Promise.resolve(void log.push('press Escape')),
   };
   let next = 0;
   const asked: string[] = [];
