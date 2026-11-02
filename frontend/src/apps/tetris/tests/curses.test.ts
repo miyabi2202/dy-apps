@@ -1,5 +1,7 @@
 import { createBoard } from '../core/board';
 import { CONFIG } from '../core/config';
+import { scaleMatrix } from '../core/curses/giant';
+import { pieceCells } from '../core/pieces';
 import { constantRng, sequenceRng } from '../core/random';
 import { dropOnEmpty, setActive, startedEngine } from './helpers';
 
@@ -259,5 +261,76 @@ describe('夺舍', () => {
     expect(engine.cutscene!.stage).toBe('intro');
     engine.tick(CONFIG.effects.possessIntroMs - CONFIG.cutscene.introMs);
     expect(engine.cutscene!.stage).toBe('ready');
+  });
+});
+
+describe('巨大化', () => {
+  it('spawns the next piece twice as big, centred, and it cannot be held', () => {
+    const engine = startedEngine({ pieces: { upcoming: ['O'] }, curses: { active: ['giant'] } });
+    const piece = engine.active!;
+    expect(piece.type).toBe('O');
+    const cells = pieceCells(piece.matrix, piece.x, piece.y);
+    expect(cells).toHaveLength(4 * CONFIG.effects.giantScale ** 2);
+    expect(piece.x + piece.matrix[0]!.length / 2).toBe(cols / 2);
+    expect(engine.holdPiece()).toBe(false);
+  });
+
+  it('scales each cell into a block', () => {
+    expect(scaleMatrix([[1, 0]], 2)).toEqual([
+      [1, 1, 0, 0],
+      [1, 1, 0, 0],
+    ]);
+  });
+});
+
+describe('醉酒', () => {
+  it('stumbles the piece a column on its own, and sways the board', () => {
+    const engine = startedEngine({ curses: { active: ['drunk'] }, curseRng: constantRng(0) });
+    const x = engine.active!.x;
+    engine.tick(CONFIG.effects.drunkStumbleMs);
+    expect(engine.active!.x).toBe(x - 1);
+    expect(engine.activeCurses.some(({ def }) => def.boardEffect === 'sway')).toBe(true);
+  });
+
+  it('sends a move the wrong way some of the time', () => {
+    const wrong = startedEngine({ curses: { active: ['drunk'] }, curseRng: constantRng(0) });
+    const x = wrong.active!.x;
+    wrong.move(-1);
+    expect(wrong.active!.x).toBe(x + 1);
+    const right = startedEngine({ curses: { active: ['drunk'] }, curseRng: constantRng(0.99) });
+    right.move(-1);
+    expect(right.active!.x).toBe(x - 1);
+  });
+});
+
+describe('延迟', () => {
+  const { lagMs } = CONFIG.effects;
+
+  it('acts on every command only lagMs later, in order', () => {
+    const engine = startedEngine({ curses: { active: ['lag'] } });
+    const x = engine.active!.x;
+    expect(engine.move(-1)).toBe(true);
+    expect(engine.move(-1)).toBe(true);
+    expect(engine.rotate(1)).toBe(true);
+    expect(engine.active!.x).toBe(x);
+    engine.tick(lagMs - 1);
+    expect(engine.active!.x).toBe(x);
+    const matrix = engine.active!.matrix;
+    engine.tick(1);
+    expect(engine.active!.x).toBe(x - 2);
+    expect(engine.active!.matrix).not.toEqual(matrix);
+  });
+
+  it('a late hard drop still lands, and later presses act on the next piece', () => {
+    const engine = startedEngine({ curses: { active: ['lag'] } });
+    engine.hardDrop();
+    engine.move(-1);
+    expect(engine.lockedPieceCount).toBe(0);
+    engine.tick(lagMs);
+    expect(engine.lockedPieceCount).toBe(1);
+    // The curse lasted one piece: the next one moves at once again.
+    const x = engine.active!.x;
+    engine.move(1);
+    expect(engine.active!.x).toBe(x + 1);
   });
 });

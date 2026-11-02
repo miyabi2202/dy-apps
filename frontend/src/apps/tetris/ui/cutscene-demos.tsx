@@ -18,6 +18,9 @@ export const CUTSCENE_DEMOS: Partial<Record<EffectType, () => React.ReactElement
   mirror: MirrorDemo,
   twin: TwinDemo,
   possess: PossessDemo,
+  giant: GiantDemo,
+  drunk: DrunkDemo,
+  lag: LagDemo,
 };
 
 /** Starts to turn, springs back, shudders. */
@@ -143,6 +146,61 @@ const bubble = stylex.keyframes({
   '100%': { opacity: 0 },
 });
 
+/** Swelling up with a wobble, holding big, then snapping back to start again. */
+const swells = stylex.keyframes({
+  '0%': { transform: 'scale(0.5)' },
+  '30%': { transform: 'scale(1.25)' },
+  '40%': { transform: 'scale(0.95)' },
+  '50%': { transform: 'scale(1.05)' },
+  '90%': { transform: 'scale(1)' },
+  '100%': { transform: 'scale(0.5)' },
+});
+
+/** Staggering about: leaning, lurching, never quite upright. */
+const staggers = stylex.keyframes({
+  '0%': { transform: 'translateX(0) rotate(0deg)' },
+  '20%': { transform: 'translateX(-10px) rotate(-14deg)' },
+  '35%': { transform: 'translateX(-4px) rotate(6deg)' },
+  '55%': { transform: 'translateX(12px) rotate(16deg)' },
+  '75%': { transform: 'translateX(2px) rotate(-8deg)' },
+  '100%': { transform: 'translateX(0) rotate(0deg)' },
+});
+
+/** Hic: a little bubble rising and fading. */
+const hic = stylex.keyframes({
+  '0%': { opacity: 0, transform: 'translateY(4px) scale(0.6)' },
+  '20%': { opacity: 1, transform: 'translateY(0) scale(1)' },
+  '70%': { opacity: 1, transform: 'translateY(-8px) scale(1)' },
+  '100%': { opacity: 0, transform: 'translateY(-14px) scale(1)' },
+});
+
+/** The key pressed twice: down, up. */
+const pressed = stylex.keyframes({
+  '0%': { transform: 'translateY(0)' },
+  '8%': { transform: 'translateY(3px)' },
+  '16%': { transform: 'translateY(0)' },
+  '50%': { transform: 'translateY(0)' },
+  '58%': { transform: 'translateY(3px)' },
+  '66%': { transform: 'translateY(0)' },
+  '100%': { transform: 'translateY(0)' },
+});
+
+/** The piece moving only well after each press: the gap is the lag. */
+const lagsBehind = stylex.keyframes({
+  '0%': { transform: 'translateX(0)' },
+  '24%': { transform: 'translateX(0)' },
+  '30%': { transform: 'translateX(-14px)' },
+  '74%': { transform: 'translateX(-14px)' },
+  '80%': { transform: 'translateX(-28px)' },
+  '100%': { transform: 'translateX(-28px)' },
+});
+
+/** The loading spinner nobody wants to see. */
+const loading = stylex.keyframes({
+  from: { transform: 'rotate(0deg)' },
+  to: { transform: 'rotate(360deg)' },
+});
+
 function NoRotateDemo() {
   return (
     <div {...stylex.props(styles.stage)}>
@@ -234,6 +292,40 @@ function PossessDemo() {
         ))}
       </div>
       <DemoPiece style={styles.steered} />
+    </div>
+  );
+}
+
+/** A piece puffing up to twice its size. */
+function GiantDemo() {
+  return (
+    <div {...stylex.props(styles.stage, styles.bigStage)}>
+      <DemoPiece type="O" style={[styles.giant, styles.swells]} />
+    </div>
+  );
+}
+
+/** A piece staggering about, hiccuping. */
+function DrunkDemo() {
+  return (
+    <div {...stylex.props(styles.stage)}>
+      <DemoPiece style={styles.staggers} />
+      <span aria-hidden {...stylex.props(styles.hic)}>
+        嗝~
+      </span>
+    </div>
+  );
+}
+
+/** ← pressed twice; the piece follows each press only a beat later, beside a loading spinner. */
+function LagDemo() {
+  return (
+    <div {...stylex.props(styles.stage, styles.lagStage)}>
+      <span aria-hidden {...stylex.props(styles.key)}>
+        ←
+      </span>
+      <DemoPiece style={styles.lagsBehind} />
+      <span aria-hidden {...stylex.props(styles.spinner)} />
     </div>
   );
 }
@@ -418,6 +510,80 @@ const styles = stylex.create({
   },
   /** Each bubble takes its third of the loop. */
   bubbleAt: (i: number) => ({ animationDelay: `${i * 800}ms` }),
+  bigStage: {
+    height: 84,
+    width: 84,
+  },
+  giant: {
+    height: 72,
+    width: 72,
+  },
+  swells: {
+    animationDuration: '1.8s',
+    animationIterationCount: 'infinite',
+    animationName: swells,
+    animationTimingFunction: 'ease-out',
+  },
+  staggers: {
+    animationDuration: '1.6s',
+    animationIterationCount: 'infinite',
+    animationName: staggers,
+    animationTimingFunction: 'ease-in-out',
+  },
+  hic: {
+    animationDuration: '1.6s',
+    animationIterationCount: 'infinite',
+    animationName: hic,
+    color: '#fbbf24',
+    fontSize: 13,
+    fontWeight: 800,
+    position: 'absolute',
+    right: -18,
+    top: -6,
+  },
+  lagStage: {
+    gap: 6,
+    width: 120,
+  },
+  key: {
+    borderColor: '#94a3b8',
+    borderRadius: 6,
+    borderStyle: 'solid',
+    borderWidth: 2,
+    placeItems: 'center',
+    animationDuration: '2s',
+    animationIterationCount: 'infinite',
+    animationName: pressed,
+    backgroundColor: '#e2e8f0',
+    boxShadow: '0 3px 0 #475569',
+    color: '#0f172a',
+    display: 'grid',
+    fontSize: 16,
+    fontWeight: 900,
+    height: 28,
+    width: 28,
+  },
+  lagsBehind: {
+    animationDuration: '2s',
+    animationIterationCount: 'infinite',
+    animationName: lagsBehind,
+    animationTimingFunction: 'ease-out',
+    height: 44,
+    width: 44,
+  },
+  spinner: {
+    borderColor: '#94a3b8',
+    borderRadius: '50%',
+    borderStyle: 'solid',
+    borderWidth: 3,
+    animationDuration: '800ms',
+    animationIterationCount: 'infinite',
+    animationName: loading,
+    animationTimingFunction: 'linear',
+    borderTopColor: 'transparent',
+    height: 18,
+    width: 18,
+  },
   crossRight: { animationName: crossRight },
   crossLeft: { animationName: crossLeft },
 });

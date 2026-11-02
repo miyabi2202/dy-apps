@@ -59,6 +59,17 @@ export const CONFIG = {
     possessLocks: 1,
     /** 夺舍's cutscene holds longer than the others, so viewers have time to read how to play. */
     possessIntroMs: 3000,
+    giantLocks: 1,
+    /** How many times bigger 巨大化 makes the piece: each cell becomes giantScale × giantScale. */
+    giantScale: 2,
+    drunkLocks: 1,
+    /** How often 醉酒 stumbles the piece a column on its own. */
+    drunkStumbleMs: 900,
+    /** How often a move goes the wrong way while 醉酒. */
+    drunkWrongChance: 0.3,
+    lagLocks: 1,
+    /** How late every command acts while 延迟. */
+    lagMs: 400,
     /** How often 自转 turns the piece. */
     spinIntervalMs: 500,
     /** How often 打滑 pushes the piece a column. */

@@ -61,6 +61,15 @@ const shake = stylex.keyframes({
   '100%': { transform: 'translate(0, 0)' },
 });
 
+/** The board rocking gently, like the room after a few drinks (醉酒). */
+const sway = stylex.keyframes({
+  '0%': { transform: 'rotate(0deg) translateX(0)' },
+  '25%': { transform: 'rotate(2.5deg) translateX(4px)' },
+  '50%': { transform: 'rotate(0deg) translateX(0)' },
+  '75%': { transform: 'rotate(-2.5deg) translateX(-4px)' },
+  '100%': { transform: 'rotate(0deg) translateX(0)' },
+});
+
 /** Mist drifting across the hidden preview while fog lasts. */
 const mist = stylex.keyframes({
   '0%': { backgroundPosition: '0% 50%', opacity: 0.75 },
@@ -152,7 +161,14 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
           </div>
         </div>
 
-        <div {...stylex.props(styles.boardWrap, engine.cutscene && styles.shake)}>
+        <div
+          {...stylex.props(
+            styles.boardWrap,
+            engine.cutscene
+              ? styles.shake
+              : engine.activeCurses.some(({ def }) => def.boardEffect === 'sway') && styles.sway,
+          )}
+        >
           <canvas
             ref={boardRef}
             data-testid={testIds.board}
@@ -535,6 +551,12 @@ const styles = stylex.create({
     animationDelay: '250ms',
     animationDuration: '400ms',
     animationName: shake,
+  },
+  sway: {
+    animationDuration: '2.4s',
+    animationIterationCount: 'infinite',
+    animationName: sway,
+    animationTimingFunction: 'ease-in-out',
   },
   summaryList: {
     margin: 0,

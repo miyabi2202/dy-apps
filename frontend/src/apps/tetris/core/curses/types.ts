@@ -53,6 +53,13 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   /** While active: the player's left and right moves are swapped. */
   mirrorsMoves?: boolean;
   /**
+   * While active: every player command (move, rotate, drop, hold) acts this many ms of play time
+   * later than pressed, in order. Ones still waiting when the piece locks act on the next.
+   */
+  inputDelayMs?: number;
+  /** While active: the board itself moves, so the room sees it at a glance. */
+  boardEffect?: 'sway';
+  /**
    * While active: each fresh piece spawns with the next one from the queue beside it. They move
    * and fall together; one that lands locks and the other plays on. The pair counts as one lock.
    */
@@ -82,6 +89,8 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   onTick?(ctx: CurseContext, dtMs: number, state: S): void;
   /** Only for pieces fresh from the queue, never for a hold swap. Returns the piece to spawn. */
   onSpawn?(ctx: CurseContext, piece: ActivePiece, state: S): ActivePiece;
+  /** Each player move left (-1) or right (1), after any mirroring: returns the step to take. */
+  onMove?(ctx: CurseContext, dx: -1 | 1, state: S): -1 | 1;
 }
 
 /**

@@ -249,6 +249,9 @@ export class GameEngine {
   private batchId = 0;
   private noticeId = 0;
   private viewerInputId = 0;
+  /** The player's commands waiting out 延迟's delay, oldest first, each with when it acts. */
+  private delayedInputs: { atMs: number; run: () => boolean }[] = [];
+  private runningDelayed = false;
   private readonly listeners: Set<Listener> = new Set();
 
   constructor(options: EngineOptions = {}) {
@@ -478,6 +481,7 @@ export class GameEngine {
     this.notices = [];
     this.quietSettlements = 0;
     this.viewerInputs = [];
+    this.delayedInputs = [];
     this.swap = null;
     this.drops = null;
     this.playMs = 0;
@@ -643,8 +647,15 @@ export class GameEngine {
 
   /** The player's move, of both pieces of a pair or neither: swapped while a curse mirrors moves. */
   move(dx: number): boolean {
-    if (!this.canControl || this.blockedBy('move')) return false;
-    return this.moveFalling(this.movesMirroredBy ? -dx : dx);
+    if (!this.canControl) return false;
+    if (this.deferred(() => this.move(dx))) return true;
+    if (this.blockedBy('move')) return false;
+    let step: -1 | 1 = (this.movesMirroredBy ? -dx : dx) < 0 ? -1 : 1;
+    for (const { type, def } of this.activeCurses) {
+      if (def.onMove)
+        step = def.onMove(this.curseContext(), step, this.effects.active[type]!.state);
+    }
+    return this.moveFalling(step);
   }
 
   private moveFalling(step: number): boolean {
@@ -666,7 +677,9 @@ export class GameEngine {
 
   /** Rotates each falling piece in place, each with its own kicks. */
   rotate(dir: 1 | -1): boolean {
-    if (!this.canControl || this.blockedBy('rotate')) return false;
+    if (!this.canControl) return false;
+    if (this.deferred(() => this.rotate(dir))) return true;
+    if (this.blockedBy('rotate')) return false;
     return this.rotateFalling(dir);
   }
 
@@ -693,7 +706,9 @@ export class GameEngine {
   }
 
   softDrop(): boolean {
-    if (!this.canControl || this.isGrounded() || this.blockedBy('softDrop')) return false;
+    if (!this.canControl) return false;
+    if (this.deferred(() => this.softDrop())) return true;
+    if (this.isGrounded() || this.blockedBy('softDrop')) return false;
     for (const p of this.falling) p.y += 1;
     this.score += CONFIG.score.softDropPerCell;
     this.gravityMs = 0;
@@ -703,7 +718,9 @@ export class GameEngine {
 
   /** Drops and locks each falling piece, the lower first so the upper lands on it. */
   hardDrop(): boolean {
-    if (!this.canControl || this.blockedBy('hardDrop')) return false;
+    if (!this.canControl) return false;
+    if (this.deferred(() => this.hardDrop())) return true;
+    if (this.blockedBy('hardDrop')) return false;
     const pair = this.twin !== null;
     if (pair && bottomOf(this.twin!) > bottomOf(this.active!)) this.swapTwin();
     this.dropAndLock();
@@ -725,7 +742,9 @@ export class GameEngine {
 
   /** Not while a pair is falling. */
   holdPiece(): boolean {
-    if (!this.canControl || !this.canHold || this.twin || this.blockedBy('hold')) return false;
+    if (!this.canControl) return false;
+    if (this.deferred(() => this.holdPiece())) return true;
+    if (!this.canHold || this.twin || this.blockedBy('hold')) return false;
     const current = this.active!.shape;
     if (this.hold === null) {
       this.hold = current;
@@ -740,6 +759,35 @@ export class GameEngine {
     return true;
   }
 
+  /** How late the player's commands act while a curse delays them (延迟); 0 when none does. */
+  get inputDelayMs(): number {
+    return Math.max(0, ...this.activeCurses.map(({ def }) => def.inputDelayMs ?? 0));
+  }
+
+  /**
+   * While a curse delays input, queues `run` to act `inputDelayMs` of play time from now and says
+   * so; the caller then does nothing yet. Not when it is that queued command acting at last.
+   */
+  private deferred(run: () => boolean): boolean {
+    const ms = this.inputDelayMs;
+    if (ms === 0 || this.runningDelayed) return false;
+    this.delayedInputs.push({ atMs: this.playMs + ms, run });
+    return true;
+  }
+
+  /** The delayed commands whose time has come, in the order they were given. */
+  private runDelayedInputs(): void {
+    while (this.delayedInputs.length > 0 && this.delayedInputs[0]!.atMs <= this.playMs) {
+      const { run } = this.delayedInputs.shift()!;
+      this.runningDelayed = true;
+      try {
+        run();
+      } finally {
+        this.runningDelayed = false;
+      }
+    }
+  }
+
   /** Advance the cutscene, or gravity and lock delay, by `dtMs` of foreground play time. */
   tick(dtMs: number): void {
     if (this.phase === 'playing' && this.cutscene) {
@@ -748,6 +796,8 @@ export class GameEngine {
     }
     if (!this.canControl) return;
     this.playMs += dtMs;
+    this.runDelayedInputs();
+    if (!this.canControl) return;
     for (const { type, def } of this.activeCurses) {
       def.onTick?.(this.curseContext(), dtMs, this.effects.active[type]!.state);
     }
