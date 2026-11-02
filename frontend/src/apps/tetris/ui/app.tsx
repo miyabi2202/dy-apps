@@ -25,6 +25,7 @@ import type { KeyboardController } from '../input/keyboard';
 import { labels } from '../messages';
 import { useGiftSource } from '../use-gift-source';
 import { CenterPanel } from './center-panel';
+import { DebugPanel } from './debug-panel';
 import { GameLayout } from './game-layout';
 import { LogPanel } from './log-panel';
 import { TeamPanel } from './team-panel';
@@ -93,6 +94,7 @@ export function App({ engine, feed, keyboard, config: initial, createClient, fak
               unit="%"
               onChange={(pct) => engine.setProbability(pct / 100)}
             />
+            <DebugPanel engine={engine} />
           </Panel>
           <SourcePanel
             running={sending}

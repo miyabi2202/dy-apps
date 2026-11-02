@@ -38,10 +38,19 @@ export interface BoardView {
   readonly activeCurses?: readonly EffectType[];
   /** Play time so far, for animations drawn on the canvas. */
   readonly timeMs?: number;
-  /** The active piece spawned as something else than `from` (调包), at `atMs` of play time. */
-  readonly swap?: { readonly from: PieceType; readonly atMs: number } | null;
+  /**
+   * Pieces that spawned as something else than the preview promised (调包), at `atMs` of play
+   * time: the active piece was promised as `from`, the twin as `twinFrom`; unset if not swapped.
+   */
+  readonly swap?: SwapView | null;
   /** Board cells that dropped into place (落石) at `atMs` of play time. */
   readonly drops?: { readonly cells: readonly [number, number][]; readonly atMs: number } | null;
+}
+
+export interface SwapView {
+  readonly from?: PieceType;
+  readonly twinFrom?: PieceType;
+  readonly atMs: number;
 }
 
 export interface TeamState {
@@ -54,6 +63,8 @@ export interface TeamState {
   firedCount: number;
   /** Curses the game drew itself because the room was quiet. */
   systemCount: number;
+  /** Curses added by hand from the debug panel. */
+  debugCount: number;
   /** Pending curses the player cancelled by clearing lines. */
   cancelledCount: number;
   /** Per settlement queue, the type that fired last, so a shared queue takes turns. */

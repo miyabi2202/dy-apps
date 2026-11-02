@@ -1,5 +1,6 @@
 import { CURSES, EFFECT_POOL, type EffectType } from '../core/curses';
 import {
+  addDebugCurse,
   addHit,
   addSystemCurse,
   cancelOne,
@@ -94,6 +95,16 @@ describe('cancelling and quiet-room curses', () => {
     addSystemCurse(team, 'seal');
     expect(team.pending).toEqual(pendingOf({ seal: 1 }));
     expect(team.systemCount).toBe(1);
+    settleTeam(team);
+    expect(isConserved(team)).toBe(true);
+  });
+
+  it('a curse added by hand is pending without a gift, and still conserved', () => {
+    const team = createTeam();
+    addDebugCurse(team, 'twin');
+    expect(team.pending).toEqual(pendingOf({ twin: 1 }));
+    expect(team.debugCount).toBe(1);
+    expect(isConserved(team)).toBe(true);
     settleTeam(team);
     expect(isConserved(team)).toBe(true);
   });

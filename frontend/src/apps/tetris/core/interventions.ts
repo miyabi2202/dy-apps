@@ -10,6 +10,7 @@ export function createTeam(): TeamState {
     missCount: 0,
     firedCount: 0,
     systemCount: 0,
+    debugCount: 0,
     cancelledCount: 0,
     lastFired: {},
   };
@@ -28,6 +29,12 @@ export function addHit(team: TeamState, type: EffectType): void {
 export function addSystemCurse(team: TeamState, type: EffectType): void {
   team.pending[type] += 1;
   team.systemCount += 1;
+}
+
+/** Queue a curse added by hand from the debug panel. */
+export function addDebugCurse(team: TeamState, type: EffectType): void {
+  team.pending[type] += 1;
+  team.debugCount += 1;
 }
 
 /**
@@ -84,12 +91,13 @@ export function settleTeam(
 }
 
 /**
- * Every gift either missed or triggered, and every curse triggered or drawn by the game is
- * pending, fired or cancelled.
+ * Every gift either missed or triggered, and every curse triggered, drawn by the game or added
+ * by hand is pending, fired or cancelled.
  */
 export function isConserved(team: TeamState): boolean {
   return (
     team.giftCount === team.hitCount + team.missCount &&
-    team.hitCount + team.systemCount === pendingTotal(team) + team.firedCount + team.cancelledCount
+    team.hitCount + team.systemCount + team.debugCount ===
+      pendingTotal(team) + team.firedCount + team.cancelledCount
   );
 }

@@ -71,20 +71,47 @@ export function paintBoard(ctx: Canvas2D, view: BoardView, w: number, h: number)
   const { active: piece, ghostY } = view;
   const tint = tintFor(view.activeCurses ?? []);
   const swapAge = view.swap ? timeMs - view.swap.atMs : Infinity;
-  if (piece && view.swap && swapAge < SWAP_SHOW_MS) {
-    // Still the piece the preview promised, about to be swapped.
-    const promised = createPiece(shapeOf(view.swap.from));
-    for (const [x, y] of pieceCells(promised.matrix, piece.x, piece.y)) {
-      if (y >= 0) paintCell(ctx, x, y, size, PIECE_COLORS[view.swap.from]);
-    }
-  } else if (piece && ghostY !== null) {
-    paintFalling(ctx, piece, ghostY, size, tint, timeMs);
-    if (swapAge < SWAP_SHOW_MS + SWAP_FLASH_MS) {
-      paintSwapFlash(ctx, piece, size, (swapAge - SWAP_SHOW_MS) / SWAP_FLASH_MS);
-    }
+  if (piece && ghostY !== null) {
+    paintSwappable(ctx, piece, ghostY, view.swap?.from, swapAge, size, tint, timeMs);
   }
   if (view.twin && view.twinGhostY != null) {
-    paintFalling(ctx, view.twin, view.twinGhostY, size, tint, timeMs);
+    paintSwappable(
+      ctx,
+      view.twin,
+      view.twinGhostY,
+      view.swap?.twinFrom,
+      swapAge,
+      size,
+      tint,
+      timeMs,
+    );
+  }
+}
+
+/**
+ * A falling piece that 调包 may have swapped at spawn: for a moment still the piece the preview
+ * promised (`from`), then the real one flashing in.
+ */
+function paintSwappable(
+  ctx: Canvas2D,
+  piece: ActivePiece,
+  ghostY: number,
+  from: PieceType | undefined,
+  swapAge: number,
+  size: number,
+  tint: PieceTint | undefined,
+  timeMs: number,
+): void {
+  if (from && swapAge < SWAP_SHOW_MS) {
+    const promised = createPiece(shapeOf(from));
+    for (const [x, y] of pieceCells(promised.matrix, piece.x, piece.y)) {
+      if (y >= 0) paintCell(ctx, x, y, size, PIECE_COLORS[from]);
+    }
+    return;
+  }
+  paintFalling(ctx, piece, ghostY, size, tint, timeMs);
+  if (from && swapAge < SWAP_SHOW_MS + SWAP_FLASH_MS) {
+    paintSwapFlash(ctx, piece, size, (swapAge - SWAP_SHOW_MS) / SWAP_FLASH_MS);
   }
 }
 

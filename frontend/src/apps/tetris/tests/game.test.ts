@@ -248,6 +248,16 @@ describe('settlement cycle', () => {
     expect(engine.settlementCount).toBe(3);
   });
 
+  it('the debug panel queues any curse, only during a game', () => {
+    expect(new GameEngine().addCurse('spin')).toBe(false);
+    const engine = startedEngine();
+    expect(engine.addCurse('spin')).toBe(true);
+    expect(engine.team.pending).toEqual(pendingOf({ spin: 1 }));
+    expect(engine.team.debugCount).toBe(1);
+    dropOnEmpty(engine, ROUND);
+    expect(engine.lastSettlement!.executed.map((e) => e.type)).toEqual(['spin']);
+  });
+
   it('fires each pending curse type once per settlement; the rest waits', () => {
     const engine = startedEngine();
     engine.team.pending = pendingOf({ garbage: 2, haste: 1, fog: 1 });

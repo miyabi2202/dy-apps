@@ -147,6 +147,21 @@ describe('双落', () => {
     expect(engine.twin).toBeNull();
   });
 
+  it('with 调包, swaps both and says what each was, even after one lands', () => {
+    const engine = startedEngine({
+      pieces: { upcoming: ['T', 'O'] },
+      curses: { active: ['twin', 'swap'] },
+    });
+    expect(engine.active!.type).not.toBe('T');
+    expect(engine.twin!.type).not.toBe('O');
+    expect(engine.boardView.swap).toMatchObject({ from: 'T', twinFrom: 'O' });
+    // The twin (promised as O) lands; the one promised as T plays on.
+    engine.twin!.y = rows - 2;
+    engine.tick(CONFIG.lock.delayMs);
+    expect(engine.boardView.swap).toMatchObject({ from: 'T' });
+    expect(engine.boardView.swap!.twinFrom).toBeUndefined();
+  });
+
   it('hard-drops the lower piece first, so the upper one lands on it', () => {
     const engine = pairEngine();
     engine.board = createBoard();

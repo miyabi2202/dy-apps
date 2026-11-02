@@ -26,7 +26,14 @@ import {
   processGiftBatch,
   rarityBands,
 } from './gifts';
-import { addSystemCurse, cancelOne, createTeam, pendingTotal, settleTeam } from './interventions';
+import {
+  addDebugCurse,
+  addSystemCurse,
+  cancelOne,
+  createTeam,
+  pendingTotal,
+  settleTeam,
+} from './interventions';
 import {
   BagGenerator,
   createPiece,
@@ -45,6 +52,7 @@ import type {
   Phase,
   PieceShape,
   PieceType,
+  SwapView,
   TeamState,
 } from './types';
 
@@ -211,8 +219,8 @@ export class GameEngine {
   /** Foreground play time, for canvas animations. */
   private playMs = 0;
   private cutsceneMs = 0;
-  /** What the active piece was before a curse swapped it at spawn, for the board to animate. */
-  private swap: { from: PieceType; atMs: number } | null = null;
+  /** What the falling pieces were before a curse swapped them at spawn, for the board to animate. */
+  private swap: SwapView | null = null;
   /** Cells a curse dropped onto the board at the last settlement, for the board to animate. */
   private drops: { cells: [number, number][]; atMs: number } | null = null;
   private lockMs = 0;
@@ -510,6 +518,20 @@ export class GameEngine {
     return { ok: true, result };
   }
 
+  /**
+   * Debug: queue one of any curse in play, as if a gift had triggered it. Only during a game,
+   * like gifts.
+   */
+  addCurse(type: EffectType): boolean {
+    if (this.phase === 'ready' || this.phase === 'gameOver') return false;
+    if (!this.curseByType[type]) return false;
+    addDebugCurse(this.team, type);
+    this.pushLog('system', `调试：加入 ${this.curseByType[type].name}。`);
+    this.logState(`debug added ${type}`);
+    this.emit();
+    return true;
+  }
+
   private logBatch(r: GiftBatchResult): void {
     const head = `${r.sender} 送出 ${r.count} 钻礼物`;
     if (r.hits === 0) {
@@ -642,6 +664,7 @@ export class GameEngine {
 
   private swapTwin(): void {
     [this.active, this.twin] = [this.twin, this.active];
+    if (this.swap) this.swap = { ...this.swap, from: this.swap.twinFrom, twinFrom: this.swap.from };
   }
 
   /** Not while a pair is falling. */
@@ -737,12 +760,15 @@ export class GameEngine {
   private spawnNext(): void {
     const type = this.upcoming[0]!;
     const piece = this.takeFromQueue();
-    this.swap = piece.type === type ? null : { from: type, atMs: this.playMs };
+    const from = piece.type === type ? undefined : type;
+    this.swap = from ? { from, atMs: this.playMs } : null;
     if (!this.activeCurses.some(({ def }) => def.spawnsTwin)) {
       this.place(piece);
       return;
     }
+    const twinType = this.upcoming[0]!;
     const twin = this.takeFromQueue();
+    if (twin.type !== twinType) this.swap = { from, twinFrom: twinType, atMs: this.playMs };
     const middle = CONFIG.board.cols / 2;
     piece.x = Math.floor(middle) - piece.matrix[0]!.length;
     twin.x = Math.ceil(middle);
@@ -812,6 +838,7 @@ export class GameEngine {
         twin.y -= 1;
       }
       this.active = twin;
+      if (this.swap) this.swap = { from: this.swap.twinFrom, atMs: this.swap.atMs };
       this.resetPieceTimers();
       this.emit();
       return;

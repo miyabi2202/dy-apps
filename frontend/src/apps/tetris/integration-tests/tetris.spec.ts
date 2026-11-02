@@ -104,6 +104,18 @@ test('fake gifts reach the wall only once the game has started', async ({ page }
   expect(await giftCount(page)).toBeGreaterThan(0);
 });
 
+test('the debug panel adds any curse to the pending list once the game has started', async ({
+  page,
+}) => {
+  await page.getByText(labels.debug).click();
+  const add = page.getByTestId(testIds.debugCurse('garbage'));
+  await expect(add).toBeDisabled();
+  await page.getByRole('button', { name: labels.start }).click();
+  await add.click();
+  await add.click();
+  await expect(page.getByTestId(testIds.pending)).toContainText('×2');
+});
+
 test('start, pause with P, resume; restart after game over empties the wall', async ({ page }) => {
   await page.getByRole('button', { name: labels.start }).click();
   expect(await sendGift(page, 110)).toBe(true);

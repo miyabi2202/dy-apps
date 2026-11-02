@@ -8,6 +8,7 @@ export const testIds = {
   board: 'board',
   countdown: 'countdown',
   cutscene: 'cutscene',
+  debugCurse: (type: string) => `debug-curse-${type}`,
   gameOverSummary: 'game-over-summary',
   giftHistory: 'gift-history',
   log: 'log',
@@ -29,4 +30,5 @@ export const labels = {
   touchControls: '鼠标/触屏操作',
   fakeGifts: { start: '开始模拟送礼', stop: '停止模拟送礼' },
   cutscene: { ready: 'READY', go: 'GO!' },
+  debug: '调试：添加诅咒',
 } as const;
