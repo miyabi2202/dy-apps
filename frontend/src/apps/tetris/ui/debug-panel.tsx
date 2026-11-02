@@ -1,13 +1,15 @@
 import { Button, Disclosure, text } from '@dy-apps/ui';
-import { space } from '@dy-apps/ui/tokens.stylex';
+import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
+import { RARITIES } from '../core/curses';
 import type { GameEngine } from '../core/game';
 import { labels, testIds } from '../messages';
 import { CurseName } from './curse-name';
 
 /**
- * Debug: a button per curse in play that queues one, as if a gift had triggered it. Only on the
- * config page, never in OBS; like gifts, it works only during a game.
+ * Debug: a button per curse in play that queues one, as if a gift had triggered it, grouped by
+ * rarity and marked with its settlement queue. Only on the config page, never in OBS; like
+ * gifts, it works only during a game.
  */
 export function DebugPanel({ engine }: { engine: GameEngine }) {
   const running = engine.phase === 'playing' || engine.phase === 'paused';
@@ -16,19 +18,32 @@ export function DebugPanel({ engine }: { engine: GameEngine }) {
       <p {...stylex.props(text.muted, styles.hint)}>
         {running ? '点一下加入 1 个待执行，下次结算时照常执行。' : '开始游戏后才能添加。'}
       </p>
-      <div {...stylex.props(styles.grid)}>
-        {engine.curses.map((def) => (
-          <Button
-            key={def.type}
-            disabled={!running}
-            onClick={() => engine.addCurse(def.type)}
-            data-testid={testIds.debugCurse(def.type)}
-            xstyle={styles.button}
-          >
-            + <CurseName def={def} />
-          </Button>
-        ))}
-      </div>
+      {RARITIES.map((rarity) => {
+        const defs = engine.curses
+          .filter((def) => def.rarity === rarity)
+          .sort((a, b) => a.queue.localeCompare(b.queue));
+        if (defs.length === 0) return null;
+        return (
+          <section key={rarity} {...stylex.props(styles.group)}>
+            <h4 {...stylex.props(text.muted, styles.rarity)}>{rarity}</h4>
+            <div {...stylex.props(styles.grid)}>
+              {defs.map((def) => (
+                <Button
+                  key={def.type}
+                  disabled={!running}
+                  onClick={() => engine.addCurse(def.type)}
+                  data-testid={testIds.debugCurse(def.type)}
+                  title={`队列 ${def.queue}`}
+                  xstyle={styles.button}
+                >
+                  + <CurseName def={def} />
+                  <span {...stylex.props(styles.queue)}>{def.queue}</span>
+                </Button>
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </Disclosure>
   );
 }
@@ -42,7 +57,27 @@ const styles = stylex.create({
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))',
   },
+  group: {
+    marginBlockEnd: space.sm,
+  },
+  rarity: {
+    margin: 0,
+    fontSize: fontSize.sm,
+    fontWeight: 600,
+    marginBlockEnd: space.xs,
+  },
   button: {
     paddingInline: space.sm,
+    position: 'relative',
+  },
+  queue: {
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    borderStyle: 'solid',
+    borderWidth: 1,
+    paddingInline: space.xs,
+    color: colors.muted,
+    fontSize: fontSize.xs,
+    marginInlineStart: space.xs,
   },
 });
