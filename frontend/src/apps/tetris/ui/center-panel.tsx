@@ -234,6 +234,7 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
       <dl {...stylex.props(styles.statGrid)} data-testid={testIds.stats}>
         <Stat label="分数" value={engine.score} />
         <Stat label="消行" value={engine.lines} />
+        <Stat label="连击" value={engine.combo} />
         <Stat label="落块" value={engine.lockedPieceCount} />
         <Stat label="结算" value={engine.settlementCount} />
       </dl>

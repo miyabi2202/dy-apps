@@ -22,7 +22,7 @@ export function SenderBadge({
         ring={`hsl(${hue} 90% 66%)`}
       />
       <span {...stylex.props(styles.name)}>{sender.name}</span>
-      {suffix && <span>{suffix}</span>}
+      {suffix && <span {...stylex.props(styles.suffix)}>{suffix}</span>}
     </span>
   );
 }
@@ -34,10 +34,16 @@ const styles = stylex.create({
     display: 'inline-flex',
     maxWidth: '100%',
   },
+  /** A long name shrinks and ends in …; the suffix always stays whole. */
   name: {
     overflow: 'hidden',
     fontWeight: 700,
     textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    minWidth: 0,
+  },
+  suffix: {
+    flexShrink: 0,
     whiteSpace: 'nowrap',
   },
 });

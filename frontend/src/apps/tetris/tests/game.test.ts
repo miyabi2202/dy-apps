@@ -321,6 +321,27 @@ describe('settlement cycle', () => {
     expect(engine.notices).toEqual([]);
   });
 
+  it('a combo counts clears in a row and, from the second on, cancels a curse each time', () => {
+    const engine = startedEngine();
+    engine.team.pending = pendingOf({ fog: 1, seal: 1 });
+    // An O into a one-row board's gap: one line each time.
+    const clearOne = () => {
+      engine.board = boardWithRows([rows - 1], [4, 5]);
+      setActive(engine, 'O');
+      engine.hardDrop();
+    };
+    clearOne();
+    expect(engine.combo).toBe(1);
+    expect(engine.team.cancelledCount).toBe(0);
+    clearOne();
+    expect(engine.combo).toBe(2);
+    expect(engine.team.cancelledCount).toBe(1);
+    expect(engine.notices.at(-1)).toMatchObject({ kind: 'combo', combo: 2 });
+    // A piece that clears nothing ends it.
+    dropOnEmpty(engine, 1);
+    expect(engine.combo).toBe(0);
+  });
+
   it('a quiet room draws a curse itself after enough empty settlements', () => {
     const quiet = CONFIG.quiet.settlements;
     // 0 draws common, then the first common curse in pool order.

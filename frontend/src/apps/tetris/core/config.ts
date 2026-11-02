@@ -100,6 +100,11 @@ export const CONFIG = {
   votes: { chance: 0.5, durationMs: 5000, extendMs: 1000, resultMs: 1500 },
   /** Clearing at least this many lines at once cancels one pending curse, rarest first. */
   relief: { minLines: 2 },
+  /**
+   * A combo is pieces in a row that each clear a line; one that clears none ends it. From the
+   * `cancelFrom`th clear in a row on, each clear cancels one pending curse too.
+   */
+  combo: { cancelFrom: 2 },
   /** Before the piece of a curse with `cutscene`: its name, then READY, then GO. */
   cutscene: { introMs: 1500, readyMs: 500, goMs: 500 },
   log: { maxEntries: 10 },

@@ -16,7 +16,7 @@ export const testIds = {
   log: 'log',
   nextSettlement: 'next-settlement',
   likeMeter: 'like-meter',
-  notice: (kind: 'cancelled' | 'quiet' | 'likes') => `notice-${kind}`,
+  notice: (kind: 'cancelled' | 'combo' | 'quiet' | 'likes') => `notice-${kind}`,
   overlay: (phase: Phase) => `overlay-${phase}`,
   panelTeam: 'panel-team',
   pending: 'pending',

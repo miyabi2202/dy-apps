@@ -23,8 +23,8 @@ const strike = stylex.keyframes({
 
 /**
  * Short notices over the top of the board that don't stop play: a curse the player cancelled
- * by clearing lines, one the game drew because the room was quiet, or one the full like meter
- * drew. Each animates once, when it is new. During a cutscene they move to the bottom, clear of
+ * by clearing lines or with a combo, one the game drew because the room was quiet, or one the
+ * full like meter drew. Each animates once, when it is new. During a cutscene they move to the bottom, clear of
  * the banner.
  */
 export function BoardNotices({
@@ -47,9 +47,10 @@ export function BoardNotices({
 }
 
 function Notice({ notice, def }: { notice: BoardNotice; def: CurseDef<unknown> }) {
-  const cancelled = notice.kind === 'cancelled';
+  const cancelled = notice.kind === 'cancelled' || notice.kind === 'combo';
   const { headline, lead, look } = {
     cancelled: { headline: `消 ${notice.lines} 行！`, lead: '抵消 ', look: styles.cancelled },
+    combo: { headline: `连击 ×${notice.combo}！`, lead: '抵消 ', look: styles.combo },
     quiet: { headline: '太安静了…', lead: '系统送出 ', look: styles.quiet },
     likes: { headline: `点赞满 ${notice.likes}！`, lead: '', look: styles.likes },
   }[notice.kind];
@@ -111,6 +112,11 @@ const styles = stylex.create({
     borderColor: colors.success,
     backgroundColor: `color-mix(in srgb, ${colors.success} 22%, ${colors.bg})`,
     boxShadow: `0 0 16px color-mix(in srgb, ${colors.success} 60%, transparent)`,
+  },
+  combo: {
+    borderColor: '#fbbf24',
+    backgroundColor: `color-mix(in srgb, #fbbf24 22%, ${colors.bg})`,
+    boxShadow: '0 0 16px color-mix(in srgb, #fbbf24 60%, transparent)',
   },
   likes: {
     borderColor: '#ff5fa2',

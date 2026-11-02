@@ -133,14 +133,17 @@ export interface ActiveCurseView {
 
 /**
  * Something the board shows briefly over play: a pending curse the player cancelled by clearing
- * lines, one the game drew because the room was quiet, or one the full like meter drew.
+ * lines or with a combo, one the game drew because the room was quiet, or one the full like
+ * meter drew.
  */
 export interface BoardNotice {
   id: number;
-  kind: 'cancelled' | 'quiet' | 'likes';
+  kind: 'cancelled' | 'combo' | 'quiet' | 'likes';
   type: EffectType;
   /** Lines cleared at once, for 'cancelled'. */
   lines?: number;
+  /** Clears in a row, for 'combo'. */
+  combo?: number;
   /** How many likes filled the meter, for 'likes'. */
   likes?: number;
   /** Who sent the curse, when known. */
@@ -207,6 +210,8 @@ export class GameEngine {
   lines = 0;
   lockedPieceCount = 0;
   settlementCount = 0;
+  /** Pieces in a row that cleared a line, this one included; 0 after one that cleared none. */
+  combo = 0;
   team: TeamState;
   /** The curses in play, in settlement order. */
   readonly curses: readonly CurseDef<unknown>[];
@@ -524,6 +529,7 @@ export class GameEngine {
     this.lines = 0;
     this.lockedPieceCount = 0;
     this.settlementCount = 0;
+    this.combo = 0;
     this.team = this.startingTeam();
     this.effects = this.startingEffects();
     this.giftHistory = [];
@@ -1083,11 +1089,15 @@ export class GameEngine {
     for (const [x, y] of cells) this.board[y]![x] = piece.type;
 
     const cleared = clearFullLines(this.board);
+    this.combo = cleared > 0 ? this.combo + 1 : 0;
     if (cleared > 0) {
       this.score += CONFIG.score.lineClear[cleared] ?? 0;
       this.lines += cleared;
       this.logState(`cleared ${cleared} line${cleared > 1 ? 's' : ''}`);
-      if (cleared >= CONFIG.relief.minLines) this.cancelPending(cleared);
+      if (cleared >= CONFIG.relief.minLines)
+        this.cancelPending({ kind: 'cancelled', lines: cleared });
+      if (this.combo >= CONFIG.combo.cancelFrom)
+        this.cancelPending({ kind: 'combo', combo: this.combo });
     }
 
     if (twin) {
@@ -1118,13 +1128,18 @@ export class GameEngine {
     this.emit();
   }
 
-  /** A big enough line clear cancels one pending curse, rarest first. */
-  private cancelPending(lines: number): void {
+  /** A big enough line clear, or a combo, cancels one pending curse, rarest first. */
+  private cancelPending(
+    why: { kind: 'cancelled'; lines: number } | { kind: 'combo'; combo: number },
+  ): void {
     const type = cancelOne(this.team, this.pool, (t) => this.curseByType[t]!.rarity);
     if (type === null) return;
-    this.pushNotice({ kind: 'cancelled', type, lines, sender: takeSender(this.team, type) });
-    this.pushLog('system', `消 ${lines} 行，抵消 ${this.curseByType[type]!.name}。`);
-    this.logState(`cancelled ${type}`);
+    this.pushNotice({ ...why, type, sender: takeSender(this.team, type) });
+    const what = why.kind === 'combo' ? `连击 ×${why.combo}` : `消 ${why.lines} 行`;
+    this.pushLog('system', `${what}，抵消 ${this.curseByType[type]!.name}。`);
+    this.logState(
+      `${why.kind === 'combo' ? `combo ${why.combo}` : `${why.lines} lines`}: cancelled ${type}`,
+    );
   }
 
   /** After enough settlements in a row with nothing pending, the game draws a curse itself. */
