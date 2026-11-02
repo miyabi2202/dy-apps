@@ -45,6 +45,8 @@ export interface TopicLearnerOptions {
   index: KnowledgeIndex;
   log: Log;
   now?: () => number;
+  /** Saves a screenshot of the page as `<name>.png`, giving its path: taken when a search is skipped. */
+  snapshot?: (name: string) => Promise<string | null>;
   /** Levels of keywords to follow below the topic: 0 searches only the topic. */
   depth?: number;
   /** Searches per topic, the topic's own included (the searches for unknowns too). */
@@ -420,8 +422,11 @@ export class TopicLearner {
       const skippable =
         !(e instanceof RunStopped) || (e instanceof EmptyReadError && next.level > 0);
       if (!skippable) throw e;
+      // What the page showed when it failed: a timeout's message doesn't say what was in the way.
+      const stamp = new Date(this.now()).toISOString().replace(/[:.]/g, '-');
+      const shot = await this.options.snapshot?.(`${stamp}-search-skipped`).catch(() => null);
       this.options.log(
-        `search skipped {term: ${next.term}, why: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}}`,
+        `search skipped {term: ${next.term}, why: ${(e instanceof Error ? e.message : String(e)).split('\n')[0]}${shot ? `, screenshot: ${shot}` : ''}}`,
       );
       return null;
     }

@@ -171,6 +171,7 @@ async function main(): Promise<number> {
       reader,
       depth: options.depth,
       maxSearches: options.maxSearches,
+      snapshot: (name) => snapshot(name),
     });
     return built;
   };

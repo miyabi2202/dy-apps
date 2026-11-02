@@ -89,6 +89,7 @@ function build(
     knowledge?: string;
     web?: unknown;
     data?: MemoryStore;
+    snapshot?: (name: string) => Promise<string | null>;
   } = {},
 ) {
   const data = options.data ?? new MemoryStore();
@@ -105,6 +106,7 @@ function build(
     drafts: new DraftStore(data),
     index: new KnowledgeIndex(parseKnowledge(options.knowledge ?? '')),
     log: (m) => logs.push(m),
+    snapshot: options.snapshot,
     now: () => NOW,
     depth: options.depth,
     maxSearches: options.maxSearches,
@@ -212,6 +214,25 @@ describe('TopicLearner', () => {
     expect(searched).toEqual(['鸣潮', '今汐', '抽卡']);
     expect(logs).toContain(
       'search skipped {term: 今汐, why: locator.waitFor: Timeout 20000ms exceeded.}',
+    );
+  });
+
+  it('takes a screenshot of a skipped search and says where it is', async () => {
+    const failing = { ...table, 今汐: new Error('locator.hover: Timeout 10000ms exceeded.') };
+    const shots: string[] = [];
+    const { learner, logs } = build(
+      failing,
+      { keywords: [{ keyword: '今汐', reason: '' }] },
+      {
+        depth: 1,
+        snapshot: (name) => (shots.push(name), Promise.resolve(`screenshots/${name}.png`)),
+      },
+    );
+    await learner.learn('鸣潮', { folder: 'topics' });
+    expect(shots).toHaveLength(1);
+    expect(shots[0]).toMatch(/-search-skipped$/);
+    expect(logs).toContain(
+      `search skipped {term: 今汐, why: locator.hover: Timeout 10000ms exceeded., screenshot: screenshots/${shots[0]}.png}`,
     );
   });
 
