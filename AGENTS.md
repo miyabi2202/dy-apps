@@ -35,3 +35,5 @@ Pass dependencies in, so tests can swap them for fakes without `jest.mock`.
 ## Pushing
 
 The repo has two remotes, and a push goes to both: `origin` (GitHub) and `cnb` (`https://cnb.cool/miyabi2202/dy-apps.git`, which opens in mainland China without extra network setup). Run `git push origin master && git push cnb master`. In a clone without `cnb`, add it with `git remote add cnb https://cnb.cool/miyabi2202/dy-apps.git`. CNB takes HTTPS only, with the username `cnb` and an access token as the password, which the macOS Keychain keeps after the first push. If the push to `cnb` says `Unauthorized`, ask the user to push once from their own terminal; never write the token into the remote URL or a file.
+
+The release is the `prod` branch, on both remotes. To release, only when the user asks, fast-forward it to master on both: `git push origin master:prod && git push cnb master:prod`. Git refuses the push if `prod` has commits master doesn't; never force it.
