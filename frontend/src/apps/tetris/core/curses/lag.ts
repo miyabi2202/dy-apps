@@ -6,11 +6,11 @@ export const lag = defineCurse({
   type: 'lag',
   name: '延迟',
   description: (config) =>
-    `所有操作晚 ${config.effects.lagMs / 1000} 秒才生效，持续 ${config.effects.lagLocks} 块`,
+    `所有操作晚 ${config.effects.lagMs / 1000} 秒才生效，持续 ${config.effects.lagRounds} 轮`,
   rarity: 'uncommon',
   queue: 'e',
   cutscene: true,
   tagline: '网卡了',
-  durationLocks: CONFIG.effects.lagLocks,
+  durationRounds: CONFIG.effects.lagRounds,
   inputDelayMs: CONFIG.effects.lagMs,
 });

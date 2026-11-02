@@ -1,7 +1,7 @@
 import { createBoard } from '../core/board';
 import { CONFIG } from '../core/config';
 import { scaleMatrix } from '../core/curses/giant';
-import { pieceCells } from '../core/pieces';
+import { createPiece, pieceCells } from '../core/pieces';
 import { constantRng, sequenceRng } from '../core/random';
 import { dropOnEmpty, setActive, startedEngine } from './helpers';
 
@@ -308,16 +308,13 @@ describe('延迟', () => {
     expect(engine.active!.matrix).not.toEqual(matrix);
   });
 
-  it('a late hard drop still lands, and later presses act on the next piece', () => {
+  it('a late hard drop still lands, and a press still waiting acts on the next piece', () => {
     const engine = startedEngine({ curses: { active: ['lag'] } });
     engine.hardDrop();
     engine.move(-1);
     expect(engine.lockedPieceCount).toBe(0);
     engine.tick(lagMs);
     expect(engine.lockedPieceCount).toBe(1);
-    // The curse lasted one piece: the next one moves at once again.
-    const x = engine.active!.x;
-    engine.move(1);
-    expect(engine.active!.x).toBe(x + 1);
+    expect(engine.active!.x).toBe(createPiece(engine.active!.shape).x - 1);
   });
 });

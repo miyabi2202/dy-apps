@@ -49,11 +49,13 @@ export const CONFIG = {
     sealRounds: 1,
     swapRounds: 1,
     hastyRounds: 1,
+    mirrorRounds: 1,
+    drunkRounds: 1,
+    lagRounds: 1,
     /** Locked pieces one firing lasts, for the curses with a cutscene. */
     noRotateLocks: 1,
     spinLocks: 1,
     slipLocks: 1,
-    mirrorLocks: 1,
     /** A pair counts as one lock, so this is how many pairs one 双落 deals. */
     twinLocks: 1,
     possessLocks: 1,
@@ -62,12 +64,10 @@ export const CONFIG = {
     giantLocks: 1,
     /** How many times bigger 巨大化 makes the piece: each cell becomes giantScale × giantScale. */
     giantScale: 2,
-    drunkLocks: 1,
     /** How often 醉酒 stumbles the piece a column on its own. */
     drunkStumbleMs: 900,
     /** How often a move goes the wrong way while 醉酒. */
     drunkWrongChance: 0.3,
-    lagLocks: 1,
     /** How late every command acts while 延迟. */
     lagMs: 400,
     /** How often 自转 turns the piece. */

@@ -5,11 +5,11 @@ import { defineCurse } from './types';
 export const mirror = defineCurse({
   type: 'mirror',
   name: '镜像',
-  description: (config) => `左右移动对调，持续 ${config.effects.mirrorLocks} 块`,
+  description: (config) => `左右移动对调，持续 ${config.effects.mirrorRounds} 轮`,
   rarity: 'uncommon',
   queue: 'e',
   cutscene: true,
   tagline: '左就是右',
-  durationLocks: CONFIG.effects.mirrorLocks,
+  durationRounds: CONFIG.effects.mirrorRounds,
   mirrorsMoves: true,
 });

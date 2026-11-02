@@ -15,12 +15,12 @@ export const drunk = defineCurse({
   type: 'drunk',
   name: '醉酒',
   description: (config) =>
-    `方块每 ${config.effects.drunkStumbleMs} ms 自己晃一格，左右移动有 ${config.effects.drunkWrongChance * 100}% 会走反，棋盘跟着晃，持续 ${config.effects.drunkLocks} 块`,
+    `方块每 ${config.effects.drunkStumbleMs} ms 自己晃一格，左右移动有 ${config.effects.drunkWrongChance * 100}% 会走反，棋盘跟着晃，持续 ${config.effects.drunkRounds} 轮`,
   rarity: 'uncommon',
   queue: 'e',
   cutscene: true,
   tagline: '我没醉',
-  durationLocks: CONFIG.effects.drunkLocks,
+  durationRounds: CONFIG.effects.drunkRounds,
   boardEffect: 'sway',
   initState: (): DrunkState => ({ elapsedMs: 0 }),
   onSpawn(_ctx, piece, state) {
