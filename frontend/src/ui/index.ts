@@ -13,6 +13,7 @@ export {
   type CardStyle,
   type FontKey,
 } from './card-style';
+export { Avatar } from './avatar';
 export { Button, ButtonLink, type ButtonVariant } from './button';
 export { Checkbox } from './checkbox';
 export { ConnectionForm } from './connection-form';

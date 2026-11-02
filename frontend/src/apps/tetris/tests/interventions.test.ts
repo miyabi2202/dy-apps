@@ -8,6 +8,8 @@ import {
   isConserved,
   pendingTotal,
   settleTeam,
+  SYSTEM_SENDER,
+  takeSender,
 } from '../core/interventions';
 import type { TeamState } from '../core/types';
 import { pendingOf } from './helpers';
@@ -107,5 +109,18 @@ describe('cancelling and quiet-room curses', () => {
     expect(isConserved(team)).toBe(true);
     settleTeam(team);
     expect(isConserved(team)).toBe(true);
+  });
+
+  it('remembers who sent each pending curse, oldest first', () => {
+    const team = createTeam();
+    const a = { id: '1', name: '阿杰' };
+    const b = { id: '2', name: '小美', avatarUrl: 'https://example.com/b.png' };
+    addHit(team, 'fog', a);
+    addHit(team, 'fog', b);
+    addSystemCurse(team, 'seal');
+    expect(takeSender(team, 'fog')).toEqual(a);
+    expect(takeSender(team, 'fog')).toEqual(b);
+    expect(takeSender(team, 'fog')).toBeNull();
+    expect(takeSender(team, 'seal')).toEqual(SYSTEM_SENDER);
   });
 });

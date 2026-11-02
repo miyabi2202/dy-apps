@@ -9,6 +9,7 @@ export const testIds = {
   countdown: 'countdown',
   cutscene: 'cutscene',
   debugCurse: (type: string) => `debug-curse-${type}`,
+  debugViewer: (command: string) => `debug-viewer-${command}`,
   gameOverSummary: 'game-over-summary',
   giftHistory: 'gift-history',
   log: 'log',
@@ -21,6 +22,8 @@ export const testIds = {
   previewFog: 'preview-fog',
   speed: 'speed',
   stats: 'stats',
+  viewerControl: 'viewer-control',
+  viewerInput: 'viewer-input',
 } as const;
 
 export const labels = {

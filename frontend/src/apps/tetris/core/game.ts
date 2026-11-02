@@ -33,6 +33,7 @@ import {
   createTeam,
   pendingTotal,
   settleTeam,
+  takeSender,
 } from './interventions';
 import {
   BagGenerator,
@@ -52,6 +53,7 @@ import type {
   Phase,
   PieceShape,
   PieceType,
+  Sender,
   SwapView,
   TeamState,
 } from './types';
@@ -119,6 +121,8 @@ export interface ActiveCurseView {
 export interface CutsceneView {
   /** The curses that fired with a cutscene at this settlement, in settlement order. */
   curses: readonly CurseDef<unknown>[];
+  /** Who sent each of `curses`, when known. */
+  senders: readonly (Sender | null)[];
   stage: 'intro' | 'ready' | 'go';
 }
 
@@ -132,6 +136,20 @@ export interface BoardNotice {
   type: EffectType;
   /** Lines cleared at once, for 'cancelled'. */
   lines?: number;
+  /** Who sent the curse, when known. */
+  sender?: Sender | null;
+}
+
+/** What a viewer's chat can do to the piece while a curse hands it over (夺舍). */
+export type ViewerCommand = keyof typeof CONFIG.viewerCommands;
+
+/** A viewer's chat command that reached the piece, for the board to show who did what. */
+export interface ViewerInput {
+  id: number;
+  user: string;
+  command: ViewerCommand;
+  /** Whether the piece actually moved or turned; against a wall it doesn't. */
+  worked: boolean;
 }
 
 export type LogKind = 'gift' | 'miss' | 'settle' | 'system';
@@ -193,6 +211,8 @@ export class GameEngine {
   notices: BoardNotice[] = [];
   /** Settlements in a row with nothing pending, towards CONFIG.quiet.settlements. */
   quietSettlements = 0;
+  /** The last few viewers' chat commands while they steer the piece, oldest first. */
+  viewerInputs: ViewerInput[] = [];
 
   /** Bumped on every change the panels care about (not on gravity or movement). */
   version = 0;
@@ -228,6 +248,7 @@ export class GameEngine {
   private logId = 0;
   private batchId = 0;
   private noticeId = 0;
+  private viewerInputId = 0;
   private readonly listeners: Set<Listener> = new Set();
 
   constructor(options: EngineOptions = {}) {
@@ -368,6 +389,11 @@ export class GameEngine {
     return this.blockedBy('hold') !== null;
   }
 
+  /** The first active curse that hands the piece to the viewers' chat, if any. */
+  get viewerControlBy(): CurseDef<unknown> | null {
+    return this.activeCurses.find(({ def }) => def.viewerControl)?.def ?? null;
+  }
+
   /** The first active curse that swaps left and right, if any. */
   get movesMirroredBy(): CurseDef<unknown> | null {
     return this.activeCurses.find(({ def }) => def.mirrorsMoves)?.def ?? null;
@@ -451,6 +477,7 @@ export class GameEngine {
     this.cutsceneMs = 0;
     this.notices = [];
     this.quietSettlements = 0;
+    this.viewerInputs = [];
     this.swap = null;
     this.drops = null;
     this.playMs = 0;
@@ -496,7 +523,8 @@ export class GameEngine {
 
   // ---------------------------------------------------------------- gifts
 
-  sendGifts(sender: string, count: number): GiftResponse {
+  /** Gifts from `sender` (a viewer, or just a name), worth `count` draws. */
+  sendGifts(sender: string | Sender, count: number): GiftResponse {
     // Gifts count only during a game: not while getting ready, nor after it ends.
     if (this.phase === 'ready') return { ok: false, error: '游戏未开始，送礼不计入。' };
     if (this.phase === 'gameOver') return { ok: false, error: '游戏已结束，不能送礼。' };
@@ -522,12 +550,33 @@ export class GameEngine {
    * Debug: queue one of any curse in play, as if a gift had triggered it. Only during a game,
    * like gifts.
    */
-  addCurse(type: EffectType): boolean {
+  addCurse(type: EffectType, sender?: Sender): boolean {
     if (this.phase === 'ready' || this.phase === 'gameOver') return false;
     if (!this.curseByType[type]) return false;
-    addDebugCurse(this.team, type);
+    addDebugCurse(this.team, type, sender);
     this.pushLog('system', `调试：加入 ${this.curseByType[type].name}。`);
     this.logState(`debug added ${type}`);
+    this.emit();
+    return true;
+  }
+
+  /**
+   * A viewer's chat line. While a curse hands the piece over (夺舍), exactly one of
+   * CONFIG.viewerCommands moves or turns it at once, past any curse blocking the player; any other
+   * text, or a chat at any other time, does nothing. Returns whether it was a command taken.
+   */
+  viewerCommand(user: string, text: string): boolean {
+    if (!this.canControl || !this.viewerControlBy) return false;
+    const words = CONFIG.viewerCommands;
+    const command = (Object.keys(words) as ViewerCommand[]).find((c) => words[c] === text.trim());
+    if (!command) return false;
+    const worked =
+      command === 'rotate' ? this.rotateFalling(1) : this.moveFalling(command === 'left' ? -1 : 1);
+    this.viewerInputId += 1;
+    this.viewerInputs = [
+      ...this.viewerInputs,
+      { id: this.viewerInputId, user, command, worked },
+    ].slice(-CONFIG.viewerInputsShown);
     this.emit();
     return true;
   }
@@ -594,8 +643,11 @@ export class GameEngine {
 
   /** The player's move, of both pieces of a pair or neither: swapped while a curse mirrors moves. */
   move(dx: number): boolean {
-    if (!this.canControl) return false;
-    const step = this.movesMirroredBy ? -dx : dx;
+    if (!this.canControl || this.blockedBy('move')) return false;
+    return this.moveFalling(this.movesMirroredBy ? -dx : dx);
+  }
+
+  private moveFalling(step: number): boolean {
     // Both shift by the same step, so only the board can stop them.
     if (this.falling.some((p) => collides(this.board, p.matrix, p.x + step, p.y))) return false;
     const wasGrounded = this.isGrounded();
@@ -615,6 +667,10 @@ export class GameEngine {
   /** Rotates each falling piece in place, each with its own kicks. */
   rotate(dir: 1 | -1): boolean {
     if (!this.canControl || this.blockedBy('rotate')) return false;
+    return this.rotateFalling(dir);
+  }
+
+  private rotateFalling(dir: 1 | -1): boolean {
     let turned = false;
     for (const p of this.falling) turned = this.rotateWithKicks(p, dir, true) || turned;
     return turned;
@@ -803,6 +859,7 @@ export class GameEngine {
     }
     this.active = piece;
     this.twin = twin;
+    this.viewerInputs = [];
   }
 
   /**
@@ -864,7 +921,7 @@ export class GameEngine {
   private cancelPending(lines: number): void {
     const type = cancelOne(this.team, this.pool, (t) => this.curseByType[t]!.rarity);
     if (type === null) return;
-    this.pushNotice({ kind: 'cancelled', type, lines });
+    this.pushNotice({ kind: 'cancelled', type, lines, sender: takeSender(this.team, type) });
     this.pushLog('system', `消 ${lines} 行，抵消 ${this.curseByType[type]!.name}。`);
     this.logState(`cancelled ${type}`);
   }
@@ -890,15 +947,21 @@ export class GameEngine {
     this.notices = [...this.notices, { ...notice, id: this.noticeId }].slice(-3);
   }
 
-  private startCutscene(curses: readonly CurseDef<unknown>[]): void {
-    this.cutscene = { curses, stage: 'intro' };
+  private startCutscene(
+    curses: readonly CurseDef<unknown>[],
+    senders: readonly (Sender | null)[],
+  ): void {
+    this.cutscene = { curses, senders, stage: 'intro' };
     this.cutsceneMs = 0;
     this.logState(`cutscene for ${curses.map((def) => def.type).join(',')}`);
   }
 
   /** The names, then READY, then GO; the next piece spawns when GO is over. */
   private advanceCutscene(dtMs: number): void {
-    const { introMs, readyMs, goMs } = CONFIG.cutscene;
+    const { readyMs, goMs } = CONFIG.cutscene;
+    const introMs = Math.max(
+      ...this.cutscene!.curses.map((def) => def.cutsceneMs ?? CONFIG.cutscene.introMs),
+    );
     this.cutsceneMs += dtMs;
     const t = this.cutsceneMs;
     if (t >= introMs + readyMs + goMs) {
@@ -921,8 +984,10 @@ export class GameEngine {
     const dropped: [number, number][] = [];
     this.settlementCount += 1;
     const report: SettlementReport = { index: this.settlementCount, executed: [] };
+    const senders = new Map<EffectType, Sender | null>();
     let gameOver: string | undefined;
     for (const type of settleTeam(this.team, this.pool, this.queueOf)) {
+      senders.set(type, takeSender(this.team, type));
       const def = this.curseByType[type]!;
       // A lasting curse is (re)activated first, so apply sees the state it keeps.
       const state =
@@ -944,10 +1009,13 @@ export class GameEngine {
       this.endGame(gameOver);
       return;
     }
-    const shown = report.executed
-      .map(({ type }) => this.curseByType[type]!)
-      .filter((def) => def.cutscene);
-    if (shown.length > 0) this.startCutscene(shown);
+    const shown = report.executed.filter(({ type }) => this.curseByType[type]!.cutscene);
+    if (shown.length > 0) {
+      this.startCutscene(
+        shown.map(({ type }) => this.curseByType[type]!),
+        shown.map(({ type }) => senders.get(type) ?? null),
+      );
+    }
   }
 
   /** What curses get to see and do: never the engine itself. */

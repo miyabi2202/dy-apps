@@ -436,9 +436,21 @@ describe('cutscenes', () => {
     return engine;
   }
 
+  it('shows who sent each curse in its cutscene', () => {
+    const engine = startedEngine({ giftRng: constantRng(0) });
+    const sender = { id: '7', name: '阿杰', avatarUrl: 'https://example.com/a.png' };
+    expect(engine.sendGifts(sender, 1)).toMatchObject({ ok: true });
+    const type = engine.curses.find((def) => engine.team.pending[def.type] > 0)!.type;
+    expect(engine.team.senders[type]).toEqual([sender]);
+    engine.team.pending = pendingOf({ noRotate: 1 });
+    engine.team.senders = { noRotate: [sender] };
+    dropOnEmpty(engine, ROUND);
+    expect(engine.cutscene).toMatchObject({ curses: [CURSES.noRotate], senders: [sender] });
+  });
+
   it('holds the next piece for the names, READY and GO, then spawns it', () => {
     const engine = settlingNoRotate();
-    expect(engine.cutscene).toEqual({ curses: [CURSES.noRotate], stage: 'intro' });
+    expect(engine.cutscene).toMatchObject({ curses: [CURSES.noRotate], stage: 'intro' });
     expect(engine.active).toBeNull();
     expect(engine.move(1)).toBe(false);
     expect(engine.holdPiece()).toBe(false);

@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { BoardNotice, GameEngine } from '../core/game';
 import { testIds } from '../messages';
 import { CurseName } from './curse-name';
+import { SenderBadge } from './sender-badge';
 
 /** Pops in, holds, then floats up and fades; it stays invisible afterwards. */
 const floatAway = stylex.keyframes({
@@ -45,6 +46,7 @@ function Notice({ notice, engine }: { notice: BoardNotice; engine: GameEngine })
       <span {...stylex.props(styles.headline)}>
         {cancelled ? `消 ${notice.lines} 行！` : '太安静了…'}
       </span>
+      {notice.sender && <SenderBadge sender={notice.sender} suffix="送的" xstyle={styles.sender} />}
       <span>
         {cancelled ? '抵消 ' : '系统送出 '}
         <span {...stylex.props(styles.name)}>
@@ -103,6 +105,9 @@ const styles = stylex.create({
     fontSize: fontSize.md,
     fontWeight: 800,
     whiteSpace: 'nowrap',
+  },
+  sender: {
+    fontSize: fontSize.xs,
   },
   name: {
     display: 'inline-block',

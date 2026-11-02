@@ -1,5 +1,5 @@
 import { EFFECT_POOL, RARITIES, type EffectType, type Rarity } from './curses';
-import type { TeamState } from './types';
+import type { Sender, TeamState } from './types';
 
 /** A fresh team with nothing pending, for every curse type. */
 export function createTeam(): TeamState {
@@ -13,6 +13,7 @@ export function createTeam(): TeamState {
     debugCount: 0,
     cancelledCount: 0,
     lastFired: {},
+    senders: {},
   };
 }
 
@@ -20,21 +21,30 @@ export function pendingTotal(team: TeamState): number {
   return Object.values(team.pending).reduce((sum, n) => sum + n, 0);
 }
 
-/** Queue one triggered curse. Does not touch hit/gift counters. */
-export function addHit(team: TeamState, type: EffectType): void {
+/** The game itself, as the sender of the curses it draws when the room is quiet. */
+export const SYSTEM_SENDER: Sender = { id: 'system', name: '系统' };
+
+/** Queue one triggered curse, from `sender` when known. Does not touch hit/gift counters. */
+export function addHit(team: TeamState, type: EffectType, sender?: Sender): void {
   team.pending[type] += 1;
+  if (sender) (team.senders[type] ??= []).push(sender);
 }
 
 /** Queue a curse the game drew itself because the room was quiet. */
 export function addSystemCurse(team: TeamState, type: EffectType): void {
-  team.pending[type] += 1;
+  addHit(team, type, SYSTEM_SENDER);
   team.systemCount += 1;
 }
 
-/** Queue a curse added by hand from the debug panel. */
-export function addDebugCurse(team: TeamState, type: EffectType): void {
-  team.pending[type] += 1;
+/** Queue a curse added by hand from the debug panel, as if `sender` had sent it. */
+export function addDebugCurse(team: TeamState, type: EffectType, sender?: Sender): void {
+  addHit(team, type, sender);
   team.debugCount += 1;
+}
+
+/** Who sent the next pending curse of `type`, taking it off the list: call as one fires or is cancelled. */
+export function takeSender(team: TeamState, type: EffectType): Sender | null {
+  return team.senders[type]?.shift() ?? null;
 }
 
 /**

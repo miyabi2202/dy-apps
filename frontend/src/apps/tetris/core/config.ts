@@ -38,6 +38,10 @@ export const CONFIG = {
     /** A hit picks a rarity by these weights, then one of that rarity's curses evenly. */
     rarityWeights: { common: 0.5, uncommon: 0.35, rare: 0.15 },
   },
+  /** What viewers type in chat to steer the piece while 夺舍 is active; nothing else counts. */
+  viewerCommands: { left: '左', right: '右', rotate: '转' },
+  /** Viewers' recent commands the board shows at once. */
+  viewerInputsShown: 6,
   effects: {
     /** Settlement rounds one firing lasts; each firing is its own instance. */
     hasteRounds: 3,
@@ -52,6 +56,9 @@ export const CONFIG = {
     mirrorLocks: 1,
     /** A pair counts as one lock, so this is how many pairs one 双落 deals. */
     twinLocks: 1,
+    possessLocks: 1,
+    /** 夺舍's cutscene holds longer than the others, so viewers have time to read how to play. */
+    possessIntroMs: 3000,
     /** How often 自转 turns the piece. */
     spinIntervalMs: 500,
     /** How often 打滑 pushes the piece a column. */

@@ -56,7 +56,8 @@ export class GiftFeed {
     // Assigned on the first pass: batches() is never empty.
     let response!: GiftResponse;
     for (const count of batches(diamondsOf(message))) {
-      response = this.engine.sendGifts(message.user.nickname, count);
+      const { id, nickname, avatarUrl } = message.user;
+      response = this.engine.sendGifts({ id, name: nickname, avatarUrl }, count);
       if (!response.ok) break;
       for (const type of EFFECT_POOL) {
         const n = response.result.effects[type];
@@ -114,6 +115,16 @@ export class GiftFeed {
     if (gifts === 0) return;
     this.logger.debug(`${gifts} more gifts (${diamonds} diamonds) in that second, not listed`);
     this.unlisted = { gifts: 0, diamonds: 0 };
+  }
+
+  /**
+   * A viewer's chat line, for the game to read as a command while viewers steer the piece (夺舍).
+   * Chat never reaches the wall.
+   */
+  comment(user: string, text: string): boolean {
+    const taken = this.engine.viewerCommand(user, text);
+    if (taken) this.logger.debug(`viewer ${user}: ${text.trim()}`);
+    return taken;
   }
 
   /** Empties the wall, for a new game. */

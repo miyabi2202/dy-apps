@@ -69,6 +69,18 @@ export interface TeamState {
   cancelledCount: number;
   /** Per settlement queue, the type that fired last, so a shared queue takes turns. */
   lastFired: Partial<Record<string, EffectType>>;
+  /**
+   * Who sent each pending curse, per type, oldest first; the engine takes the first as one fires
+   * or is cancelled. Can be shorter than `pending` (a test that sets counts directly).
+   */
+  senders: Partial<Record<EffectType, Sender[]>>;
+}
+
+/** Who a curse came from, for its animations: a viewer, or the game itself. */
+export interface Sender {
+  id: string;
+  name: string;
+  avatarUrl?: string;
 }
 
 export interface GiftBatchResult {

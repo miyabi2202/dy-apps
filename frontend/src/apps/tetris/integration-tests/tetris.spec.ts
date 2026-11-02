@@ -20,6 +20,7 @@ interface LabWindow {
       cutscene: unknown;
       blockedBy(cmd: string): unknown;
       tick(dtMs: number): void;
+      hardDrop(): boolean;
     };
     feed: { send(message: unknown): { ok: boolean } };
   };
@@ -114,6 +115,23 @@ test('the debug panel adds any curse to the pending list once the game has start
   await add.click();
   await add.click();
   await expect(page.getByTestId(testIds.pending)).toContainText('×2');
+});
+
+test('夺舍: the debug panel stands in for viewers typing in chat', async ({ page }) => {
+  await page.getByText(labels.debug).click();
+  await page.getByRole('button', { name: labels.start }).click();
+  await page.getByTestId(testIds.debugCurse('possess')).click();
+  // Settle it, then play its cutscene out.
+  await page.evaluate((locks) => {
+    const e = (window as unknown as LabWindow).__blockLab.engine;
+    for (let i = 0; i < locks; i += 1) e.hardDrop();
+    e.tick(60_000);
+  }, CONFIG.settlement.everyLocks);
+  await expect(page.getByTestId(testIds.viewerControl)).toBeVisible();
+  const x = (await engineState(page)).active!.x;
+  await page.getByTestId(testIds.debugViewer('left')).click();
+  await expect(page.getByTestId(testIds.viewerInput)).toHaveCount(1);
+  expect((await engineState(page)).active!.x).toBe(x - 1);
 });
 
 test('start, pause with P, resume; restart after game over empties the wall', async ({ page }) => {

@@ -4,6 +4,7 @@ import { haste } from './haste';
 import { hasty } from './hasty';
 import { mirror } from './mirror';
 import { noRotate } from './no-rotate';
+import { possess } from './possess';
 import { rockfall } from './rockfall';
 import { seal } from './seal';
 import { slip } from './slip';
@@ -32,6 +33,7 @@ const registry = {
   slip,
   mirror,
   twin,
+  possess,
 } satisfies Record<string, CurseDef<unknown, string>>;
 
 export type EffectType = keyof typeof registry;

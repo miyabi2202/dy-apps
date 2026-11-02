@@ -10,6 +10,7 @@ import type { PieceShape } from '../core/types';
 import { labels, testIds } from '../messages';
 import { drawMiniPiece } from '../render/board';
 import { BoardNotices } from './board-notices';
+import { ViewerControl } from './viewer-control';
 import { CurseName } from './curse-name';
 import { Cutscene } from './cutscene';
 
@@ -162,6 +163,7 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
           <Overlay engine={engine} onRestart={onRestart} />
           {/* After the overlay, so a quiet room's notice shows over the cutscene it starts. */}
           <BoardNotices engine={engine} />
+          <ViewerControl engine={engine} />
         </div>
 
         <div {...stylex.props(styles.side, styles.nextSide)}>
@@ -330,13 +332,15 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
 
 function TouchControls({ engine }: { engine: GameEngine }) {
   const disabled = engine.phase !== 'playing';
+  const moveBlocked = engine.blockedBy('move') !== null;
   const rotateBlocked = engine.blockedBy('rotate') !== null;
+  const holdBlocked = engine.blockedBy('hold') !== null;
   const hardDropBlocked = engine.blockedBy('hardDrop') !== null;
   const buttons: [string, () => void, boolean][] = [
-    ['左移', () => engine.move(-1), false],
-    ['右移', () => engine.move(1), false],
+    ['左移', () => engine.move(-1), moveBlocked],
+    ['右移', () => engine.move(1), moveBlocked],
     ['旋转', () => engine.rotate(1), rotateBlocked],
-    ['暂存', () => engine.holdPiece(), false],
+    ['暂存', () => engine.holdPiece(), holdBlocked],
     ['硬降', () => engine.hardDrop(), hardDropBlocked],
   ];
   return (

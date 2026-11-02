@@ -7,6 +7,7 @@ import { labels, testIds } from '../messages';
 import { CurseName } from './curse-name';
 import { CUTSCENE_DEMOS } from './cutscene-demos';
 import { RARITY_COLORS } from './rarity';
+import { SenderBadge } from './sender-badge';
 
 /** A band of light crossing the dimmed board as the cutscene opens. */
 const sweep = stylex.keyframes({
@@ -102,10 +103,12 @@ export function Cutscene({ cutscene }: { cutscene: CutsceneView }) {
       <div aria-hidden {...stylex.props(styles.sweep(color))} />
       <div {...stylex.props(styles.banner, going && [styles.clear, styles.lasts(goMs)])}>
         <div aria-hidden {...stylex.props(styles.bannerBg(color))} />
-        {cutscene.curses.map((def) => {
+        {cutscene.curses.map((def, i) => {
           const Demo = CUTSCENE_DEMOS[def.type];
+          const sender = cutscene.senders[i];
           return (
             <div key={def.type} {...stylex.props(styles.curse)}>
+              {sender && <SenderBadge sender={sender} suffix="送出" xstyle={styles.sender} />}
               <strong {...stylex.props(styles.name, styles.glow(RARITY_COLORS[def.rarity]))}>
                 <CurseName def={def} />
               </strong>
@@ -223,6 +226,17 @@ const styles = stylex.create({
     display: 'block',
     fontSize: 30,
     letterSpacing: '0.1em',
+  },
+  /** Who sent it, sliding in just before the name lands. */
+  sender: {
+    animationDelay: '80ms',
+    animationDuration: '300ms',
+    animationFillMode: 'both',
+    animationName: riseIn,
+    animationTimingFunction: 'ease-out',
+    color: colors.text,
+    fontSize: fontSize.md,
+    maxWidth: '92%',
   },
   tagline: {
     animationDelay: '600ms',

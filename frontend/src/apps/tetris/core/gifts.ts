@@ -2,7 +2,7 @@ import { CONFIG } from './config';
 import { CURSE_LIST, RARITIES, type CurseDef, type EffectType, type Rarity } from './curses';
 import { addHit } from './interventions';
 import { randomInt, type Rng } from './random';
-import type { GiftBatchResult, TeamState } from './types';
+import type { GiftBatchResult, Sender, TeamState } from './types';
 
 export function isValidBatchCount(count: unknown): count is number {
   return (
@@ -58,21 +58,23 @@ export function drawCurse(rng: Rng, bands: readonly RarityBand[]): EffectType {
 /**
  * Resolve a batch of draws (one per diamond of gifts) one at a time, in order, using the probability
  * snapshot `probability`. Each diamond takes three draws: `u < p` hits, a rarity by weight, then
- * one of that rarity's curses evenly.
+ * one of that rarity's curses evenly. `sender` is who the curses are from: a viewer, or just a
+ * name (its own id).
  */
 export function processGiftBatch(
   team: TeamState,
-  sender: string,
+  from: string | Sender,
   count: number,
   probability: number,
   rng: Rng,
   curses: readonly CurseDef<unknown>[] = CURSE_LIST,
 ): GiftBatchResult {
   if (curses.length === 0) throw new RangeError('No curses to draw from');
+  const sender = typeof from === 'string' ? { id: from, name: from } : from;
   const bands = rarityBands(curses);
   if (!isValidBatchCount(count)) throw new RangeError(`Invalid gift count: ${String(count)}`);
   const result: GiftBatchResult = {
-    sender,
+    sender: sender.name,
     count,
     triggerProbability: probability,
     hits: 0,
@@ -91,7 +93,7 @@ export function processGiftBatch(
     team.hitCount += 1;
     result.hits += 1;
     result.effects[type] = (result.effects[type] ?? 0) + 1;
-    addHit(team, type);
+    addHit(team, type, sender);
   }
   return result;
 }

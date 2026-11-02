@@ -4,7 +4,7 @@ import type { ActivePiece, Board, PieceShape, PieceType } from '../types';
 import type { EffectType } from './index';
 
 /** Player commands a curse can block while it is active. */
-export type Command = 'rotate' | 'hold' | 'softDrop' | 'hardDrop';
+export type Command = 'move' | 'rotate' | 'hold' | 'softDrop' | 'hardDrop';
 
 /** How often a curse should come up, from most to least. */
 export type Rarity = 'common' | 'uncommon' | 'rare';
@@ -64,6 +64,13 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   cutscene?: boolean;
   /** A playful line under the name in its cutscene, like 冻住不许转. */
   tagline?: string;
+  /** How long its cutscene shows the name, instead of CONFIG.cutscene.introMs. */
+  cutsceneMs?: number;
+  /**
+   * While active: viewers steer the piece by typing CONFIG.viewerCommands in chat, each one
+   * acting at once. Block the player's commands as well to hand the piece over completely.
+   */
+  viewerControl?: boolean;
   /** Fresh state when the curse becomes active. */
   initState?(): S;
   /** At settlement, every time it fires. */

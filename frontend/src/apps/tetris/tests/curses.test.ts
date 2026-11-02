@@ -188,3 +188,76 @@ describe('双落', () => {
     expect(engine.cutscene?.curses.map((def) => def.type)).toEqual(['twin']);
   });
 });
+
+describe('夺舍', () => {
+  const { left, right, rotate } = CONFIG.viewerCommands;
+
+  function possessed() {
+    return startedEngine({ pieces: { active: 'T' }, curses: { active: ['possess'] } });
+  }
+
+  it("takes the player's controls away", () => {
+    const engine = possessed();
+    const { x, matrix } = engine.active!;
+    expect(engine.move(-1)).toBe(false);
+    expect(engine.rotate(1)).toBe(false);
+    expect(engine.hardDrop()).toBe(false);
+    expect(engine.holdPiece()).toBe(false);
+    expect(engine.active).toMatchObject({ x, matrix });
+  });
+
+  it('moves or turns the piece at once for each viewer command, and shows who sent it', () => {
+    const engine = possessed();
+    const x = engine.active!.x;
+    expect(engine.viewerCommand('阿杰', left)).toBe(true);
+    expect(engine.viewerCommand('小美', ` ${left} `)).toBe(true);
+    expect(engine.active!.x).toBe(x - 2);
+    expect(engine.viewerCommand('阿杰', right)).toBe(true);
+    expect(engine.active!.x).toBe(x - 1);
+    const matrix = engine.active!.matrix;
+    expect(engine.viewerCommand('阿杰', rotate)).toBe(true);
+    expect(engine.active!.matrix).not.toEqual(matrix);
+    expect(engine.viewerInputs.map((i) => [i.user, i.command])).toEqual([
+      ['阿杰', 'left'],
+      ['小美', 'left'],
+      ['阿杰', 'right'],
+      ['阿杰', 'rotate'],
+    ]);
+  });
+
+  it('marks a command that hits the wall, and ignores any other chat', () => {
+    const engine = possessed();
+    while (engine.viewerCommand('阿杰', left) && engine.viewerInputs.at(-1)!.worked) {
+      /* to the wall */
+    }
+    expect(engine.active!.x).toBe(0);
+    expect(engine.viewerInputs.at(-1)!.worked).toBe(false);
+    expect(engine.viewerCommand('阿杰', '左左左')).toBe(false);
+    expect(engine.viewerCommand('阿杰', '主播加油')).toBe(false);
+  });
+
+  it('does nothing without the curse, and hands the piece back after one lock', () => {
+    const plain = startedEngine();
+    const x = plain.active!.x;
+    expect(plain.viewerCommand('阿杰', left)).toBe(false);
+    expect(plain.active!.x).toBe(x);
+
+    const engine = possessed();
+    engine.viewerCommand('阿杰', left);
+    engine.active!.y = rows - 2;
+    engine.tick(CONFIG.lock.delayMs);
+    expect(engine.viewerInputs).toEqual([]);
+    expect(engine.viewerCommand('阿杰', left)).toBe(false);
+    expect(engine.move(-1)).toBe(true);
+  });
+
+  it('holds its cutscene longer, so viewers can read how to play', () => {
+    const engine = startedEngine();
+    engine.team.pending.possess = 1;
+    dropOnEmpty(engine, ROUND);
+    engine.tick(CONFIG.cutscene.introMs);
+    expect(engine.cutscene!.stage).toBe('intro');
+    engine.tick(CONFIG.effects.possessIntroMs - CONFIG.cutscene.introMs);
+    expect(engine.cutscene!.stage).toBe('ready');
+  });
+});
