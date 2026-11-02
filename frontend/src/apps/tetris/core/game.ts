@@ -41,6 +41,7 @@ import type {
   Board,
   BoardView,
   GiftBatchResult,
+  Matrix,
   Phase,
   PieceShape,
   PieceType,
@@ -146,10 +147,20 @@ export type GiftResponse = { ok: true; result: GiftBatchResult } | { ok: false; 
 
 type Listener = () => void;
 
+/** The lowest row a piece has a cell in. */
+function bottomOf(p: ActivePiece): number {
+  return Math.max(...pieceCells(p.matrix, p.x, p.y).map(([, y]) => y));
+}
+
 export class GameEngine {
   phase: Phase = 'ready';
   board: Board;
   active: ActivePiece | null = null;
+  /**
+   * The second piece of a pair while a curse spawns two (双落). It moves and falls with `active`;
+   * when one of them locks, the other becomes `active` and the turn ends when it locks too.
+   */
+  twin: ActivePiece | null = null;
   /** The held piece's shape, unrotated. */
   hold: PieceShape | null = null;
   canHold = true;
@@ -357,7 +368,7 @@ export class GameEngine {
   /** Y the active piece would land at. */
   get ghostY(): number | null {
     if (!this.active) return null;
-    return this.active.y + this.dropDistance();
+    return this.active.y + this.dropDistance(this.active);
   }
 
   /** What the board renderer draws. */
@@ -366,6 +377,8 @@ export class GameEngine {
       board: this.board,
       active: this.active,
       ghostY: this.ghostY,
+      twin: this.twin,
+      twinGhostY: this.twin && this.twin.y + this.dropDistance(this.twin),
       activeCurses: this.activeCurses.map((a) => a.type),
       timeMs: this.playMs,
       swap: this.swap,
@@ -410,6 +423,7 @@ export class GameEngine {
     this.phase = 'ready';
     this.board = this.startingBoard();
     this.active = null;
+    this.twin = null;
     this.hold = null;
     this.canHold = true;
     this.upcoming = [...this.initialUpcoming];
@@ -514,13 +528,35 @@ export class GameEngine {
     return this.phase === 'playing' && this.active !== null;
   }
 
-  private isGrounded(): boolean {
-    const p = this.active!;
+  /** The falling pieces: the active one, and its twin while there is one. */
+  private get falling(): ActivePiece[] {
+    return this.twin ? [this.active!, this.twin] : [this.active!];
+  }
+
+  /**
+   * Resting on the board. Only the board counts: a piece above its twin falls with it, so a
+   * pair moves and falls as one until either piece touches down.
+   */
+  private restsOnBoard(p: ActivePiece): boolean {
     return collides(this.board, p.matrix, p.x, p.y + 1);
   }
 
-  private dropDistance(): number {
-    const p = this.active!;
+  private isGrounded(): boolean {
+    return this.falling.some((p) => this.restsOnBoard(p));
+  }
+
+  /** Whether `matrix` at x, y hits the board or the other falling piece. */
+  private blocked(p: ActivePiece, matrix: Matrix, x: number, y: number): boolean {
+    if (collides(this.board, matrix, x, y)) return true;
+    const other = p === this.active ? this.twin : this.active;
+    if (!other) return false;
+    const taken = new Set(
+      pieceCells(other.matrix, other.x, other.y).map(([cx, cy]) => `${cx},${cy}`),
+    );
+    return pieceCells(matrix, x, y).some(([cx, cy]) => taken.has(`${cx},${cy}`));
+  }
+
+  private dropDistance(p: ActivePiece): number {
     let d = 0;
     while (!collides(this.board, p.matrix, p.x, p.y + d + 1)) d += 1;
     return d;
@@ -534,33 +570,39 @@ export class GameEngine {
     }
   }
 
-  /** The player's move: swapped while a curse mirrors moves. */
+  /** The player's move, of both pieces of a pair or neither: swapped while a curse mirrors moves. */
   move(dx: number): boolean {
     if (!this.canControl) return false;
-    return this.shift(this.movesMirroredBy ? -dx : dx, true);
-  }
-
-  /** Move by `dx` columns if it fits; only the player's moves may reset the lock. */
-  private shift(dx: number, mayResetLock: boolean): boolean {
-    const p = this.active!;
-    if (collides(this.board, p.matrix, p.x + dx, p.y)) return false;
+    const step = this.movesMirroredBy ? -dx : dx;
+    // Both shift by the same step, so only the board can stop them.
+    if (this.falling.some((p) => collides(this.board, p.matrix, p.x + step, p.y))) return false;
     const wasGrounded = this.isGrounded();
-    p.x += dx;
-    if (mayResetLock) this.afterManipulation(wasGrounded);
+    for (const p of this.falling) p.x += step;
+    this.afterManipulation(wasGrounded);
     return true;
   }
 
+  /** A curse's move of the active piece alone; it never resets the lock. */
+  private shift(dx: number): boolean {
+    const p = this.active!;
+    if (this.blocked(p, p.matrix, p.x + dx, p.y)) return false;
+    p.x += dx;
+    return true;
+  }
+
+  /** Rotates each falling piece in place, each with its own kicks. */
   rotate(dir: 1 | -1): boolean {
     if (!this.canControl || this.blockedBy('rotate')) return false;
-    return this.rotateWithKicks(dir, true);
+    let turned = false;
+    for (const p of this.falling) turned = this.rotateWithKicks(p, dir, true) || turned;
+    return turned;
   }
 
   /** Rotate with the first kick that fits; only the player's rotations may reset the lock. */
-  private rotateWithKicks(dir: 1 | -1, mayResetLock: boolean): boolean {
-    const p = this.active!;
+  private rotateWithKicks(p: ActivePiece, dir: 1 | -1, mayResetLock: boolean): boolean {
     const rotated = rotateMatrix(p.matrix, dir);
     for (const [kx, ky] of KICK_OFFSETS) {
-      if (!collides(this.board, rotated, p.x + kx, p.y + ky)) {
+      if (!this.blocked(p, rotated, p.x + kx, p.y + ky)) {
         const wasGrounded = this.isGrounded();
         p.matrix = rotated;
         p.x += kx;
@@ -574,24 +616,37 @@ export class GameEngine {
 
   softDrop(): boolean {
     if (!this.canControl || this.isGrounded() || this.blockedBy('softDrop')) return false;
-    this.active!.y += 1;
+    for (const p of this.falling) p.y += 1;
     this.score += CONFIG.score.softDropPerCell;
     this.gravityMs = 0;
     this.emit();
     return true;
   }
 
+  /** Drops and locks each falling piece, the lower first so the upper lands on it. */
   hardDrop(): boolean {
     if (!this.canControl || this.blockedBy('hardDrop')) return false;
-    const d = this.dropDistance();
-    this.active!.y += d;
-    this.score += d * CONFIG.score.hardDropPerCell;
-    this.lockPiece();
+    const pair = this.twin !== null;
+    if (pair && bottomOf(this.twin!) > bottomOf(this.active!)) this.swapTwin();
+    this.dropAndLock();
+    if (pair && this.phase === 'playing') this.dropAndLock();
     return true;
   }
 
+  private dropAndLock(): void {
+    const d = this.dropDistance(this.active!);
+    this.active!.y += d;
+    this.score += d * CONFIG.score.hardDropPerCell;
+    this.lockPiece();
+  }
+
+  private swapTwin(): void {
+    [this.active, this.twin] = [this.twin, this.active];
+  }
+
+  /** Not while a pair is falling. */
   holdPiece(): boolean {
-    if (!this.canControl || !this.canHold || this.blockedBy('hold')) return false;
+    if (!this.canControl || !this.canHold || this.twin || this.blockedBy('hold')) return false;
     const current = this.active!.shape;
     if (this.hold === null) {
       this.hold = current;
@@ -620,7 +675,7 @@ export class GameEngine {
     if (this.isGrounded()) {
       this.gravityMs = 0;
       this.lockMs += dtMs;
-      if (this.lockMs >= this.lockDelayMs) this.lockPiece();
+      if (this.lockMs >= this.lockDelayMs) this.lockResting();
       return;
     }
     this.lockMs = 0;
@@ -632,8 +687,18 @@ export class GameEngine {
         this.gravityMs = 0;
         break;
       }
-      this.active!.y += 1;
+      for (const p of this.falling) p.y += 1;
     }
+  }
+
+  /** Lock what rests on the board; of a pair, one still in the air plays on. */
+  private lockResting(): void {
+    if (this.twin && this.restsOnBoard(this.twin) && !this.restsOnBoard(this.active!)) {
+      this.swapTwin();
+    }
+    const pair = this.twin !== null;
+    this.lockPiece();
+    if (pair && this.phase === 'playing' && this.restsOnBoard(this.active!)) this.lockPiece();
   }
 
   // ---------------------------------------------------------------- spawning & locking
@@ -668,7 +733,23 @@ export class GameEngine {
     this.lockResets = 0;
   }
 
+  /** The next piece from the queue, through the curses' onSpawn hooks; two side by side while a curse spawns pairs. */
   private spawnNext(): void {
+    const type = this.upcoming[0]!;
+    const piece = this.takeFromQueue();
+    this.swap = piece.type === type ? null : { from: type, atMs: this.playMs };
+    if (!this.activeCurses.some(({ def }) => def.spawnsTwin)) {
+      this.place(piece);
+      return;
+    }
+    const twin = this.takeFromQueue();
+    const middle = CONFIG.board.cols / 2;
+    piece.x = Math.floor(middle) - piece.matrix[0]!.length;
+    twin.x = Math.ceil(middle);
+    this.place(piece, twin);
+  }
+
+  private takeFromQueue(): ActivePiece {
     const type = this.upcoming.shift()!;
     this.fillUpcoming();
     let piece = createPiece(shapeOf(type));
@@ -677,8 +758,7 @@ export class GameEngine {
         piece = def.onSpawn(this.curseContext(), piece, this.effects.active[curse]!.state);
       }
     }
-    this.swap = piece.type === type ? null : { from: type, atMs: this.playMs };
-    this.place(piece);
+    return piece;
   }
 
   /** A hold swap or a scenario's first piece: spawned unrotated, and no curse sees it. */
@@ -687,20 +767,28 @@ export class GameEngine {
     this.place(createPiece(shape));
   }
 
-  private place(piece: ActivePiece): void {
+  private place(piece: ActivePiece, twin: ActivePiece | null = null): void {
     this.resetPieceTimers();
-    if (collides(this.board, piece.matrix, piece.x, piece.y)) {
+    this.twin = null;
+    if ([piece, twin].some((p) => p && collides(this.board, p.matrix, p.x, p.y))) {
       this.active = null;
       this.endGame('新方块的出生位置被占用');
       return;
     }
     this.active = piece;
+    this.twin = twin;
   }
 
+  /**
+   * Lock the active piece. With a twin still falling, the turn goes on: the twin becomes active
+   * with fresh timers. Otherwise the turn ends: count the lock, settle, spawn the next.
+   */
   private lockPiece(): void {
     const piece = this.active;
     if (!piece || this.phase !== 'playing') return;
     this.active = null;
+    const twin = this.twin;
+    this.twin = null;
 
     const cells = pieceCells(piece.matrix, piece.x, piece.y);
     if (cells.some(([, y]) => y < 0)) {
@@ -716,6 +804,17 @@ export class GameEngine {
       this.lines += cleared;
       this.logState(`cleared ${cleared} line${cleared > 1 ? 's' : ''}`);
       if (cleared >= CONFIG.relief.minLines) this.cancelPending(cleared);
+    }
+
+    if (twin) {
+      // Rows that cleared beneath it can bring cells down into it; lift it clear.
+      while (collides(this.board, twin.matrix, twin.x, twin.y) && twin.y > -twin.matrix.length) {
+        twin.y -= 1;
+      }
+      this.active = twin;
+      this.resetPieceTimers();
+      this.emit();
+      return;
     }
 
     tickTimedEffects(this.effects);
@@ -831,8 +930,8 @@ export class GameEngine {
       active: this.active,
       curseRng: this.curseRng,
       garbageRng: this.garbageRng,
-      tryRotate: (dir) => this.active !== null && this.rotateWithKicks(dir, false),
-      tryMove: (dx) => this.active !== null && this.shift(dx, false),
+      tryRotate: (dir) => this.active !== null && this.rotateWithKicks(this.active, dir, false),
+      tryMove: (dx) => this.active !== null && this.shift(dx),
       trySetShape: (shape) => this.trySetShape(shape),
       upcoming: this.upcoming,
       setUpcoming: (index, type) => {
@@ -846,7 +945,7 @@ export class GameEngine {
   /** Swap the active piece's shape in place if it fits; the lock timer is left alone. */
   private trySetShape(shape: PieceShape): boolean {
     const p = this.active;
-    if (!p || collides(this.board, shape.matrix, p.x, p.y)) return false;
+    if (!p || this.blocked(p, shape.matrix, p.x, p.y)) return false;
     p.shape = shape;
     p.type = shape.type;
     p.matrix = shape.matrix.map((row) => [...row]);

@@ -10,6 +10,7 @@ import { slip } from './slip';
 import { snakes } from './snakes';
 import { spin } from './spin';
 import { swap } from './swap';
+import { twin } from './twin';
 import type { CurseDef } from './types';
 
 /**
@@ -30,6 +31,7 @@ const registry = {
   hasty,
   slip,
   mirror,
+  twin,
 } satisfies Record<string, CurseDef<unknown, string>>;
 
 export type EffectType = keyof typeof registry;

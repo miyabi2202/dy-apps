@@ -15,6 +15,7 @@ export const CUTSCENE_DEMOS: Partial<Record<EffectType, () => React.ReactElement
   spin: SpinDemo,
   slip: SlipDemo,
   mirror: MirrorDemo,
+  twin: TwinDemo,
 };
 
 /** Starts to turn, springs back, shudders. */
@@ -96,6 +97,29 @@ const crossLeft = stylex.keyframes({
   '100%': { transform: 'translateX(0)' },
 });
 
+/** The pair falling together; the left one lands first and the right one keeps going. */
+const fallsShort = stylex.keyframes({
+  '0%': { transform: 'translateY(-14px)' },
+  '45%': { transform: 'translateY(6px)' },
+  '100%': { transform: 'translateY(6px)' },
+});
+
+const fallsFar = stylex.keyframes({
+  '0%': { transform: 'translateY(-14px)' },
+  '45%': { transform: 'translateY(6px)' },
+  '80%': { transform: 'translateY(18px)' },
+  '100%': { transform: 'translateY(18px)' },
+});
+
+/** A heart beating between the pair. */
+const beat = stylex.keyframes({
+  '0%': { transform: 'scale(0.8)' },
+  '20%': { transform: 'scale(1.25)' },
+  '40%': { transform: 'scale(0.9)' },
+  '60%': { transform: 'scale(1.1)' },
+  '100%': { transform: 'scale(0.8)' },
+});
+
 function NoRotateDemo() {
   return (
     <div {...stylex.props(styles.stage)}>
@@ -158,6 +182,18 @@ function MirrorDemo() {
         <span {...stylex.props(styles.arrow, styles.crossRight)}>←</span>
         <span {...stylex.props(styles.arrow, styles.crossLeft)}>→</span>
       </div>
+    </div>
+  );
+}
+
+function TwinDemo() {
+  return (
+    <div {...stylex.props(styles.stage, styles.pairStage)}>
+      <DemoPiece type="J" style={[styles.half, styles.fallsShort]} />
+      <span aria-hidden {...stylex.props(styles.heart)}>
+        ♥
+      </span>
+      <DemoPiece type="L" style={[styles.half, styles.fallsFar]} />
     </div>
   );
 }
@@ -286,6 +322,27 @@ const styles = stylex.create({
     animationTimingFunction: 'ease-in-out',
     fontSize: 16,
     fontWeight: 800,
+  },
+  pairStage: {
+    gap: 2,
+    width: 96,
+  },
+  half: {
+    animationDuration: '1.6s',
+    animationIterationCount: 'infinite',
+    animationTimingFunction: 'ease-in',
+    height: 40,
+    width: 40,
+  },
+  fallsShort: { animationName: fallsShort },
+  fallsFar: { animationName: fallsFar },
+  heart: {
+    animationDuration: '1s',
+    animationIterationCount: 'infinite',
+    animationName: beat,
+    color: '#fb7185',
+    fontSize: 14,
+    textShadow: '0 0 6px #fb7185',
   },
   crossRight: { animationName: crossRight },
   crossLeft: { animationName: crossLeft },

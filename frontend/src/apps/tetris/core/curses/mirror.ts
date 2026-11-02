@@ -6,7 +6,7 @@ export const mirror = defineCurse({
   type: 'mirror',
   name: '镜像',
   description: (config) => `左右移动对调，持续 ${config.effects.mirrorLocks} 块`,
-  rarity: 'rare',
+  rarity: 'uncommon',
   queue: 'e',
   cutscene: true,
   tagline: '左就是右',

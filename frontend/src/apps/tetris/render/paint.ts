@@ -69,31 +69,46 @@ export function paintBoard(ctx: Canvas2D, view: BoardView, w: number, h: number)
   if (view.drops) paintDrops(ctx, view.board, view.drops.cells, dropAge, size);
 
   const { active: piece, ghostY } = view;
+  const tint = tintFor(view.activeCurses ?? []);
   const swapAge = view.swap ? timeMs - view.swap.atMs : Infinity;
   if (piece && view.swap && swapAge < SWAP_SHOW_MS) {
     // Still the piece the preview promised, about to be swapped.
     const promised = createPiece(shapeOf(view.swap.from));
-    for (const [x, y] of pieceCells(promised.matrix, promised.x, piece.y)) {
+    for (const [x, y] of pieceCells(promised.matrix, piece.x, piece.y)) {
       if (y >= 0) paintCell(ctx, x, y, size, PIECE_COLORS[view.swap.from]);
     }
   } else if (piece && ghostY !== null) {
-    const tint = tintFor(view.activeCurses ?? []);
-    const color = tint?.color ?? PIECE_COLORS[piece.type];
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = 0.55;
-    ctx.lineWidth = 2;
-    for (const [x, y] of pieceCells(piece.matrix, piece.x, ghostY)) {
-      if (y >= 0) ctx.strokeRect(x * size + 2, y * size + 2, size - 4, size - 4);
-    }
-    ctx.globalAlpha = 1;
-    for (const [x, y] of pieceCells(piece.matrix, piece.x, piece.y)) {
-      if (y >= 0) paintCell(ctx, x, y, size, color);
-    }
-    if (tint) paintTintMark(ctx, piece, size, tint, timeMs);
+    paintFalling(ctx, piece, ghostY, size, tint, timeMs);
     if (swapAge < SWAP_SHOW_MS + SWAP_FLASH_MS) {
       paintSwapFlash(ctx, piece, size, (swapAge - SWAP_SHOW_MS) / SWAP_FLASH_MS);
     }
   }
+  if (view.twin && view.twinGhostY != null) {
+    paintFalling(ctx, view.twin, view.twinGhostY, size, tint, timeMs);
+  }
+}
+
+/** A falling piece: its ghost where it would land, then the piece, marked if a curse tints it. */
+function paintFalling(
+  ctx: Canvas2D,
+  piece: ActivePiece,
+  ghostY: number,
+  size: number,
+  tint: PieceTint | undefined,
+  timeMs: number,
+): void {
+  const color = tint?.color ?? PIECE_COLORS[piece.type];
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = 2;
+  for (const [x, y] of pieceCells(piece.matrix, piece.x, ghostY)) {
+    if (y >= 0) ctx.strokeRect(x * size + 2, y * size + 2, size - 4, size - 4);
+  }
+  ctx.globalAlpha = 1;
+  for (const [x, y] of pieceCells(piece.matrix, piece.x, piece.y)) {
+    if (y >= 0) paintCell(ctx, x, y, size, color);
+  }
+  if (tint) paintTintMark(ctx, piece, size, tint, timeMs);
 }
 
 /** Stones falling from above the board to their cells, then a puff where each lands. */

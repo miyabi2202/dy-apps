@@ -19,7 +19,7 @@ export const slip = defineCurse({
   rarity: 'uncommon',
   queue: 'e',
   cutscene: true,
-  tagline: '脚底抹油',
+  tagline: '闪身步',
   durationLocks: CONFIG.effects.slipLocks,
   initState: (): SlipState => ({ elapsedMs: 0 }),
   onSpawn(_ctx, piece, state) {

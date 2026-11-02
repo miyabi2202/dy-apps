@@ -53,6 +53,11 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   /** While active: the player's left and right moves are swapped. */
   mirrorsMoves?: boolean;
   /**
+   * While active: each fresh piece spawns with the next one from the queue beside it. They move
+   * and fall together; one that lands locks and the other plays on. The pair counts as one lock.
+   */
+  spawnsTwin?: boolean;
+  /**
    * Changes how the next piece behaves, with no mark on the piece: firing it holds the game for a
    * cutscene (its name, then a countdown) before that piece spawns. So it should last 1 piece.
    */

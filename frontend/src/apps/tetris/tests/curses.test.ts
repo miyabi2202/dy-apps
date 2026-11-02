@@ -112,3 +112,64 @@ describe('镜像', () => {
     expect(engine.active!.x).toBe(4);
   });
 });
+
+describe('双落', () => {
+  function pairEngine() {
+    return startedEngine({ pieces: { upcoming: ['T', 'O'] }, curses: { active: ['twin'] } });
+  }
+
+  it('spawns the next two pieces side by side', () => {
+    const engine = pairEngine();
+    expect(engine.active).toMatchObject({ type: 'T', x: 2, y: 0 });
+    expect(engine.twin).toMatchObject({ type: 'O', x: 5, y: 0 });
+  });
+
+  it('moves both together, or neither when one is against the wall', () => {
+    const engine = pairEngine();
+    while (engine.move(-1)) {
+      /* to the wall */
+    }
+    expect(engine.active!.x).toBe(0);
+    expect(engine.twin!.x).toBe(3);
+  });
+
+  it('locks the one that lands; the other plays on and the pair counts as one lock', () => {
+    const engine = pairEngine();
+    engine.twin!.y = rows - 2;
+    engine.tick(CONFIG.lock.delayMs);
+    expect(engine.twin).toBeNull();
+    expect(engine.active!.type).toBe('T');
+    expect(engine.board[rows - 1]![5]).toBe('O');
+    expect(engine.lockedPieceCount).toBe(0);
+    engine.hardDrop();
+    expect(engine.lockedPieceCount).toBe(1);
+    // One pair, then the curse is over.
+    expect(engine.twin).toBeNull();
+  });
+
+  it('hard-drops the lower piece first, so the upper one lands on it', () => {
+    const engine = pairEngine();
+    engine.board = createBoard();
+    engine.active!.x = 4;
+    engine.active!.y = 5;
+    engine.twin!.x = 4;
+    engine.twin!.y = 10;
+    engine.hardDrop();
+    // The O fills the bottom two rows at columns 5-6; the T lands on top of it.
+    expect(engine.board[rows - 1]![5]).toBe('O');
+    expect(engine.board[rows - 3]![5]).toBe('T');
+    expect(engine.lockedPieceCount).toBe(1);
+  });
+
+  it('refuses hold while a pair is falling', () => {
+    const engine = pairEngine();
+    expect(engine.holdPiece()).toBe(false);
+  });
+
+  it('has a cutscene', () => {
+    const engine = startedEngine();
+    engine.team.pending.twin = 1;
+    dropOnEmpty(engine, ROUND);
+    expect(engine.cutscene?.curses.map((def) => def.type)).toEqual(['twin']);
+  });
+});

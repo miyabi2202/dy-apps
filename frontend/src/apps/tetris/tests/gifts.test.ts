@@ -44,8 +44,8 @@ describe('example A: probability boundaries', () => {
     const bands = rarityBands(Object.values(CURSES));
     expect(bands.map((b) => [b.rarity, b.types])).toEqual([
       ['common', ['fog', 'seal', 'swap', 'hasty']],
-      ['uncommon', ['haste', 'snakes', 'rockfall', 'slip']],
-      ['rare', ['garbage', 'noRotate', 'spin', 'mirror']],
+      ['uncommon', ['haste', 'snakes', 'rockfall', 'slip', 'mirror']],
+      ['rare', ['garbage', 'noRotate', 'spin', 'twin']],
     ]);
     expect(bands[0]!.to).toBeCloseTo(commonTo);
     expect(bands[1]!.from).toBeCloseTo(commonTo);
@@ -56,9 +56,10 @@ describe('example A: probability boundaries', () => {
       [0, 0, 'fog'],
       [commonTo - 0.01, 0.99, 'hasty'],
       [commonTo + 0.01, 0, 'haste'],
-      [uncommonTo - 0.01, 0.6, 'rockfall'],
+      [uncommonTo - 0.01, 0.5, 'rockfall'],
+      [uncommonTo - 0.01, 0.99, 'mirror'],
       [uncommonTo + 0.01, 0, 'garbage'],
-      [0.99, 0.99, 'mirror'],
+      [0.99, 0.99, 'twin'],
     ];
     for (const [rarity, index, expected] of draws) {
       const r = processGiftBatch(createTeam(), 'foo', 1, 1, sequenceRng([0, rarity, index]));

@@ -50,6 +50,8 @@ export const CONFIG = {
     spinLocks: 1,
     slipLocks: 1,
     mirrorLocks: 1,
+    /** A pair counts as one lock, so this is how many pairs one 双落 deals. */
+    twinLocks: 1,
     /** How often 自转 turns the piece. */
     spinIntervalMs: 500,
     /** How often 打滑 pushes the piece a column. */

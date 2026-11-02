@@ -31,6 +31,9 @@ export interface BoardView {
   readonly board: Board;
   readonly active: ActivePiece | null;
   readonly ghostY: number | null;
+  /** The second falling piece while a curse spawns pairs (双落), and where it would land. */
+  readonly twin?: ActivePiece | null;
+  readonly twinGhostY?: number | null;
   /** Curses in effect, in settlement order; the painter marks the piece for some of them. */
   readonly activeCurses?: readonly EffectType[];
   /** Play time so far, for animations drawn on the canvas. */
