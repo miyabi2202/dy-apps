@@ -3,7 +3,8 @@ import { Avatar, Button } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { CONFIG } from '../core/config';
-import type { GameEngine, VoteView } from '../core/game';
+import type { CurseDef, EffectType } from '../core/curses';
+import type { VoteView } from '../core/game';
 import { labels, testIds } from '../messages';
 import { CurseName } from './curse-name';
 import { RARITY_COLORS } from './rarity';
@@ -35,7 +36,15 @@ const win = stylex.keyframes({
  * picked each under it, and the time left, with the streamer's +1 s. Once time is up the winner
  * lights up.
  */
-export function VotePanel({ engine, vote }: { engine: GameEngine; vote: VoteView }) {
+export function VotePanel({
+  vote,
+  curseOf,
+  onExtend,
+}: {
+  vote: VoteView;
+  curseOf: (type: EffectType) => CurseDef<unknown>;
+  onExtend: () => void;
+}) {
   const color = RARITY_COLORS[vote.rarity];
   const done = vote.winner !== null;
   const seconds = Math.ceil(vote.remainingMs / 1000);
@@ -47,7 +56,7 @@ export function VotePanel({ engine, vote }: { engine: GameEngine; vote: VoteView
         {!done && <span {...stylex.props(styles.hint)}>弹幕发 1 或 2</span>}
         <ol {...stylex.props(styles.options)}>
           {vote.options.map((type, i) => {
-            const def = engine.curses.find((d) => d.type === type)!;
+            const def = curseOf(type);
             const voters = vote.ballots.filter((b) => b.choice === i);
             return (
               <li
@@ -99,7 +108,7 @@ export function VotePanel({ engine, vote }: { engine: GameEngine; vote: VoteView
                 )}
               />
             </div>
-            <Button onClick={() => engine.extendVote()} xstyle={styles.extend}>
+            <Button onClick={onExtend} xstyle={styles.extend}>
               {labels.extendVote}
             </Button>
           </div>

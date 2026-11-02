@@ -119,7 +119,10 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
   const previewHiddenBy = engine.previewHiddenBy;
   const previewChange = useChange(previewHiddenBy !== null, onOff);
 
-  const firingNext = engine.curses.filter((def) => engine.team.pending[def.type] > 0);
+  const firingNext = engine.nextSettlement;
+  // Viewers steer while a curse lets them and nothing holds play.
+  const steering =
+    engine.phase === 'playing' && engine.active && !engine.vote && engine.viewerControlBy;
 
   return (
     <Panel aria-label="棋盘">
@@ -179,8 +182,12 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
           />
           <Overlay engine={engine} onRestart={onRestart} />
           {/* After the overlay, so a quiet room's notice shows over the cutscene it starts. */}
-          <BoardNotices engine={engine} />
-          <ViewerControl engine={engine} />
+          <BoardNotices
+            notices={engine.notices}
+            curseOf={(type) => engine.curseOf(type)}
+            belowCutscene={engine.cutscene !== null}
+          />
+          {steering && <ViewerControl inputs={engine.viewerInputs} />}
         </div>
 
         <div {...stylex.props(styles.side, styles.nextSide)}>
@@ -239,7 +246,7 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
           </div>
         </div>
         <div>
-          <div {...stylex.props(text.caption)}>下次结算（每种各 1 个）</div>
+          <div {...stylex.props(text.caption)}>下次结算</div>
           <div {...stylex.props(styles.infoText)} data-testid={testIds.nextSettlement}>
             {firingNext.length
               ? joinNodes(
@@ -305,7 +312,15 @@ function MiniPiece({
 function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => void }) {
   if (engine.phase === 'playing') {
     if (engine.cutscene) return <Cutscene cutscene={engine.cutscene} />;
-    return engine.vote && <VotePanel engine={engine} vote={engine.vote} />;
+    return (
+      engine.vote && (
+        <VotePanel
+          vote={engine.vote}
+          curseOf={(type) => engine.curseOf(type)}
+          onExtend={() => engine.extendVote()}
+        />
+      )
+    );
   }
   return (
     <div {...stylex.props(styles.overlay)} data-testid={testIds.overlay(engine.phase)}>

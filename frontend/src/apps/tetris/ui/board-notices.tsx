@@ -1,6 +1,7 @@
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import type { BoardNotice, GameEngine } from '../core/game';
+import type { CurseDef, EffectType } from '../core/curses';
+import type { BoardNotice } from '../core/game';
 import { testIds } from '../messages';
 import { CurseName } from './curse-name';
 import { SenderBadge } from './sender-badge';
@@ -26,18 +27,26 @@ const strike = stylex.keyframes({
  * drew. Each animates once, when it is new. During a cutscene they move to the bottom, clear of
  * the banner.
  */
-export function BoardNotices({ engine }: { engine: GameEngine }) {
+export function BoardNotices({
+  notices,
+  curseOf,
+  belowCutscene,
+}: {
+  notices: readonly BoardNotice[];
+  curseOf: (type: EffectType) => CurseDef<unknown>;
+  /** A cutscene is on: keep clear of its banner. */
+  belowCutscene: boolean;
+}) {
   return (
-    <div {...stylex.props(styles.root, engine.cutscene && styles.belowCutscene)} aria-live="polite">
-      {engine.notices.map((notice) => (
-        <Notice key={notice.id} notice={notice} engine={engine} />
+    <div {...stylex.props(styles.root, belowCutscene && styles.belowCutscene)} aria-live="polite">
+      {notices.map((notice) => (
+        <Notice key={notice.id} notice={notice} def={curseOf(notice.type)} />
       ))}
     </div>
   );
 }
 
-function Notice({ notice, engine }: { notice: BoardNotice; engine: GameEngine }) {
-  const def = engine.curses.find((d) => d.type === notice.type)!;
+function Notice({ notice, def }: { notice: BoardNotice; def: CurseDef<unknown> }) {
   const cancelled = notice.kind === 'cancelled';
   const { headline, lead, look } = {
     cancelled: { headline: `消 ${notice.lines} 行！`, lead: '抵消 ', look: styles.cancelled },

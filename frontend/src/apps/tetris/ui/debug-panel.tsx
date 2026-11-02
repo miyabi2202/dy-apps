@@ -94,7 +94,7 @@ export function DebugPanel({ engine }: { engine: GameEngine }) {
               <Button
                 key={command}
                 disabled={!running}
-                onClick={() => engine.viewerCommand(createFakeGift().user.nickname, word)}
+                onClick={() => engine.viewerCommand(fakeSender(), word)}
                 data-testid={testIds.debugViewer(command)}
               >
                 {word}

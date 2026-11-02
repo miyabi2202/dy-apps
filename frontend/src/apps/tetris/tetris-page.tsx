@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { readConfig, type TetrisConfig } from './config';
 import { GameEngine } from './core/game';
 import { GiftFeed } from './gift-feed';
+import { RoomEvents } from './room-events';
+import { RARITY_COLORS } from './ui/rarity';
 import { KeyboardController } from './input/keyboard';
 import { log } from './log';
 import { App } from './ui/app';
@@ -28,8 +30,9 @@ function optionsFromUrl(): PageOptions {
 
 function createGame({ probability }: TetrisConfig) {
   const engine = new GameEngine({ seed: seedFromUrl(), probability });
-  const feed = new GiftFeed(engine);
-  return { engine, feed, keyboard: new KeyboardController(engine) };
+  const feed = new GiftFeed(engine, { colorOf: (def) => RARITY_COLORS[def.rarity] });
+  const events = new RoomEvents(engine, feed);
+  return { engine, feed, events, keyboard: new KeyboardController(engine) };
 }
 
 interface Props {
@@ -52,22 +55,23 @@ export function TetrisPage({ createClient }: Props) {
     );
     return options;
   });
-  const [{ engine, feed, keyboard }] = useState(() => createGame(config));
+  const [{ engine, feed, events, keyboard }] = useState(() => createGame(config));
 
   // Test/debug hook for browser tests and manual inspection.
   useEffect(() => {
     const w = window as unknown as { __blockLab?: unknown };
-    w.__blockLab = { engine, feed };
+    w.__blockLab = { engine, feed, events };
     return () => {
       delete w.__blockLab;
     };
-  }, [engine, feed]);
+  }, [engine, feed, events]);
 
   if (obs) {
     return (
       <ObsView
         engine={engine}
         feed={feed}
+        events={events}
         keyboard={keyboard}
         config={config}
         createClient={createClient}
@@ -78,6 +82,7 @@ export function TetrisPage({ createClient }: Props) {
     <App
       engine={engine}
       feed={feed}
+      events={events}
       keyboard={keyboard}
       config={config}
       createClient={createClient}

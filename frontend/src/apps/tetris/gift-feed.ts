@@ -1,10 +1,8 @@
 import { addMessage, type DanmakuMessage, type DetailPart, type Logger } from '@dy-apps/services';
 import { CONFIG } from './core/config';
-import { CURSES, EFFECT_POOL, type EffectType } from './core/curses';
+import { CURSES, EFFECT_POOL, type CurseDef, type EffectType } from './core/curses';
 import type { GameEngine, GiftResponse } from './core/game';
-import type { Sender } from './core/types';
 import { log as appLog } from './log';
-import { RARITY_COLORS } from './ui/rarity';
 
 /** Cards kept on the gift wall; older ones are dropped. */
 const MAX_CARDS = 200;
@@ -18,6 +16,8 @@ export interface GiftFeedOptions {
   logger?: Logger;
   /** The clock for the log's rate limit; `performance.now` by default. */
   now?: () => number;
+  /** The colour of a curse's name on a card; none by default. The page passes rarity colours. */
+  colorOf?: (def: CurseDef<unknown>) => string | undefined;
 }
 
 /** Curses a card's gifts drew, per type, and how many votes they opened. */
@@ -35,16 +35,22 @@ export class GiftFeed {
 
   private readonly logger: Logger;
   private readonly now: () => number;
+  private readonly colorOf: (def: CurseDef<unknown>) => string | undefined;
   private windowStart = -Infinity;
   private loggedInWindow = 0;
   private unlisted = { gifts: 0, diamonds: 0 };
 
   constructor(
     private readonly engine: GameEngine,
-    { logger = appLog, now = () => performance.now() }: GiftFeedOptions = {},
+    {
+      logger = appLog,
+      now = () => performance.now(),
+      colorOf = () => undefined,
+    }: GiftFeedOptions = {},
   ) {
     this.logger = logger;
     this.now = now;
+    this.colorOf = colorOf;
   }
 
   /**
@@ -54,26 +60,28 @@ export class GiftFeed {
    * count) get no card.
    */
   send(message: DanmakuMessage): GiftResponse {
-    const drawn = { ...this.drawn.get(message.id) };
+    // This message's draws, over every batch of it, then added to its card's total.
+    const gained: Drawn = {};
+    let hits = 0;
     // Assigned on the first pass: batches() is never empty.
     let response!: GiftResponse;
     for (const count of batches(diamondsOf(message))) {
       const { id, nickname, avatarUrl } = message.user;
       response = this.engine.sendGifts({ id, name: nickname, avatarUrl }, count);
       if (!response.ok) break;
-      for (const type of EFFECT_POOL) {
-        const n = response.result.effects[type];
-        if (n) drawn[type] = (drawn[type] ?? 0) + n;
-      }
-      if (response.result.votes) drawn.votes = (drawn.votes ?? 0) + response.result.votes;
+      hits += response.result.hits;
+      addDrawn(gained, response.result.effects, response.result.votes);
     }
-    this.logGift(message, response);
+    this.logGift(message, response, hits, gained);
     if (!response.ok) return response;
+
+    const drawn = { ...this.drawn.get(message.id) };
+    addDrawn(drawn, gained, gained.votes ?? 0);
 
     this.drawn.set(message.id, drawn);
     this.messages = addMessage(
       this.messages,
-      { ...message, detail: curseDetail(drawn) },
+      { ...message, detail: curseDetail(drawn, this.colorOf) },
       MAX_CARDS,
     );
     if (this.drawn.size > MAX_CARDS * 2) this.forgetDropped();
@@ -85,7 +93,12 @@ export class GiftFeed {
    * One debug line per gift, at most LOGGED_PER_WINDOW a second: a busy room's other gifts are
    * counted and summed up in one line when the next second starts.
    */
-  private logGift(message: DanmakuMessage, response: GiftResponse): void {
+  private logGift(
+    message: DanmakuMessage,
+    response: GiftResponse,
+    hits: number,
+    drawn: Drawn,
+  ): void {
     if (!this.logger.enabled('debug')) return;
     const { user, gift } = message;
     const diamonds = diamondsOf(message);
@@ -106,10 +119,8 @@ export class GiftFeed {
       this.logger.debug(`gift ignored, ${what}: ${response.error}`);
       return;
     }
-    const { hits, effects } = response.result;
-    const drew = EFFECT_POOL.filter((type) => effects[type]).map(
-      (type) => `${type}x${effects[type]}`,
-    );
+    const drew = EFFECT_POOL.filter((type) => drawn[type]).map((type) => `${type}x${drawn[type]}`);
+    if (drawn.votes) drew.push(`votes x${drawn.votes}`);
     this.logger.debug(`gift ${what} -> ${hits} hits${drew.length ? `: ${drew.join(' ')}` : ''}`);
   }
 
@@ -118,21 +129,6 @@ export class GiftFeed {
     if (gifts === 0) return;
     this.logger.debug(`${gifts} more gifts (${diamonds} diamonds) in that second, not listed`);
     this.unlisted = { gifts: 0, diamonds: 0 };
-  }
-
-  /**
-   * A viewer's chat line, for the game to read: a command while viewers steer the piece (夺舍),
-   * or a 1 or 2 while a vote is open. Chat never reaches the wall.
-   */
-  comment(user: Sender, text: string): boolean {
-    const taken = this.engine.viewerCommand(user.name, text) || this.engine.castVote(user, text);
-    if (taken) this.logger.debug(`viewer ${user.name}: ${text.trim()}`);
-    return taken;
-  }
-
-  /** `count` likes from a viewer, towards the like meter. Likes never reach the wall. */
-  like(user: Sender, count: number): boolean {
-    return this.engine.addLikes(user, count);
   }
 
   /** Empties the wall, for a new game. */
@@ -182,14 +178,26 @@ function batches(count: number): number[] {
   return out;
 }
 
-/** 触发 垃圾行×1、迷雾×2 (each name in its rarity's colour), or 未触发诅咒. */
-function curseDetail(drawn: Drawn): DetailPart[] {
+/** Adds `effects` and `votes` into `into`. */
+function addDrawn(into: Drawn, effects: Partial<Record<EffectType, number>>, votes: number): void {
+  for (const type of EFFECT_POOL) {
+    const n = effects[type];
+    if (n) into[type] = (into[type] ?? 0) + n;
+  }
+  if (votes) into.votes = (into.votes ?? 0) + votes;
+}
+
+/** 触发 垃圾行×1、迷雾×2 (each name in `colorOf`'s colour), or 未触发诅咒. */
+function curseDetail(
+  drawn: Drawn,
+  colorOf: (def: CurseDef<unknown>) => string | undefined,
+): DetailPart[] {
   const types = EFFECT_POOL.filter((type) => drawn[type]);
   if (types.length === 0 && !drawn.votes) return [{ text: '未触发诅咒' }];
   const parts: DetailPart[] = [{ text: '触发 ' }];
   types.forEach((type, i) => {
     const def = CURSES[type];
-    parts.push({ text: def.name, color: RARITY_COLORS[def.rarity] });
+    parts.push({ text: def.name, color: colorOf(def) });
     parts.push({ text: `×${drawn[type]}${i < types.length - 1 ? '、' : ''}` });
   });
   if (drawn.votes) parts.push({ text: `${types.length ? '、' : ''}发起投票` });

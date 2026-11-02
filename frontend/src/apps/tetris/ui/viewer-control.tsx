@@ -1,7 +1,7 @@
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
 import { CONFIG } from '../core/config';
-import type { GameEngine, ViewerCommand, ViewerInput } from '../core/game';
+import type { ViewerCommand, ViewerInput } from '../core/game';
 import { testIds } from '../messages';
 
 const ARROWS: Record<ViewerCommand, string> = { left: '←', right: '→', rotate: '↻' };
@@ -28,9 +28,7 @@ const popIn = stylex.keyframes({
  * under it each viewer's command as it lands, with their name, so the room sees who pushed it
  * where. They fade after a moment, clear of the stack at the bottom.
  */
-export function ViewerControl({ engine }: { engine: GameEngine }) {
-  const by = engine.viewerControlBy;
-  if (!by || !engine.active || engine.vote || engine.phase === 'gameOver') return null;
+export function ViewerControl({ inputs }: { inputs: readonly ViewerInput[] }) {
   const words = CONFIG.viewerCommands;
   const commands = Object.keys(words) as ViewerCommand[];
   return (
@@ -44,7 +42,7 @@ export function ViewerControl({ engine }: { engine: GameEngine }) {
         ))}
       </div>
       <ol {...stylex.props(styles.inputs)} aria-live="polite">
-        {engine.viewerInputs.map((input) => (
+        {inputs.map((input) => (
           <Input key={input.id} input={input} />
         ))}
       </ol>
@@ -58,7 +56,7 @@ function Input({ input }: { input: ViewerInput }) {
       {...stylex.props(styles.input, !input.worked && styles.stuck)}
       data-testid={testIds.viewerInput}
     >
-      <span {...stylex.props(styles.user)}>{input.user}</span>
+      <span {...stylex.props(styles.user)}>{input.user.name}</span>
       <span {...stylex.props(styles.arrow)}>{ARROWS[input.command]}</span>
     </li>
   );

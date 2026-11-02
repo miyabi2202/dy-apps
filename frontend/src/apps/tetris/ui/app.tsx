@@ -21,6 +21,7 @@ import { configToParams, DEMO_INTERVAL, saveConfig, type TetrisConfig } from '..
 import { CONFIG } from '../core/config';
 import type { GameEngine } from '../core/game';
 import { newGame, type GiftFeed } from '../gift-feed';
+import type { RoomEvents } from '../room-events';
 import type { KeyboardController } from '../input/keyboard';
 import { labels } from '../messages';
 import { useGiftSource } from '../use-gift-source';
@@ -34,6 +35,8 @@ import { usePlay } from './use-engine';
 interface Props {
   engine: GameEngine;
   feed: GiftFeed;
+  /** Where gifts, chat and likes go into the game. */
+  events: RoomEvents;
   keyboard: KeyboardController;
   /** Where gifts come from at first; the trigger chance comes from the engine. */
   config: TetrisConfig;
@@ -46,7 +49,15 @@ interface Props {
  * The config page: the game settings, where gifts come from and the OBS link, above the
  * full game as a preview. Gifts are fake ones by default, or a live room's.
  */
-export function App({ engine, feed, keyboard, config: initial, createClient, fakeGift }: Props) {
+export function App({
+  engine,
+  feed,
+  events,
+  keyboard,
+  config: initial,
+  createClient,
+  fakeGift,
+}: Props) {
   const boardRef = usePlay(engine, keyboard);
   const [connection, setConnection] = useState<Connection>({
     port: initial.port,
@@ -66,7 +77,7 @@ export function App({ engine, feed, keyboard, config: initial, createClient, fak
     demo: config.demo,
     room,
     running: sending,
-    feed,
+    events,
     fakeGift,
     createClient,
   });
@@ -132,7 +143,7 @@ export function App({ engine, feed, keyboard, config: initial, createClient, fak
               onRestart={() => newGame(engine, feed)}
             />
           }
-          side={<TeamPanel engine={engine} feed={feed} />}
+          side={<TeamPanel pending={engine.pendingCurses} likes={engine.likeMeter} feed={feed} />}
         />
 
         <LogPanel engine={engine} />

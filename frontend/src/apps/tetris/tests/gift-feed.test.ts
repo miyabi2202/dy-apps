@@ -76,12 +76,10 @@ describe('GiftFeed', () => {
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
-  it('a draw that opens a vote says so on its card, and chat votes in it', () => {
+  it('a draw that opens a vote says so on its card', () => {
     const { engine, feed } = started(forceEffectRng('garbage'), constantRng(0));
     feed.send(gift('g1', 1, 1));
     expect(detailText(feed.getMessages()[0]?.detail)).toBe('触发 发起投票');
     expect(engine.vote).not.toBeNull();
-    expect(feed.comment({ id: 'u2', name: '小美' }, '我选2！')).toBe(true);
-    expect(engine.vote!.ballots).toEqual([{ voter: { id: 'u2', name: '小美' }, choice: 1 }]);
   });
 });

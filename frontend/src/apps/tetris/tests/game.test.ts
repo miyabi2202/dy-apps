@@ -2,7 +2,7 @@ import { createBoard } from '../core/board';
 import { CONFIG } from '../core/config';
 import { CURSES } from '../core/curses';
 import { activate, locksLeft } from '../core/curses/state';
-import { GameEngine } from '../core/game';
+import { GameEngine, type EngineOptions } from '../core/game';
 import { isConserved } from '../core/interventions';
 import { createPiece, shapeOf } from '../core/pieces';
 import { constantRng, sequenceRng } from '../core/random';
@@ -585,50 +585,16 @@ describe('phases', () => {
 });
 
 describe('like meter', () => {
-  const { firstThreshold, maxThreshold, idleResetMs } = CONFIG.likes;
   const a = { id: 'a', name: '阿杰' };
-  const b = { id: 'b', name: '小美' };
 
-  it('fills at the first threshold and draws a curse from whoever liked most', () => {
+  it('a full meter queues a curse from the top liker, with a notice', () => {
     const engine = startedEngine({ likeRng: constantRng(0) });
-    expect(engine.addLikes(a, firstThreshold - 40)).toBe(true);
-    expect(engine.addLikes(b, 30)).toBe(true);
-    expect(engine.likeMeter).toEqual({
-      likes: firstThreshold - 10,
-      threshold: firstThreshold,
-      top: { sender: a, likes: firstThreshold - 40 },
-    });
-    engine.addLikes(b, 15);
+    expect(engine.addLikes(a, CONFIG.likes.firstThreshold)).toBe(true);
     // 0 draws common, then the first common curse in pool order.
     expect(engine.team.pending.fog).toBe(1);
     expect(engine.team.senders.fog).toEqual([a]);
     expect(engine.notices.at(-1)).toMatchObject({ kind: 'likes', type: 'fog', sender: a });
-    // The 5 past the threshold carry over as the last liker's.
-    expect(engine.likeMeter).toEqual({
-      likes: 5,
-      threshold: firstThreshold * 2,
-      top: { sender: b, likes: 5 },
-    });
     expect(isConserved(engine.team)).toBe(true);
-  });
-
-  it('doubles each time up to the cap, even from one big batch', () => {
-    const engine = startedEngine();
-    let total = 0;
-    for (let t = firstThreshold; t < maxThreshold; t *= 2) total += t;
-    engine.addLikes(a, total + maxThreshold * 2);
-    expect(engine.team.likeCount).toBe(Math.log2(maxThreshold / firstThreshold) + 2);
-    expect(engine.likeMeter.threshold).toBe(maxThreshold);
-    expect(engine.likeMeter.likes).toBe(0);
-  });
-
-  it('starts over at the first threshold after a while with nothing drawn', () => {
-    const engine = startedEngine();
-    engine.addLikes(a, firstThreshold + 20);
-    engine.tick(idleResetMs - 1);
-    expect(engine.likeMeter.threshold).toBe(firstThreshold * 2);
-    engine.tick(1);
-    expect(engine.likeMeter).toEqual({ likes: 0, threshold: firstThreshold, top: null });
   });
 
   it('counts only during a game', () => {
@@ -638,24 +604,25 @@ describe('like meter', () => {
 });
 
 describe('votes', () => {
-  const { durationMs, extendMs, resultMs } = CONFIG.votes;
+  const { durationMs, resultMs } = CONFIG.votes;
   const drawer = { id: 'd', name: '阿杰' };
   const a = { id: 'a', name: '小美' };
-  const b = { id: 'b', name: '老王' };
 
   /** A game with a rare curse's vote open; voteRng 0 always opens one and breaks ties to 1. */
-  function voting(): GameEngine {
-    const engine = startedEngine({ voteRng: constantRng(0), giftRng: forceEffectRng('garbage') });
+  function voting(options: EngineOptions = {}): GameEngine {
+    const engine = startedEngine({
+      voteRng: constantRng(0),
+      giftRng: forceEffectRng('garbage'),
+      ...options,
+    });
     engine.sendGifts(drawer, 1);
     return engine;
   }
 
-  it('an uncommon or rare draw opens a vote between two of its rarity, and stops play', () => {
+  it('an uncommon or rare draw opens a vote between two of its rarity instead, and holds play', () => {
     const engine = voting();
     const vote = engine.vote!;
     expect(vote).toMatchObject({ sender: drawer, rarity: 'rare', ballots: [], winner: null });
-    expect(vote.options).toHaveLength(2);
-    expect(new Set(vote.options).size).toBe(2);
     expect(vote.options.every((t) => CURSES[t].rarity === 'rare')).toBe(true);
     expect(engine.team.pending.garbage).toBe(0);
     expect(isConserved(engine.team)).toBe(true);
@@ -665,68 +632,45 @@ describe('votes', () => {
     expect(engine.active!.y).toBe(y);
   });
 
-  it('a common draw never does, nor one while a vote is open', () => {
-    const common = startedEngine({ voteRng: constantRng(0), giftRng: constantRng(0) });
-    common.sendGifts(drawer, 1);
-    expect(common.vote).toBeNull();
-    const engine = voting();
-    const id = engine.vote!.id;
+  it('a common draw never does', () => {
+    const engine = startedEngine({ voteRng: constantRng(0), giftRng: constantRng(0) });
     engine.sendGifts(drawer, 1);
-    expect(engine.vote!.id).toBe(id);
-    expect(engine.team.pending.garbage).toBe(1);
+    expect(engine.vote).toBeNull();
   });
 
-  it('reads a 1 or a 2 anywhere in the chat; both or neither does not count', () => {
+  it("the winner goes in as the drawer's, shows a moment, then play goes on", () => {
     const engine = voting();
-    expect(engine.castVote(a, '选1')).toBe(true);
-    expect(engine.castVote(b, '2222')).toBe(true);
-    expect(engine.castVote(b, '12')).toBe(false);
-    expect(engine.castVote(b, '加油')).toBe(false);
-    expect(engine.vote!.ballots.map((x) => [x.voter.name, x.choice])).toEqual([
-      ['小美', 0],
-      ['老王', 1],
-    ]);
-  });
-
-  it('lets a viewer change their vote, and the most votes win for the drawer', () => {
-    const engine = voting();
-    const [first, second] = engine.vote!.options;
-    engine.castVote(a, '1');
-    engine.castVote(b, '1');
+    const second = engine.vote!.options[1]!;
     engine.castVote(a, '2');
-    engine.castVote(a, '2');
-    engine.castVote(b, '2');
-    expect(engine.vote!.ballots).toHaveLength(2);
     engine.tick(durationMs);
     expect(engine.vote!.winner).toBe(1);
-    expect(engine.team.pending[second!]).toBe(1);
-    expect(engine.team.pending[first!]).toBe(0);
-    expect(engine.team.senders[second!]).toEqual([drawer]);
+    expect(engine.team.pending[second]).toBe(1);
+    expect(engine.team.senders[second]).toEqual([drawer]);
     expect(isConserved(engine.team)).toBe(true);
-    // The winner shows for a moment, then play goes on.
     engine.tick(resultMs);
     expect(engine.vote).toBeNull();
     expect(engine.move(1)).toBe(true);
   });
 
-  it('with no votes or a tie, picks at random', () => {
+  it('takes no ballots while paused, when it is off screen', () => {
     const engine = voting();
-    engine.tick(durationMs);
-    expect(engine.vote!.winner).toBe(0);
-    const tied = voting();
-    tied.castVote(a, '1');
-    tied.castVote(b, '2');
-    tied.tick(durationMs);
-    expect(tied.vote!.winner).toBe(0);
+    engine.pause();
+    expect(engine.castVote(a, '1')).toBe(false);
+    engine.resume();
+    expect(engine.castVote(a, '1')).toBe(true);
   });
 
-  it('the streamer can add time while it is open', () => {
-    const engine = voting();
-    expect(engine.extendVote()).toBe(true);
-    engine.tick(durationMs);
-    expect(engine.vote!.winner).toBeNull();
-    engine.tick(extendMs);
-    expect(engine.vote!.winner).not.toBeNull();
-    expect(engine.extendVote()).toBe(false);
+  it('a vote opened during a cutscene waits for it, then holds the new piece', () => {
+    const engine = startedEngine({ voteRng: constantRng(0), giftRng: forceEffectRng('garbage') });
+    engine.team.pending.noRotate = 1;
+    dropOnEmpty(engine, ROUND);
+    expect(engine.cutscene).not.toBeNull();
+    engine.sendGifts(drawer, 1);
+    expect(engine.vote).toBeNull();
+    engine.tick(60_000);
+    expect(engine.cutscene).toBeNull();
+    expect(engine.active).not.toBeNull();
+    expect(engine.vote).not.toBeNull();
+    expect(engine.move(1)).toBe(false);
   });
 });

@@ -193,6 +193,8 @@ describe('双落', () => {
 
 describe('夺舍', () => {
   const { left, right, rotate } = CONFIG.viewerCommands;
+  const jie = { id: 'j', name: '阿杰' };
+  const mei = { id: 'm', name: '小美' };
 
   function possessed() {
     return startedEngine({ pieces: { active: 'T' }, curses: { active: ['possess'] } });
@@ -211,15 +213,15 @@ describe('夺舍', () => {
   it('moves or turns the piece at once for each viewer command, and shows who sent it', () => {
     const engine = possessed();
     const x = engine.active!.x;
-    expect(engine.viewerCommand('阿杰', left)).toBe(true);
-    expect(engine.viewerCommand('小美', ` ${left} `)).toBe(true);
+    expect(engine.viewerCommand(jie, left)).toBe(true);
+    expect(engine.viewerCommand(mei, ` ${left} `)).toBe(true);
     expect(engine.active!.x).toBe(x - 2);
-    expect(engine.viewerCommand('阿杰', right)).toBe(true);
+    expect(engine.viewerCommand(jie, right)).toBe(true);
     expect(engine.active!.x).toBe(x - 1);
     const matrix = engine.active!.matrix;
-    expect(engine.viewerCommand('阿杰', rotate)).toBe(true);
+    expect(engine.viewerCommand(jie, rotate)).toBe(true);
     expect(engine.active!.matrix).not.toEqual(matrix);
-    expect(engine.viewerInputs.map((i) => [i.user, i.command])).toEqual([
+    expect(engine.viewerInputs.map((i) => [i.user.name, i.command])).toEqual([
       ['阿杰', 'left'],
       ['小美', 'left'],
       ['阿杰', 'right'],
@@ -229,27 +231,27 @@ describe('夺舍', () => {
 
   it('marks a command that hits the wall, and ignores any other chat', () => {
     const engine = possessed();
-    while (engine.viewerCommand('阿杰', left) && engine.viewerInputs.at(-1)!.worked) {
+    while (engine.viewerCommand(jie, left) && engine.viewerInputs.at(-1)!.worked) {
       /* to the wall */
     }
     expect(engine.active!.x).toBe(0);
     expect(engine.viewerInputs.at(-1)!.worked).toBe(false);
-    expect(engine.viewerCommand('阿杰', '左左左')).toBe(false);
-    expect(engine.viewerCommand('阿杰', '主播加油')).toBe(false);
+    expect(engine.viewerCommand(jie, '左左左')).toBe(false);
+    expect(engine.viewerCommand(jie, '主播加油')).toBe(false);
   });
 
   it('does nothing without the curse, and hands the piece back after one lock', () => {
     const plain = startedEngine();
     const x = plain.active!.x;
-    expect(plain.viewerCommand('阿杰', left)).toBe(false);
+    expect(plain.viewerCommand(jie, left)).toBe(false);
     expect(plain.active!.x).toBe(x);
 
     const engine = possessed();
-    engine.viewerCommand('阿杰', left);
+    engine.viewerCommand(jie, left);
     engine.active!.y = rows - 2;
     engine.tick(CONFIG.lock.delayMs);
     expect(engine.viewerInputs).toEqual([]);
-    expect(engine.viewerCommand('阿杰', left)).toBe(false);
+    expect(engine.viewerCommand(jie, left)).toBe(false);
     expect(engine.move(-1)).toBe(true);
   });
 

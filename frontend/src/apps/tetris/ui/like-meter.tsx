@@ -1,7 +1,7 @@
 import { text } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import type { GameEngine } from '../core/game';
+import type { LikeMeterView } from '../core/game';
 import { testIds } from '../messages';
 import { SenderBadge } from './sender-badge';
 
@@ -18,8 +18,8 @@ const beat = stylex.keyframes({
  * The room's likes filling towards the next curse, and who has liked most this time: they get
  * the credit when it fills.
  */
-export function LikeMeter({ engine }: { engine: GameEngine }) {
-  const { likes, threshold, top } = engine.likeMeter;
+export function LikeMeter({ meter }: { meter: LikeMeterView }) {
+  const { likes, threshold, top } = meter;
   return (
     <div {...stylex.props(styles.root)} data-testid={testIds.likeMeter}>
       <div {...stylex.props(styles.head)}>

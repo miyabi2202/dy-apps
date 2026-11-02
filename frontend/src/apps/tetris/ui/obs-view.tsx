@@ -5,6 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useEffect } from 'react';
 import type { GameEngine } from '../core/game';
 import { newGame, type GiftFeed } from '../gift-feed';
+import type { RoomEvents } from '../room-events';
 import type { KeyboardController } from '../input/keyboard';
 import type { TetrisConfig } from '../config';
 import { useGiftSource } from '../use-gift-source';
@@ -16,6 +17,8 @@ import { usePlay } from './use-engine';
 interface Props {
   engine: GameEngine;
   feed: GiftFeed;
+  /** Where gifts, chat and likes go into the game. */
+  events: RoomEvents;
   keyboard: KeyboardController;
   /** From the OBS link: fake gifts, or the live room's. */
   config: TetrisConfig;
@@ -27,13 +30,13 @@ interface Props {
  * on a transparent background, with fake or live gifts as the link says. Played with the keyboard
  * through OBS's 交互 window.
  */
-export function ObsView({ engine, feed, keyboard, config, createClient }: Props) {
+export function ObsView({ engine, feed, events, keyboard, config, createClient }: Props) {
   const boardRef = usePlay(engine, keyboard);
   useGiftSource({
     demo: config.demo,
     room: liveRoomFrom(config),
     running: true,
-    feed,
+    events,
     createClient,
   });
 
@@ -52,7 +55,7 @@ export function ObsView({ engine, feed, keyboard, config, createClient }: Props)
             viewer
           />
         }
-        side={<TeamPanel engine={engine} feed={feed} />}
+        side={<TeamPanel pending={engine.pendingCurses} likes={engine.likeMeter} feed={feed} />}
       />
     </div>
   );

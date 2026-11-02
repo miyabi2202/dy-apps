@@ -16,4 +16,6 @@ export const twin = defineCurse({
   tagline: '连块都有对象',
   durationLocks: CONFIG.effects.twinLocks,
   spawnsTwin: true,
+  // A pair can't go into the hold box; saying so shows it on the panel, like 封存.
+  blocks: ['hold'],
 });

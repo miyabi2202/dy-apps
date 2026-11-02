@@ -35,6 +35,7 @@ import {
   cancelOne,
   createTeam,
   pendingTotal,
+  previewSettlement,
   settleTeam,
   takeSender,
 } from './interventions';
@@ -46,7 +47,13 @@ import {
   rotateMatrix,
   shapeOf,
 } from './pieces';
-import { deriveSeed, mulberry32, randomInt, type Rng } from './random';
+import { CutsceneClock, type CutsceneView } from './cutscene-clock';
+import { DelayedInputs } from './delayed-inputs';
+import { deriveSeed, mulberry32, type Rng } from './random';
+import { LikeMeter, type LikeMeterView } from './room/like-meter';
+import { QuietRoom } from './room/quiet-room';
+import { parseViewerCommand, ViewerInputs, type ViewerInput } from './room/viewer-commands';
+import { VoteBox, type VoteView } from './room/vote-box';
 import type {
   ActivePiece,
   Board,
@@ -124,15 +131,6 @@ export interface ActiveCurseView {
   count: number;
 }
 
-/** The hold before the piece of a curse with `cutscene`: its name, then READY, then GO. */
-export interface CutsceneView {
-  /** The curses that fired with a cutscene at this settlement, in settlement order. */
-  curses: readonly CurseDef<unknown>[];
-  /** Who sent each of `curses`, when known. */
-  senders: readonly (Sender | null)[];
-  stage: 'intro' | 'ready' | 'go';
-}
-
 /**
  * Something the board shows briefly over play: a pending curse the player cancelled by clearing
  * lines, one the game drew because the room was quiet, or one the full like meter drew.
@@ -149,44 +147,22 @@ export interface BoardNotice {
   sender?: Sender | null;
 }
 
-/** One viewer's vote: the index of the option they picked. Changing it replaces it. */
-export interface Ballot {
-  voter: Sender;
-  choice: number;
+export type { CutsceneView } from './cutscene-clock';
+export type { LikeMeterView } from './room/like-meter';
+export type { ViewerCommand, ViewerInput } from './room/viewer-commands';
+export type { Ballot, VoteView } from './room/vote-box';
+
+/** A pending curse type and how many of it wait, for the panels. */
+export interface PendingCurse {
+  def: CurseDef<unknown>;
+  count: number;
 }
 
 /**
- * An open vote: play stops while chat picks which of `options` goes in for the curse `sender`
- * drew. Once time is up, `winner` is set and shows for a moment before play goes on.
+ * What holds play with no piece under control, in turn: a cutscene before the next piece, or a
+ * vote. Play goes on when the queue is empty.
  */
-export interface VoteView {
-  id: number;
-  sender: Sender;
-  rarity: Rarity;
-  options: readonly EffectType[];
-  ballots: readonly Ballot[];
-  remainingMs: number;
-  winner: number | null;
-}
-
-/** The like meter: likes so far towards the next curse, and who has liked most this time. */
-export interface LikeMeterView {
-  likes: number;
-  threshold: number;
-  top: { sender: Sender; likes: number } | null;
-}
-
-/** What a viewer's chat can do to the piece while a curse hands it over (夺舍). */
-export type ViewerCommand = keyof typeof CONFIG.viewerCommands;
-
-/** A viewer's chat command that reached the piece, for the board to show who did what. */
-export interface ViewerInput {
-  id: number;
-  user: string;
-  command: ViewerCommand;
-  /** Whether the piece actually moved or turned; against a wall it doesn't. */
-  worked: boolean;
-}
+type Hold = { kind: 'cutscene'; clock: CutsceneClock } | { kind: 'vote' };
 
 export type LogKind = 'gift' | 'miss' | 'settle' | 'system';
 
@@ -241,18 +217,8 @@ export class GameEngine {
   lastSettlement: SettlementReport | null = null;
   log: LogEntry[] = [];
   gameOverReason: string | null = null;
-  /** Set between a settlement and the next spawn while a cutscene plays; no piece is active. */
-  cutscene: CutsceneView | null = null;
   /** The last few notices, oldest first; each shows once, when it is new. */
   notices: BoardNotice[] = [];
-  /** Settlements in a row with nothing pending, towards CONFIG.quiet.settlements. */
-  quietSettlements = 0;
-  /** The vote holding play, if one is open. */
-  vote: VoteView | null = null;
-  /** The room's likes towards the next curse. */
-  likeMeter: LikeMeterView = { likes: 0, threshold: CONFIG.likes.firstThreshold, top: null };
-  /** The last few viewers' chat commands while they steer the piece, oldest first. */
-  viewerInputs: ViewerInput[] = [];
 
   /** Bumped on every change the panels care about (not on gravity or movement). */
   version = 0;
@@ -264,7 +230,13 @@ export class GameEngine {
   private readonly curseRng: Rng;
   private readonly quietRng: Rng;
   private readonly likeRng: Rng;
-  private readonly voteRng: Rng;
+  private readonly votes: VoteBox;
+  private readonly likes = new LikeMeter();
+  private readonly quiet = new QuietRoom();
+  private readonly viewers = new ViewerInputs();
+  private readonly delayed = new DelayedInputs();
+  /** What holds play, the current one first. */
+  private holds: Hold[] = [];
   private readonly curseByType: Partial<Record<EffectType, CurseDef<unknown>>> = {};
   /** The curses' types in order: what gifts draw from and settlement fires in. */
   private readonly pool: readonly EffectType[];
@@ -280,7 +252,6 @@ export class GameEngine {
   private gravityMs = 0;
   /** Foreground play time, for canvas animations. */
   private playMs = 0;
-  private cutsceneMs = 0;
   /** What the falling pieces were before a curse swapped them at spawn, for the board to animate. */
   private swap: SwapView | null = null;
   /** Cells a curse dropped onto the board at the last settlement, for the board to animate. */
@@ -290,17 +261,6 @@ export class GameEngine {
   private logId = 0;
   private batchId = 0;
   private noticeId = 0;
-  private viewerInputId = 0;
-  private voteId = 0;
-  /** How long the vote's winner has shown. */
-  private voteResultMs = 0;
-  /** Likes per viewer since the meter last filled, by viewer id. */
-  private likers = new Map<string, { sender: Sender; likes: number }>();
-  /** Play time when the meter last filled, or the game began. */
-  private likesSinceMs = 0;
-  /** The player's commands waiting out 延迟's delay, oldest first, each with when it acts. */
-  private delayedInputs: { atMs: number; run: () => boolean }[] = [];
-  private runningDelayed = false;
   private readonly listeners: Set<Listener> = new Set();
 
   constructor(options: EngineOptions = {}) {
@@ -312,7 +272,7 @@ export class GameEngine {
     this.curseRng = options.curseRng ?? mulberry32(deriveSeed(seed, 3));
     this.quietRng = options.quietRng ?? mulberry32(deriveSeed(seed, 4));
     this.likeRng = options.likeRng ?? mulberry32(deriveSeed(seed, 5));
-    this.voteRng = options.voteRng ?? mulberry32(deriveSeed(seed, 6));
+    this.votes = new VoteBox(options.voteRng ?? mulberry32(deriveSeed(seed, 6)));
     this.probability = options.probability ?? CONFIG.gifts.defaultProbability;
     const { pieces = {}, curses = {} } = options;
     this.curses = curses.pool ?? CURSE_LIST;
@@ -370,6 +330,49 @@ export class GameEngine {
   }
 
   // ---------------------------------------------------------------- derived state
+
+  /** A curse in play by type. */
+  curseOf(type: EffectType): CurseDef<unknown> {
+    return this.curseByType[type]!;
+  }
+
+  /** The curses waiting to settle, in settlement order, with how many of each. */
+  get pendingCurses(): PendingCurse[] {
+    return this.curses
+      .filter((def) => this.team.pending[def.type] > 0)
+      .map((def) => ({ def, count: this.team.pending[def.type] }));
+  }
+
+  /** What the next settlement would fire as things stand: one per queue. */
+  get nextSettlement(): CurseDef<unknown>[] {
+    return previewSettlement(this.team, this.pool, this.queueOf).map((t) => this.curseByType[t]!);
+  }
+
+  /** The cutscene holding play, while one does; no piece is active then. */
+  get cutscene(): CutsceneView | null {
+    const hold = this.holds[0];
+    return hold?.kind === 'cutscene' ? hold.clock.view : null;
+  }
+
+  /** The vote holding play, while one does. */
+  get vote(): VoteView | null {
+    return this.holds[0]?.kind === 'vote' ? this.votes.view : null;
+  }
+
+  /** The room's likes towards the next curse. */
+  get likeMeter(): LikeMeterView {
+    return this.likes.view;
+  }
+
+  /** Settlements in a row with nothing pending, towards CONFIG.quiet.settlements. */
+  get quietSettlements(): number {
+    return this.quiet.settlements;
+  }
+
+  /** The last few viewers' chat commands while they steer the piece, oldest first. */
+  get viewerInputs(): readonly ViewerInput[] {
+    return this.viewers.list;
+  }
 
   get piecesUntilSettlement(): number {
     return CONFIG.settlement.everyLocks - (this.lockedPieceCount % CONFIG.settlement.everyLocks);
@@ -527,17 +530,13 @@ export class GameEngine {
     this.lastSettlement = null;
     this.log = [];
     this.gameOverReason = null;
-    this.cutscene = null;
-    this.cutsceneMs = 0;
+    this.holds = [];
     this.notices = [];
-    this.quietSettlements = 0;
-    this.viewerInputs = [];
-    this.delayedInputs = [];
-    this.likeMeter = { likes: 0, threshold: CONFIG.likes.firstThreshold, top: null };
-    this.likers.clear();
-    this.likesSinceMs = 0;
-    this.vote = null;
-    this.voteResultMs = 0;
+    this.quiet.reset();
+    this.viewers.clear();
+    this.delayed.clear();
+    this.likes.reset();
+    this.votes.reset();
     this.swap = null;
     this.drops = null;
     this.playMs = 0;
@@ -633,120 +632,64 @@ export class GameEngine {
    * CONFIG.viewerCommands moves or turns it at once, past any curse blocking the player; any other
    * text, or a chat at any other time, does nothing. Returns whether it was a command taken.
    */
-  viewerCommand(user: string, text: string): boolean {
+  viewerCommand(user: Sender, text: string): boolean {
     if (!this.canControl || !this.viewerControlBy) return false;
-    const words = CONFIG.viewerCommands;
-    const command = (Object.keys(words) as ViewerCommand[]).find((c) => words[c] === text.trim());
+    const command = parseViewerCommand(text);
     if (!command) return false;
     const worked =
       command === 'rotate' ? this.rotateFalling(1) : this.moveFalling(command === 'left' ? -1 : 1);
-    this.viewerInputId += 1;
-    this.viewerInputs = [
-      ...this.viewerInputs,
-      { id: this.viewerInputId, user, command, worked },
-    ].slice(-CONFIG.viewerInputsShown);
+    this.viewers.push(user, command, worked);
     this.emit();
     return true;
   }
 
   /**
-   * `count` likes from `sender` towards the like meter. When it fills, it draws a curse the way a
-   * gift does, sent by whoever liked most since it last filled, and the next takes twice as many
-   * (up to CONFIG.likes.maxThreshold); likes past the threshold carry over. Only during a game.
+   * `count` likes from `sender` towards the like meter. Each time it fills it draws a curse the
+   * way a gift does, sent by whoever liked most since it last filled. Only during a game.
    */
   addLikes(sender: Sender, count: number): boolean {
     if (this.phase === 'ready' || this.phase === 'gameOver') return false;
     if (!Number.isInteger(count) || count <= 0) return false;
-    const mine = this.likers.get(sender.id);
-    this.likers.set(sender.id, { sender, likes: (mine?.likes ?? 0) + count });
-    let { likes, threshold } = this.likeMeter;
-    likes += count;
-    while (likes >= threshold) {
-      likes -= threshold;
-      const top = this.topLiker()!;
+    for (const { threshold, top } of this.likes.add(sender, count, this.playMs)) {
       const type = drawCurse(this.likeRng, rarityBands(this.curses));
+      const head = `点赞满 ${threshold}：${top.sender.name}（${top.likes} 赞）`;
       if (this.openVote(type, top.sender)) {
         this.team.likeCount += 1;
-        this.pushLog(
-          'system',
-          `点赞满 ${threshold}：${top.sender.name}（${top.likes} 赞）发起投票。`,
-        );
+        this.pushLog('system', `${head}发起投票。`);
       } else {
         addLikeCurse(this.team, type, top.sender);
         this.pushNotice({ kind: 'likes', type, likes: threshold, sender: top.sender });
-        this.pushLog(
-          'system',
-          `点赞满 ${threshold}：${top.sender.name}（${top.likes} 赞）送出 ${this.curseByType[type]!.name}。`,
-        );
+        this.pushLog('system', `${head}送出 ${this.curseByType[type]!.name}。`);
       }
       this.logState(`likes filled ${threshold}, drew ${type} for ${top.sender.name}`);
-      threshold = Math.min(threshold * 2, CONFIG.likes.maxThreshold);
-      // Likes past the threshold carry over, as this viewer's.
-      this.likers.clear();
-      if (likes > 0) this.likers.set(sender.id, { sender, likes });
-      this.likesSinceMs = this.playMs;
     }
-    this.likeMeter = { likes, threshold, top: this.topLiker() };
     this.emit();
     return true;
   }
 
-  private topLiker(): { sender: Sender; likes: number } | null {
-    let top: { sender: Sender; likes: number } | null = null;
-    for (const liker of this.likers.values()) if (!top || liker.likes > top.likes) top = liker;
-    return top;
-  }
-
-  /** With no curse from the meter for a while, it starts over: empty, at the first threshold. */
-  private idleLikeMeter(): void {
-    if (this.playMs - this.likesSinceMs < CONFIG.likes.idleResetMs) return;
-    this.likesSinceMs = this.playMs;
-    const threshold = CONFIG.likes.firstThreshold;
-    if (this.likeMeter.likes === 0 && threshold === this.likeMeter.threshold) return;
-    this.likeMeter = { likes: 0, threshold, top: null };
-    this.likers.clear();
-    this.logState('like meter idle: reset');
-    this.emit();
-  }
-
   /**
-   * A viewer drew `type`: if it is uncommon or rare, no vote is open and the dice say so
-   * (CONFIG.votes.chance), opens a vote between two curses of its rarity instead of queueing it.
-   * Returns whether it did; the caller counts the draw either way.
+   * A viewer drew `type`: if the vote box rolls for it, opens a vote between two curses of its
+   * rarity instead of queueing it. Returns whether it did; the caller counts the draw either way.
    */
   private openVote(type: EffectType, sender: Sender): boolean {
     const { rarity } = this.curseByType[type]!;
-    if (rarity === 'common' || this.vote) return false;
-    if (!(this.voteRng.next() < CONFIG.votes.chance)) return false;
-    return this.startVote(sender, rarity);
+    return this.votes.rolls(rarity) && this.startVote(sender, rarity);
   }
 
-  /** Puts two different curses of `rarity` to the vote; false when there aren't two. */
+  /** Opens a vote between two curses of `rarity` and holds play for it, after any cutscene. */
   private startVote(sender: Sender, rarity: Rarity): boolean {
     const types = this.pool.filter((t) => this.curseByType[t]!.rarity === rarity);
-    if (types.length < 2) return false;
-    const first = randomInt(this.voteRng, types.length);
-    let second = randomInt(this.voteRng, types.length - 1);
-    if (second >= first) second += 1;
-    this.voteId += 1;
-    this.vote = {
-      id: this.voteId,
-      sender,
-      rarity,
-      options: [types[first]!, types[second]!],
-      ballots: [],
-      remainingMs: CONFIG.votes.durationMs,
-      winner: null,
-    };
+    if (!this.votes.open(sender, rarity, types)) return false;
+    this.holds.push({ kind: 'vote' });
     this.team.votingCount += 1;
-    this.logState(`vote opened by ${sender.name}: ${this.vote.options.join(' vs ')}`);
+    this.logState(`vote opened by ${sender.name}: ${this.votes.view!.options.join(' vs ')}`);
     this.emit();
     return true;
   }
 
   /** Debug: opens a vote between two curses of `rarity`, as if `sender` had drawn one. */
   forceVote(sender: Sender, rarity: Rarity = 'rare'): boolean {
-    if (this.phase === 'ready' || this.phase === 'gameOver' || this.vote) return false;
+    if (this.phase === 'ready' || this.phase === 'gameOver') return false;
     if (!this.startVote(sender, rarity)) return false;
     this.team.debugCount += 1;
     this.pushLog('system', `调试：${sender.name} 发起投票。`);
@@ -754,66 +697,48 @@ export class GameEngine {
   }
 
   /**
-   * A viewer's chat while a vote is open: a 1 anywhere in it votes for the first option, a 2 for
-   * the second; with both or neither it doesn't count. A later vote replaces their earlier one.
-   * Returns whether it counted.
+   * A viewer's chat while a vote holds play (see `ballotChoice`); a later vote replaces their
+   * earlier one. Not while paused, when the vote isn't on screen. Returns whether it counted.
    */
   castVote(voter: Sender, text: string): boolean {
-    const vote = this.vote;
-    if (!vote || vote.winner !== null) return false;
-    const one = /[1１]/.test(text);
-    const two = /[2２]/.test(text);
-    if (one === two) return false;
-    const choice = one ? 0 : 1;
-    const others = vote.ballots.filter((b) => b.voter.id !== voter.id);
-    this.vote = { ...vote, ballots: [...others, { voter, choice }] };
+    if (this.phase !== 'playing' || !this.vote || !this.votes.cast(voter, text)) return false;
     this.emit();
     return true;
   }
 
-  /** The streamer's +1 s while a vote is open. */
+  /** The streamer's +1 s while a vote holds play. */
   extendVote(): boolean {
-    const vote = this.vote;
-    if (!vote || vote.winner !== null) return false;
-    this.vote = { ...vote, remainingMs: vote.remainingMs + CONFIG.votes.extendMs };
+    if (!this.vote || !this.votes.extend()) return false;
     this.emit();
     return true;
   }
 
-  /** Counts down; at zero the most votes win (no votes or a tie: at random), then shows it. */
+  /** The vote's clock; the winner goes in as the drawer's, and play goes on once it closes. */
   private advanceVote(dtMs: number): void {
-    const vote = this.vote!;
-    if (vote.winner !== null) {
-      this.voteResultMs += dtMs;
-      if (this.voteResultMs >= CONFIG.votes.resultMs) {
-        this.vote = null;
+    const step = this.votes.advance(dtMs);
+    switch (step.kind) {
+      case 'counting':
+        if (step.changed) this.emit();
+        return;
+      case 'showing':
+        return;
+      case 'closed':
+        this.holds.shift();
         this.logState('vote over');
         this.emit();
+        return;
+      case 'decided': {
+        const { sender } = this.votes.view!;
+        this.team.votingCount -= 1;
+        addHit(this.team, step.type, sender);
+        this.pushLog(
+          'system',
+          `投票结果：${step.counts.join(' : ')}，${sender.name} 送出 ${this.curseByType[step.type]!.name}。`,
+        );
+        this.logState(`vote: ${step.counts.join(':')}, ${step.type} wins`);
+        this.emit();
       }
-      return;
     }
-    const remainingMs = vote.remainingMs - dtMs;
-    if (remainingMs > 0) {
-      this.vote = { ...vote, remainingMs };
-      // Often enough for a smooth countdown, not every frame.
-      if (Math.ceil(remainingMs / 100) !== Math.ceil(vote.remainingMs / 100)) this.emit();
-      return;
-    }
-    const counts = vote.options.map((_, i) => vote.ballots.filter((b) => b.choice === i).length);
-    const best = Math.max(...counts);
-    const leaders = counts.flatMap((n, i) => (n === best ? [i] : []));
-    const winner = leaders[randomInt(this.voteRng, leaders.length)]!;
-    const type = vote.options[winner]!;
-    this.vote = { ...vote, remainingMs: 0, winner };
-    this.voteResultMs = 0;
-    this.team.votingCount -= 1;
-    addHit(this.team, type, vote.sender);
-    this.pushLog(
-      'system',
-      `投票结果：${counts.join(' : ')}，${vote.sender.name} 送出 ${this.curseByType[type]!.name}。`,
-    );
-    this.logState(`vote: ${counts.join(':')}, ${type} wins`);
-    this.emit();
   }
 
   private logBatch(r: GiftBatchResult): void {
@@ -831,8 +756,9 @@ export class GameEngine {
 
   // ---------------------------------------------------------------- piece control
 
+  /** A piece is in play and nothing (a cutscene, a vote) holds it. */
   private get canControl(): boolean {
-    return this.phase === 'playing' && this.active !== null && this.vote === null;
+    return this.phase === 'playing' && this.active !== null && this.holds.length === 0;
   }
 
   /** The falling pieces: the active one, and its twin while there is one. */
@@ -944,7 +870,6 @@ export class GameEngine {
     for (const p of this.falling) p.y += 1;
     this.score += CONFIG.score.softDropPerCell;
     this.gravityMs = 0;
-    this.emit();
     return true;
   }
 
@@ -972,11 +897,10 @@ export class GameEngine {
     if (this.swap) this.swap = { ...this.swap, from: this.swap.twinFrom, twinFrom: this.swap.from };
   }
 
-  /** Not while a pair is falling. */
   holdPiece(): boolean {
     if (!this.canControl) return false;
     if (this.deferred(() => this.holdPiece())) return true;
-    if (!this.canHold || this.twin || this.blockedBy('hold')) return false;
+    if (!this.canHold || this.blockedBy('hold')) return false;
     const current = this.active!.shape;
     if (this.hold === null) {
       this.hold = current;
@@ -1000,40 +924,30 @@ export class GameEngine {
    * While a curse delays input, queues `run` to act `inputDelayMs` of play time from now and says
    * so; the caller then does nothing yet. Not when it is that queued command acting at last.
    */
-  private deferred(run: () => boolean): boolean {
+  private deferred(run: () => void): boolean {
     const ms = this.inputDelayMs;
-    if (ms === 0 || this.runningDelayed) return false;
-    this.delayedInputs.push({ atMs: this.playMs + ms, run });
-    return true;
-  }
-
-  /** The delayed commands whose time has come, in the order they were given. */
-  private runDelayedInputs(): void {
-    while (this.delayedInputs.length > 0 && this.delayedInputs[0]!.atMs <= this.playMs) {
-      const { run } = this.delayedInputs.shift()!;
-      this.runningDelayed = true;
-      try {
-        run();
-      } finally {
-        this.runningDelayed = false;
-      }
-    }
+    return ms > 0 && this.delayed.defer(run, this.playMs + ms);
   }
 
   /** Advance the cutscene, the vote, or gravity and lock delay, by `dtMs` of foreground play time. */
   tick(dtMs: number): void {
-    if (this.phase === 'playing' && this.cutscene) {
-      this.advanceCutscene(dtMs);
+    if (this.phase !== 'playing') return;
+    const hold = this.holds[0];
+    if (hold?.kind === 'cutscene') {
+      this.advanceCutscene(hold.clock, dtMs);
       return;
     }
-    if (this.phase === 'playing' && this.vote) {
+    if (hold?.kind === 'vote') {
       this.advanceVote(dtMs);
       return;
     }
     if (!this.canControl) return;
     this.playMs += dtMs;
-    this.idleLikeMeter();
-    this.runDelayedInputs();
+    if (this.likes.idle(this.playMs)) {
+      this.logState('like meter idle: reset');
+      this.emit();
+    }
+    this.delayed.runDue(this.playMs);
     if (!this.canControl) return;
     for (const { type, def } of this.activeCurses) {
       def.onTick?.(this.curseContext(), dtMs, this.effects.active[type]!.state);
@@ -1070,7 +984,7 @@ export class GameEngine {
   // ---------------------------------------------------------------- spawning & locking
 
   private startingTeam(): TeamState {
-    const team = createTeam();
+    const team = createTeam(this.pool);
     for (const [type, n] of Object.entries(this.initialPending) as [EffectType, number][]) {
       team.pending[type] = n;
     }
@@ -1146,7 +1060,7 @@ export class GameEngine {
     }
     this.active = piece;
     this.twin = twin;
-    this.viewerInputs = [];
+    this.viewers.clear();
   }
 
   /**
@@ -1195,7 +1109,7 @@ export class GameEngine {
     if (this.lockedPieceCount % CONFIG.settlement.everyLocks === 0) {
       this.settle();
       // The next piece waits for the game to end or the cutscene to finish.
-      if ((this.phase as Phase) === 'gameOver' || this.cutscene) {
+      if ((this.phase as Phase) === 'gameOver' || this.holds.length > 0) {
         this.emit();
         return;
       }
@@ -1215,13 +1129,7 @@ export class GameEngine {
 
   /** After enough settlements in a row with nothing pending, the game draws a curse itself. */
   private wakeQuietRoom(): void {
-    if (pendingTotal(this.team) > 0) {
-      this.quietSettlements = 0;
-      return;
-    }
-    this.quietSettlements += 1;
-    if (this.quietSettlements < CONFIG.quiet.settlements) return;
-    this.quietSettlements = 0;
+    if (!this.quiet.afterSettlement(pendingTotal(this.team))) return;
     const type = drawCurse(this.quietRng, rarityBands(this.curses));
     addSystemCurse(this.team, type);
     this.pushNotice({ kind: 'quiet', type });
@@ -1234,33 +1142,24 @@ export class GameEngine {
     this.notices = [...this.notices, { ...notice, id: this.noticeId }].slice(-3);
   }
 
+  /** Holds play for a cutscene, ahead of anything else waiting, before the next piece spawns. */
   private startCutscene(
     curses: readonly CurseDef<unknown>[],
     senders: readonly (Sender | null)[],
   ): void {
-    this.cutscene = { curses, senders, stage: 'intro' };
-    this.cutsceneMs = 0;
+    this.holds.unshift({ kind: 'cutscene', clock: new CutsceneClock(curses, senders) });
     this.logState(`cutscene for ${curses.map((def) => def.type).join(',')}`);
   }
 
   /** The names, then READY, then GO; the next piece spawns when GO is over. */
-  private advanceCutscene(dtMs: number): void {
-    const { readyMs, goMs } = CONFIG.cutscene;
-    const introMs = Math.max(
-      ...this.cutscene!.curses.map((def) => def.cutsceneMs ?? CONFIG.cutscene.introMs),
-    );
-    this.cutsceneMs += dtMs;
-    const t = this.cutsceneMs;
-    if (t >= introMs + readyMs + goMs) {
-      this.cutscene = null;
+  private advanceCutscene(clock: CutsceneClock, dtMs: number): void {
+    const step = clock.advance(dtMs);
+    if (step === 'done') {
+      this.holds.shift();
       this.logState('cutscene over');
       this.spawnNext();
       this.emit();
-      return;
-    }
-    const stage = t < introMs ? 'intro' : t < introMs + readyMs ? 'ready' : 'go';
-    if (stage !== this.cutscene!.stage) {
-      this.cutscene = { ...this.cutscene!, stage };
+    } else if (step === 'changed') {
       this.emit();
     }
   }

@@ -1,10 +1,10 @@
 import { EFFECT_POOL, RARITIES, type EffectType, type Rarity } from './curses';
 import type { Sender, TeamState } from './types';
 
-/** A fresh team with nothing pending, for every curse type. */
-export function createTeam(): TeamState {
+/** A fresh team with nothing pending, for every curse type in `pool`. */
+export function createTeam(pool: readonly EffectType[] = EFFECT_POOL): TeamState {
   return {
-    pending: Object.fromEntries(EFFECT_POOL.map((type) => [type, 0])) as Record<EffectType, number>,
+    pending: Object.fromEntries(pool.map((type) => [type, 0])) as Record<EffectType, number>,
     giftCount: 0,
     hitCount: 0,
     missCount: 0,
@@ -86,6 +86,21 @@ export function settleTeam(
   pool: readonly EffectType[] = EFFECT_POOL,
   queueOf: (type: EffectType) => string = (type) => type,
 ): EffectType[] {
+  const fired = previewSettlement(team, pool, queueOf);
+  for (const type of fired) {
+    team.pending[type] -= 1;
+    team.lastFired[queueOf(type)] = type;
+  }
+  team.firedCount += fired.length;
+  return fired;
+}
+
+/** What `settleTeam` would fire now, in pool order, without changing anything. */
+export function previewSettlement(
+  team: TeamState,
+  pool: readonly EffectType[] = EFFECT_POOL,
+  queueOf: (type: EffectType) => string = (type) => type,
+): EffectType[] {
   const byQueue = new Map<string, EffectType[]>();
   for (const type of pool) {
     const queue = queueOf(type);
@@ -98,14 +113,9 @@ export function settleTeam(
     const next = [...types.slice(start), ...types.slice(0, start)].find(
       (type) => team.pending[type] > 0,
     );
-    if (next === undefined) continue;
-    chosen.add(next);
-    team.lastFired[queue] = next;
+    if (next !== undefined) chosen.add(next);
   }
-  const fired = pool.filter((type) => chosen.has(type));
-  for (const type of fired) team.pending[type] -= 1;
-  team.firedCount += fired.length;
-  return fired;
+  return pool.filter((type) => chosen.has(type));
 }
 
 /**
