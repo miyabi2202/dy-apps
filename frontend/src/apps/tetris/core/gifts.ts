@@ -1,5 +1,5 @@
 import { CONFIG } from './config';
-import { CURSE_LIST, type CurseDef, type EffectType, type Rarity } from './curses';
+import { CURSE_LIST, RARITIES, type CurseDef, type EffectType, type Rarity } from './curses';
 import { addHit } from './interventions';
 import { randomInt, type Rng } from './random';
 import type { GiftBatchResult, TeamState } from './types';
@@ -16,9 +16,6 @@ export function isValidBatchCount(count: unknown): count is number {
 export function isValidProbability(p: unknown): p is number {
   return typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 1;
 }
-
-/** The rarities in weight order. */
-export const RARITIES: readonly Rarity[] = ['common', 'uncommon', 'rare'];
 
 /** A slice of [0, 1) that one rarity's draw lands in, with the curses it can pick. */
 export interface RarityBand {

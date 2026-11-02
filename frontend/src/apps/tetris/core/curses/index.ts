@@ -1,9 +1,15 @@
 import { fog } from './fog';
 import { garbage } from './garbage';
 import { haste } from './haste';
+import { hasty } from './hasty';
+import { mirror } from './mirror';
 import { noRotate } from './no-rotate';
+import { rockfall } from './rockfall';
 import { seal } from './seal';
+import { slip } from './slip';
+import { snakes } from './snakes';
 import { spin } from './spin';
+import { swap } from './swap';
 import type { CurseDef } from './types';
 
 /**
@@ -18,6 +24,12 @@ const registry = {
   seal,
   noRotate,
   spin,
+  swap,
+  snakes,
+  rockfall,
+  hasty,
+  slip,
+  mirror,
 } satisfies Record<string, CurseDef<unknown, string>>;
 
 export type EffectType = keyof typeof registry;
@@ -31,5 +43,5 @@ export const CURSE_LIST: readonly CurseDef<unknown>[] = Object.values(CURSES);
 /** Every curse type in registry order. What a game has in play is `engine.curses`. */
 export const EFFECT_POOL: readonly EffectType[] = CURSE_LIST.map((def) => def.type);
 
-export { defineCurse } from './types';
+export { defineCurse, RARITIES } from './types';
 export type { Command, CurseContext, CurseDef, CurseOutcome, Rarity } from './types';

@@ -17,6 +17,8 @@ export const spin = defineCurse({
     `方块每 ${config.effects.spinIntervalMs} ms 自动旋转，无法手动旋转、软降、硬降，持续 ${config.effects.spinLocks} 块`,
   rarity: 'rare',
   queue: 'e',
+  cutscene: true,
+  tagline: '转圈圈',
   durationLocks: CONFIG.effects.spinLocks,
   blocks: ['rotate', 'softDrop', 'hardDrop'],
   initState: (): SpinState => ({ elapsedMs: 0 }),

@@ -8,6 +8,8 @@ export const noRotate = defineCurse({
   description: (config) => `方块无法旋转，持续 ${config.effects.noRotateLocks} 块`,
   rarity: 'rare',
   queue: 'e',
+  cutscene: true,
+  tagline: '冻住不许转',
   durationLocks: CONFIG.effects.noRotateLocks,
   blocks: ['rotate'],
 });

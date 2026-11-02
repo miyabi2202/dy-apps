@@ -1,6 +1,6 @@
 import type { CONFIG } from '../config';
 import type { Rng } from '../random';
-import type { ActivePiece, Board, PieceShape } from '../types';
+import type { ActivePiece, Board, PieceShape, PieceType } from '../types';
 import type { EffectType } from './index';
 
 /** Player commands a curse can block while it is active. */
@@ -9,9 +9,14 @@ export type Command = 'rotate' | 'hold' | 'softDrop' | 'hardDrop';
 /** How often a curse should come up, from most to least. */
 export type Rarity = 'common' | 'uncommon' | 'rare';
 
+/** The rarities from most to least common: the order of the weights and of the draw's bands. */
+export const RARITIES: readonly Rarity[] = ['common', 'uncommon', 'rare'];
+
 /** A curse's answer at settlement: a reason ends the game, nothing means play on. */
 export interface CurseOutcome {
   gameOver?: string;
+  /** Board cells [x, y] that just dropped into place, so the board can animate their fall. */
+  dropped?: [number, number][];
 }
 
 /**
@@ -43,6 +48,17 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   durationLocks?: number;
   /** While active: the drop interval is multiplied by this once per active instance. */
   gravityMultiplier?: number;
+  /** While active: the lock delay is multiplied by this once per active instance; 0 locks on touch. */
+  lockDelayMultiplier?: number;
+  /** While active: the player's left and right moves are swapped. */
+  mirrorsMoves?: boolean;
+  /**
+   * Changes how the next piece behaves, with no mark on the piece: firing it holds the game for a
+   * cutscene (its name, then a countdown) before that piece spawns. So it should last 1 piece.
+   */
+  cutscene?: boolean;
+  /** A playful line under the name in its cutscene, like 冻住不许转. */
+  tagline?: string;
   /** Fresh state when the curse becomes active. */
   initState?(): S;
   /** At settlement, every time it fires. */
@@ -72,6 +88,8 @@ export function defineCurse<S = undefined, T extends string = string>(
 export interface CurseContext {
   readonly board: Board;
   readonly active: ActivePiece | null;
+  /** The pieces still to come, next first; the preview shows the first few. */
+  readonly upcoming: readonly PieceType[];
   /** The curses' own seeded stream, separate from pieces, garbage and gifts. */
   readonly curseRng: Rng;
   readonly garbageRng: Rng;
@@ -81,8 +99,15 @@ export interface CurseContext {
    */
   tryRotate(dir: 1 | -1): boolean;
   /**
+   * Move the active piece one column, if it fits. Ignores mirroring; neither resets the lock
+   * timer nor spends a lock reset.
+   */
+  tryMove(dx: 1 | -1): boolean;
+  /**
    * Give the active piece `shape` (unrotated) at its current position, if it fits. False leaves
    * the piece unchanged. Neither resets the lock timer nor spends a lock reset.
    */
   trySetShape(shape: PieceShape): boolean;
+  /** Replace the upcoming piece at `index` (0 is next). False if there is none there. */
+  setUpcoming(index: number, type: PieceType): boolean;
 }

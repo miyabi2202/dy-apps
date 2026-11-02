@@ -9,7 +9,9 @@ import { shapeOf } from '../core/pieces';
 import type { PieceShape } from '../core/types';
 import { labels, testIds } from '../messages';
 import { drawMiniPiece } from '../render/board';
+import { BoardNotices } from './board-notices';
 import { CurseName } from './curse-name';
+import { Cutscene } from './cutscene';
 
 interface Props {
   engine: GameEngine;
@@ -46,6 +48,16 @@ const relief = stylex.keyframes({
     transform: 'scale(1.2)',
   },
   '100%': { boxShadow: '0 0 0 transparent', transform: 'scale(1)' },
+});
+
+/** The board jolting as a cutscene lands. */
+const shake = stylex.keyframes({
+  '0%': { transform: 'translate(0, 0)' },
+  '15%': { transform: 'translate(-4px, 2px)' },
+  '30%': { transform: 'translate(4px, -2px)' },
+  '45%': { transform: 'translate(-3px, -1px)' },
+  '60%': { transform: 'translate(2px, 1px)' },
+  '100%': { transform: 'translate(0, 0)' },
 });
 
 /** Mist drifting across the hidden preview while fog lasts. */
@@ -139,7 +151,7 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
           </div>
         </div>
 
-        <div {...stylex.props(styles.boardWrap)}>
+        <div {...stylex.props(styles.boardWrap, engine.cutscene && styles.shake)}>
           <canvas
             ref={boardRef}
             data-testid={testIds.board}
@@ -148,6 +160,8 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
             {...stylex.props(styles.board, styles.boardShape(CONFIG.board.cols, CONFIG.board.rows))}
           />
           <Overlay engine={engine} onRestart={onRestart} />
+          {/* After the overlay, so a quiet room's notice shows over the cutscene it starts. */}
+          <BoardNotices engine={engine} />
         </div>
 
         <div {...stylex.props(styles.side, styles.nextSide)}>
@@ -270,7 +284,9 @@ function MiniPiece({
 }
 
 function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => void }) {
-  if (engine.phase === 'playing') return null;
+  if (engine.phase === 'playing') {
+    return engine.cutscene && <Cutscene cutscene={engine.cutscene} />;
+  }
   return (
     <div {...stylex.props(styles.overlay)} data-testid={testIds.overlay(engine.phase)}>
       {engine.phase === 'ready' && (
@@ -509,6 +525,12 @@ const styles = stylex.create({
   },
   overlayTitle: {
     fontSize: 22,
+  },
+  /** Once, when a cutscene starts: the style stays on while it plays. */
+  shake: {
+    animationDelay: '250ms',
+    animationDuration: '400ms',
+    animationName: shake,
   },
   summaryList: {
     margin: 0,

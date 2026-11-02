@@ -1,5 +1,13 @@
-import { addHit, createTeam, isConserved, pendingTotal, settleTeam } from '../core/interventions';
-import type { EffectType } from '../core/curses';
+import { CURSES, EFFECT_POOL, type EffectType } from '../core/curses';
+import {
+  addHit,
+  addSystemCurse,
+  cancelOne,
+  createTeam,
+  isConserved,
+  pendingTotal,
+  settleTeam,
+} from '../core/interventions';
 import type { TeamState } from '../core/types';
 import { pendingOf } from './helpers';
 
@@ -54,5 +62,39 @@ describe('settlement', () => {
     const team = createTeam();
     expect(settleTeam(team)).toEqual([]);
     expect(team.firedCount).toBe(0);
+  });
+});
+
+describe('cancelling and quiet-room curses', () => {
+  const rarityOf = (type: EffectType) => CURSES[type].rarity;
+
+  it('cancels the rarest pending curse first, then in pool order', () => {
+    const team = createTeam();
+    hit(team, 'fog', 2);
+    hit(team, 'haste', 1);
+    hit(team, 'spin', 1);
+    hit(team, 'garbage', 1);
+    expect(cancelOne(team, EFFECT_POOL, rarityOf)).toBe('garbage');
+    expect(cancelOne(team, EFFECT_POOL, rarityOf)).toBe('spin');
+    expect(cancelOne(team, EFFECT_POOL, rarityOf)).toBe('haste');
+    expect(cancelOne(team, EFFECT_POOL, rarityOf)).toBe('fog');
+    expect(team.pending).toEqual(pendingOf({ fog: 1 }));
+    expect(team.cancelledCount).toBe(4);
+    expect(isConserved(team)).toBe(true);
+  });
+
+  it('cancels nothing when nothing is pending', () => {
+    const team = createTeam();
+    expect(cancelOne(team, EFFECT_POOL, rarityOf)).toBeNull();
+    expect(team.cancelledCount).toBe(0);
+  });
+
+  it('a curse the game draws is pending without a gift, and still conserved', () => {
+    const team = createTeam();
+    addSystemCurse(team, 'seal');
+    expect(team.pending).toEqual(pendingOf({ seal: 1 }));
+    expect(team.systemCount).toBe(1);
+    settleTeam(team);
+    expect(isConserved(team)).toBe(true);
   });
 });

@@ -37,26 +37,28 @@ describe('example A: probability boundaries', () => {
   });
 
   it('a hit draws a rarity by weight, then one of its curses evenly', () => {
-    // Registry: fog, seal and noRotate common; haste and spin uncommon; garbage rare.
+    const w = CONFIG.gifts.rarityWeights;
+    const total = w.common + w.uncommon + w.rare;
+    const commonTo = w.common / total;
+    const uncommonTo = (w.common + w.uncommon) / total;
     const bands = rarityBands(Object.values(CURSES));
     expect(bands.map((b) => [b.rarity, b.types])).toEqual([
-      ['common', ['fog', 'seal']],
-      ['uncommon', ['haste']],
-      ['rare', ['garbage', 'noRotate', 'spin']],
+      ['common', ['fog', 'seal', 'swap', 'hasty']],
+      ['uncommon', ['haste', 'snakes', 'rockfall', 'slip']],
+      ['rare', ['garbage', 'noRotate', 'spin', 'mirror']],
     ]);
-    expect(bands.map((b) => b.to)).toEqual([expect.any(Number), expect.any(Number), 1]);
-    expect(bands[0]!.to).toBeCloseTo(0.6);
-    expect(bands[1]!.from).toBeCloseTo(0.6);
-    expect(bands[1]!.to).toBeCloseTo(0.9);
-    expect(bands[2]!.from).toBeCloseTo(0.9);
+    expect(bands[0]!.to).toBeCloseTo(commonTo);
+    expect(bands[1]!.from).toBeCloseTo(commonTo);
+    expect(bands[1]!.to).toBeCloseTo(uncommonTo);
+    expect(bands[2]!.from).toBeCloseTo(uncommonTo);
+    expect(bands[2]!.to).toBe(1);
     const draws: [number, number, string][] = [
       [0, 0, 'fog'],
-      [0.59, 0.5, 'seal'],
-      [0.61, 0.99, 'haste'],
-      [0.89, 0, 'haste'],
-      [0.91, 0, 'garbage'],
-      [0.95, 0.34, 'noRotate'],
-      [0.99, 0.99, 'spin'],
+      [commonTo - 0.01, 0.99, 'hasty'],
+      [commonTo + 0.01, 0, 'haste'],
+      [uncommonTo - 0.01, 0.6, 'rockfall'],
+      [uncommonTo + 0.01, 0, 'garbage'],
+      [0.99, 0.99, 'mirror'],
     ];
     for (const [rarity, index, expected] of draws) {
       const r = processGiftBatch(createTeam(), 'foo', 1, 1, sequenceRng([0, rarity, index]));
@@ -65,9 +67,10 @@ describe('example A: probability boundaries', () => {
   });
 
   it('weights are scaled over the rarities in play', () => {
+    const w = CONFIG.gifts.rarityWeights;
     const bands = rarityBands([CURSES.garbage, CURSES.fog]);
     expect(bands.map((b) => b.rarity)).toEqual(['common', 'rare']);
-    expect(bands[0]!.to).toBeCloseTo(0.6 / 0.7);
+    expect(bands[0]!.to).toBeCloseTo(w.common / (w.common + w.rare));
     expect(bands[1]!.to).toBe(1);
   });
 });

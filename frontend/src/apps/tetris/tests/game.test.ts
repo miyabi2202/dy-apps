@@ -277,16 +277,53 @@ describe('settlement cycle', () => {
     expect(engine.holdBlocked).toBe(false);
   });
 
-  it('line clears do not cancel pending garbage', () => {
+  it('a 2-line clear cancels one pending curse, rarest first, before the settlement', () => {
     const engine = startedEngine();
     dropOnEmpty(engine, ROUND - 1);
-    engine.team.pending.garbage = 3;
+    engine.team.pending = pendingOf({ garbage: 3, fog: 1 });
     engine.board = boardWithRows([rows - 1, rows - 2], [4, 5]);
     setActive(engine, 'O');
     engine.hardDrop();
     expect(engine.lines).toBe(2);
-    expect(engine.lastSettlement!.executed.map((e) => e.type)).toEqual(['garbage']);
-    expect(engine.team.pending.garbage).toBe(2);
+    expect(engine.team.cancelledCount).toBe(1);
+    expect(engine.notices.at(-1)).toMatchObject({ kind: 'cancelled', type: 'garbage', lines: 2 });
+    expect(engine.lastSettlement!.executed.map((e) => e.type)).toEqual(['garbage', 'fog']);
+    expect(engine.team.pending).toEqual(pendingOf({ garbage: 1 }));
+  });
+
+  it('a 1-line clear cancels nothing', () => {
+    const engine = startedEngine();
+    engine.team.pending.garbage = 1;
+    engine.board = boardWithRows([rows - 1, rows - 2], [4, 5]);
+    engine.board[rows - 2]![0] = null;
+    setActive(engine, 'O');
+    engine.hardDrop();
+    expect(engine.lines).toBe(1);
+    expect(engine.team.pending.garbage).toBe(1);
+    expect(engine.notices).toEqual([]);
+  });
+
+  it('a quiet room draws a curse itself after enough empty settlements', () => {
+    const quiet = CONFIG.quiet.settlements;
+    // 0 draws common, then the first common curse in pool order.
+    const engine = startedEngine({ quietRng: constantRng(0) });
+    dropOnEmpty(engine, ROUND * (quiet - 1));
+    expect(engine.quietSettlements).toBe(quiet - 1);
+    expect(engine.team.systemCount).toBe(0);
+    dropOnEmpty(engine, ROUND);
+    expect(engine.lastSettlement!.executed.map((e) => e.type)).toEqual(['fog']);
+    expect(engine.team.systemCount).toBe(1);
+    expect(engine.notices.at(-1)).toMatchObject({ kind: 'quiet', type: 'fog' });
+    expect(engine.quietSettlements).toBe(0);
+  });
+
+  it('anything pending restarts the quiet count', () => {
+    const engine = startedEngine();
+    dropOnEmpty(engine, ROUND * 2);
+    expect(engine.quietSettlements).toBe(2);
+    engine.team.pending.seal = 1;
+    dropOnEmpty(engine, ROUND);
+    expect(engine.quietSettlements).toBe(0);
   });
 
   it('garbage pushing blocks off the top ends the game', () => {
@@ -375,6 +412,95 @@ describe('example F: haste and speed', () => {
     engine.effects.gravityMultiplier = 0.01;
     expect(engine.gravityIntervalMs).toBe(140);
     expect(engine.speedMultiplier).toBeCloseTo(850 / 140);
+  });
+});
+
+describe('cutscenes', () => {
+  const { introMs, readyMs, goMs } = CONFIG.cutscene;
+
+  /** An engine whose next lock settles a pending 禁转, which has a cutscene. */
+  function settlingNoRotate(): GameEngine {
+    const engine = startedEngine();
+    engine.team.pending.noRotate = 1;
+    dropOnEmpty(engine, ROUND);
+    return engine;
+  }
+
+  it('holds the next piece for the names, READY and GO, then spawns it', () => {
+    const engine = settlingNoRotate();
+    expect(engine.cutscene).toEqual({ curses: [CURSES.noRotate], stage: 'intro' });
+    expect(engine.active).toBeNull();
+    expect(engine.move(1)).toBe(false);
+    expect(engine.holdPiece()).toBe(false);
+
+    engine.tick(introMs);
+    expect(engine.cutscene!.stage).toBe('ready');
+    engine.tick(readyMs);
+    expect(engine.cutscene!.stage).toBe('go');
+    engine.tick(goMs - 1);
+    expect(engine.cutscene).not.toBeNull();
+    engine.tick(1);
+    expect(engine.cutscene).toBeNull();
+    expect(engine.active).not.toBeNull();
+    // The curse covers the piece that spawned after it.
+    expect(engine.rotate(1)).toBe(false);
+  });
+
+  it('a curse without a cutscene spawns the next piece at once', () => {
+    const engine = startedEngine();
+    engine.team.pending.fog = 1;
+    dropOnEmpty(engine, ROUND);
+    expect(engine.cutscene).toBeNull();
+    expect(engine.active).not.toBeNull();
+  });
+
+  it('stands still while paused and ends on restart', () => {
+    const engine = settlingNoRotate();
+    engine.pause();
+    engine.tick(60_000);
+    expect(engine.cutscene).not.toBeNull();
+    engine.resume();
+    engine.restart();
+    expect(engine.cutscene).toBeNull();
+  });
+});
+
+describe('movement hooks', () => {
+  it('lockDelayMultiplier scales the lock delay; 0 locks on touch', () => {
+    const half = startedEngine({
+      curses: { pool: [{ ...CURSES.fog, lockDelayMultiplier: 0.5 }], active: ['fog'] },
+    });
+    expect(half.lockDelayMs).toBe(CONFIG.lock.delayMs / 2);
+
+    const engine = startedEngine({
+      curses: { pool: [{ ...CURSES.fog, lockDelayMultiplier: 0 }], active: ['fog'] },
+    });
+    setActive(engine, 'O');
+    groundActive(engine);
+    engine.tick(1);
+    expect(engine.lockedPieceCount).toBe(1);
+  });
+
+  it("mirrorsMoves swaps the player's left and right", () => {
+    const engine = startedEngine({
+      curses: { pool: [{ ...CURSES.fog, mirrorsMoves: true }], active: ['fog'] },
+    });
+    setActive(engine, 'O');
+    expect(engine.movesMirroredBy?.type).toBe('fog');
+    engine.move(1);
+    expect(engine.active!.x).toBe(3);
+  });
+
+  it('tryMove moves the piece for a curse, unmirrored', () => {
+    const engine = startedEngine({
+      curses: {
+        pool: [{ ...CURSES.fog, mirrorsMoves: true, onTick: (ctx) => void ctx.tryMove(1) }],
+        active: ['fog'],
+      },
+    });
+    setActive(engine, 'O');
+    engine.tick(1);
+    expect(engine.active!.x).toBe(5);
   });
 });
 

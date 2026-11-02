@@ -7,10 +7,12 @@ export const testIds = {
   activeEffects: 'active-effects',
   board: 'board',
   countdown: 'countdown',
+  cutscene: 'cutscene',
   gameOverSummary: 'game-over-summary',
   giftHistory: 'gift-history',
   log: 'log',
   nextSettlement: 'next-settlement',
+  notice: (kind: 'cancelled' | 'quiet') => `notice-${kind}`,
   overlay: (phase: Phase) => `overlay-${phase}`,
   panelTeam: 'panel-team',
   pending: 'pending',
@@ -26,4 +28,5 @@ export const labels = {
   restart: '重新开始',
   touchControls: '鼠标/触屏操作',
   fakeGifts: { start: '开始模拟送礼', stop: '停止模拟送礼' },
+  cutscene: { ready: 'READY', go: 'GO!' },
 } as const;

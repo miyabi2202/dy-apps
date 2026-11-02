@@ -1,4 +1,4 @@
-import { EFFECT_POOL, type EffectType } from './curses';
+import { EFFECT_POOL, RARITIES, type EffectType, type Rarity } from './curses';
 import type { TeamState } from './types';
 
 /** A fresh team with nothing pending, for every curse type. */
@@ -9,6 +9,8 @@ export function createTeam(): TeamState {
     hitCount: 0,
     missCount: 0,
     firedCount: 0,
+    systemCount: 0,
+    cancelledCount: 0,
     lastFired: {},
   };
 }
@@ -20,6 +22,32 @@ export function pendingTotal(team: TeamState): number {
 /** Queue one triggered curse. Does not touch hit/gift counters. */
 export function addHit(team: TeamState, type: EffectType): void {
   team.pending[type] += 1;
+}
+
+/** Queue a curse the game drew itself because the room was quiet. */
+export function addSystemCurse(team: TeamState, type: EffectType): void {
+  team.pending[type] += 1;
+  team.systemCount += 1;
+}
+
+/**
+ * Cancel one pending curse: of the rarest rarity that has any, the first in pool order.
+ * Returns its type, or null when nothing is pending.
+ */
+export function cancelOne(
+  team: TeamState,
+  pool: readonly EffectType[],
+  rarityOf: (type: EffectType) => Rarity,
+): EffectType | null {
+  for (const rarity of [...RARITIES].reverse()) {
+    const type = pool.find((t) => rarityOf(t) === rarity && team.pending[t] > 0);
+    if (type !== undefined) {
+      team.pending[type] -= 1;
+      team.cancelledCount += 1;
+      return type;
+    }
+  }
+  return null;
 }
 
 /**
@@ -55,10 +83,13 @@ export function settleTeam(
   return fired;
 }
 
-/** Every gift either missed or triggered, and every triggered curse is pending or fired. */
+/**
+ * Every gift either missed or triggered, and every curse triggered or drawn by the game is
+ * pending, fired or cancelled.
+ */
 export function isConserved(team: TeamState): boolean {
   return (
     team.giftCount === team.hitCount + team.missCount &&
-    team.hitCount === pendingTotal(team) + team.firedCount
+    team.hitCount + team.systemCount === pendingTotal(team) + team.firedCount + team.cancelledCount
   );
 }

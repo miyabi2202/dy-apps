@@ -19,8 +19,14 @@ import {
   tickTimedEffects,
   type EffectsState,
 } from './curses/state';
-import { isValidBatchCount, isValidProbability, processGiftBatch } from './gifts';
-import { createTeam, settleTeam } from './interventions';
+import {
+  drawCurse,
+  isValidBatchCount,
+  isValidProbability,
+  processGiftBatch,
+  rarityBands,
+} from './gifts';
+import { addSystemCurse, cancelOne, createTeam, pendingTotal, settleTeam } from './interventions';
 import {
   BagGenerator,
   createPiece,
@@ -74,6 +80,8 @@ export interface EngineOptions {
   giftRng?: Rng;
   /** For curses that roll dice. */
   curseRng?: Rng;
+  /** For the curse a quiet room draws. */
+  quietRng?: Rng;
   probability?: number;
   /** The starting board; copied, so the caller's array is never changed. Default: empty. */
   board?: Board;
@@ -96,6 +104,25 @@ export interface ActiveCurseView {
   remainingLocks: number;
   /** Instances running at once. */
   count: number;
+}
+
+/** The hold before the piece of a curse with `cutscene`: its name, then READY, then GO. */
+export interface CutsceneView {
+  /** The curses that fired with a cutscene at this settlement, in settlement order. */
+  curses: readonly CurseDef<unknown>[];
+  stage: 'intro' | 'ready' | 'go';
+}
+
+/**
+ * Something the board shows briefly over play: a pending curse the player cancelled by clearing
+ * lines, or a curse the game drew because the room was quiet.
+ */
+export interface BoardNotice {
+  id: number;
+  kind: 'cancelled' | 'quiet';
+  type: EffectType;
+  /** Lines cleared at once, for 'cancelled'. */
+  lines?: number;
 }
 
 export type LogKind = 'gift' | 'miss' | 'settle' | 'system';
@@ -141,6 +168,12 @@ export class GameEngine {
   lastSettlement: SettlementReport | null = null;
   log: LogEntry[] = [];
   gameOverReason: string | null = null;
+  /** Set between a settlement and the next spawn while a cutscene plays; no piece is active. */
+  cutscene: CutsceneView | null = null;
+  /** The last few notices, oldest first; each shows once, when it is new. */
+  notices: BoardNotice[] = [];
+  /** Settlements in a row with nothing pending, towards CONFIG.quiet.settlements. */
+  quietSettlements = 0;
 
   /** Bumped on every change the panels care about (not on gravity or movement). */
   version = 0;
@@ -150,6 +183,7 @@ export class GameEngine {
   private readonly garbageRng: Rng;
   private readonly giftRng: Rng;
   private readonly curseRng: Rng;
+  private readonly quietRng: Rng;
   private readonly curseByType: Partial<Record<EffectType, CurseDef<unknown>>> = {};
   /** The curses' types in order: what gifts draw from and settlement fires in. */
   private readonly pool: readonly EffectType[];
@@ -165,10 +199,16 @@ export class GameEngine {
   private gravityMs = 0;
   /** Foreground play time, for canvas animations. */
   private playMs = 0;
+  private cutsceneMs = 0;
+  /** What the active piece was before a curse swapped it at spawn, for the board to animate. */
+  private swap: { from: PieceType; atMs: number } | null = null;
+  /** Cells a curse dropped onto the board at the last settlement, for the board to animate. */
+  private drops: { cells: [number, number][]; atMs: number } | null = null;
   private lockMs = 0;
   private lockResets = 0;
   private logId = 0;
   private batchId = 0;
+  private noticeId = 0;
   private readonly listeners: Set<Listener> = new Set();
 
   constructor(options: EngineOptions = {}) {
@@ -178,6 +218,7 @@ export class GameEngine {
     this.garbageRng = options.garbageRng ?? mulberry32(deriveSeed(seed, 1));
     this.giftRng = options.giftRng ?? mulberry32(deriveSeed(seed, 2));
     this.curseRng = options.curseRng ?? mulberry32(deriveSeed(seed, 3));
+    this.quietRng = options.quietRng ?? mulberry32(deriveSeed(seed, 4));
     this.probability = options.probability ?? CONFIG.gifts.defaultProbability;
     const { pieces = {}, curses = {} } = options;
     this.curses = curses.pool ?? CURSE_LIST;
@@ -246,9 +287,20 @@ export class GameEngine {
 
   /** The scenario's base multiplier times every active curse instance's. */
   private get gravityMultiplier(): number {
-    let m = this.effects.gravityMultiplier;
+    return this.effects.gravityMultiplier * this.curseMultiplier('gravityMultiplier');
+  }
+
+  /** How long a grounded piece waits before it locks. */
+  get lockDelayMs(): number {
+    return CONFIG.lock.delayMs * this.curseMultiplier('lockDelayMultiplier');
+  }
+
+  /** Every active curse instance's `key` multiplied together. */
+  private curseMultiplier(key: 'gravityMultiplier' | 'lockDelayMultiplier'): number {
+    let m = 1;
     for (const { def, count } of this.activeCurses) {
-      if (def.gravityMultiplier !== undefined) m *= def.gravityMultiplier ** count;
+      const factor = def[key];
+      if (factor !== undefined) m *= factor ** count;
     }
     return m;
   }
@@ -297,6 +349,11 @@ export class GameEngine {
     return this.blockedBy('hold') !== null;
   }
 
+  /** The first active curse that swaps left and right, if any. */
+  get movesMirroredBy(): CurseDef<unknown> | null {
+    return this.activeCurses.find(({ def }) => def.mirrorsMoves)?.def ?? null;
+  }
+
   /** Y the active piece would land at. */
   get ghostY(): number | null {
     if (!this.active) return null;
@@ -311,6 +368,8 @@ export class GameEngine {
       ghostY: this.ghostY,
       activeCurses: this.activeCurses.map((a) => a.type),
       timeMs: this.playMs,
+      swap: this.swap,
+      drops: this.drops,
     };
   }
 
@@ -366,6 +425,12 @@ export class GameEngine {
     this.lastSettlement = null;
     this.log = [];
     this.gameOverReason = null;
+    this.cutscene = null;
+    this.cutsceneMs = 0;
+    this.notices = [];
+    this.quietSettlements = 0;
+    this.swap = null;
+    this.drops = null;
     this.playMs = 0;
     this.resetPieceTimers();
     this.pushLog('system', '已重新开始，触发概率保持不变。');
@@ -469,13 +534,19 @@ export class GameEngine {
     }
   }
 
+  /** The player's move: swapped while a curse mirrors moves. */
   move(dx: number): boolean {
     if (!this.canControl) return false;
+    return this.shift(this.movesMirroredBy ? -dx : dx, true);
+  }
+
+  /** Move by `dx` columns if it fits; only the player's moves may reset the lock. */
+  private shift(dx: number, mayResetLock: boolean): boolean {
     const p = this.active!;
     if (collides(this.board, p.matrix, p.x + dx, p.y)) return false;
     const wasGrounded = this.isGrounded();
     p.x += dx;
-    this.afterManipulation(wasGrounded);
+    if (mayResetLock) this.afterManipulation(wasGrounded);
     return true;
   }
 
@@ -535,8 +606,12 @@ export class GameEngine {
     return true;
   }
 
-  /** Advance gravity and lock delay by `dtMs` of foreground play time. */
+  /** Advance the cutscene, or gravity and lock delay, by `dtMs` of foreground play time. */
   tick(dtMs: number): void {
+    if (this.phase === 'playing' && this.cutscene) {
+      this.advanceCutscene(dtMs);
+      return;
+    }
     if (!this.canControl) return;
     this.playMs += dtMs;
     for (const { type, def } of this.activeCurses) {
@@ -545,7 +620,7 @@ export class GameEngine {
     if (this.isGrounded()) {
       this.gravityMs = 0;
       this.lockMs += dtMs;
-      if (this.lockMs >= CONFIG.lock.delayMs) this.lockPiece();
+      if (this.lockMs >= this.lockDelayMs) this.lockPiece();
       return;
     }
     this.lockMs = 0;
@@ -602,11 +677,13 @@ export class GameEngine {
         piece = def.onSpawn(this.curseContext(), piece, this.effects.active[curse]!.state);
       }
     }
+    this.swap = piece.type === type ? null : { from: type, atMs: this.playMs };
     this.place(piece);
   }
 
   /** A hold swap or a scenario's first piece: spawned unrotated, and no curse sees it. */
   private spawn(shape: PieceShape): void {
+    this.swap = null;
     this.place(createPiece(shape));
   }
 
@@ -638,6 +715,7 @@ export class GameEngine {
       this.score += CONFIG.score.lineClear[cleared] ?? 0;
       this.lines += cleared;
       this.logState(`cleared ${cleared} line${cleared > 1 ? 's' : ''}`);
+      if (cleared >= CONFIG.relief.minLines) this.cancelPending(cleared);
     }
 
     tickTimedEffects(this.effects);
@@ -646,7 +724,8 @@ export class GameEngine {
 
     if (this.lockedPieceCount % CONFIG.settlement.everyLocks === 0) {
       this.settle();
-      if ((this.phase as Phase) === 'gameOver') {
+      // The next piece waits for the game to end or the cutscene to finish.
+      if ((this.phase as Phase) === 'gameOver' || this.cutscene) {
         this.emit();
         return;
       }
@@ -655,8 +734,65 @@ export class GameEngine {
     this.emit();
   }
 
+  /** A big enough line clear cancels one pending curse, rarest first. */
+  private cancelPending(lines: number): void {
+    const type = cancelOne(this.team, this.pool, (t) => this.curseByType[t]!.rarity);
+    if (type === null) return;
+    this.pushNotice({ kind: 'cancelled', type, lines });
+    this.pushLog('system', `消 ${lines} 行，抵消 ${this.curseByType[type]!.name}。`);
+    this.logState(`cancelled ${type}`);
+  }
+
+  /** After enough settlements in a row with nothing pending, the game draws a curse itself. */
+  private wakeQuietRoom(): void {
+    if (pendingTotal(this.team) > 0) {
+      this.quietSettlements = 0;
+      return;
+    }
+    this.quietSettlements += 1;
+    if (this.quietSettlements < CONFIG.quiet.settlements) return;
+    this.quietSettlements = 0;
+    const type = drawCurse(this.quietRng, rarityBands(this.curses));
+    addSystemCurse(this.team, type);
+    this.pushNotice({ kind: 'quiet', type });
+    this.pushLog('system', `直播间太安静，系统送出 ${this.curseByType[type]!.name}。`);
+    this.logState(`quiet room drew ${type}`);
+  }
+
+  private pushNotice(notice: Omit<BoardNotice, 'id'>): void {
+    this.noticeId += 1;
+    this.notices = [...this.notices, { ...notice, id: this.noticeId }].slice(-3);
+  }
+
+  private startCutscene(curses: readonly CurseDef<unknown>[]): void {
+    this.cutscene = { curses, stage: 'intro' };
+    this.cutsceneMs = 0;
+    this.logState(`cutscene for ${curses.map((def) => def.type).join(',')}`);
+  }
+
+  /** The names, then READY, then GO; the next piece spawns when GO is over. */
+  private advanceCutscene(dtMs: number): void {
+    const { introMs, readyMs, goMs } = CONFIG.cutscene;
+    this.cutsceneMs += dtMs;
+    const t = this.cutsceneMs;
+    if (t >= introMs + readyMs + goMs) {
+      this.cutscene = null;
+      this.logState('cutscene over');
+      this.spawnNext();
+      this.emit();
+      return;
+    }
+    const stage = t < introMs ? 'intro' : t < introMs + readyMs ? 'ready' : 'go';
+    if (stage !== this.cutscene!.stage) {
+      this.cutscene = { ...this.cutscene!, stage };
+      this.emit();
+    }
+  }
+
   /** Atomic settlement: every curse type with anything pending fires once. */
   private settle(): void {
+    this.wakeQuietRoom();
+    const dropped: [number, number][] = [];
     this.settlementCount += 1;
     const report: SettlementReport = { index: this.settlementCount, executed: [] };
     let gameOver: string | undefined;
@@ -666,17 +802,26 @@ export class GameEngine {
       const state =
         durationOf(def) === undefined ? def.initState?.() : activate(this.effects, type, def).state;
       const outcome = def.apply?.(this.curseContext(), state) ?? {};
+      dropped.push(...(outcome.dropped ?? []));
       report.executed.push({ type, outcome });
       gameOver = outcome.gameOver;
       if (gameOver) break;
     }
+    this.drops = dropped.length ? { cells: dropped, atMs: this.playMs } : null;
     this.lastSettlement = report;
     this.logSettlement(report);
     if (this.logger.enabled('debug')) {
       const fired = report.executed.map(({ type }) => type).join(',') || 'nothing';
       this.logState(`settlement #${report.index} fired ${fired}`);
     }
-    if (gameOver) this.endGame(gameOver);
+    if (gameOver) {
+      this.endGame(gameOver);
+      return;
+    }
+    const shown = report.executed
+      .map(({ type }) => this.curseByType[type]!)
+      .filter((def) => def.cutscene);
+    if (shown.length > 0) this.startCutscene(shown);
   }
 
   /** What curses get to see and do: never the engine itself. */
@@ -687,7 +832,14 @@ export class GameEngine {
       curseRng: this.curseRng,
       garbageRng: this.garbageRng,
       tryRotate: (dir) => this.active !== null && this.rotateWithKicks(dir, false),
+      tryMove: (dx) => this.active !== null && this.shift(dx, false),
       trySetShape: (shape) => this.trySetShape(shape),
+      upcoming: this.upcoming,
+      setUpcoming: (index, type) => {
+        if (!Number.isInteger(index) || index < 0 || index >= this.upcoming.length) return false;
+        this.upcoming[index] = type;
+        return true;
+      },
     };
   }
 

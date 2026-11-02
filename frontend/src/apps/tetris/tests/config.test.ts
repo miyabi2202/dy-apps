@@ -1,3 +1,4 @@
+import { CONFIG } from '../core/config';
 import { configToParams, readConfig, saveConfig, type TetrisConfig } from '../config';
 
 beforeEach(() => localStorage.clear());
@@ -17,8 +18,9 @@ describe('readConfig', () => {
   });
 
   it('clamps the chance to whole percents from 1% to 100%, ignoring non-numbers', () => {
-    expect(readConfig('?chance=abc').probability).toBe(0.15);
-    expect(readConfig('?chance=').probability).toBe(0.15);
+    const fallback = CONFIG.gifts.defaultProbability;
+    expect(readConfig('?chance=abc').probability).toBe(fallback);
+    expect(readConfig('?chance=').probability).toBe(fallback);
     expect(readConfig('?chance=0').probability).toBe(0.01);
     expect(readConfig('?chance=250').probability).toBe(1);
     expect(readConfig('?chance=33.4').probability).toBe(0.33);
