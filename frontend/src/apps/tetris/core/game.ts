@@ -1169,6 +1169,7 @@ export class GameEngine {
    * may draw one first; curses with a cutscene then hold the next piece for it.
    */
   private settle(): void {
+    this.votes.newRound();
     this.wakeQuietRoom();
     const dropped: [number, number][] = [];
     this.settlementCount += 1;

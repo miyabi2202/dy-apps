@@ -614,6 +614,18 @@ describe('votes', () => {
     expect(engine.active!.y).toBe(y);
   });
 
+  it('a new round lets a draw open a vote again', () => {
+    const engine = voting();
+    engine.tick(durationMs);
+    engine.tick(resultMs);
+    engine.sendGifts(drawer, 1);
+    expect(engine.vote).toBeNull();
+    dropOnEmpty(engine, ROUND);
+    engine.tick(60_000);
+    engine.sendGifts(drawer, 1);
+    expect(engine.vote).not.toBeNull();
+  });
+
   it('a common draw never does', () => {
     const engine = startedEngine({ voteRng: constantRng(0), giftRng: constantRng(0) });
     engine.sendGifts(drawer, 1);

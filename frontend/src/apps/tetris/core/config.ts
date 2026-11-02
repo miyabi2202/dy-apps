@@ -93,7 +93,7 @@ export const CONFIG = {
   likes: { firstThreshold: 100, maxThreshold: 1600, idleResetMs: 5 * 60_000 },
   /**
    * Votes: an uncommon or rare curse a viewer draws (a gift's or the like meter's) opens a vote
-   * `chance` of the time, unless one is already open. Two curses of that rarity go up, play
+   * `chance` of the time, unless one is already open or one has opened this round. Two curses of that rarity go up, play
    * stops, and chat votes 1 or 2 for `durationMs` (the streamer can add `extendMs` at a time);
    * the winner shows for `resultMs`, then play goes on.
    */

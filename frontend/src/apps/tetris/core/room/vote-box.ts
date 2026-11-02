@@ -39,25 +39,29 @@ export function ballotChoice(text: string): 0 | 1 | null {
 }
 
 /**
- * At most one vote at a time: whether a draw opens one, the two options, the ballots, the clock
- * and the result. It knows nothing of the game; the caller queues the winner and holds play.
+ * At most one vote at a time, and one a round: whether a draw opens one, the two options, the
+ * ballots, the clock and the result. It knows nothing of the game; the caller queues the winner,
+ * holds play and says when a new round starts.
  */
 export class VoteBox {
   view: VoteView | null = null;
   private id = 0;
   private resultMs = 0;
+  /** A vote has opened since the round began. */
+  private votedThisRound = false;
 
   constructor(private readonly rng: Rng) {}
 
-  /** Whether a draw of `rarity` opens a vote: never a common one or while one is open. */
+  /** Whether a draw of `rarity` opens a vote: never a common one, while one is open, or a second in a round. */
   rolls(rarity: Rarity): boolean {
-    if (rarity === 'common' || this.view) return false;
+    if (rarity === 'common' || this.view || this.votedThisRound) return false;
     return this.rng.next() < CONFIG.votes.chance;
   }
 
   /** Puts two different curses of `types` to the vote; false when there aren't two. */
   open(sender: Sender, rarity: Rarity, types: readonly EffectType[]): boolean {
     if (this.view || types.length < 2) return false;
+    this.votedThisRound = true;
     const first = randomInt(this.rng, types.length);
     let second = randomInt(this.rng, types.length - 1);
     if (second >= first) second += 1;
@@ -120,8 +124,14 @@ export class VoteBox {
     return { kind: 'decided', type: vote.options[winner]!, counts };
   }
 
+  /** A settlement started a new round: draws may open a vote again. */
+  newRound(): void {
+    this.votedThisRound = false;
+  }
+
   reset(): void {
     this.view = null;
     this.resultMs = 0;
+    this.votedThisRound = false;
   }
 }

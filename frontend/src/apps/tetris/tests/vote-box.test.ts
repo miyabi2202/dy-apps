@@ -35,6 +35,17 @@ describe('VoteBox', () => {
     expect(box.open(drawer, 'rare', ['garbage', 'spin'])).toBe(false);
   });
 
+  it('opens at most one a round, even after the first closes', () => {
+    const box = new VoteBox(constantRng(0));
+    box.open(drawer, 'rare', ['garbage', 'spin']);
+    box.advance(durationMs);
+    box.advance(resultMs);
+    expect(box.view).toBeNull();
+    expect(box.rolls('rare')).toBe(false);
+    box.newRound();
+    expect(box.rolls('rare')).toBe(true);
+  });
+
   it('puts two different curses up, and needs two to choose from', () => {
     expect(opened().view!.options).toEqual(['garbage', 'spin']);
     expect(new VoteBox(constantRng(0)).open(drawer, 'rare', ['garbage'])).toBe(false);
