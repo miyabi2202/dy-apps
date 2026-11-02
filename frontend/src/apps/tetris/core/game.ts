@@ -174,7 +174,7 @@ export interface LogEntry {
 
 export interface SettlementReport {
   index: number;
-  /** Curses that fired, one per type, in registry order. Empty when nothing was pending. */
+  /** Curses that fired, at most one per queue, in settlement order. Empty when nothing was pending. */
   executed: { type: EffectType; outcome: CurseOutcome }[];
 }
 
@@ -1164,7 +1164,10 @@ export class GameEngine {
     }
   }
 
-  /** Atomic settlement: every curse type with anything pending fires once. */
+  /**
+   * Atomic settlement: at most one pending curse per queue fires (see `settleTeam`). A quiet room
+   * may draw one first; curses with a cutscene then hold the next piece for it.
+   */
   private settle(): void {
     this.wakeQuietRoom();
     const dropped: [number, number][] = [];

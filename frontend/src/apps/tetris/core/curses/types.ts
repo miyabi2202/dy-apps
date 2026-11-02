@@ -34,8 +34,7 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   /**
    * The settlement queue it belongs to. Each settlement fires at most one pending curse per
    * queue, taking turns (the next in pool order after the one that fired last); the rest of that
-   * queue waits. A curse in a queue of its own
-   * never has to wait for others.
+   * queue waits. A curse in a queue of its own never has to wait for others.
    */
   queue: string;
   /**

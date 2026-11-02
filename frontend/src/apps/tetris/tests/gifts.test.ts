@@ -11,7 +11,7 @@ function checkBatchAccounting(r: GiftBatchResult) {
   expect(Object.values(r.effects).reduce((a, b) => a + b, 0)).toBe(r.hits);
 }
 
-describe('example A: probability boundaries', () => {
+describe('drawing curses', () => {
   it('0% -> 100 misses, nothing pending', () => {
     const team = createTeam();
     const r = processGiftBatch(team, 'foo', 100, 0, mulberry32(1));
@@ -89,7 +89,7 @@ describe('batches', () => {
     expect(singleTeam).toEqual(batchTeam);
   });
 
-  it('example G: random batch accounting', () => {
+  it('random batches always add up', () => {
     const team = createTeam();
     const rng = mulberry32(77);
     for (let i = 0; i < 30; i += 1) {
@@ -121,12 +121,12 @@ describe('batches', () => {
   it('rejects invalid counts without touching state', () => {
     const engine = new GameEngine({ seed: 1 });
     engine.start();
-    for (const bad of [0, -1, 1.5, 10_001, Number.NaN]) {
+    for (const bad of [0, -1, 1.5, CONFIG.gifts.maxBatch + 1, Number.NaN]) {
       const res = engine.sendGifts('foo', bad);
       expect(res.ok).toBe(false);
     }
     expect(engine.team.giftCount).toBe(0);
-    expect(engine.sendGifts('foo', 10_000).ok).toBe(true);
+    expect(engine.sendGifts('foo', CONFIG.gifts.maxBatch).ok).toBe(true);
   });
 
   it('uses the probability at the start of the batch; later changes only affect later batches', () => {

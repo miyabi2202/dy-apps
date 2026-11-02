@@ -201,8 +201,8 @@ function tintFor(active: readonly EffectType[]): PieceTint | undefined {
 }
 
 /**
- * Marks a cursed piece so the player knows it is the curse: a pulsing veil over its cells,
- * then either a dashed outline marching around it or static hatching across it.
+ * Marks a cursed piece so the player knows it is the curse: a pulsing veil over its cells, then a
+ * flare around each cell, a dashed outline marching around it, or static hatching across it.
  */
 function paintTintMark(
   ctx: Canvas2D,

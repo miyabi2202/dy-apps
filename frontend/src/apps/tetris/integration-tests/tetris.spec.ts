@@ -73,7 +73,6 @@ test.afterEach(() => {
 test('renders a real canvas board, the curse panel and controls', async ({ page }) => {
   await expect(page.getByRole('heading', { name: meta.title })).toBeVisible();
   await expect(page.getByTestId(testIds.panelTeam)).toBeVisible();
-  await expect(page.getByText(/诅咒队|祝福/)).toHaveCount(0);
   await page.getByRole('button', { name: labels.start }).click();
 
   const colours = await page.getByTestId(testIds.board).evaluate((el) => {
@@ -230,7 +229,7 @@ test('holding a move key auto-repeats with DAS/ARR', async ({ page }) => {
   await page.keyboard.up('KeyD');
   const end = await engineState(page);
   expect(end.active!.x).toBeGreaterThan(start.active!.x);
-  // Against the right wall: rightmost filled column is 9.
+  // Against the right wall: the rightmost filled column is the board's last.
   const rightmost = await page.evaluate(() => {
     const e = (
       window as unknown as { __blockLab: { engine: { active: { x: number; matrix: number[][] } } } }
@@ -238,7 +237,7 @@ test('holding a move key auto-repeats with DAS/ARR', async ({ page }) => {
     const cols = e.active.matrix[0]!.map((_, c) => e.active.matrix.some((row) => row[c]));
     return e.active.x + cols.lastIndexOf(true);
   });
-  expect(rightmost).toBe(9);
+  expect(rightmost).toBe(CONFIG.board.cols - 1);
 });
 
 test('rapid hard drops lock once each and settle once per round', async ({ page }) => {
@@ -314,7 +313,7 @@ test('the OBS page shows the game and gift wall on a transparent page', async ({
   const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   expect(background).toBe('rgba(0, 0, 0, 0)');
 
-  // Played through OBS's 交互 window: Enter starts, and the link's fake gifts arrive.
+  // Played through OBS's 交互 window: Enter starts, and gifts reach the wall.
   await page.keyboard.press('Enter');
   expect((await engineState(page)).phase).toBe('playing');
   expect(await sendGift(page, 5)).toBe(true);

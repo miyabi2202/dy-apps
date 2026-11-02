@@ -11,9 +11,9 @@ import { CurseName } from './curse-name';
 
 /**
  * Debug: a button per curse in play that queues one, as if a gift had triggered it, grouped by
- * rarity and marked with its settlement queue; and buttons that send a made-up viewer's chat
- * command, for trying 夺舍 without a live room. Only on the config page, never in OBS; like
- * gifts, it works only during a game.
+ * rarity and marked with its settlement queue; and buttons for made-up viewers' likes, a vote and
+ * their ballots, and chat commands, for trying the like meter, votes and 夺舍 without a live room.
+ * Only on the config page, never in OBS; like gifts, it works only during a game.
  */
 export function DebugPanel({ engine }: { engine: GameEngine }) {
   const running = engine.phase === 'playing' || engine.phase === 'paused';

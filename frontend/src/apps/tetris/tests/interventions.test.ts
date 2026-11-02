@@ -2,6 +2,7 @@ import { CURSES, EFFECT_POOL, type EffectType } from '../core/curses';
 import {
   addDebugCurse,
   addHit,
+  addLikeCurse,
   addSystemCurse,
   cancelOne,
   createTeam,
@@ -61,7 +62,7 @@ describe('settlement', () => {
     expect(isConserved(team)).toBe(true);
   });
 
-  it('an empty queue fires nothing', () => {
+  it('fires nothing when nothing is pending', () => {
     const team = createTeam();
     expect(settleTeam(team)).toEqual([]);
     expect(team.firedCount).toBe(0);
@@ -92,20 +93,13 @@ describe('cancelling and quiet-room curses', () => {
     expect(team.cancelledCount).toBe(0);
   });
 
-  it('a curse the game draws is pending without a gift, and still conserved', () => {
+  it('a curse the game draws, a debug one or a like one is pending without a gift, and conserved', () => {
     const team = createTeam();
     addSystemCurse(team, 'seal');
-    expect(team.pending).toEqual(pendingOf({ seal: 1 }));
-    expect(team.systemCount).toBe(1);
-    settleTeam(team);
-    expect(isConserved(team)).toBe(true);
-  });
-
-  it('a curse added by hand is pending without a gift, and still conserved', () => {
-    const team = createTeam();
     addDebugCurse(team, 'twin');
-    expect(team.pending).toEqual(pendingOf({ twin: 1 }));
-    expect(team.debugCount).toBe(1);
+    addLikeCurse(team, 'fog', { id: '1', name: '阿杰' });
+    expect(team.pending).toEqual(pendingOf({ seal: 1, twin: 1, fog: 1 }));
+    expect(team).toMatchObject({ systemCount: 1, debugCount: 1, likeCount: 1 });
     expect(isConserved(team)).toBe(true);
     settleTeam(team);
     expect(isConserved(team)).toBe(true);

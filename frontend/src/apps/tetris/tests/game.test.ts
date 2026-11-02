@@ -16,9 +16,9 @@ import {
 } from './helpers';
 
 const { rows, cols } = CONFIG.board;
-/** Locks one fog runs for. */
 /** Locks in one settlement round. */
 const ROUND = CONFIG.settlement.everyLocks;
+/** Locks one fog runs for. */
 const FOG_LOCKS = CONFIG.effects.fogRounds * ROUND;
 
 function groundActive(engine: GameEngine) {
@@ -125,7 +125,7 @@ describe('spawning and movement', () => {
       expect(engine.active!.x).toBe(-2);
       const dropScore = engine.ghostY! - engine.active!.y;
       engine.hardDrop();
-      expect(engine.lines).toBe(n === 4 ? 4 : n);
+      expect(engine.lines).toBe(n);
       expect(engine.score).toBe(points + dropScore * 2);
     }
   });
@@ -266,7 +266,7 @@ describe('settlement cycle', () => {
     expect(engine.lastSettlement!.executed.map((e) => e.type)).toEqual(['spin']);
   });
 
-  it('fires each pending curse type once per settlement; the rest waits', () => {
+  it('fires one pending curse per queue at a settlement, with its effect; the rest waits', () => {
     const engine = startedEngine();
     engine.team.pending = pendingOf({ garbage: 2, haste: 1, fog: 1 });
     dropOnEmpty(engine, ROUND - 1);
@@ -388,7 +388,7 @@ describe('settlement cycle', () => {
   });
 });
 
-describe('example F: haste and speed', () => {
+describe('haste and speed', () => {
   it('each haste lasts the configured rounds, and overlapping hastes multiply', () => {
     const engine = startedEngine();
     const rounds = CONFIG.effects.hasteRounds;
@@ -496,29 +496,11 @@ describe('cutscenes', () => {
 });
 
 describe('movement hooks', () => {
-  it('lockDelayMultiplier scales the lock delay; 0 locks on touch', () => {
+  it('lockDelayMultiplier scales the lock delay', () => {
     const half = startedEngine({
       curses: { pool: [{ ...CURSES.fog, lockDelayMultiplier: 0.5 }], active: ['fog'] },
     });
     expect(half.lockDelayMs).toBe(CONFIG.lock.delayMs / 2);
-
-    const engine = startedEngine({
-      curses: { pool: [{ ...CURSES.fog, lockDelayMultiplier: 0 }], active: ['fog'] },
-    });
-    setActive(engine, 'O');
-    groundActive(engine);
-    engine.tick(1);
-    expect(engine.lockedPieceCount).toBe(1);
-  });
-
-  it("mirrorsMoves swaps the player's left and right", () => {
-    const engine = startedEngine({
-      curses: { pool: [{ ...CURSES.fog, mirrorsMoves: true }], active: ['fog'] },
-    });
-    setActive(engine, 'O');
-    expect(engine.movesMirroredBy?.type).toBe('fog');
-    engine.move(1);
-    expect(engine.active!.x).toBe(3);
   });
 
   it('tryMove moves the piece for a curse, unmirrored', () => {

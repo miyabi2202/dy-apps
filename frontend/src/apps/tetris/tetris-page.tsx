@@ -10,7 +10,7 @@ import { log } from './log';
 import { App } from './ui/app';
 import { ObsView } from './ui/obs-view';
 
-/** `?seed=123` makes piece, garbage and gift randomness reproducible. */
+/** `?seed=123` makes all of the game's randomness reproducible: pieces, garbage, gifts, curses, votes. */
 function seedFromUrl(): number | undefined {
   const seed = new URLSearchParams(window.location.search).get('seed');
   return seed !== null && /^\d+$/.test(seed) ? Number(seed) : undefined;

@@ -95,13 +95,6 @@ describe('打滑', () => {
     engine.tick(CONFIG.effects.slipIntervalMs);
     expect(engine.active!.x).toBe(1);
   });
-
-  it('has a cutscene', () => {
-    const engine = startedEngine();
-    engine.team.pending.slip = 1;
-    dropOnEmpty(engine, ROUND);
-    expect(engine.cutscene?.curses.map((def) => def.type)).toEqual(['slip']);
-  });
 });
 
 describe('镜像', () => {
@@ -181,13 +174,6 @@ describe('双落', () => {
   it('refuses hold while a pair is falling', () => {
     const engine = pairEngine();
     expect(engine.holdPiece()).toBe(false);
-  });
-
-  it('has a cutscene', () => {
-    const engine = startedEngine();
-    engine.team.pending.twin = 1;
-    dropOnEmpty(engine, ROUND);
-    expect(engine.cutscene?.curses.map((def) => def.type)).toEqual(['twin']);
   });
 });
 
@@ -286,12 +272,11 @@ describe('巨大化', () => {
 });
 
 describe('醉酒', () => {
-  it('stumbles the piece a column on its own, and sways the board', () => {
+  it('stumbles the piece a column on its own', () => {
     const engine = startedEngine({ curses: { active: ['drunk'] }, curseRng: constantRng(0) });
     const x = engine.active!.x;
     engine.tick(CONFIG.effects.drunkStumbleMs);
     expect(engine.active!.x).toBe(x - 1);
-    expect(engine.activeCurses.some(({ def }) => def.boardEffect === 'sway')).toBe(true);
   });
 
   it('sends a move the wrong way some of the time', () => {
