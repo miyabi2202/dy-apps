@@ -53,9 +53,19 @@ export function refsOf(items: readonly ReadItem[]): Set<string> {
 }
 
 /** The prompt for what one search's posts leave us not knowing, what people think, and what they claim. */
-export function understandPrompt(term: string, items: readonly ReadItem[]): string {
+export function understandPrompt(
+  term: string,
+  items: readonly ReadItem[],
+  background: string | null = null,
+): string {
   return [
     `我们在抖音上搜了「${term}」，下面是读到的作品和评论（评论前的 [作品id#序号] 是引用编号，回复是 [作品id#序号.序号]）。`,
+    ...(background
+      ? [
+          `搜之前在知识库和网上查到的背景（可能不全、不一定对）：${background}`,
+          `作品里说的要是同名的别的东西，和这个背景不是一回事，就别管它，也别从里面找 unknowns。`,
+        ]
+      : []),
     '请读懂它们，回答三件事：',
     '1. unknowns：你其实不确定的东西（梗、人、事件、词）。只列你真的不知道或拿不准的，别列常识。',
     '   - 谐音、缩写、拼音首字母（比如 yyds、xswl、绝绝子的变体）一律算不知道，就算你觉得自己懂。',

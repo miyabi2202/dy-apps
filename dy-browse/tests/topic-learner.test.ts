@@ -1,8 +1,9 @@
 import { DraftStore } from '../src/app/draft-store';
 import { TopicLearner } from '../src/app/topic-learner';
 import type { SearchPort, SearchResult } from '../src/app/topic-search';
-import { BlockedError } from '../src/core/errors';
+import { BlockedError, EmptyReadError } from '../src/core/errors';
 import { KnowledgeIndex, parseKnowledge } from '../src/core/knowledge';
+import { parseSearchQuery } from '../src/core/prompts';
 import { item } from './support/fakes';
 import { MemoryStore } from './support/memory-store';
 
@@ -25,10 +26,11 @@ function fakeSearch(table: Record<string, Partial<SearchResult> | Error>) {
   return { search, searched };
 }
 
-type PromptKind = 'keywords' | 'understand' | 'kb' | 'douyin' | 'drafts';
+type PromptKind = 'keywords' | 'understand' | 'kb' | 'douyin' | 'query' | 'drafts';
 
 /** Which question a prompt is. */
 function kindOf(prompt: string): PromptKind {
+  if (prompt.includes('写一个在抖音搜索框里搜的词')) return 'query';
   if (prompt.includes('从候选里挑')) return 'keywords';
   if (prompt.includes('请读懂它们')) return 'understand';
   if (prompt.includes('我们知识库里可能相关的条目')) return 'kb';
@@ -38,7 +40,8 @@ function kindOf(prompt: string): PromptKind {
 
 /**
  * A Claude that answers each question from scripts: the keywords, the drafts, what a search leaves
- * unknown (by the term searched), and the judgements of the knowledge base and of Douyin.
+ * unknown (by the term searched), the judgements of the knowledge base and of Douyin, and the query
+ * for a topic's search.
  */
 function fakeAsk(
   options: {
@@ -47,6 +50,7 @@ function fakeAsk(
     understand?: Record<string, unknown>;
     kb?: unknown;
     douyin?: unknown;
+    query?: unknown;
   } = {},
 ) {
   const prompts: { kind: PromptKind; text: string }[] = [];
@@ -59,6 +63,7 @@ function fakeAsk(
       understand: options.understand?.[term] ?? {},
       kb: options.kb ?? { supports: 'none', answer: '' },
       douyin: options.douyin ?? { supports: 'none', answer: '' },
+      query: options.query ?? {},
       drafts: options.drafts ?? { entries: [], stillRight: [] },
     }[kind];
     return Promise.resolve(JSON.stringify(answer));
@@ -527,7 +532,7 @@ describe('TopicLearner', () => {
   });
 
   it('looks a carried question up first, as the topic search’s first unknown, and says what came of it', async () => {
-    const { learner, searched, webAsked } = build(
+    const { learner, searched, webAsked, prompts } = build(
       { 问题词: { hot: [tagged('q1')] }, 别的: { hot: [tagged('z')] } },
       { douyin: { supports: 'full', answer: '是一个词。', refs: ['q1'] } },
       { depth: 0 },
@@ -537,8 +542,10 @@ describe('TopicLearner', () => {
       carry: { question: '「问题词」是什么？', why: '直播里有人问' },
     });
     expect(webAsked[0]).toContain('「问题词」是什么？');
-    // Its Douyin search is the topic's own: searched once, judged on what it read.
+    // Its Douyin search is the topic's own: searched once, judged on what it read. With nothing
+    // found beforehand, the search is the topic as it is.
     expect(searched).toEqual(['问题词']);
+    expect(prompts.some((p) => p.kind === 'query')).toBe(false);
     expect(result.carried).toEqual({ status: 'resolved', answer: '是一个词。', source: 'douyin' });
     expect(result.searchFile).toBe('searches/2026-11-01/问题词.json');
     // Not counted as an unknown the search raised.
@@ -559,5 +566,81 @@ describe('TopicLearner', () => {
       carry: { question: '「问题词」是什么？' },
     });
     expect(result.carried).toMatchObject({ status: 'unresolved' });
+  });
+
+  describe('a carried question looked up before the search', () => {
+    const web = {
+      supports: 'partial',
+      answer: '四个主播连线 PK，分成两队。',
+      urls: ['https://example.com/a'],
+    };
+
+    it('aims the topic search with what the web found, and gives it to Claude as background', async () => {
+      const { learner, data, searched, prompts, webAsked, logs } = build(
+        { '抖音直播 PK 黑白配': { hot: [tagged('q1')] } },
+        {
+          query: { query: '抖音直播 PK 黑白配' },
+          douyin: { supports: 'full', answer: '四人 PK 分黑白两队。', refs: ['q1'] },
+        },
+        { depth: 0, web },
+      );
+      const result = await learner.learn('黑白配', {
+        folder: 'topics',
+        carry: { question: '「黑白配」在 PK 里是什么意思？' },
+      });
+      expect(webAsked).toHaveLength(1);
+      const query = prompts.find((p) => p.kind === 'query')!.text;
+      expect(query).toContain('「黑白配」在 PK 里是什么意思？');
+      expect(query).toContain('四个主播连线 PK，分成两队。');
+      expect(searched).toEqual(['抖音直播 PK 黑白配']);
+      expect(logs).toContain('search query {topic: 黑白配, query: 抖音直播 PK 黑白配}');
+      // The background reaches the reading of the topic's posts.
+      expect(prompts.find((p) => p.kind === 'understand')!.text).toContain('四个主播连线 PK，分成两队。');
+      // The walk keeps the topic as the search's term, and says what was typed.
+      const file = JSON.parse(data.read(result.searchFile)!) as { tree: { term: string; query?: string }[] };
+      expect(file.tree).toEqual([expect.objectContaining({ term: '黑白配', query: '抖音直播 PK 黑白配' })]);
+      expect(result.ownReads).toHaveLength(1);
+      // Not settled by the web alone, it's judged on what the search read.
+      expect(result.carried).toEqual({ status: 'resolved', answer: '四人 PK 分黑白两队。', source: 'douyin' });
+    });
+
+    it('stays settled by the web, without asking about Douyin, and still searches', async () => {
+      const { learner, searched, prompts } = build(
+        { '抖音直播 巅峰赛': { hot: [tagged('q1')] } },
+        { query: { query: '抖音直播 巅峰赛' } },
+        { depth: 0, web: { ...web, supports: 'full', answer: '巅峰赛是 PK 的排位赛。' } },
+      );
+      const result = await learner.learn('巅峰赛', {
+        folder: 'topics',
+        carry: { question: '「巅峰赛」是什么？' },
+      });
+      expect(searched).toEqual(['抖音直播 巅峰赛']);
+      expect(prompts.some((p) => p.kind === 'douyin')).toBe(false);
+      expect(result.carried).toEqual({ status: 'resolved', answer: '巅峰赛是 PK 的排位赛。', source: 'web' });
+    });
+
+    it('searches the topic on its own when the aimed query finds nothing', async () => {
+      const { learner, data, searched, logs } = build(
+        { '抖音直播 PK 黑白配': new EmptyReadError('作品', []), 黑白配: { hot: [tagged('q1')] } },
+        { query: { query: '抖音直播 PK 黑白配' } },
+        { depth: 0, web },
+      );
+      const result = await learner.learn('黑白配', {
+        folder: 'topics',
+        carry: { question: '「黑白配」是什么？' },
+      });
+      expect(searched).toEqual(['抖音直播 PK 黑白配', '黑白配']);
+      expect(logs).toContain('search query found nothing {term: 黑白配, query: 抖音直播 PK 黑白配}');
+      const file = JSON.parse(data.read(result.searchFile)!) as { tree: { query?: string }[] };
+      expect(file.tree[0]!.query).toBeUndefined();
+      expect(result.ownReads).toHaveLength(1);
+    });
+
+    it('keeps only a query that has the topic in it and is short', () => {
+      expect(parseSearchQuery('{"query": " 抖音直播  PK 黑白配 "}', '黑白配')).toBe('抖音直播 PK 黑白配');
+      expect(parseSearchQuery('{"query": "四人连线分组"}', '黑白配')).toBe('黑白配');
+      expect(parseSearchQuery(`{"query": "黑白配${'很'.repeat(30)}"}`, '黑白配')).toBe('黑白配');
+      expect(parseSearchQuery('不是 JSON', '黑白配')).toBe('黑白配');
+    });
   });
 });

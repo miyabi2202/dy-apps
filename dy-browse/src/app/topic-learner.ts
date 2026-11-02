@@ -16,7 +16,13 @@ import {
   topOpinions,
   type CountedOpinion,
 } from '../core/opinions';
-import { draftsPrompt, keywordsPrompt, type PromptNode } from '../core/prompts';
+import {
+  draftsPrompt,
+  keywordsPrompt,
+  parseSearchQuery,
+  searchQueryPrompt,
+  type PromptNode,
+} from '../core/prompts';
 import { settled, type Resolution } from '../core/resolve';
 import { dateOf, jsonFrom } from '../core/text';
 import type { ReadItem } from '../core/types';
@@ -69,6 +75,8 @@ export interface SearchNode {
   picked: { keyword: string; reason: string }[];
   /** Why it was searched, when it was for an unknown. */
   reason?: string;
+  /** What was typed into the search, when it wasn't `term` (the topic's, aimed by a carried question). */
+  query?: string;
 }
 
 /** An unknown of the walk, with what each stage found, as kept in the searches file. */
@@ -127,6 +135,8 @@ interface Queued {
   level: number;
   /** Set for a search that looks an unknown up. */
   unknown?: TrackedUnknown;
+  /** What to type into the search instead of `term`. */
+  query?: string;
 }
 
 const NOTHING: Understanding = { unknowns: [], opinions: [], claims: [] };
@@ -178,16 +188,24 @@ export class TopicLearner {
     const { ask, data, drafts, index, log } = this.options;
     const date = dateOf(this.now());
     const searched = new Set<string>();
-    const queue: Queued[] = [{ term: topic, parent: null, level: 0 }];
     const tree: SearchNode[] = [];
     const nodes: PromptNode[] = [];
     const itemsByTerm = new Map<string, ReadItem[]>();
     const unknowns: TrackedUnknown[] = [];
     const opinions: CountedOpinion[] = [];
     const claims: (Claim & { from: string })[] = [];
-    // The carried question is the first unknown of the topic's own search, looked up like any other.
+    // The carried question is the first unknown of the topic's own search. It's looked up (the
+    // knowledge base, the web) before that search, so what it finds can aim the search, and tell
+    // Claude which posts are about something else of the same name.
     const asked = carry ? this.carry(topic, carry) : [];
     const carried = [...asked];
+    const background = asked[0] ? await this.lookUpFirst(asked[0]) : null;
+    const query = background
+      ? await this.queryFor(topic, asked[0]!.unknown.question, background)
+      : topic;
+    const queue: Queued[] = [
+      { term: topic, parent: null, level: 0, ...(query !== topic ? { query } : {}) },
+    ];
     let found = 0;
 
     while (queue.length && tree.length < this.maxSearches) {
@@ -226,6 +244,7 @@ export class TopicLearner {
         newest: result.newest.map((p) => p.id),
         picked: [],
         ...(next.unknown ? { reason: `查证：${next.unknown.unknown.question}` } : {}),
+        ...(next.query ? { query: next.query } : {}),
       };
       tree.push(node);
       nodes.push({ term: next.term, parent: next.parent, items });
@@ -233,7 +252,9 @@ export class TopicLearner {
       if (next.unknown) {
         await this.judge(next.unknown, items);
       } else {
-        const understanding = items.length ? await this.understand(next.term, items) : NOTHING;
+        const understanding = items.length
+          ? await this.understand(next.term, items, next.level === 0 ? background : null)
+          : NOTHING;
         opinions.push(...countOpinions(understanding.opinions, items, next.term));
         claims.push(...understanding.claims.map((c) => ({ ...c, from: next.term })));
         const fresh = [
@@ -243,7 +264,10 @@ export class TopicLearner {
         unknowns.push(...fresh.filter((u) => !unknowns.includes(u)));
         const toSearch: TrackedUnknown[] = [];
         for (const tracked of fresh) {
-          tracked.resolutions.push(...(await this.resolver.offline(tracked.unknown)));
+          // The carried question was looked up before the search.
+          if (!tracked.resolutions.length) {
+            tracked.resolutions.push(...(await this.resolver.offline(tracked.unknown)));
+          }
           if (settled(tracked.resolutions)) tracked.status = 'resolved';
           else toSearch.push(tracked);
         }
@@ -277,7 +301,7 @@ export class TopicLearner {
         }
       }
       log(
-        `topic searched {topic: ${next.term}, hot: ${result.hot.length}, newest: ${result.newest.length}, keywords: ${node.picked.length}${next.unknown ? `, for: ${next.unknown.unknown.term}` : ''}}`,
+        `topic searched {topic: ${next.term}${next.query ? `, query: ${next.query}` : ''}, hot: ${result.hot.length}, newest: ${result.newest.length}, keywords: ${node.picked.length}${next.unknown ? `, for: ${next.unknown.unknown.term}` : ''}}`,
       );
     }
     for (const tracked of [...unknowns, ...carried]) {
@@ -378,8 +402,35 @@ export class TopicLearner {
   }
 
   /** What a search's posts leave unknown, what people think, what they claim (one Claude call). */
-  private async understand(term: string, items: readonly ReadItem[]): Promise<Understanding> {
-    return parseUnderstanding(await this.options.ask(understandPrompt(term, items)), refsOf(items));
+  private async understand(
+    term: string,
+    items: readonly ReadItem[],
+    background: string | null = null,
+  ): Promise<Understanding> {
+    return parseUnderstanding(
+      await this.options.ask(understandPrompt(term, items, background)),
+      refsOf(items),
+    );
+  }
+
+  /**
+   * The carried question looked up in the knowledge base and on the web, before any search:
+   * resolved when that settles it. Gives what was found (settled or not), or null for nothing.
+   */
+  private async lookUpFirst(tracked: TrackedUnknown): Promise<string | null> {
+    tracked.resolutions.push(...(await this.resolver.offline(tracked.unknown)));
+    if (settled(tracked.resolutions)) tracked.status = 'resolved';
+    return tracked.resolutions.filter((r) => r.supports !== 'none').at(-1)?.answer ?? null;
+  }
+
+  /** What to type into Douyin's search for the topic, aimed by what the lookup found. */
+  private async queryFor(topic: string, question: string, background: string): Promise<string> {
+    const query = parseSearchQuery(
+      await this.options.ask(searchQueryPrompt(topic, question, background)),
+      topic,
+    );
+    this.options.log(`search query {topic: ${topic}, query: ${query}}`);
+    return query;
   }
 
   /** The unknowns worth looking up: each term once a run, within what the run still allows. */
@@ -417,8 +468,14 @@ export class TopicLearner {
    */
   private async searchOrSkip(next: Queued): Promise<SearchResult | null> {
     try {
-      return await this.options.search.search(next.term);
+      return await this.options.search.search(next.query ?? next.term);
     } catch (e) {
+      // An aimed query that finds nothing: the term on its own may still.
+      if (next.query && e instanceof EmptyReadError) {
+        this.options.log(`search query found nothing {term: ${next.term}, query: ${next.query}}`);
+        next.query = undefined;
+        return this.searchOrSkip(next);
+      }
       const skippable =
         !(e instanceof RunStopped) || (e instanceof EmptyReadError && next.level > 0);
       if (!skippable) throw e;

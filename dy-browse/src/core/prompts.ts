@@ -1,5 +1,5 @@
 import { numberedComments } from './comments';
-import { dateOf, clip } from './text';
+import { dateOf, clip, jsonFrom } from './text';
 import type { BrowseItem, ReadItem } from './types';
 
 /** Said in every prompt that quotes what people wrote on Douyin. */
@@ -111,6 +111,30 @@ export function keywordsPrompt(
     '作品：',
     ...itemsWithin(items, 8),
   ].join('\n');
+}
+
+/** Longest a search query may be beyond the topic itself. */
+const QUERY_EXTRA_CHARS = 20;
+
+/**
+ * The prompt for what to type into Douyin's search for a topic, aimed by what was looked up about
+ * it, so a bare word (「黑白配」, 「偷听」) doesn't find something else of the same name.
+ */
+export function searchQueryPrompt(topic: string, question: string, background: string): string {
+  return [
+    `我们要在抖音上搜「${topic}」，想弄懂的是：${question}`,
+    `搜之前查到的背景（可能不全、不一定对）：${background}`,
+    `只搜「${topic}」可能搜到同名的别的东西。写一个在抖音搜索框里搜的词，让搜出来的作品多半就是说这个的：保留「${topic}」，前后加一两个分辨用的词（比如「抖音直播」「PK」），不超过 ${QUERY_EXTRA_CHARS} 个字，不加引号、括号和标点。本来就不会搜偏的，照原样写「${topic}」。`,
+    '只输出一个 JSON 对象：{"query": "搜索词"}。',
+  ].join('\n');
+}
+
+/** The query Claude wrote, or the topic when it's missing, drops the topic or runs too long. */
+export function parseSearchQuery(answer: string, topic: string): string {
+  const json = jsonFrom(answer) as { query?: unknown } | null;
+  const query = typeof json?.query === 'string' ? json.query.replace(/\s+/g, ' ').trim() : '';
+  const fits = query.includes(topic) && query.length <= topic.length + QUERY_EXTRA_CHARS;
+  return fits ? query : topic;
 }
 
 /** An unknown settled in full, as the drafts prompt shows it. */
