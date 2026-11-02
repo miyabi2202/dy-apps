@@ -13,8 +13,8 @@ export interface GuideSection {
 }
 
 const CLONE_URL = 'https://cnb.cool/miyabi2202/dy-apps.git';
-/** Installs only what room-feed needs, not the rest of the repo's tools. */
-const INSTALL = 'pnpm install --filter @dy-apps/room-feed --prod';
+/** Installs the repo's dependencies, room-feed's among them. */
+const INSTALL = 'pnpm install';
 /** A made-up room number for the commands; readers put their own in its place. */
 const EXAMPLE_ROOM = '484088206186';
 
