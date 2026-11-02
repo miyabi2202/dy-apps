@@ -13,8 +13,9 @@ const gift = (id: string, count: number, diamonds?: number): DanmakuMessage => (
   ts: 0,
 });
 
-function started(giftRng = constantRng(0)) {
-  const engine = new GameEngine({ seed: 1, giftRng });
+/** A started game and its feed; no draw opens a vote unless `voteRng` says so. */
+function started(giftRng = constantRng(0), voteRng = constantRng(0.99)) {
+  const engine = new GameEngine({ seed: 1, giftRng, voteRng });
   engine.start();
   return { engine, feed: new GiftFeed(engine) };
 }
@@ -73,5 +74,14 @@ describe('GiftFeed', () => {
     unsubscribe();
     feed.send(gift('g2', 1, 1));
     expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it('a draw that opens a vote says so on its card, and chat votes in it', () => {
+    const { engine, feed } = started(forceEffectRng('garbage'), constantRng(0));
+    feed.send(gift('g1', 1, 1));
+    expect(detailText(feed.getMessages()[0]?.detail)).toBe('触发 发起投票');
+    expect(engine.vote).not.toBeNull();
+    expect(feed.comment({ id: 'u2', name: '小美' }, '我选2！')).toBe(true);
+    expect(engine.vote!.ballots).toEqual([{ voter: { id: 'u2', name: '小美' }, choice: 1 }]);
   });
 });

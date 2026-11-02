@@ -65,6 +65,10 @@ export interface TeamState {
   systemCount: number;
   /** Curses added by hand from the debug panel. */
   debugCount: number;
+  /** Curses the like meter drew when full. */
+  likeCount: number;
+  /** Drawn curses waiting on an open vote to say which curse goes in instead: 0 or 1. */
+  votingCount: number;
   /** Pending curses the player cancelled by clearing lines. */
   cancelledCount: number;
   /** Per settlement queue, the type that fired last, so a shared queue takes turns. */
@@ -89,6 +93,8 @@ export interface GiftBatchResult {
   triggerProbability: number;
   hits: number;
   misses: number;
-  /** Curses drawn in this batch, per type. */
+  /** Curses drawn in this batch, per type; not the ones that opened a vote. */
   effects: Partial<Record<EffectType, number>>;
+  /** Draws in this batch that opened a vote instead of queueing a curse. */
+  votes: number;
 }

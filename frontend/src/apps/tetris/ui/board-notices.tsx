@@ -22,8 +22,9 @@ const strike = stylex.keyframes({
 
 /**
  * Short notices over the top of the board that don't stop play: a curse the player cancelled
- * by clearing lines, or one the game drew because the room was quiet. Each animates once, when
- * it is new. During a cutscene they move to the bottom, clear of the banner.
+ * by clearing lines, one the game drew because the room was quiet, or one the full like meter
+ * drew. Each animates once, when it is new. During a cutscene they move to the bottom, clear of
+ * the banner.
  */
 export function BoardNotices({ engine }: { engine: GameEngine }) {
   return (
@@ -38,17 +39,23 @@ export function BoardNotices({ engine }: { engine: GameEngine }) {
 function Notice({ notice, engine }: { notice: BoardNotice; engine: GameEngine }) {
   const def = engine.curses.find((d) => d.type === notice.type)!;
   const cancelled = notice.kind === 'cancelled';
+  const { headline, lead, look } = {
+    cancelled: { headline: `消 ${notice.lines} 行！`, lead: '抵消 ', look: styles.cancelled },
+    quiet: { headline: '太安静了…', lead: '系统送出 ', look: styles.quiet },
+    likes: { headline: `点赞满 ${notice.likes}！`, lead: '', look: styles.likes },
+  }[notice.kind];
   return (
-    <div
-      {...stylex.props(styles.notice, cancelled ? styles.cancelled : styles.quiet)}
-      data-testid={testIds.notice(notice.kind)}
-    >
-      <span {...stylex.props(styles.headline)}>
-        {cancelled ? `消 ${notice.lines} 行！` : '太安静了…'}
-      </span>
-      {notice.sender && <SenderBadge sender={notice.sender} suffix="送的" xstyle={styles.sender} />}
+    <div {...stylex.props(styles.notice, look)} data-testid={testIds.notice(notice.kind)}>
+      <span {...stylex.props(styles.headline)}>{headline}</span>
+      {notice.sender && (
+        <SenderBadge
+          sender={notice.sender}
+          suffix={notice.kind === 'likes' ? '送出' : '送的'}
+          xstyle={styles.sender}
+        />
+      )}
       <span>
-        {cancelled ? '抵消 ' : '系统送出 '}
+        {lead}
         <span {...stylex.props(styles.name)}>
           <CurseName def={def} />
           {cancelled && <span aria-hidden {...stylex.props(styles.strike)} />}
@@ -95,6 +102,11 @@ const styles = stylex.create({
     borderColor: colors.success,
     backgroundColor: `color-mix(in srgb, ${colors.success} 22%, ${colors.bg})`,
     boxShadow: `0 0 16px color-mix(in srgb, ${colors.success} 60%, transparent)`,
+  },
+  likes: {
+    borderColor: '#ff5fa2',
+    backgroundColor: `color-mix(in srgb, #ff5fa2 22%, ${colors.bg})`,
+    boxShadow: '0 0 16px color-mix(in srgb, #ff5fa2 60%, transparent)',
   },
   quiet: {
     borderColor: colors.warn,

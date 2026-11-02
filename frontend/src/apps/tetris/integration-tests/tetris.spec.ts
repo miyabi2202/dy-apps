@@ -18,6 +18,7 @@ interface LabWindow {
       settlementCount: number;
       team: { giftCount: number };
       cutscene: unknown;
+      vote: unknown;
       blockedBy(cmd: string): unknown;
       tick(dtMs: number): void;
       hardDrop(): boolean;
@@ -134,6 +135,31 @@ test('夺舍: the debug panel stands in for viewers typing in chat', async ({ pa
   expect((await engineState(page)).active!.x).toBe(x - 1);
 });
 
+test('likes fill the meter, and a full meter draws a curse', async ({ page }) => {
+  await page.getByText(labels.debug).click();
+  await page.getByRole('button', { name: labels.start }).click();
+  const meter = page.getByTestId(testIds.likeMeter);
+  await expect(meter).toContainText(`0 / ${CONFIG.likes.firstThreshold}`);
+  const add = page.getByTestId(testIds.debugLikes(50));
+  for (let i = 0; i < CONFIG.likes.firstThreshold / 50; i += 1) await add.click();
+  await expect(page.getByTestId(testIds.notice('likes'))).toBeVisible();
+  await expect(meter).toContainText(`0 / ${CONFIG.likes.firstThreshold * 2}`);
+});
+
+test('a vote: chat 1 or 2 puts the viewer under their pick, and the streamer can add time', async ({
+  page,
+}) => {
+  await page.getByText(labels.debug).click();
+  await page.getByRole('button', { name: labels.start }).click();
+  await page.getByTestId(testIds.debugVote('start')).click();
+  const vote = page.getByTestId(testIds.vote);
+  await expect(vote).toBeVisible();
+  await page.getByTestId(testIds.debugVote('1')).click();
+  await expect(page.getByTestId(testIds.voteOption(0))).toContainText('1 票');
+  await vote.getByRole('button', { name: labels.extendVote }).click();
+  await expect(vote).toBeHidden({ timeout: 15_000 });
+});
+
 test('start, pause with P, resume; restart after game over empties the wall', async ({ page }) => {
   await page.getByRole('button', { name: labels.start }).click();
   expect(await sendGift(page, 110)).toBe(true);
@@ -147,11 +173,16 @@ test('start, pause with P, resume; restart after game over empties the wall', as
 
   for (let i = 0; i < 40 && (await engineState(page)).phase !== 'gameOver'; i += 1) {
     await page.keyboard.press('Space');
-    // A cutscene may be holding the next piece, or a curse blocking hard drop (自转); play the
-    // cutscene out, or let gravity land and lock the piece instead.
+    // A cutscene or a vote may be holding play, or a curse blocking hard drop (自转); play the
+    // cutscene or the vote out, or let gravity land and lock the piece instead.
     await page.evaluate(() => {
       const e = (window as unknown as LabWindow).__blockLab.engine;
       if (e.phase === 'playing' && e.cutscene) e.tick(60_000);
+      // Once to count the votes, once more to show the winner and go on.
+      if (e.phase === 'playing' && e.vote) {
+        e.tick(60_000);
+        e.tick(60_000);
+      }
       if (e.phase === 'playing' && e.blockedBy('hardDrop') !== null) {
         e.tick(30_000);
         e.tick(1_000);

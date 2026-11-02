@@ -59,7 +59,7 @@ export function drawCurse(rng: Rng, bands: readonly RarityBand[]): EffectType {
  * Resolve a batch of draws (one per diamond of gifts) one at a time, in order, using the probability
  * snapshot `probability`. Each diamond takes three draws: `u < p` hits, a rarity by weight, then
  * one of that rarity's curses evenly. `sender` is who the curses are from: a viewer, or just a
- * name (its own id).
+ * name (its own id). A drawn curse that `voteOn` takes opens a vote instead of being queued.
  */
 export function processGiftBatch(
   team: TeamState,
@@ -68,6 +68,7 @@ export function processGiftBatch(
   probability: number,
   rng: Rng,
   curses: readonly CurseDef<unknown>[] = CURSE_LIST,
+  voteOn: (type: EffectType, sender: Sender) => boolean = () => false,
 ): GiftBatchResult {
   if (curses.length === 0) throw new RangeError('No curses to draw from');
   const sender = typeof from === 'string' ? { id: from, name: from } : from;
@@ -80,6 +81,7 @@ export function processGiftBatch(
     hits: 0,
     misses: 0,
     effects: {},
+    votes: 0,
   };
 
   for (let i = 0; i < count; i += 1) {
@@ -92,6 +94,10 @@ export function processGiftBatch(
     const type = drawCurse(rng, bands);
     team.hitCount += 1;
     result.hits += 1;
+    if (voteOn(type, sender)) {
+      result.votes += 1;
+      continue;
+    }
     result.effects[type] = (result.effects[type] ?? 0) + 1;
     addHit(team, type, sender);
   }

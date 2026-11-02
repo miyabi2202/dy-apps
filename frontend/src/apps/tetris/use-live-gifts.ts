@@ -7,8 +7,8 @@ import { log } from './log';
 
 /**
  * Stays connected to `room` while it's set and sends every gift its viewers send into the
- * game through `feed`, one curse draw per gift, and every chat line, for viewers to steer the
- * piece while 夺舍 lets them. Retries a few seconds after a failure or drop.
+ * game through `feed`, one curse draw per gift, every chat line, for viewers to steer the piece
+ * while 夺舍 lets them or to vote, and every like, towards the like meter. Retries a few seconds after a failure or drop.
  */
 export function useLiveGifts(
   room: LiveRoom | null,
@@ -21,7 +21,16 @@ export function useLiveGifts(
         const message = messageFromEvent(ev, newGifts);
         if (message) feed.send(message);
       });
-      client.onComment((ev) => feed.comment(ev.user?.nickname ?? '观众', ev.data.content));
+      client.onComment((ev) => {
+        if (!ev.user) return;
+        const { id, nickname, avatar } = ev.user;
+        feed.comment({ id, name: nickname, avatarUrl: avatar }, ev.data.content);
+      });
+      client.onLike((ev, count) => {
+        if (!ev.user) return;
+        const { id, nickname, avatar } = ev.user;
+        feed.like({ id, name: nickname, avatarUrl: avatar }, count);
+      });
     },
     [feed],
   );

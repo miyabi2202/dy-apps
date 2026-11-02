@@ -85,6 +85,19 @@ export const CONFIG = {
    * curse itself, the way a gift would, and it fires at that settlement.
    */
   quiet: { settlements: 5 },
+  /**
+   * The like meter: the room's likes fill it, and when full it draws a curse like a gift would,
+   * from whoever liked most. Each time, the next takes twice as many, up to `maxThreshold`. With no
+   * curse from it for `idleResetMs` of play time, it starts over: empty, at `firstThreshold`.
+   */
+  likes: { firstThreshold: 100, maxThreshold: 1600, idleResetMs: 5 * 60_000 },
+  /**
+   * Votes: an uncommon or rare curse a viewer draws (a gift's or the like meter's) opens a vote
+   * `chance` of the time, unless one is already open. Two curses of that rarity go up, play
+   * stops, and chat votes 1 or 2 for `durationMs` (the streamer can add `extendMs` at a time);
+   * the winner shows for `resultMs`, then play goes on.
+   */
+  votes: { chance: 0.5, durationMs: 5000, extendMs: 1000, resultMs: 1500 },
   /** Clearing at least this many lines at once cancels one pending curse, rarest first. */
   relief: { minLines: 2 },
   /** Before the piece of a curse with `cutscene`: its name, then READY, then GO. */

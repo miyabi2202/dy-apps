@@ -30,7 +30,7 @@ const popIn = stylex.keyframes({
  */
 export function ViewerControl({ engine }: { engine: GameEngine }) {
   const by = engine.viewerControlBy;
-  if (!by || !engine.active || engine.phase === 'gameOver') return null;
+  if (!by || !engine.active || engine.vote || engine.phase === 'gameOver') return null;
   const words = CONFIG.viewerCommands;
   const commands = Object.keys(words) as ViewerCommand[];
   return (

@@ -2,6 +2,7 @@ import { addMessage, type DanmakuMessage, type DetailPart, type Logger } from '@
 import { CONFIG } from './core/config';
 import { CURSES, EFFECT_POOL, type EffectType } from './core/curses';
 import type { GameEngine, GiftResponse } from './core/game';
+import type { Sender } from './core/types';
 import { log as appLog } from './log';
 import { RARITY_COLORS } from './ui/rarity';
 
@@ -19,7 +20,8 @@ export interface GiftFeedOptions {
   now?: () => number;
 }
 
-type Drawn = Partial<Record<EffectType, number>>;
+/** Curses a card's gifts drew, per type, and how many votes they opened. */
+type Drawn = Partial<Record<EffectType, number>> & { votes?: number };
 
 /**
  * Sends gifts into the game and keeps a message card for each, with the curses it drew,
@@ -63,6 +65,7 @@ export class GiftFeed {
         const n = response.result.effects[type];
         if (n) drawn[type] = (drawn[type] ?? 0) + n;
       }
+      if (response.result.votes) drawn.votes = (drawn.votes ?? 0) + response.result.votes;
     }
     this.logGift(message, response);
     if (!response.ok) return response;
@@ -118,13 +121,18 @@ export class GiftFeed {
   }
 
   /**
-   * A viewer's chat line, for the game to read as a command while viewers steer the piece (夺舍).
-   * Chat never reaches the wall.
+   * A viewer's chat line, for the game to read: a command while viewers steer the piece (夺舍),
+   * or a 1 or 2 while a vote is open. Chat never reaches the wall.
    */
-  comment(user: string, text: string): boolean {
-    const taken = this.engine.viewerCommand(user, text);
-    if (taken) this.logger.debug(`viewer ${user}: ${text.trim()}`);
+  comment(user: Sender, text: string): boolean {
+    const taken = this.engine.viewerCommand(user.name, text) || this.engine.castVote(user, text);
+    if (taken) this.logger.debug(`viewer ${user.name}: ${text.trim()}`);
     return taken;
+  }
+
+  /** `count` likes from a viewer, towards the like meter. Likes never reach the wall. */
+  like(user: Sender, count: number): boolean {
+    return this.engine.addLikes(user, count);
   }
 
   /** Empties the wall, for a new game. */
@@ -177,12 +185,13 @@ function batches(count: number): number[] {
 /** 触发 垃圾行×1、迷雾×2 (each name in its rarity's colour), or 未触发诅咒. */
 function curseDetail(drawn: Drawn): DetailPart[] {
   const types = EFFECT_POOL.filter((type) => drawn[type]);
-  if (types.length === 0) return [{ text: '未触发诅咒' }];
+  if (types.length === 0 && !drawn.votes) return [{ text: '未触发诅咒' }];
   const parts: DetailPart[] = [{ text: '触发 ' }];
   types.forEach((type, i) => {
     const def = CURSES[type];
     parts.push({ text: def.name, color: RARITY_COLORS[def.rarity] });
     parts.push({ text: `×${drawn[type]}${i < types.length - 1 ? '、' : ''}` });
   });
+  if (drawn.votes) parts.push({ text: `${types.length ? '、' : ''}发起投票` });
   return parts;
 }

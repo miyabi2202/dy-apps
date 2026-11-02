@@ -6,6 +6,7 @@ import type { GiftFeed } from '../gift-feed';
 import { testIds } from '../messages';
 import { CurseName } from './curse-name';
 import { GiftWall } from './gift-wall';
+import { LikeMeter } from './like-meter';
 
 interface Props {
   engine: GameEngine;
@@ -17,6 +18,7 @@ export function TeamPanel({ engine, feed }: Props) {
 
   return (
     <Panel aria-label="诅咒" data-testid={testIds.panelTeam} xstyle={styles.panel}>
+      <LikeMeter engine={engine} />
       <h3 {...stylex.props(text.caption)}>待执行诅咒</h3>
       {pending.length ? (
         <ul {...stylex.props(styles.pending)} data-testid={testIds.pending}>

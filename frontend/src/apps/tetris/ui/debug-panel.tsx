@@ -49,6 +49,43 @@ export function DebugPanel({ engine }: { engine: GameEngine }) {
         );
       })}
       <section {...stylex.props(styles.group)}>
+        <h4 {...stylex.props(text.muted, styles.rarity)}>模拟点赞</h4>
+        <Row gap="xs">
+          {[10, 50, 100].map((n) => (
+            <Button
+              key={n}
+              disabled={!running}
+              onClick={() => engine.addLikes(fakeSender(), n)}
+              data-testid={testIds.debugLikes(n)}
+            >
+              +{n} 赞
+            </Button>
+          ))}
+        </Row>
+      </section>
+      <section {...stylex.props(styles.group)}>
+        <h4 {...stylex.props(text.muted, styles.rarity)}>投票</h4>
+        <Row gap="xs">
+          <Button
+            disabled={!running || engine.vote !== null}
+            onClick={() => engine.forceVote(fakeSender())}
+            data-testid={testIds.debugVote('start')}
+          >
+            发起投票
+          </Button>
+          {['1', '2'].map((choice) => (
+            <Button
+              key={choice}
+              disabled={engine.vote === null}
+              onClick={() => engine.castVote(fakeSender(), choice)}
+              data-testid={testIds.debugVote(choice)}
+            >
+              弹幕 {choice}
+            </Button>
+          ))}
+        </Row>
+      </section>
+      <section {...stylex.props(styles.group)}>
         <h4 {...stylex.props(text.muted, styles.rarity)}>模拟观众弹幕（夺舍时生效）</h4>
         <Row gap="xs">
           {(Object.keys(CONFIG.viewerCommands) as ViewerCommand[]).map((command) => {

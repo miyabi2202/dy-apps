@@ -11,6 +11,7 @@ import { labels, testIds } from '../messages';
 import { drawMiniPiece } from '../render/board';
 import { BoardNotices } from './board-notices';
 import { ViewerControl } from './viewer-control';
+import { VotePanel } from './vote-panel';
 import { CurseName } from './curse-name';
 import { Cutscene } from './cutscene';
 
@@ -303,7 +304,8 @@ function MiniPiece({
 
 function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => void }) {
   if (engine.phase === 'playing') {
-    return engine.cutscene && <Cutscene cutscene={engine.cutscene} />;
+    if (engine.cutscene) return <Cutscene cutscene={engine.cutscene} />;
+    return engine.vote && <VotePanel engine={engine} vote={engine.vote} />;
   }
   return (
     <div {...stylex.props(styles.overlay)} data-testid={testIds.overlay(engine.phase)}>

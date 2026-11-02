@@ -11,6 +11,8 @@ export function createTeam(): TeamState {
     firedCount: 0,
     systemCount: 0,
     debugCount: 0,
+    likeCount: 0,
+    votingCount: 0,
     cancelledCount: 0,
     lastFired: {},
     senders: {},
@@ -40,6 +42,12 @@ export function addSystemCurse(team: TeamState, type: EffectType): void {
 export function addDebugCurse(team: TeamState, type: EffectType, sender?: Sender): void {
   addHit(team, type, sender);
   team.debugCount += 1;
+}
+
+/** Queue a curse the like meter drew when full, from whoever liked most. */
+export function addLikeCurse(team: TeamState, type: EffectType, sender: Sender): void {
+  addHit(team, type, sender);
+  team.likeCount += 1;
 }
 
 /** Who sent the next pending curse of `type`, taking it off the list: call as one fires or is cancelled. */
@@ -101,13 +109,13 @@ export function settleTeam(
 }
 
 /**
- * Every gift either missed or triggered, and every curse triggered, drawn by the game or added
- * by hand is pending, fired or cancelled.
+ * Every gift either missed or triggered, and every curse triggered, drawn by the game, added by
+ * hand or drawn by the like meter is pending, fired, cancelled or waiting on a vote.
  */
 export function isConserved(team: TeamState): boolean {
   return (
     team.giftCount === team.hitCount + team.missCount &&
-    team.hitCount + team.systemCount + team.debugCount ===
-      pendingTotal(team) + team.firedCount + team.cancelledCount
+    team.hitCount + team.systemCount + team.debugCount + team.likeCount ===
+      pendingTotal(team) + team.firedCount + team.cancelledCount + team.votingCount
   );
 }
