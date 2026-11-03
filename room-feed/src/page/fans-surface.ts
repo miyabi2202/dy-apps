@@ -5,6 +5,7 @@ import {
   FANS_JOIN_BUTTON,
   FANS_LAMP_BUTTON,
   FANS_LAMP_SENT,
+  FANS_RELIGHT_BUTTON,
   FOLLOW_BUTTON,
   NOTICE_OK_TEXT,
   PAGE_WAIT,
@@ -35,6 +36,8 @@ class PagePanelFrame implements PanelFrame {
         return this.frame.getByText(NOTICE_OK_TEXT, { exact: true });
       case 'join':
         return this.frame.locator(PANEL_TEXT).filter({ hasText: FANS_JOIN_BUTTON });
+      case 'relight':
+        return this.frame.locator(PANEL_TEXT).filter({ hasText: FANS_RELIGHT_BUTTON });
       case 'send':
         return this.frame.locator(PANEL_TEXT).filter({ hasText: FANS_LAMP_BUTTON });
       case 'sent':

@@ -166,6 +166,12 @@ describe('FansLamp', () => {
     expect(log.filter((line) => line === 'open panel')).toHaveLength(2);
   });
 
+  it('relights a member’s badge that has gone out, then sends the 灯牌 from a fresh opening', async () => {
+    const { lamp, log } = setup([{ frames: [['relight']] }, { frames: [['send']] }]);
+    expect(await lamp.send()).toEqual({ result: 'sent' });
+    expect(clicks(log)).toEqual(['open panel', 'click relight', 'open panel', 'click send']);
+  });
+
   it('opens the panel again when a 「我知道了」 notice stays, and sends from the second opening', async () => {
     const { lamp, log, elapsed } = setup([
       { frames: [['send']] }, // the join step: a member

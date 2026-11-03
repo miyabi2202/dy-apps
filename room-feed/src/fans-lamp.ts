@@ -17,10 +17,11 @@ const PANEL_SETTLE_MS = 1500;
 
 /**
  * What the steps look for in a panel frame: the 「我知道了」 `notice` that blocks the panel, the
- * `join` button (加入粉丝团), the `send` button of the 灯牌, and the `sent` line that says today's
- * 灯牌 is sent. How each is found on Douyin's page is the surface's business.
+ * `join` button (加入粉丝团), the `relight` button (点亮, for a badge that has gone out), the `send`
+ * button of the 灯牌, and the `sent` line that says today's 灯牌 is sent. How each is found on
+ * Douyin's page is the surface's business.
  */
-export type PanelTarget = 'notice' | 'join' | 'send' | 'sent';
+export type PanelTarget = 'notice' | 'join' | 'relight' | 'send' | 'sent';
 
 /** One frame of the open 粉丝团 panel (it's Lynx, in frames of its own). */
 export interface PanelFrame {
@@ -54,8 +55,9 @@ export interface FansLampOptions {
 
 /**
  * Sends today's 粉丝团灯牌 (2 diamonds) in three steps, each skipped when it's done already:
- * follows the streamer, joins the 粉丝团 (1 diamond), sends the 灯牌. Joining is tried once,
- * however many times the panel is opened. With fewer than LAMP_PRICE diamonds it does nothing
+ * follows the streamer, joins the 粉丝团 (1 diamond) or relights a badge that has gone out
+ * (1 diamond), sends the 灯牌. Joining or relighting is tried once, however many times the panel
+ * is opened. With fewer than LAMP_PRICE diamonds it does nothing
  * and answers `notEnough`; a balance that doesn't show doesn't stop it. Every click is a Pace
  * step: what it clicks seen first, then a pause; the download popup is closed before each, if it
  * shows.
@@ -81,7 +83,7 @@ export class FansLamp {
     await closeDownloadGuide(this.surface, this.pace);
     await closeRightPanel(this.surface, this.pace);
     await this.followStreamer();
-    await this.joinFansClub();
+    await this.joinOrRelight();
     return { result: await this.sendLamp() };
   }
 
@@ -93,15 +95,18 @@ export class FansLamp {
   }
 
   /**
-   * Step 2: joins the 粉丝团 when its panel offers 加入粉丝团, which closes the panel; a member's
-   * panel shows the 灯牌 instead, and there's nothing to do. A panel that shows neither in time
-   * is left to step 3.
+   * Step 2: joins the 粉丝团 when its panel offers 加入粉丝团, which closes the panel, or clicks
+   * 点亮 when a member's badge has gone out (no 灯牌 for a few days); a member with a lit badge
+   * sees the 灯牌, and there's nothing to do. A panel that shows none of these in time is left to
+   * step 3, which opens it afresh either way.
    */
-  private async joinFansClub(): Promise<void> {
+  private async joinOrRelight(): Promise<void> {
     await this.inPanel(async (frame) => {
-      if (await frame.has('join')) {
-        await this.pace.afterSeen(() => frame.click('join'));
-        return 'joined';
+      for (const target of ['join', 'relight'] as const) {
+        if (await frame.has(target)) {
+          await this.pace.afterSeen(() => frame.click(target));
+          return target;
+        }
       }
       return (await this.showsLamp(frame)) ? 'member' : null;
     });

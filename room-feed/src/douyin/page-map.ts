@@ -47,8 +47,11 @@ export const ROOM_INFO_BAR = '#room_info_bar';
 /** The header's follow button, which shows only while the streamer isn't followed. */
 export const FOLLOW_BUTTON = /^关注/;
 
-/** The icon that marks the header's 粉丝团 button, whose class names are hashed. */
-export const FANS_ICON = '[filter*="fansIconBg"]';
+/**
+ * The icon that marks the header's 粉丝团 button, whose class names are hashed: `fansIconBg` while
+ * the account's 灯牌 is lit, `fansIconNotActiveBg` once it has greyed out (no 灯牌 for a few days).
+ */
+export const FANS_ICON = '[filter*="fansIconBg"], [filter*="fansIconNotActiveBg"]';
 
 /** The 粉丝团 panel is Lynx, which draws all its text in `x-text` elements. */
 export const PANEL_TEXT = 'x-text';
@@ -64,6 +67,12 @@ export const CLOSE_ICON = '[filter*="close_svg"]';
 
 /** The 粉丝团 panel's button that sends the 灯牌 (its words differ between accounts). */
 export const FANS_LAMP_BUTTON = /^(送灯牌|送出粉丝灯牌)$/;
+
+/**
+ * The panel's 「点亮 (1钻)」, shown instead of the 灯牌 to a member whose badge has gone out (no 灯牌
+ * for a few days), not the title above it, 「点亮粉丝团恢复勋章」.
+ */
+export const FANS_RELIGHT_BUTTON = /^点亮\s*([(（]\d+钻[)）])?$/;
 
 /** The panel's button for joining the 粉丝团 (1 diamond), shown instead of the 灯牌 to a viewer not in it yet. */
 export const FANS_JOIN_BUTTON = /^加入粉丝团$/;
