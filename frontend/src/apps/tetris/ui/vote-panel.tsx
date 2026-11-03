@@ -24,6 +24,13 @@ const popIn = stylex.keyframes({
   '100%': { transform: 'scale(1)' },
 });
 
+/** The streamer's +1 s glowing, so it is easy to find while the clock runs. */
+const glow = stylex.keyframes({
+  '0%': { boxShadow: `0 0 0 0 color-mix(in srgb, ${colors.accent} 70%, transparent)` },
+  '70%': { boxShadow: `0 0 0 8px color-mix(in srgb, ${colors.accent} 0%, transparent)` },
+  '100%': { boxShadow: `0 0 0 0 color-mix(in srgb, ${colors.accent} 0%, transparent)` },
+});
+
 /** The winning option pulsing once time is up. */
 const win = stylex.keyframes({
   '0%': { transform: 'scale(1)' },
@@ -99,19 +106,21 @@ export function VotePanel({
           })}
         </ol>
         {!done && (
-          <div {...stylex.props(styles.timer)}>
-            <span {...stylex.props(styles.seconds)}>{seconds}s</span>
-            <div {...stylex.props(styles.track)}>
-              <div
-                {...stylex.props(
-                  styles.fill(color, Math.min(1, vote.remainingMs / CONFIG.votes.durationMs)),
-                )}
-              />
+          <>
+            <div {...stylex.props(styles.timer)}>
+              <span {...stylex.props(styles.seconds)}>{seconds}s</span>
+              <div {...stylex.props(styles.track)}>
+                <div
+                  {...stylex.props(
+                    styles.fill(color, Math.min(1, vote.remainingMs / CONFIG.votes.durationMs)),
+                  )}
+                />
+              </div>
             </div>
-            <Button onClick={onExtend} xstyle={styles.extend}>
+            <Button variant="primary" onClick={onExtend} xstyle={styles.extend}>
               {labels.extendVote}
             </Button>
-          </div>
+          </>
         )}
       </div>
     </div>
@@ -254,9 +263,13 @@ const styles = stylex.create({
   }),
   extend: {
     paddingBlock: 0,
-    paddingInline: space.xs,
-    flexShrink: 0,
-    fontSize: fontSize.sm,
-    minHeight: 28,
+    animationDuration: '1.2s',
+    animationIterationCount: 'infinite',
+    animationName: glow,
+    fontSize: fontSize.md,
+    fontWeight: 900,
+    height: 32,
+    minHeight: 32,
+    width: '100%',
   },
 });
