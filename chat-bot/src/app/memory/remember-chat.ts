@@ -22,7 +22,7 @@ import {
   type Target,
 } from '@dy-apps/room-memory';
 import { termKey } from '@dy-apps/to-learn';
-import type { AskModel, Log, Thoughts, ToLearnList } from '../ports';
+import type { AskModel, BotFeedback, FeedbackList, Log, Thoughts, ToLearnList } from '../ports';
 
 export interface RememberChatOptions {
   /** Claude, asked once per batch of viewers and once about the whole stream. */
@@ -58,6 +58,17 @@ export interface RememberChatOptions {
     list: ToLearnList;
     /** The terms the knowledge base has (titles and aliases): not asked about again. */
     known: () => readonly string[];
+  };
+  /**
+   * What the audience clearly said the bot got wrong in the stream (remember-feedback.md asks for
+   * it), sorted into what needs the code, a prompt or the knowledge base changed, onto the feedback
+   * list; a knowledge one goes on the to-learn list too, with `toLearn`. Nothing without it.
+   */
+  feedback?: {
+    prompt: () => string;
+    list: FeedbackList;
+    /** The room the stream was in, for the list. */
+    roomId: string;
   };
   /** Who the streamer is: their note is about the whole stream, not a viewer's. */
   streamer: Pick<Streamer, 'id'>;
@@ -166,6 +177,74 @@ function toLearnOf(value: unknown): { term: string; question: string }[] {
   });
 }
 
+/** At most this many things the audience said the bot got wrong, a stream. */
+const MAX_FEEDBACK = 5;
+
+const FEEDBACK_KINDS = ['program', 'prompt', 'knowledge'] as const;
+
+const FEEDBACK_SCHEMA = {
+  type: 'object',
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          kind: {
+            type: 'string',
+            enum: FEEDBACK_KINDS,
+            description: '改程序、改提示词还是改知识库',
+          },
+          time: { type: 'string', description: '你那句话的时间，HH:MM:SS' },
+          botSaid: { type: 'string', description: '你说的那句，照抄' },
+          feedback: { type: 'string', description: '观众或主播的反应，照抄原话，带上是谁说的' },
+          problem: { type: 'string', description: '错在哪，一句话' },
+          fix: { type: 'string', description: '该怎么改，一句话' },
+          term: {
+            type: 'string',
+            description: 'knowledge 才写：要在抖音上查的词；别的类写空字符串',
+          },
+          question: {
+            type: 'string',
+            description: 'knowledge 才写：想弄清楚的问题；别的类写空字符串',
+          },
+        },
+        required: ['kind', 'time', 'botSaid', 'feedback', 'problem', 'fix', 'term', 'question'],
+        additionalProperties: false,
+      },
+      description: '观众明确说你做错、说得不对或不合适的地方，0 到 5 条',
+    },
+  },
+  required: ['items'],
+  additionalProperties: false,
+} as const;
+
+/** The items in an answer: those of a known kind with a problem, trimmed, at most MAX_FEEDBACK. */
+function feedbackOf(value: unknown): (BotFeedback & { term: string; question: string })[] {
+  if (!Array.isArray(value)) return [];
+  const str = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
+  return value
+    .flatMap((entry) => {
+      const item = (entry ?? {}) as Record<string, unknown>;
+      const kind = FEEDBACK_KINDS.find((k) => k === item.kind);
+      const problem = str(item.problem);
+      if (!kind || !problem) return [];
+      return [
+        {
+          kind,
+          time: str(item.time),
+          botSaid: str(item.botSaid),
+          feedback: str(item.feedback),
+          problem,
+          fix: str(item.fix),
+          term: str(item.term),
+          question: str(item.question),
+        },
+      ];
+    })
+    .slice(0, MAX_FEEDBACK);
+}
+
 /** What one run did. */
 export interface RememberResult {
   lines: number;
@@ -176,6 +255,8 @@ export interface RememberResult {
   thoughts: number;
   /** How many things it put on the to-learn list. */
   toLearn: number;
+  /** How many things the audience said it got wrong. */
+  feedback: number;
 }
 
 /**
@@ -206,6 +287,7 @@ export class RememberChat {
       failed: 0,
       thoughts: 0,
       toLearn: 0,
+      feedback: 0,
     };
     if (!lines.length) {
       log.info('nothing new to remember', { since });
@@ -217,6 +299,7 @@ export class RememberChat {
     if (summary !== null) {
       await this.reflect(lines, summary, result);
       await this.wonder(lines, summary, result);
+      await this.lookBack(lines, summary, result);
     }
     if (!result.failed) mark.set(Math.max(...lines.map((line) => line.ms)));
     log.info('remembered', { ...result });
@@ -385,6 +468,68 @@ export class RememberChat {
     );
     result.toLearn = added.length;
     if (added.length) log.info('to learn', { items: added.map(({ term }) => term) });
+  }
+
+  /**
+   * What the audience clearly said the bot got wrong in the stream (not a joke at it, not what the
+   * bot itself thinks it could have done better), each sorted into a code, prompt or knowledge
+   * fix: onto the feedback list, and a knowledge one onto the to-learn list too, so `pnpm browse
+   * --todo` looks it up and the review corrects the entry. A failure is only logged, like reflect's.
+   */
+  private async lookBack(
+    lines: readonly RecordLine[],
+    summary: string,
+    result: RememberResult,
+  ): Promise<void> {
+    const { feedback, toLearn, bot, log } = this.options;
+    if (!feedback) return;
+    // Only a stream the bot said something in.
+    if (!lines.some((line) => line.sender === bot.name)) return;
+    const answer = await this.ask(
+      fillTemplate(
+        feedback.prompt(),
+        {
+          botName: bot.name,
+          summary: summary || '（无）',
+          digest: digestText(lines, { lineChars: 200, maxChars: 40_000 }),
+        },
+        { fillWhen: 'present' },
+      ),
+      FEEDBACK_SCHEMA,
+      'feedback',
+    );
+    const items = feedbackOf(answer?.items);
+    if (!items.length) return;
+    const day = this.daysOf(lines);
+    feedback.list.add(
+      feedback.roomId,
+      day,
+      items.map(({ kind, time, botSaid, feedback, problem, fix }) => ({
+        kind,
+        time,
+        botSaid,
+        feedback,
+        problem,
+        fix,
+      })),
+    );
+    result.feedback = items.length;
+    log.info('bot feedback', {
+      items: items.map(({ kind, time, problem }) => ({ kind, time, problem })),
+    });
+    const learn = items.filter((item) => item.kind === 'knowledge' && item.term);
+    if (toLearn && learn.length) {
+      const added = toLearn.list.add(
+        learn.map(({ term, question, problem }) => ({
+          term,
+          question: question || problem,
+          from: `直播 ${day} 观众说机器人说错了`,
+        })),
+        // A term the knowledge base has is what's wrong here, so it's added all the same.
+        { known: () => false, max: MAX_FEEDBACK },
+      );
+      if (added.length) log.info('to learn', { items: added.map(({ term }) => term) });
+    }
   }
 
   /** The day the lines are from, `2026-10-30`, or the span of days when they run over several. */

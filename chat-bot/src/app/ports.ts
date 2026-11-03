@@ -103,6 +103,28 @@ export interface ToLearnList {
   ): { term: string; question: string; from: string }[];
 }
 
+/** What a viewer or the streamer clearly said the bot got wrong in a stream, and where the fix belongs. */
+export interface BotFeedback {
+  /** `program` (the code), `prompt` (how it talks) or `knowledge` (what it knows). */
+  kind: 'program' | 'prompt' | 'knowledge';
+  /** When the bot said it, `HH:MM:SS`. */
+  time: string;
+  botSaid: string;
+  /** The reaction, as said, with who said it. */
+  feedback: string;
+  problem: string;
+  fix: string;
+}
+
+/**
+ * The list of what audiences said the bot got wrong (data/feedback.md), across rooms, for a person
+ * to work through: after each stream the bot adds its own.
+ */
+export interface FeedbackList {
+  /** Adds `items`, about the stream in `roomId` on `date` (`2026-11-03`, or a span of days). */
+  add(roomId: string, date: string, items: readonly BotFeedback[]): void;
+}
+
 /**
  * The streamer's own posts on Douyin, as `pnpm browse --streamer` wrote them to the room's
  * memory/posts.md: only read here.

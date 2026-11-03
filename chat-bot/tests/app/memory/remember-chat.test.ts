@@ -1,5 +1,5 @@
 import { addItems, openItems } from '@dy-apps/to-learn';
-import type { Question, Thoughts, ToLearnList } from '../../../src/app/ports';
+import type { BotFeedback, Question, Thoughts, ToLearnList } from '../../../src/app/ports';
 import { RememberChat } from '../../../src/app/memory/remember-chat';
 import { fakeMemory, noteFile, ROOM_FILE, STREAMS_FILE } from '../../support/fake-memory';
 
@@ -24,9 +24,16 @@ function setup({
   dayOf,
   thoughts,
   toLearn,
+  feedback,
 }: {
   record: string[];
-  answers: { notes?: unknown; room?: unknown; thoughts?: unknown; toLearn?: unknown };
+  answers: {
+    notes?: unknown;
+    room?: unknown;
+    thoughts?: unknown;
+    toLearn?: unknown;
+    feedback?: unknown;
+  };
   mark?: number;
   isPrivate?: boolean;
   dayOf?: (ms: number) => string;
@@ -34,6 +41,8 @@ function setup({
   thoughts?: string[];
   /** The to-learn list's text and the knowledge base's terms; none asks for nothing to learn. */
   toLearn?: { text: string; known: string[] };
+  /** What the feedback list was given; none asks for no feedback. */
+  feedback?: { roomId: string; date: string; items: readonly BotFeedback[] }[];
 }) {
   const { memory, store } = fakeMemory({ [ROOM_FILE]: '主播叫咿咿\n' });
   const asked: Question[] = [];
@@ -62,7 +71,9 @@ function setup({
             ? answers.thoughts
             : question.why === 'to-learn'
               ? answers.toLearn
-              : answers.room;
+              : question.why === 'feedback'
+                ? answers.feedback
+                : answers.room;
       return answer instanceof Error
         ? Promise.reject(answer)
         : Promise.resolve(JSON.stringify(answer));
@@ -85,6 +96,13 @@ function setup({
         prompt: () => 'TO-LEARN {{known}} | {{open}} | {{summary}} | {{digest}}',
         list,
         known: () => toLearn.known,
+      },
+    }),
+    ...(feedback && {
+      feedback: {
+        prompt: () => 'FEEDBACK {{botName}} | {{summary}} | {{digest}}',
+        list: { add: (roomId, date, items) => feedback.push({ roomId, date, items }) },
+        roomId: '834626631343',
       },
     }),
     streamer: { id: () => 's-1' },
@@ -139,6 +157,7 @@ test("each regular's note gets the changes Claude names for them, the room and s
     failed: 0,
     thoughts: 0,
     toLearn: 0,
+    feedback: 0,
   });
   expect(store.get(noteFile('s-1'))).toBe('说好下次唱《稻香》\n<!-- 2026-10-31 chat -->\n');
   expect(store.get(noteFile('u-1'))).toBe(
@@ -397,4 +416,95 @@ test('nothing to learn is asked when the room question failed, and a failed one 
   expect(result).toMatchObject({ failed: 0, toLearn: 0 });
   expect(down.marks.value).toBe(T0 + 8000);
   expect(toLearn.text).toBe('');
+});
+
+const SLIP = {
+  kind: 'knowledge',
+  time: '20:00:05',
+  botSaid: '欢迎',
+  feedback: '阿拂：宇宙之心不是这个价',
+  problem: '说错了宇宙之心的价格',
+  fix: '查对宇宙之心再说',
+  term: '宇宙之心',
+  question: '抖音直播的宇宙之心多少钱？',
+};
+
+test('then what the audience said it got wrong goes on the feedback list, and a knowledge slip on the to-learn list too', async () => {
+  const feedback: { roomId: string; date: string; items: readonly BotFeedback[] }[] = [];
+  const toLearn = { text: '', known: ['宇宙之心'] };
+  const { remember, asked } = setup({
+    record: RECORD,
+    feedback,
+    toLearn,
+    answers: {
+      notes: { notes: [] },
+      room: { room: [], streamer: [], summary: '唱了晴天' },
+      toLearn: { items: [] },
+      feedback: {
+        items: [
+          SLIP,
+          {
+            ...SLIP,
+            kind: 'prompt',
+            problem: '话太多',
+            fix: '短一点',
+            term: '',
+            question: '',
+          },
+          { ...SLIP, kind: 'other', problem: '不知道哪类' },
+          { ...SLIP, kind: 'program', problem: ' ' },
+        ],
+      },
+    },
+  });
+  const result = await remember.run();
+  const prompt = asked.find((question) => question.why === 'feedback')!;
+  expect(prompt.prompt).toContain('FEEDBACK 默认关闭 | 唱了晴天 |');
+  expect(prompt.prompt).toContain('默认关闭(chat) 欢迎');
+  expect(prompt.tools).toEqual([]);
+  // Only the kinds it knows, with a problem; term and question stay off the list.
+  const slip = {
+    kind: SLIP.kind,
+    time: SLIP.time,
+    botSaid: SLIP.botSaid,
+    feedback: SLIP.feedback,
+    problem: SLIP.problem,
+    fix: SLIP.fix,
+  };
+  expect(feedback).toEqual([
+    {
+      roomId: '834626631343',
+      date: '2026-10-24',
+      items: [slip, { ...slip, kind: 'prompt', problem: '话太多', fix: '短一点' }],
+    },
+  ]);
+  expect(result.feedback).toBe(2);
+  // The knowledge base has 宇宙之心, but it was wrong about it: it's learned again.
+  expect(toLearn.text).toContain(
+    '- [ ] 宇宙之心 — 抖音直播的宇宙之心多少钱？（直播 2026-10-24 观众说机器人说错了）',
+  );
+});
+
+test('no feedback is asked when the bot said nothing, and a failed one only logs', async () => {
+  const quiet = setup({
+    record: RECORD.filter((line) => !line.includes('默认关闭')),
+    feedback: [],
+    answers: { notes: { notes: [] }, room: { room: [], streamer: [], summary: '' } },
+  });
+  await quiet.remember.run();
+  expect(quiet.asked.some((question) => question.why === 'feedback')).toBe(false);
+
+  const feedback: { roomId: string; date: string; items: readonly BotFeedback[] }[] = [];
+  const down = setup({
+    record: RECORD,
+    feedback,
+    answers: {
+      notes: { notes: [] },
+      room: { room: [], streamer: [], summary: '' },
+      feedback: new Error('down'),
+    },
+  });
+  expect(await down.remember.run()).toMatchObject({ failed: 0, feedback: 0 });
+  expect(down.marks.value).toBe(T0 + 8000);
+  expect(feedback).toEqual([]);
 });
