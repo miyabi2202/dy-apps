@@ -109,6 +109,8 @@ export const CONFIG = {
    * (rounded), and the top `shown` of them.
    */
   mvp: { shown: 5 },
+  /** Pending curse types the side panel lists; any more show as one … row. */
+  pendingShown: 5,
   log: { maxEntries: 10 },
   frame: { maxDtMs: 100 },
 } as const;

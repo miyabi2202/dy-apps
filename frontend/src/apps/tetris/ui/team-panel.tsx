@@ -1,6 +1,7 @@
 import { Panel, text } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
+import { CONFIG } from '../core/config';
 import type { LikeMeterView, PendingCurse } from '../core/game';
 import type { GiftFeed } from '../gift-feed';
 import { testIds } from '../messages';
@@ -15,7 +16,10 @@ interface Props {
   feed: GiftFeed;
 }
 
-/** The curse side: the like meter, the curses waiting to settle and the gift wall. */
+/**
+ * The curse side: the like meter, the curses waiting to settle (the first few, then …) and the
+ * gift wall.
+ */
 export function TeamPanel({ pending, likes, feed }: Props) {
   return (
     <Panel aria-label="诅咒" data-testid={testIds.panelTeam} xstyle={styles.panel}>
@@ -23,12 +27,18 @@ export function TeamPanel({ pending, likes, feed }: Props) {
       <h3 {...stylex.props(text.caption)}>待执行诅咒</h3>
       {pending.length ? (
         <ul {...stylex.props(styles.pending)} data-testid={testIds.pending}>
-          {pending.map(({ def, count }) => (
+          {pending.slice(0, CONFIG.pendingShown).map(({ def, count }) => (
             <li key={def.type} {...stylex.props(styles.pendingItem)}>
               <CurseName def={def} />
               <span {...stylex.props(styles.pendingCount)}>×{count}</span>
             </li>
           ))}
+          {pending.length > CONFIG.pendingShown && (
+            <li {...stylex.props(styles.pendingItem, styles.more)}>
+              <span>…</span>
+              <span>还有 {pending.length - CONFIG.pendingShown} 种</span>
+            </li>
+          )}
         </ul>
       ) : (
         <p {...stylex.props(text.muted, styles.flush)} data-testid={testIds.pending}>
@@ -66,6 +76,9 @@ const styles = stylex.create({
     display: 'flex',
     fontSize: fontSize.lg,
     justifyContent: 'space-between',
+  },
+  more: {
+    color: colors.muted,
   },
   pendingCount: {
     color: colors.danger,
