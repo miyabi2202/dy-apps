@@ -1,6 +1,6 @@
 /** Every gameplay number lives here. UI and engine code must not hard-code these. */
 export const CONFIG = {
-  board: { cols: 10, rows: 40 },
+  board: { cols: 10, rows: 25 },
   sequence: {
     /** Upcoming pieces kept internally. */
     minBuffer: 5,

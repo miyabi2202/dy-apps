@@ -464,7 +464,7 @@ const styles = stylex.create({
     gridArea: 'board',
     justifySelf: 'center',
     position: 'relative',
-    /** 15px cells: 40 rows keep the board 600px tall at most. */
+    /** 15px cells: 25 rows keep the board 375px tall at most. */
     width: 'min(150px, 100%)',
   },
   board: {
