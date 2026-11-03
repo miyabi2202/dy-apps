@@ -11,27 +11,21 @@ export interface CutsceneView {
   stage: 'intro' | 'ready' | 'go';
 }
 
-/**
- * One cutscene's stages over time. The intro lasts as long as the longest any of its curses asks
- * for (`cutsceneMs`), CONFIG.cutscene.introMs by default.
- */
+/** One cutscene's stages over time. */
 export class CutsceneClock {
   view: CutsceneView;
   private ms = 0;
-  private readonly introMs: number;
 
   constructor(curses: readonly CurseDef<unknown>[], senders: readonly (Sender | null)[]) {
     this.view = { curses, senders, stage: 'intro' };
-    this.introMs = Math.max(...curses.map((def) => def.cutsceneMs ?? CONFIG.cutscene.introMs));
   }
 
   /** Moves on `dtMs`: 'done' once GO is over, 'changed' on a new stage, else 'same'. */
   advance(dtMs: number): 'done' | 'changed' | 'same' {
-    const { readyMs, goMs } = CONFIG.cutscene;
+    const { introMs, readyMs, goMs } = CONFIG.cutscene;
     this.ms += dtMs;
-    if (this.ms >= this.introMs + readyMs + goMs) return 'done';
-    const stage =
-      this.ms < this.introMs ? 'intro' : this.ms < this.introMs + readyMs ? 'ready' : 'go';
+    if (this.ms >= introMs + readyMs + goMs) return 'done';
+    const stage = this.ms < introMs ? 'intro' : this.ms < introMs + readyMs ? 'ready' : 'go';
     if (stage === this.view.stage) return 'same';
     this.view = { ...this.view, stage };
     return 'changed';

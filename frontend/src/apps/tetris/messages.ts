@@ -10,7 +10,6 @@ export const testIds = {
   cutscene: 'cutscene',
   debugCurse: (type: string) => `debug-curse-${type}`,
   debugLikes: (n: number) => `debug-likes-${n}`,
-  debugViewer: (command: string) => `debug-viewer-${command}`,
   gameOverSummary: 'game-over-summary',
   giftHistory: 'gift-history',
   log: 'log',
@@ -28,8 +27,6 @@ export const testIds = {
   vote: 'vote',
   voteOption: (i: number) => `vote-option-${i}`,
   debugVote: (choice: string) => `debug-vote-${choice}`,
-  viewerControl: 'viewer-control',
-  viewerInput: 'viewer-input',
 } as const;
 
 export const labels = {

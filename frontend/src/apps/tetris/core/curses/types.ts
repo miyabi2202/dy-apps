@@ -49,8 +49,6 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   gravityMultiplier?: number;
   /** While active: the lock delay is multiplied by this once per active instance; 0 locks on touch. */
   lockDelayMultiplier?: number;
-  /** While active: the player's left and right moves are swapped. */
-  mirrorsMoves?: boolean;
   /**
    * While active: each player command (move, rotate, drop, hold) acts a random 0 to this many ms
    * of play time later than pressed, so they can act out of order. Ones still waiting when the
@@ -73,13 +71,6 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   cutscene?: boolean;
   /** A playful line under the name in its cutscene, like 冻住不许转. */
   tagline?: string;
-  /** How long its cutscene shows the name, instead of CONFIG.cutscene.introMs. */
-  cutsceneMs?: number;
-  /**
-   * While active: viewers steer the piece by typing CONFIG.viewerCommands in chat, each one
-   * acting at once. Block the player's commands as well to hand the piece over completely.
-   */
-  viewerControl?: boolean;
   /** Fresh state when the curse becomes active. */
   initState?(): S;
   /** At settlement, every time it fires. */

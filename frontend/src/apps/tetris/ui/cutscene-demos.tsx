@@ -1,7 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { CONFIG } from '../core/config';
 import type { EffectType } from '../core/curses';
 import type { PieceType } from '../core/types';
 import { shapeOf } from '../core/pieces';
@@ -17,7 +16,6 @@ export const CUTSCENE_DEMOS: Partial<Record<EffectType, () => React.ReactElement
   slip: SlipDemo,
   mirror: MirrorDemo,
   twin: TwinDemo,
-  possess: PossessDemo,
   giant: GiantDemo,
   drunk: DrunkDemo,
   lag: LagDemo,
@@ -123,27 +121,6 @@ const beat = stylex.keyframes({
   '40%': { transform: 'scale(0.9)' },
   '60%': { transform: 'scale(1.1)' },
   '100%': { transform: 'scale(0.8)' },
-});
-
-/** Pushed left, then right, then turned: one step for each word the chat sends. */
-const steered = stylex.keyframes({
-  '0%': { transform: 'translateX(0) rotate(0deg)' },
-  '10%': { transform: 'translateX(-14px) rotate(0deg)' },
-  '33%': { transform: 'translateX(-14px) rotate(0deg)' },
-  '43%': { transform: 'translateX(14px) rotate(0deg)' },
-  '66%': { transform: 'translateX(14px) rotate(0deg)' },
-  '76%': { transform: 'translateX(14px) rotate(90deg)' },
-  '100%': { transform: 'translateX(14px) rotate(90deg)' },
-});
-
-/** A chat bubble popping up for its third of the loop. */
-const bubble = stylex.keyframes({
-  '0%': { opacity: 0, transform: 'translateY(6px) scale(0.6)' },
-  '4%': { opacity: 1, transform: 'translateY(0) scale(1.15)' },
-  '8%': { transform: 'translateY(0) scale(1)' },
-  '30%': { opacity: 1, transform: 'translateY(0) scale(1)' },
-  '33%': { opacity: 0, transform: 'translateY(-4px) scale(1)' },
-  '100%': { opacity: 0 },
 });
 
 /** Swelling up with a wobble, holding big, then snapping back to start again. */
@@ -275,23 +252,6 @@ function TwinDemo() {
         ♥
       </span>
       <DemoPiece type="L" style={[styles.half, styles.fallsFar]} />
-    </div>
-  );
-}
-
-/** Chat bubbles 左, 右, 转 in turn, and the piece doing each. */
-function PossessDemo() {
-  const words = Object.values(CONFIG.viewerCommands);
-  return (
-    <div {...stylex.props(styles.stage, styles.tallStage, styles.possessStage)}>
-      <div aria-hidden {...stylex.props(styles.bubbles)}>
-        {words.map((word, i) => (
-          <span key={word} {...stylex.props(styles.bubble, styles.bubbleAt(i))}>
-            {word}
-          </span>
-        ))}
-      </div>
-      <DemoPiece style={styles.steered} />
     </div>
   );
 }
@@ -476,40 +436,6 @@ const styles = stylex.create({
     fontSize: 14,
     textShadow: '0 0 6px #fb7185',
   },
-  possessStage: {
-    height: 96,
-    width: 96,
-  },
-  steered: {
-    animationDuration: '2.4s',
-    animationIterationCount: 'infinite',
-    animationName: steered,
-    animationTimingFunction: 'ease-out',
-  },
-  bubbles: {
-    position: 'relative',
-    height: 26,
-    width: '100%',
-  },
-  bubble: {
-    borderRadius: 999,
-    paddingInline: 8,
-    animationDuration: '2.4s',
-    animationFillMode: 'both',
-    animationIterationCount: 'infinite',
-    animationName: bubble,
-    backgroundColor: '#ffffff',
-    color: '#111827',
-    fontSize: 15,
-    fontWeight: 900,
-    lineHeight: '24px',
-    position: 'absolute',
-    left: '50%',
-    marginLeft: -15,
-    top: 0,
-  },
-  /** Each bubble takes its third of the loop. */
-  bubbleAt: (i: number) => ({ animationDelay: `${i * 800}ms` }),
   bigStage: {
     height: 84,
     width: 84,

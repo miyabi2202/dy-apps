@@ -10,7 +10,6 @@ import type { PieceShape } from '../core/types';
 import { labels, testIds } from '../messages';
 import { drawMiniPiece } from '../render/board';
 import { BoardNotices } from './board-notices';
-import { ViewerControl } from './viewer-control';
 import { VotePanel } from './vote-panel';
 import { CurseName } from './curse-name';
 import { MvpList } from './mvp-list';
@@ -121,9 +120,6 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
   const previewChange = useChange(previewHiddenBy !== null, onOff);
 
   const firingNext = engine.nextSettlement;
-  // Viewers steer while a curse lets them and nothing holds play.
-  const steering =
-    engine.phase === 'playing' && engine.active && !engine.vote && engine.viewerControlBy;
 
   return (
     <Panel aria-label="棋盘">
@@ -188,7 +184,6 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
             curseOf={(type) => engine.curseOf(type)}
             belowCutscene={engine.cutscene !== null}
           />
-          {steering && <ViewerControl inputs={engine.viewerInputs} />}
         </div>
 
         <div {...stylex.props(styles.side, styles.nextSide)}>

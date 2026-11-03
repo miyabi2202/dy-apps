@@ -38,10 +38,6 @@ export const CONFIG = {
     /** A hit picks a rarity by these weights, then one of that rarity's curses evenly. */
     rarityWeights: { common: 0.5, uncommon: 0.35, rare: 0.15 },
   },
-  /** What viewers type in chat to steer the piece while 夺舍 is active; nothing else counts. */
-  viewerCommands: { left: '左', right: '右', rotate: '转' },
-  /** Viewers' recent commands the board shows at once. */
-  viewerInputsShown: 6,
   effects: {
     /** Settlement rounds one firing lasts; each firing is its own instance. */
     hasteRounds: 3,
@@ -49,7 +45,7 @@ export const CONFIG = {
     sealRounds: 1,
     swapRounds: 1,
     hastyRounds: 1,
-    mirrorRounds: 1,
+    mirrorRounds: 2,
     drunkRounds: 1,
     lagRounds: 1,
     /** Locked pieces one firing lasts, for the curses with a cutscene. */
@@ -58,14 +54,13 @@ export const CONFIG = {
     slipLocks: 1,
     /** A pair counts as one lock, so this is how many pairs one 双落 deals. */
     twinLocks: 1,
-    possessLocks: 1,
-    /** 夺舍's cutscene holds longer than the others, so viewers have time to read how to play. */
-    possessIntroMs: 3000,
     giantLocks: 1,
     /** How many times bigger 巨大化 makes the piece: each cell becomes giantScale × giantScale. */
     giantScale: 2,
     /** How often 醉酒 stumbles the piece a column on its own. */
     drunkStumbleMs: 900,
+    /** While 镜像, the chance each fresh piece has its left and right swapped. */
+    mirrorChance: 0.5,
     /** How often a move goes the wrong way while 醉酒. */
     drunkWrongChance: 0.3,
     /** While 延迟, each command acts a random 0 to this many ms late, so presses can land out of order. */
@@ -86,7 +81,7 @@ export const CONFIG = {
    * A quiet room: after this many settlements in a row with nothing pending, the game draws a
    * curse itself, the way a gift would, and it fires at that settlement.
    */
-  quiet: { settlements: 5 },
+  quiet: { settlements: 3 },
   /**
    * The like meter: the room's likes fill it, and when full it draws a curse like a gift would,
    * from whoever liked most. Each time, the next takes twice as many, up to `maxThreshold`. With no

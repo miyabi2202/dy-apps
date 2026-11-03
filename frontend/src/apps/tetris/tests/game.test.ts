@@ -525,10 +525,16 @@ describe('movement hooks', () => {
     expect(half.lockDelayMs).toBe(CONFIG.lock.delayMs / 2);
   });
 
-  it('tryMove moves the piece for a curse, unmirrored', () => {
+  it("tryMove moves the piece for a curse, past the player's onMove hooks", () => {
     const engine = startedEngine({
       curses: {
-        pool: [{ ...CURSES.fog, mirrorsMoves: true, onTick: (ctx) => void ctx.tryMove(1) }],
+        pool: [
+          {
+            ...CURSES.fog,
+            onMove: (_ctx, dx) => -dx as -1 | 1,
+            onTick: (ctx) => void ctx.tryMove(1),
+          },
+        ],
         active: ['fog'],
       },
     });

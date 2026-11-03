@@ -2,9 +2,8 @@ import { createFakeGift } from '@dy-apps/services';
 import { Button, Disclosure, Row, text } from '@dy-apps/ui';
 import { colors, fontSize, radius, space } from '@dy-apps/ui/tokens.stylex';
 import * as stylex from '@stylexjs/stylex';
-import { CONFIG } from '../core/config';
 import { RARITIES } from '../core/curses';
-import type { GameEngine, ViewerCommand } from '../core/game';
+import type { GameEngine } from '../core/game';
 import type { Sender } from '../core/types';
 import { labels, testIds } from '../messages';
 import { CurseName } from './curse-name';
@@ -12,7 +11,7 @@ import { CurseName } from './curse-name';
 /**
  * Debug: a button per curse in play that queues one, as if a gift had triggered it, grouped by
  * rarity and marked with its settlement queue; and buttons for made-up viewers' likes, a vote and
- * their ballots, and chat commands, for trying the like meter, votes and 夺舍 without a live room.
+ * their ballots, for trying the like meter and votes without a live room.
  * Only on the config page, never in OBS; like gifts, it works only during a game.
  */
 export function DebugPanel({ engine }: { engine: GameEngine }) {
@@ -83,24 +82,6 @@ export function DebugPanel({ engine }: { engine: GameEngine }) {
               弹幕 {choice}
             </Button>
           ))}
-        </Row>
-      </section>
-      <section {...stylex.props(styles.group)}>
-        <h4 {...stylex.props(text.muted, styles.rarity)}>模拟观众弹幕（夺舍时生效）</h4>
-        <Row gap="xs">
-          {(Object.keys(CONFIG.viewerCommands) as ViewerCommand[]).map((command) => {
-            const word = CONFIG.viewerCommands[command];
-            return (
-              <Button
-                key={command}
-                disabled={!running}
-                onClick={() => engine.viewerCommand(fakeSender(), word)}
-                data-testid={testIds.debugViewer(command)}
-              >
-                {word}
-              </Button>
-            );
-          })}
         </Row>
       </section>
     </Disclosure>

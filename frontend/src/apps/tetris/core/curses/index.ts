@@ -7,7 +7,6 @@ import { hasty } from './hasty';
 import { lag } from './lag';
 import { mirror } from './mirror';
 import { noRotate } from './no-rotate';
-import { possess } from './possess';
 import { rockfall } from './rockfall';
 import { seal } from './seal';
 import { slip } from './slip';
@@ -36,7 +35,6 @@ const registry = {
   slip,
   mirror,
   twin,
-  possess,
   giant,
   drunk,
   lag,

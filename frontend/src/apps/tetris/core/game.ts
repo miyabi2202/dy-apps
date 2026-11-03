@@ -54,7 +54,6 @@ import { deriveSeed, mulberry32, type Rng } from './random';
 import { LikeMeter, type LikeMeterView } from './room/like-meter';
 import { MvpBoard, type MvpEntry } from './room/mvp-board';
 import { QuietRoom } from './room/quiet-room';
-import { parseViewerCommand, ViewerInputs, type ViewerInput } from './room/viewer-commands';
 import { VoteBox, type VoteView } from './room/vote-box';
 import type {
   ActivePiece,
@@ -155,7 +154,6 @@ export interface BoardNotice {
 
 export type { CutsceneView } from './cutscene-clock';
 export type { LikeMeterView } from './room/like-meter';
-export type { ViewerCommand, ViewerInput } from './room/viewer-commands';
 export type { Ballot, VoteView } from './room/vote-box';
 
 /** A pending curse type and how many of it wait, for the panels. */
@@ -241,7 +239,6 @@ export class GameEngine {
   private readonly votes: VoteBox;
   private readonly likes = new LikeMeter();
   private readonly quiet = new QuietRoom();
-  private readonly viewers = new ViewerInputs();
   private readonly mvpBoard = new MvpBoard();
   /** Names printed on board rows (垃圾行), keyed by the row itself so they move with it. */
   private rowNames = new WeakMap<readonly Cell[], string>();
@@ -380,11 +377,6 @@ export class GameEngine {
     return this.quiet.settlements;
   }
 
-  /** The last few viewers' chat commands while they steer the piece, oldest first. */
-  get viewerInputs(): readonly ViewerInput[] {
-    return this.viewers.list;
-  }
-
   get piecesUntilSettlement(): number {
     return CONFIG.settlement.everyLocks - (this.lockedPieceCount % CONFIG.settlement.everyLocks);
   }
@@ -457,16 +449,7 @@ export class GameEngine {
     return this.blockedBy('hold') !== null;
   }
 
-  /** The first active curse that hands the piece to the viewers' chat, if any. */
-  get viewerControlBy(): CurseDef<unknown> | null {
-    return this.activeCurses.find(({ def }) => def.viewerControl)?.def ?? null;
-  }
-
   /** The first active curse that swaps left and right, if any. */
-  get movesMirroredBy(): CurseDef<unknown> | null {
-    return this.activeCurses.find(({ def }) => def.mirrorsMoves)?.def ?? null;
-  }
-
   /** Y the active piece would land at. */
   get ghostY(): number | null {
     if (!this.active) return null;
@@ -553,7 +536,6 @@ export class GameEngine {
     this.holds = [];
     this.notices = [];
     this.quiet.reset();
-    this.viewers.clear();
     this.delayed.clear();
     this.likes.reset();
     this.votes.reset();
@@ -643,22 +625,6 @@ export class GameEngine {
     addDebugCurse(this.team, type, sender);
     this.pushLog('system', `调试：加入 ${this.curseByType[type].name}。`);
     this.logState(`debug added ${type}`);
-    this.emit();
-    return true;
-  }
-
-  /**
-   * A viewer's chat line. While a curse hands the piece over (夺舍), exactly one of
-   * CONFIG.viewerCommands moves or turns it at once, past any curse blocking the player; any other
-   * text, or a chat at any other time, does nothing. Returns whether it was a command taken.
-   */
-  viewerCommand(user: Sender, text: string): boolean {
-    if (!this.canControl || !this.viewerControlBy) return false;
-    const command = parseViewerCommand(text);
-    if (!command) return false;
-    const worked =
-      command === 'rotate' ? this.rotateFalling(1) : this.moveFalling(command === 'left' ? -1 : 1);
-    this.viewers.push(user, command, worked);
     this.emit();
     return true;
   }
@@ -823,12 +789,12 @@ export class GameEngine {
     }
   }
 
-  /** The player's move, of both pieces of a pair or neither: swapped while a curse mirrors moves. */
+  /** The player's move, of both pieces of a pair or neither, after the curses' onMove hooks. */
   move(dx: number): boolean {
     if (!this.canControl) return false;
     if (this.deferred(() => this.move(dx))) return true;
     if (this.blockedBy('move')) return false;
-    let step: -1 | 1 = (this.movesMirroredBy ? -dx : dx) < 0 ? -1 : 1;
+    let step: -1 | 1 = dx < 0 ? -1 : 1;
     for (const { type, def } of this.activeCurses) {
       if (def.onMove)
         step = def.onMove(this.curseContext(), step, this.effects.active[type]!.state);
@@ -1084,7 +1050,6 @@ export class GameEngine {
     }
     this.active = piece;
     this.twin = twin;
-    this.viewers.clear();
   }
 
   /**

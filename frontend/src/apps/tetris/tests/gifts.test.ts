@@ -45,7 +45,7 @@ describe('drawing curses', () => {
     expect(bands.map((b) => [b.rarity, b.types])).toEqual([
       ['common', ['fog', 'seal', 'swap', 'hasty']],
       ['uncommon', ['haste', 'snakes', 'rockfall', 'slip', 'mirror', 'drunk', 'lag']],
-      ['rare', ['garbage', 'noRotate', 'spin', 'twin', 'possess', 'giant']],
+      ['rare', ['garbage', 'noRotate', 'spin', 'twin', 'giant']],
     ]);
     expect(bands[0]!.to).toBeCloseTo(commonTo);
     expect(bands[1]!.from).toBeCloseTo(commonTo);

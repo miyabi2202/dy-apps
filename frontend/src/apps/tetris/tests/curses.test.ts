@@ -124,13 +124,21 @@ describe('打滑', () => {
 });
 
 describe('镜像', () => {
-  it("swaps the player's left and right", () => {
-    const engine = startedEngine({ curses: { active: ['mirror'] } });
-    setActive(engine, 'O');
+  const { mirrorChance } = CONFIG.effects;
+
+  it("swaps the player's left and right on a piece at mirrorChance, rolled for each piece", () => {
+    // The first piece rolls under the chance, the next over it.
+    const engine = startedEngine({
+      curses: { active: ['mirror'] },
+      curseRng: sequenceRng([mirrorChance / 2, (1 + mirrorChance) / 2]),
+    });
+    const x = engine.active!.x;
     engine.move(1);
-    expect(engine.active!.x).toBe(3);
-    engine.move(-1);
-    expect(engine.active!.x).toBe(4);
+    expect(engine.active!.x).toBe(x - 1);
+    dropOnEmpty(engine, 1);
+    const next = engine.active!.x;
+    engine.move(1);
+    expect(engine.active!.x).toBe(next + 1);
   });
 });
 
@@ -200,81 +208,6 @@ describe('双落', () => {
   it('refuses hold while a pair is falling', () => {
     const engine = pairEngine();
     expect(engine.holdPiece()).toBe(false);
-  });
-});
-
-describe('夺舍', () => {
-  const { left, right, rotate } = CONFIG.viewerCommands;
-  const jie = { id: 'j', name: '阿杰' };
-  const mei = { id: 'm', name: '小美' };
-
-  function possessed() {
-    return startedEngine({ pieces: { active: 'T' }, curses: { active: ['possess'] } });
-  }
-
-  it("takes the player's controls away", () => {
-    const engine = possessed();
-    const { x, matrix } = engine.active!;
-    expect(engine.move(-1)).toBe(false);
-    expect(engine.rotate(1)).toBe(false);
-    expect(engine.hardDrop()).toBe(false);
-    expect(engine.holdPiece()).toBe(false);
-    expect(engine.active).toMatchObject({ x, matrix });
-  });
-
-  it('moves or turns the piece at once for each viewer command, and shows who sent it', () => {
-    const engine = possessed();
-    const x = engine.active!.x;
-    expect(engine.viewerCommand(jie, left)).toBe(true);
-    expect(engine.viewerCommand(mei, ` ${left} `)).toBe(true);
-    expect(engine.active!.x).toBe(x - 2);
-    expect(engine.viewerCommand(jie, right)).toBe(true);
-    expect(engine.active!.x).toBe(x - 1);
-    const matrix = engine.active!.matrix;
-    expect(engine.viewerCommand(jie, rotate)).toBe(true);
-    expect(engine.active!.matrix).not.toEqual(matrix);
-    expect(engine.viewerInputs.map((i) => [i.user.name, i.command])).toEqual([
-      ['阿杰', 'left'],
-      ['小美', 'left'],
-      ['阿杰', 'right'],
-      ['阿杰', 'rotate'],
-    ]);
-  });
-
-  it('marks a command that hits the wall, and ignores any other chat', () => {
-    const engine = possessed();
-    while (engine.viewerCommand(jie, left) && engine.viewerInputs.at(-1)!.worked) {
-      /* to the wall */
-    }
-    expect(engine.active!.x).toBe(0);
-    expect(engine.viewerInputs.at(-1)!.worked).toBe(false);
-    expect(engine.viewerCommand(jie, '左左左')).toBe(false);
-    expect(engine.viewerCommand(jie, '主播加油')).toBe(false);
-  });
-
-  it('does nothing without the curse, and hands the piece back after one lock', () => {
-    const plain = startedEngine();
-    const x = plain.active!.x;
-    expect(plain.viewerCommand(jie, left)).toBe(false);
-    expect(plain.active!.x).toBe(x);
-
-    const engine = possessed();
-    engine.viewerCommand(jie, left);
-    engine.active!.y = rows - 2;
-    engine.tick(CONFIG.lock.delayMs);
-    expect(engine.viewerInputs).toEqual([]);
-    expect(engine.viewerCommand(jie, left)).toBe(false);
-    expect(engine.move(-1)).toBe(true);
-  });
-
-  it('holds its cutscene longer, so viewers can read how to play', () => {
-    const engine = startedEngine();
-    engine.team.pending.possess = 1;
-    dropOnEmpty(engine, ROUND);
-    engine.tick(CONFIG.cutscene.introMs);
-    expect(engine.cutscene!.stage).toBe('intro');
-    engine.tick(CONFIG.effects.possessIntroMs - CONFIG.cutscene.introMs);
-    expect(engine.cutscene!.stage).toBe('ready');
   });
 });
 

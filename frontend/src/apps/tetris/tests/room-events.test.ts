@@ -1,4 +1,3 @@
-import { CONFIG } from '../core/config';
 import { GameEngine } from '../core/game';
 import { constantRng } from '../core/random';
 import { GiftFeed } from '../gift-feed';
@@ -22,13 +21,6 @@ describe('RoomEvents', () => {
     engine.sendGifts('阿杰', 1);
     expect(events.comment(mei, '我选2！')).toBe(true);
     expect(engine.vote!.ballots).toEqual([{ voter: mei, choice: 1 }]);
-  });
-
-  it('sends a chat line to the piece while viewers steer it', () => {
-    const { engine, events } = room({ curses: { active: ['possess'] } });
-    const x = engine.active!.x;
-    expect(events.comment(mei, CONFIG.viewerCommands.left)).toBe(true);
-    expect(engine.active!.x).toBe(x - 1);
   });
 
   it('ignores other chat, and sends likes to the meter', () => {
