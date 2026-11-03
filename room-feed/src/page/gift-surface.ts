@@ -46,6 +46,14 @@ export class PageGiftSurface implements GiftPanelSurface {
     return this.chrome.clickGuideClose();
   }
 
+  cardShown(): Promise<boolean> {
+    return this.chrome.cardShown();
+  }
+
+  clickOffCard(): Promise<void> {
+    return this.chrome.clickOffCard();
+  }
+
   balance(): Promise<number | null> {
     return this.chrome.balance();
   }

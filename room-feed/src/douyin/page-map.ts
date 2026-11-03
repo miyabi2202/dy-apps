@@ -59,6 +59,14 @@ export const PANEL_TEXT = 'x-text';
 /** The button of the notices the panel shows now and then (a rule, a reminder) that closes them. */
 export const NOTICE_OK_TEXT = '我知道了';
 
+/**
+ * The × of the popup the panel shows over everything once after the account's 粉丝团 level goes up
+ * (「恭喜你升到粉丝团Lv.5」, with 「去开启星光宝藏」 above the ×). The × has no class of its own:
+ * it's the only view in a wrapper right under the popup's container. The popup is gone from the
+ * page once closed.
+ */
+export const FANS_LEVEL_UP_CLOSE = '.starlight-treasure-mask-upgrade-container > lynx-wrapper > x-view';
+
 /** The panel on the right, where the 粉丝团 and others open: its close icon's svg. */
 export const RIGHT_PANEL_CLOSE_SVG = '#__living_right_panel_id svg';
 
@@ -85,6 +93,12 @@ export const FANS_LAMP_SENT = /今日第\d+位送灯牌/;
  * the page all along, at 0×0 until it shows.
  */
 export const DOWNLOAD_GUIDE_CLOSE = ':has(> [data-e2e="download-container"]) > svg';
+
+/**
+ * The card of a streamer in a PK, opened by a click on their tile: a Semi popover (its class names
+ * are Semi's own, not hashed) with 「去TA直播间」 in it.
+ */
+export const ANCHOR_CARD = '.semi-popover-wrapper-show:has(.to_other_anchor)';
 
 /** The gift bar's 「更多」, which opens the gift panel on the right. */
 export const GIFTS_MORE = '[data-e2e="gifts-switch"]';

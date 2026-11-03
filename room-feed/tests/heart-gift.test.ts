@@ -24,6 +24,14 @@ class FakeSurface implements GiftPanelSurface {
 
   private guide: boolean;
 
+  cardShown() {
+    return Promise.resolve(false);
+  }
+  clickOffCard() {
+    this.log.push('click off card');
+    return Promise.resolve();
+  }
+
   guideShown() {
     return Promise.resolve(this.guide);
   }

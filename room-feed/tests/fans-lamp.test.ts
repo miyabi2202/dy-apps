@@ -30,6 +30,17 @@ class FakeSurface implements FansLampSurface {
   }
 
   private guide: boolean;
+  /** A PK streamer's card, open from the start when set. */
+  card = false;
+
+  cardShown() {
+    return Promise.resolve(this.card);
+  }
+  clickOffCard() {
+    this.log.push('click off card');
+    this.card = false;
+    return Promise.resolve();
+  }
 
   guideShown() {
     return Promise.resolve(this.guide);
@@ -101,6 +112,7 @@ class FakeFrame implements PanelFrame {
   click(target: PanelTarget) {
     this.log.push(`click ${target}`);
     if (target === 'notice' && !this.stuckNotice) this.shown.delete('notice');
+    if (target === 'levelUp') this.shown.delete('levelUp');
     if (target === 'join') this.surface.panelClosedByJoin();
     return Promise.resolve();
   }
@@ -113,16 +125,19 @@ function setup(
     random = 0.5,
     diamonds = 10,
     guide,
+    card = false,
   }: {
     followShown?: boolean;
     random?: number;
     diamonds?: number | null;
     guide?: 'start' | 'afterOpen';
+    card?: boolean;
   } = {},
 ) {
   const log: string[] = [];
   let time = 0;
   const surface = new FakeSurface(log, openings, followShown, diamonds, guide);
+  surface.card = card;
   const pace = new Pace({
     wait: (ms) => {
       log.push(`wait ${ms}`);
@@ -193,6 +208,22 @@ describe('FansLamp', () => {
     expect(clicks(log).slice(-3)).toEqual(['open panel', 'click notice', 'click send']);
   });
 
+  it('closes the level-up popup over the panel, then the notice under it, then relights', async () => {
+    const { lamp, log } = setup([
+      { frames: [['levelUp', 'notice', 'relight']] },
+      { frames: [['send']] },
+    ]);
+    expect(await lamp.send()).toEqual({ result: 'sent' });
+    expect(clicks(log)).toEqual([
+      'open panel',
+      'click levelUp',
+      'click notice',
+      'click relight',
+      'open panel',
+      'click send',
+    ]);
+  });
+
   it('throws 「粉丝团面板里没找到送灯牌」 when nothing shows in the two tries', async () => {
     const { lamp, log } = setup([{ frames: [] }, { frames: [] }, { frames: [] }]);
     await expect(lamp.send()).rejects.toThrow('粉丝团面板里没找到送灯牌');
@@ -242,6 +273,13 @@ describe('FansLamp', () => {
     expect(await lamp.send()).toEqual({ result: 'sent' });
     expect(log.slice(0, 3)).toEqual(['wait 750', 'close guide', 'wait for panel button']);
     expect(log.filter((line) => line === 'close guide')).toHaveLength(1);
+  });
+
+  it('closes a PK streamer’s card first, by a click off it, as a step of its own', async () => {
+    const { lamp, log } = setup([{ frames: [['send']] }, { frames: [['send']] }], { card: true });
+    expect(await lamp.send()).toEqual({ result: 'sent' });
+    expect(log.slice(0, 3)).toEqual(['wait 750', 'click off card', 'wait for panel button']);
+    expect(log.filter((line) => line === 'click off card')).toHaveLength(1);
   });
 
   it('closes the download popup that shows while the panel is open, before clicking in it', async () => {

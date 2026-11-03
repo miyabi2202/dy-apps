@@ -3,6 +3,7 @@ import type { FansLampSurface, PanelFrame, PanelTarget } from '../fans-lamp';
 import {
   FANS_ICON,
   FANS_JOIN_BUTTON,
+  FANS_LEVEL_UP_CLOSE,
   FANS_LAMP_BUTTON,
   FANS_LAMP_SENT,
   FANS_RELIGHT_BUTTON,
@@ -32,6 +33,8 @@ class PagePanelFrame implements PanelFrame {
 
   private find(target: PanelTarget): Locator {
     switch (target) {
+      case 'levelUp':
+        return this.frame.locator(FANS_LEVEL_UP_CLOSE);
       case 'notice':
         return this.frame.getByText(NOTICE_OK_TEXT, { exact: true });
       case 'join':
@@ -97,6 +100,14 @@ export class PageFansSurface implements FansLampSurface {
 
   clickGuideClose(): Promise<void> {
     return this.chrome.clickGuideClose();
+  }
+
+  cardShown(): Promise<boolean> {
+    return this.chrome.cardShown();
+  }
+
+  clickOffCard(): Promise<void> {
+    return this.chrome.clickOffCard();
   }
 
   balance(): Promise<number | null> {

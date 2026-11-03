@@ -1,5 +1,5 @@
 import type { HeartResult } from '@dy-apps/room-feed-protocol';
-import { closeDownloadGuide, type DownloadGuide } from './download-guide';
+import { closePopups, type PagePopups } from './anchor-card';
 import { PageActionError } from './errors';
 import { Pace } from '@dy-apps/douyin-chrome';
 import { closeRightPanel, type RightPanel } from './right-panel';
@@ -16,10 +16,10 @@ const BALANCE_LOOK_MS = 500;
 const PANEL_SETTLE_MS = 1500;
 
 /**
- * The page, as far as sending a 小心心 needs it, the panel on the right and the download popup
- * among it. Each `waitFor…` throws when what it waits for doesn't show in time.
+ * The page, as far as sending a 小心心 needs it, the panel on the right and the popups over the
+ * page among it. Each `waitFor…` throws when what it waits for doesn't show in time.
  */
-export interface GiftPanelSurface extends RightPanel, DownloadGuide {
+export interface GiftPanelSurface extends RightPanel, PagePopups {
   /** The diamonds by the gift bar's 充值, or null when they don't show. */
   balance(): Promise<number | null>;
   /** Waits for the gift bar's 「更多」. */
@@ -57,7 +57,7 @@ export interface HeartGiftOptions {
  * balance by 充值 tells whether it went: `sent` with the diamonds left, or null when the balance
  * doesn't show; `notEnough`, having done nothing, when there's less than a diamond. Throws when the
  * balance doesn't drop after the click. The panel is closed afterwards. Before each click the
- * download popup is closed, if it shows.
+ * download popup and a streamer's card are closed, if they show.
  */
 export class HeartGift {
   private readonly now: () => number;
@@ -77,7 +77,7 @@ export class HeartGift {
     if (before !== null && before < HEART_PRICE) {
       return { result: 'notEnough', diamonds: before, price: HEART_PRICE };
     }
-    await closeDownloadGuide(surface, pace);
+    await closePopups(surface, pace);
     await closeRightPanel(surface, pace);
     await this.step(
       () => surface.waitForMore(),
@@ -106,9 +106,9 @@ export class HeartGift {
     }
   }
 
-  /** A Pace step, with the download popup closed first if it shows. */
+  /** A Pace step, with the popups over the page closed first if they show. */
   private async step(ready: () => Promise<void>, act: () => Promise<void>): Promise<void> {
-    await closeDownloadGuide(this.surface, this.pace);
+    await closePopups(this.surface, this.pace);
     await this.pace.step(ready, act);
   }
 

@@ -19,6 +19,7 @@ import { isUserMe, readUserMe, type UserMeAnswer } from '../douyin/user-me';
 import { LikeHold } from '../like-hold';
 import { PageShots } from '../page-shots';
 import { RoomEndedError } from '../errors';
+import { closeAnchorCard } from '../anchor-card';
 import { FansLamp } from '../fans-lamp';
 import { HeartGift } from '../heart-gift';
 import { PushTracker } from '../push-tracker';
@@ -39,6 +40,7 @@ export class LivePage implements RoomPage {
   private readonly shots: PageShots;
   private readonly chatBox: ChatBox;
   private readonly pace: Pace;
+  private readonly chrome: PageChrome;
   private closed = false;
   private requestedStream: string | null = null;
   private entered: Entered | null = null;
@@ -62,6 +64,7 @@ export class LivePage implements RoomPage {
       screenshot: (name) => this.shots.save(name),
     });
     const chrome = new PageChrome(page);
+    this.chrome = chrome;
     this.fansLamp = new FansLamp(new PageFansSurface(page, chrome), { pace });
     this.gifts = new PageGiftSurface(page, chrome);
     this.heartGift = new HeartGift(this.gifts, { pace });
@@ -96,6 +99,8 @@ export class LivePage implements RoomPage {
       page.mouse.click(PLAYER_CLICK.x, PLAYER_CLICK.y).catch(() => {}),
     );
     await live.checkLive();
+    // On a streamer's tile in a PK, that click opens their card, whose mask takes every click after.
+    await closeAnchorCard(live.chrome, live.pace);
     return live;
   }
 

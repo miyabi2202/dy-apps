@@ -1,5 +1,5 @@
 import type { FansLampResult } from '@dy-apps/room-feed-protocol';
-import { closeDownloadGuide, type DownloadGuide } from './download-guide';
+import { closePopups, type PagePopups } from './anchor-card';
 import { PageActionError } from './errors';
 import { Pace } from '@dy-apps/douyin-chrome';
 import { closeRightPanel, type RightPanel } from './right-panel';
@@ -16,12 +16,15 @@ const PANEL_LOOK_MS = 500;
 const PANEL_SETTLE_MS = 1500;
 
 /**
- * What the steps look for in a panel frame: the 「我知道了」 `notice` that blocks the panel, the
- * `join` button (加入粉丝团), the `relight` button (点亮, for a badge that has gone out), the `send`
+ * What the steps look for in a panel frame: the × of the `levelUp` popup (「恭喜你升到粉丝团Lv.N」)
+ * and the 「我知道了」 `notice`, which block the panel, the `join` button (加入粉丝团), the `relight` button (点亮, for a badge that has gone out), the `send`
  * button of the 灯牌, and the `sent` line that says today's 灯牌 is sent. How each is found on
  * Douyin's page is the surface's business.
  */
-export type PanelTarget = 'notice' | 'join' | 'relight' | 'send' | 'sent';
+export type PanelTarget = 'levelUp' | 'notice' | 'join' | 'relight' | 'send' | 'sent';
+
+/** What's closed whenever it shows over the panel, the level-up popup first: it sits over the notice. */
+const PANEL_BLOCKERS = ['levelUp', 'notice'] as const;
 
 /** One frame of the open 粉丝团 panel (it's Lynx, in frames of its own). */
 export interface PanelFrame {
@@ -31,8 +34,8 @@ export interface PanelFrame {
   click(target: PanelTarget): Promise<void>;
 }
 
-/** The page, as far as the 灯牌 steps need it, the panel on the right and the download popup among it. */
-export interface FansLampSurface extends RightPanel, DownloadGuide {
+/** The page, as far as the 灯牌 steps need it, the panel on the right and the popups over the page among it. */
+export interface FansLampSurface extends RightPanel, PagePopups {
   /** The diamonds by the gift bar's 充值, or null when they don't show. */
   balance(): Promise<number | null>;
   /** Whether the header's 「关注」 shows, which it does only while the streamer isn't followed. */
@@ -59,8 +62,8 @@ export interface FansLampOptions {
  * (1 diamond), sends the 灯牌. Joining or relighting is tried once, however many times the panel
  * is opened. With fewer than LAMP_PRICE diamonds it does nothing
  * and answers `notEnough`; a balance that doesn't show doesn't stop it. Every click is a Pace
- * step: what it clicks seen first, then a pause; the download popup is closed before each, if it
- * shows.
+ * step: what it clicks seen first, then a pause; the download popup and a streamer's card are closed
+ * before each, if they show.
  */
 export class FansLamp {
   private readonly now: () => number;
@@ -80,7 +83,7 @@ export class FansLamp {
     if (diamonds !== null && diamonds < LAMP_PRICE) {
       return { result: 'notEnough', diamonds, price: LAMP_PRICE };
     }
-    await closeDownloadGuide(this.surface, this.pace);
+    await closePopups(this.surface, this.pace);
     await closeRightPanel(this.surface, this.pace);
     await this.followStreamer();
     await this.joinOrRelight();
@@ -90,7 +93,7 @@ export class FansLamp {
   /** Step 1: clicks the header's 「关注」, which shows only while the streamer isn't followed. */
   private async followStreamer(): Promise<void> {
     if (!(await this.surface.followVisible())) return;
-    await closeDownloadGuide(this.surface, this.pace);
+    await closePopups(this.surface, this.pace);
     await this.pace.afterSeen(() => this.surface.clickFollow());
   }
 
@@ -115,7 +118,7 @@ export class FansLamp {
   /**
    * Step 3: clicks the 灯牌's button, or answers `already` when the panel says today's is sent
    * (the button is gone then, and the 灯牌's line greyed out). Up to FANS_PANEL_TRIES openings: a
-   * 「我知道了」 notice that doesn't go away can keep one from the 灯牌.
+   * popup or notice that doesn't go away can keep one from the 灯牌.
    */
   private async sendLamp(): Promise<'sent' | 'already'> {
     for (let i = 0; i < FANS_PANEL_TRIES; i++) {
@@ -130,6 +133,14 @@ export class FansLamp {
     throw new PageActionError('粉丝团面板里没找到送灯牌');
   }
 
+  /** The first of PANEL_BLOCKERS the frame shows, or null. */
+  private async blockerIn(frame: PanelFrame): Promise<(typeof PANEL_BLOCKERS)[number] | null> {
+    for (const target of PANEL_BLOCKERS) {
+      if (await frame.has(target)) return target;
+    }
+    return null;
+  }
+
   /** Whether the panel shows the 灯牌: its button, or that today's is sent. */
   private async showsLamp(frame: PanelFrame): Promise<boolean> {
     return (await frame.has('send')) || (await frame.has('sent'));
@@ -137,12 +148,12 @@ export class FansLamp {
 
   /**
    * Opens the 粉丝团 panel and asks `look` of each of its frames every half second, for
-   * FANS_PANEL_MS at most, closing a 「我知道了」 notice whenever one shows: what `look` found, or
-   * null. The panel is closed afterwards (see closeRightPanel).
+   * FANS_PANEL_MS at most, closing the level-up popup or a 「我知道了」 notice whenever one shows:
+   * what `look` found, or null. The panel is closed afterwards (see closeRightPanel).
    */
   private async inPanel<T>(look: (frame: PanelFrame) => Promise<T | null>): Promise<T | null> {
     const { surface, pace } = this;
-    await closeDownloadGuide(surface, pace);
+    await closePopups(surface, pace);
     await pace.step(
       () => surface.waitForPanelButton(),
       () => surface.openPanel(),
@@ -151,10 +162,11 @@ export class FansLamp {
       const until = this.now() + FANS_PANEL_MS;
       while (this.now() < until) {
         await pace.wait(PANEL_LOOK_MS);
-        await closeDownloadGuide(surface, pace);
+        await closePopups(surface, pace);
         for (const frame of surface.panelFrames()) {
-          if (await frame.has('notice')) {
-            await pace.afterSeen(() => frame.click('notice').catch(() => {}));
+          const blocker = await this.blockerIn(frame);
+          if (blocker) {
+            await pace.afterSeen(() => frame.click(blocker).catch(() => {}));
             continue;
           }
           const found = await look(frame);
