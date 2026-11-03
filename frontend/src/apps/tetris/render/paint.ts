@@ -1,8 +1,16 @@
 import { CONFIG } from '../core/config';
 import type { EffectType } from '../core/curses';
 import { createPiece, pieceCells, shapeOf } from '../core/pieces';
-import type { ActivePiece, BoardView, Cell, Matrix, PieceShape, PieceType } from '../core/types';
-import { PIECE_TINTS, type PieceTint } from './curse-styles';
+import type {
+  ActivePiece,
+  BoardView,
+  Cell,
+  Matrix,
+  NudgeView,
+  PieceShape,
+  PieceType,
+} from '../core/types';
+import { NUDGE_ICONS, PIECE_TINTS, type PieceTint } from './curse-styles';
 import type { Canvas2D } from './canvas';
 
 const { cols, rows } = CONFIG.board;
@@ -28,6 +36,9 @@ const PUFF_MS = 260;
 /** 调包: how long the promised piece shows before the swap, then how long the swap flashes. */
 const SWAP_SHOW_MS = 220;
 const SWAP_FLASH_MS = 280;
+/** 醉酒/打滑 moving the piece by itself: how long its afterimage and speed lines last, then its sign. */
+const NUDGE_MS = 450;
+const NUDGE_ICON_MS = 900;
 const GRID = 'rgba(148, 163, 184, 0.10)';
 const HIGHLIGHT = 'rgba(255,255,255,0.18)';
 
@@ -76,6 +87,7 @@ export function paintBoard(ctx: Canvas2D, view: BoardView, w: number, h: number)
   if (piece && ghostY !== null) {
     paintSwappable(ctx, piece, ghostY, view.swap?.from, swapAge, size, tint, timeMs);
   }
+  if (piece && view.nudge) paintNudge(ctx, piece, view.nudge, timeMs - view.nudge.atMs, size);
   if (view.twin && view.twinGhostY != null) {
     paintSwappable(
       ctx,
@@ -233,6 +245,70 @@ function paintSwapFlash(ctx: Canvas2D, piece: ActivePiece, size: number, k: numb
       y * size + size * 0.65,
       length * 0.6,
       Math.max(1, size * 0.08),
+    );
+  }
+  ctx.restore();
+}
+
+/**
+ * A curse moved the piece by itself: a white afterimage where it was, speed lines streaming off
+ * the side it left, and the curse's sign popping up over it, so viewers see it wasn't the player.
+ */
+function paintNudge(
+  ctx: Canvas2D,
+  piece: ActivePiece,
+  nudge: NudgeView,
+  ageMs: number,
+  size: number,
+): void {
+  if (ageMs < 0 || ageMs >= NUDGE_ICON_MS) return;
+  const cells = pieceCells(piece.matrix, piece.x, piece.y).filter(([, y]) => y >= 0);
+  if (cells.length === 0) return;
+  ctx.save();
+  if (ageMs < NUDGE_MS) {
+    const k = ageMs / NUDGE_MS;
+    // The afterimage slides after the piece as it fades.
+    ctx.fillStyle = FLASH;
+    ctx.globalAlpha = 0.5 * (1 - k);
+    const shift = -nudge.dx * (1 - k);
+    for (const [x, y] of cells) {
+      ctx.fillRect((x + shift) * size + 1, y * size + 1, size - 2, size - 2);
+    }
+    // Speed lines off each row's trailing edge.
+    ctx.globalAlpha = 0.75 * (1 - k);
+    const edges = new Map<number, number>();
+    for (const [x, y] of cells) {
+      const edge = nudge.dx > 0 ? x : x + 1;
+      const seen = edges.get(y);
+      edges.set(
+        y,
+        seen === undefined ? edge : nudge.dx > 0 ? Math.min(seen, edge) : Math.max(seen, edge),
+      );
+    }
+    for (const [y, edge] of edges) {
+      for (const [at, scale, thick] of [
+        [0.3, 1, 0.12],
+        [0.7, 0.6, 0.08],
+      ] as const) {
+        const length = size * (1 + k) * scale;
+        const x0 = nudge.dx > 0 ? edge * size - length : edge * size;
+        ctx.fillRect(x0, y * size + size * at, length, Math.max(1, size * thick));
+      }
+    }
+  }
+  const icon = NUDGE_ICONS[nudge.by];
+  if (icon) {
+    const k = ageMs / NUDGE_ICON_MS;
+    const xs = cells.map(([x]) => x);
+    const top = Math.min(...cells.map(([, y]) => y));
+    ctx.globalAlpha = k < 0.7 ? 1 : (1 - k) / 0.3;
+    ctx.font = `${Math.round(size * 1.2)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(
+      icon,
+      ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * size,
+      Math.max(size, top * size - size * 0.6 * k),
     );
   }
   ctx.restore();

@@ -127,6 +127,26 @@ describe('paintBoard', () => {
     ]);
   });
 
+  it("marks a piece a curse moved by itself: an afterimage where it was and the curse's sign over it", () => {
+    const active = { ...createPiece(shapeOf('O')), y: 5 };
+    const nudge = { atMs: 1000, by: 'drunk', dx: 1 } as const;
+    const ctx = recorder();
+    paintBoard(ctx, view({ active, ghostY: rows - 2, nudge, timeMs: 1000 }), W, H);
+    // The afterimage starts a whole column back, at the cells the piece came from.
+    expect(filledCells(ctx.calls, '#ffffff')).toEqual([
+      [3, 5],
+      [4, 5],
+      [3, 6],
+      [4, 6],
+    ]);
+    expect(ctx.texts.map(([text]) => text)).toEqual(['🍺']);
+
+    const later = recorder();
+    paintBoard(later, view({ active, ghostY: rows - 2, nudge, timeMs: 3000 }), W, H);
+    expect(filledCells(later.calls, '#ffffff')).toEqual([]);
+    expect(later.texts).toEqual([]);
+  });
+
   it('skips cells above the visible top', () => {
     const active = { ...createPiece(shapeOf('O')), y: -1 };
     const ctx = recorder();

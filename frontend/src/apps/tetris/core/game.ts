@@ -62,6 +62,7 @@ import type {
   Cell,
   GiftBatchResult,
   Matrix,
+  NudgeView,
   Phase,
   PieceShape,
   PieceType,
@@ -264,6 +265,8 @@ export class GameEngine {
   private swap: SwapView | null = null;
   /** Cells a curse dropped onto the board at the last settlement, for the board to animate. */
   private drops: { cells: [number, number][]; atMs: number } | null = null;
+  /** The falling piece's last move a curse made on its own (醉酒, 打滑), for the board to animate. */
+  private nudge: NudgeView | null = null;
   private lockMs = 0;
   private lockResets = 0;
   private logId = 0;
@@ -449,7 +452,6 @@ export class GameEngine {
     return this.blockedBy('hold') !== null;
   }
 
-  /** The first active curse that swaps left and right, if any. */
   /** Y the active piece would land at. */
   get ghostY(): number | null {
     if (!this.active) return null;
@@ -468,6 +470,7 @@ export class GameEngine {
       timeMs: this.playMs,
       swap: this.swap,
       drops: this.drops,
+      nudge: this.nudge,
       rowLabels: this.board.map((row) => this.rowNames.get(row) ?? null),
     };
   }
@@ -541,6 +544,7 @@ export class GameEngine {
     this.votes.reset();
     this.swap = null;
     this.drops = null;
+    this.nudge = null;
     this.playMs = 0;
     this.resetPieceTimers();
     this.pushLog('system', '已重新开始，触发概率保持不变。');
@@ -940,7 +944,7 @@ export class GameEngine {
     this.delayed.runDue(this.playMs);
     if (!this.canControl) return;
     for (const { type, def } of this.activeCurses) {
-      def.onTick?.(this.curseContext(), dtMs, this.effects.active[type]!.state);
+      def.onTick?.(this.curseContext(null, type), dtMs, this.effects.active[type]!.state);
     }
     if (this.isGrounded()) {
       this.gravityMs = 0;
@@ -1043,6 +1047,7 @@ export class GameEngine {
   private place(piece: ActivePiece, twin: ActivePiece | null = null): void {
     this.resetPieceTimers();
     this.twin = null;
+    this.nudge = null;
     if ([piece, twin].some((p) => p && collides(this.board, p.matrix, p.x, p.y))) {
       this.active = null;
       this.endGame('新方块的出生位置被占用');
@@ -1213,15 +1218,22 @@ export class GameEngine {
     }
   }
 
-  /** What curses get to see and do: never the engine itself. `sender` sent the one firing. */
-  private curseContext(sender: Sender | null = null): CurseContext {
+  /**
+   * What curses get to see and do: never the engine itself. `sender` sent the one firing; `by` is
+   * the curse acting on its own, whose moves the board marks as not the player's.
+   */
+  private curseContext(sender: Sender | null = null, by: EffectType | null = null): CurseContext {
     return {
       board: this.board,
       active: this.active,
       curseRng: this.curseRng,
       garbageRng: this.garbageRng,
       tryRotate: (dir) => this.active !== null && this.rotateWithKicks(this.active, dir, false),
-      tryMove: (dx) => this.active !== null && this.shift(dx),
+      tryMove: (dx) => {
+        if (this.active === null || !this.shift(dx)) return false;
+        if (by) this.nudge = { atMs: this.playMs, by, dx };
+        return true;
+      },
       trySetShape: (shape) => this.trySetShape(shape),
       upcoming: this.upcoming,
       setUpcoming: (index, type) => {

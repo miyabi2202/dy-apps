@@ -18,3 +18,12 @@ export interface PieceTint {
 export const PIECE_TINTS: Partial<Record<EffectType, PieceTint>> = {
   hasty: { color: '#ff2d95', mark: 'flare' },
 };
+
+/**
+ * The sign that pops over the falling piece when a curse moves it by itself, so viewers see the
+ * streamer didn't press anything. A curse without one still gets the afterimage and speed lines.
+ */
+export const NUDGE_ICONS: Partial<Record<EffectType, string>> = {
+  drunk: '🍺',
+  slip: '🧊',
+};

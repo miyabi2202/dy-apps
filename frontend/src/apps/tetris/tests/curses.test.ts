@@ -121,6 +121,19 @@ describe('打滑', () => {
     engine.tick(CONFIG.effects.slipIntervalMs);
     expect(engine.active!.x).toBe(1);
   });
+
+  it("marks its own slides for the board, but not the player's moves", () => {
+    const engine = startedEngine({ curseRng: constantRng(0), curses: { active: ['slip'] } });
+    setActive(engine, 'O');
+    engine.move(1);
+    expect(engine.boardView.nudge).toBeNull();
+    engine.tick(CONFIG.effects.slipIntervalMs);
+    expect(engine.boardView.nudge).toEqual({
+      atMs: CONFIG.effects.slipIntervalMs,
+      by: 'slip',
+      dx: -1,
+    });
+  });
 });
 
 describe('镜像', () => {

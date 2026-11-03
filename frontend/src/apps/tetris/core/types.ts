@@ -45,8 +45,17 @@ export interface BoardView {
   readonly swap?: SwapView | null;
   /** Board cells that dropped into place (落石) at `atMs` of play time. */
   readonly drops?: { readonly cells: readonly [number, number][]; readonly atMs: number } | null;
+  /** The falling piece's last move a curse made on its own (醉酒, 打滑), so viewers see it wasn't the player. */
+  readonly nudge?: NudgeView | null;
   /** Per board row, the name printed on it (a viewer's 垃圾行), or null. */
   readonly rowLabels?: readonly (string | null)[];
+}
+
+/** A curse moved the falling piece `dx` columns by itself at `atMs` of play time. */
+export interface NudgeView {
+  readonly by: EffectType;
+  readonly dx: -1 | 1;
+  readonly atMs: number;
 }
 
 export interface SwapView {
