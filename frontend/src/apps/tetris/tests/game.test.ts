@@ -4,6 +4,7 @@ import { CURSES } from '../core/curses';
 import { activate, locksLeft } from '../core/curses/state';
 import { GameEngine, type EngineOptions } from '../core/game';
 import { isConserved } from '../core/interventions';
+import { mvpPoints } from '../core/room/mvp-board';
 import { createPiece, shapeOf } from '../core/pieces';
 import { constantRng, sequenceRng } from '../core/random';
 import {
@@ -603,6 +604,43 @@ describe('like meter', () => {
   it('counts only during a game', () => {
     expect(new GameEngine().addLikes(a, 10)).toBe(false);
     expect(startedEngine().addLikes(a, 0)).toBe(false);
+  });
+});
+
+describe('MVP board', () => {
+  const a = { id: 'a', name: '阿杰' };
+  const b = { id: 'b', name: '小鱼' };
+
+  it("scores each viewer's fired curses by rarity, and marks whose curse ended the game", () => {
+    const engine = startedEngine({ garbageRng: constantRng(0) });
+    // One per queue, so all fire at the first settlement.
+    engine.addCurse('fog', a); // common
+    engine.addCurse('garbage', b); // rare
+    engine.addCurse('haste', a); // uncommon
+    engine.addCurse('rockfall'); // no viewer sent it: not on the board
+    dropOnEmpty(engine, ROUND);
+    expect(engine.mvp).toEqual([
+      { sender: b, points: mvpPoints('rare'), curses: 1, finalBlow: false },
+      {
+        sender: a,
+        points: mvpPoints('common') + mvpPoints('uncommon'),
+        curses: 2,
+        finalBlow: false,
+      },
+    ]);
+
+    engine.board = boardWithRows([0], [0]);
+    engine.addCurse('garbage', a);
+    dropOnEmpty(engine, ROUND - 1);
+    engine.board = boardWithRows([0], [0]);
+    setActive(engine, 'O');
+    engine.active!.x = cols - 2;
+    engine.hardDrop();
+    expect(engine.phase).toBe('gameOver');
+    expect(engine.mvp[0]).toMatchObject({ sender: a, finalBlow: true });
+
+    engine.restart();
+    expect(engine.mvp).toEqual([]);
   });
 });
 

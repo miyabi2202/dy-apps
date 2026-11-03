@@ -13,6 +13,7 @@ import { BoardNotices } from './board-notices';
 import { ViewerControl } from './viewer-control';
 import { VotePanel } from './vote-panel';
 import { CurseName } from './curse-name';
+import { MvpList } from './mvp-list';
 import { Cutscene } from './cutscene';
 
 interface Props {
@@ -352,9 +353,10 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
             <dd>{engine.score}</dd>
             <dt>消行</dt>
             <dd>{engine.lines}</dd>
-            <dt>结算次数</dt>
+            <dt>结算</dt>
             <dd>{engine.settlementCount}</dd>
           </dl>
+          <MvpList entries={engine.mvp} />
           <Button variant="primary" onClick={onRestart}>
             {labels.restart}
           </Button>
@@ -550,7 +552,7 @@ const styles = stylex.create({
   },
   overlay: {
     inset: 0,
-    padding: space.xl,
+    padding: space.sm,
     borderRadius: radius.sm,
     gap: space.md,
     alignItems: 'center',

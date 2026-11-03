@@ -52,10 +52,11 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   /** While active: the player's left and right moves are swapped. */
   mirrorsMoves?: boolean;
   /**
-   * While active: every player command (move, rotate, drop, hold) acts this many ms of play time
-   * later than pressed, in order. Ones still waiting when the piece locks act on the next.
+   * While active: each player command (move, rotate, drop, hold) acts a random 0 to this many ms
+   * of play time later than pressed, so they can act out of order. Ones still waiting when the
+   * piece locks are dropped.
    */
-  inputDelayMs?: number;
+  maxInputDelayMs?: number;
   /** While active: the board itself moves, so the room sees it at a glance. */
   boardEffect?: 'sway';
   /**
@@ -130,4 +131,9 @@ export interface CurseContext {
   trySetShape(shape: PieceShape): boolean;
   /** Replace the upcoming piece at `index` (0 is next). False if there is none there. */
   setUpcoming(index: number, type: PieceType): boolean;
+  /**
+   * Print the name of the viewer who sent this curse on board row `y`. It moves with the row and
+   * goes when the row clears. Nothing for a curse no viewer sent.
+   */
+  signRow(y: number): void;
 }

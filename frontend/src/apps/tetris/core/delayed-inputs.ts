@@ -1,6 +1,6 @@
 /**
- * The player's commands waiting out a delay (延迟), oldest first, each with when it acts. A
- * command running from here is not delayed again.
+ * The player's commands waiting out a delay (延迟), each with when it acts, soonest first: one
+ * given later can act first. A command running from here is not delayed again.
  */
 export class DelayedInputs {
   private queue: { atMs: number; run: () => void }[] = [];
@@ -9,11 +9,13 @@ export class DelayedInputs {
   /** Queues `run` for `atMs`; false while a queued command is the one running, so it acts now. */
   defer(run: () => void, atMs: number): boolean {
     if (this.running) return false;
-    this.queue.push({ atMs, run });
+    // After any due at the same time, so those keep the order they were given in.
+    const at = this.queue.findIndex((queued) => queued.atMs > atMs);
+    this.queue.splice(at === -1 ? this.queue.length : at, 0, { atMs, run });
     return true;
   }
 
-  /** Runs the commands whose time has come, in the order they were given. */
+  /** Runs the commands whose time has come, soonest first. */
   runDue(nowMs: number): void {
     while (this.queue.length > 0 && this.queue[0]!.atMs <= nowMs) {
       const { run } = this.queue.shift()!;
@@ -26,6 +28,7 @@ export class DelayedInputs {
     }
   }
 
+  /** Drops every command still waiting. */
   clear(): void {
     this.queue = [];
   }

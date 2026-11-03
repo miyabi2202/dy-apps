@@ -68,8 +68,8 @@ export const CONFIG = {
     drunkStumbleMs: 900,
     /** How often a move goes the wrong way while 醉酒. */
     drunkWrongChance: 0.3,
-    /** How late every command acts while 延迟. */
-    lagMs: 400,
+    /** While 延迟, each command acts a random 0 to this many ms late, so presses can land out of order. */
+    lagMaxMs: 1000,
     /** How often 自转 turns the piece. */
     spinIntervalMs: 500,
     /** How often 打滑 pushes the piece a column. */
@@ -107,6 +107,11 @@ export const CONFIG = {
   combo: { cancelFrom: 2 },
   /** Before the piece of a curse with `cutscene`: its name, then READY, then GO. */
   cutscene: { introMs: 1500, readyMs: 500, goMs: 500 },
+  /**
+   * Game over's MVP board: each viewer's fired curses, a curse worth 1 / its rarity's weight
+   * (rounded), and the top `shown` of them.
+   */
+  mvp: { shown: 5 },
   log: { maxEntries: 10 },
   frame: { maxDtMs: 100 },
 } as const;

@@ -1,6 +1,7 @@
 import { createBoard } from '../core/board';
 import { CONFIG } from '../core/config';
 import { scaleMatrix } from '../core/curses/giant';
+import type { GameEngine } from '../core/game';
 import { createPiece, pieceCells } from '../core/pieces';
 import { constantRng, sequenceRng } from '../core/random';
 import { dropOnEmpty, setActive, startedEngine } from './helpers';
@@ -36,6 +37,31 @@ describe('烂牌', () => {
     const n = CONFIG.effects.snakesPieces;
     const dealt = [engine.active!.type, ...engine.upcoming.slice(0, n - 1)];
     expect(dealt.every((t) => t === 'S' || t === 'Z')).toBe(true);
+  });
+});
+
+describe('垃圾行', () => {
+  /** Lock `n` O pieces in the two right-hand columns, clear of the garbage holes in column 0. */
+  function dropRight(engine: GameEngine, n: number) {
+    for (let i = 0; i < n; i += 1) {
+      setActive(engine, 'O');
+      engine.active!.x = cols - 2;
+      engine.hardDrop();
+    }
+  }
+
+  it("prints the sender's name on its row, which keeps it as later rows push it up", () => {
+    const engine = startedEngine({ garbageRng: constantRng(0) });
+    engine.addCurse('garbage', { id: 'a', name: '阿杰' });
+    dropOnEmpty(engine, ROUND - 1);
+    engine.board = createBoard();
+    dropRight(engine, 1);
+    expect(engine.boardView.rowLabels![rows - 1]).toBe('阿杰');
+
+    // One no viewer sent goes in under it, unsigned.
+    engine.addCurse('garbage');
+    dropRight(engine, ROUND);
+    expect(engine.boardView.rowLabels!.slice(rows - 2)).toEqual(['阿杰', null]);
   });
 });
 
@@ -291,30 +317,41 @@ describe('醉酒', () => {
 });
 
 describe('延迟', () => {
-  const { lagMs } = CONFIG.effects;
+  const { lagMaxMs } = CONFIG.effects;
 
-  it('acts on every command only lagMs later, in order', () => {
-    const engine = startedEngine({ curses: { active: ['lag'] } });
+  it('acts on each command a random 0 to lagMaxMs later, so a later press can act first', () => {
+    // Left waits 90% of the most, the rotation 10%, the second left half.
+    const engine = startedEngine({
+      curses: { active: ['lag'] },
+      curseRng: sequenceRng([0.9, 0.1, 0.5]),
+    });
     const x = engine.active!.x;
-    expect(engine.move(-1)).toBe(true);
+    const matrix = engine.active!.matrix;
     expect(engine.move(-1)).toBe(true);
     expect(engine.rotate(1)).toBe(true);
+    expect(engine.move(-1)).toBe(true);
     expect(engine.active!.x).toBe(x);
-    engine.tick(lagMs - 1);
-    expect(engine.active!.x).toBe(x);
-    const matrix = engine.active!.matrix;
-    engine.tick(1);
-    expect(engine.active!.x).toBe(x - 2);
+    engine.tick(lagMaxMs * 0.1);
     expect(engine.active!.matrix).not.toEqual(matrix);
+    expect(engine.active!.x).toBe(x);
+    engine.tick(lagMaxMs * 0.4);
+    expect(engine.active!.x).toBe(x - 1);
+    engine.tick(lagMaxMs * 0.4);
+    expect(engine.active!.x).toBe(x - 2);
   });
 
-  it('a late hard drop still lands, and a press still waiting acts on the next piece', () => {
-    const engine = startedEngine({ curses: { active: ['lag'] } });
+  it('a late hard drop still lands, and presses still waiting when it does are dropped', () => {
+    const engine = startedEngine({
+      curses: { active: ['lag'] },
+      curseRng: sequenceRng([0.2, 0.8]),
+    });
     engine.hardDrop();
     engine.move(-1);
-    expect(engine.lockedPieceCount).toBe(0);
-    engine.tick(lagMs);
+    engine.tick(lagMaxMs * 0.2);
     expect(engine.lockedPieceCount).toBe(1);
-    expect(engine.active!.x).toBe(createPiece(engine.active!.shape).x - 1);
+    const x = createPiece(engine.active!.shape).x;
+    expect(engine.active!.x).toBe(x);
+    engine.tick(lagMaxMs);
+    expect(engine.active!.x).toBe(x);
   });
 });

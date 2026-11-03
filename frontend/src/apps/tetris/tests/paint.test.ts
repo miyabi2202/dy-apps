@@ -19,17 +19,27 @@ interface Call {
   globalAlpha: number;
 }
 
-/** A Canvas2D that records every drawing call with the style it was made in. */
-function recorder(): Canvas2D & { calls: Call[] } {
+/** Every character measures one cell wide, so a cell fits one character. */
+const CHAR_WIDTH = SIZE;
+
+/**
+ * A Canvas2D that records every drawing call with the style it was made in, and the text it
+ * fills with where.
+ */
+function recorder(): Canvas2D & { calls: Call[]; texts: [string, number, number][] } {
   const calls: Call[] = [];
+  const texts: [string, number, number][] = [];
   const ctx = {
     calls,
+    texts,
     fillStyle: '',
     strokeStyle: '',
     globalAlpha: 1,
     lineWidth: 1,
     lineDashOffset: 0,
-  } as Canvas2D & { calls: Call[] };
+    fillText: (text: string, x: number, y: number) => texts.push([text, x, y]),
+    measureText: (text: string) => ({ width: [...text].length * CHAR_WIDTH }),
+  } as unknown as Canvas2D & { calls: Call[]; texts: [string, number, number][] };
   const ops = [
     'fillRect',
     'strokeRect',
@@ -97,6 +107,23 @@ describe('paintBoard', () => {
       [5, 0],
       [4, 1],
       [5, 1],
+    ]);
+  });
+
+  it("prints a row's name on its longest run of cells, cut short with … if it doesn't fit", () => {
+    const board = createBoard();
+    // Columns 3 to 9 are the longest run: 7 cells, room for 6 characters after the margin.
+    board[rows - 1] = board[rows - 1]!.map((_, x) => (x === 2 ? null : 'G'));
+    board[rows - 2] = board[rows - 2]!.map((_, x) => (x === 2 ? null : 'G'));
+    const rowLabels = Array.from({ length: rows }, () => null as string | null);
+    rowLabels[rows - 1] = '阿杰';
+    rowLabels[rows - 2] = '一只超级无敌大猫咪';
+    const ctx = recorder();
+    paintBoard(ctx, view({ board, rowLabels }), W, H);
+    const centre = 6.5 * SIZE;
+    expect(ctx.texts).toEqual([
+      ['一只超级无…', centre, (rows - 1.5) * SIZE + 0.5],
+      ['阿杰', centre, (rows - 0.5) * SIZE + 0.5],
     ]);
   });
 

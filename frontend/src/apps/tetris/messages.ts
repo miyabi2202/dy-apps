@@ -14,6 +14,7 @@ export const testIds = {
   gameOverSummary: 'game-over-summary',
   giftHistory: 'gift-history',
   log: 'log',
+  mvp: 'mvp',
   nextSettlement: 'next-settlement',
   likeMeter: 'like-meter',
   notice: (kind: 'cancelled' | 'combo' | 'quiet' | 'likes') => `notice-${kind}`,

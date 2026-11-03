@@ -6,7 +6,7 @@ Each layer only reaches down, never up:
 
 - `core/`: the game, with no React or DOM. `game.ts` (`GameEngine`) runs the board, pieces, settlements and whatever holds play (a cutscene, a vote), and wires the rest together. The rest knows nothing of the engine:
   - `curses/`: one file per curse, plus their registry and hooks (see [its README](core/curses/README.md)).
-  - `room/`: what the room does besides gifts, each in its own class: the like meter, votes, the quiet room, viewers' chat commands.
+  - `room/`: what the room does besides gifts, each in its own class: the like meter, votes, the quiet room, viewers' chat commands, the MVP board.
   - `interventions.ts` (pending counts, settlement queues, cancelling), `gifts.ts` (drawing curses), `cutscene-clock.ts`, `delayed-inputs.ts`.
 - `render/`: draws the board on a canvas from the engine's `BoardView`.
 - `ui/`: React panels. Most take plain views (`VoteView`, `LikeMeterView`, notices) and callbacks; only `App`, `ObsView`, `CenterPanel` and `DebugPanel` hold the engine.
@@ -22,6 +22,5 @@ The app logs to the browser console with the tag `[tetris]` (`log.ts`): the page
 
 ## TODO
 
-- Show an MVP list on game over (score = the sum of each curse's 1 / chance, taken from its rarity).
-- Luck score (MVP score / diamonds spent, then scaled with a logarithm so the values look very different), with a leaderboard showing 1st, 2nd, …, second to last, and last.
+- Luck score (MVP points / diamonds spent, then scaled with a logarithm so the values look very different), with a leaderboard showing 1st, 2nd, …, second to last, and last.
 - Extensive unit tests and integration tests.

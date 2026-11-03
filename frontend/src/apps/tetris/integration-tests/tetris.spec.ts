@@ -188,6 +188,10 @@ test('start, pause with P, resume; restart after game over empties the wall', as
       }
     });
   }
+  // 阿杰's curses fired, so they top the MVP board.
+  await expect(
+    page.getByTestId(testIds.overlay('gameOver')).getByTestId(testIds.mvp),
+  ).toContainText('阿杰');
   await page
     .getByTestId(testIds.overlay('gameOver'))
     .getByRole('button', { name: labels.restart })

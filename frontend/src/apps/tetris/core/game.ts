@@ -37,6 +37,7 @@ import {
   pendingTotal,
   previewSettlement,
   settleTeam,
+  SYSTEM_SENDER,
   takeSender,
 } from './interventions';
 import {
@@ -51,6 +52,7 @@ import { CutsceneClock, type CutsceneView } from './cutscene-clock';
 import { DelayedInputs } from './delayed-inputs';
 import { deriveSeed, mulberry32, type Rng } from './random';
 import { LikeMeter, type LikeMeterView } from './room/like-meter';
+import { MvpBoard, type MvpEntry } from './room/mvp-board';
 import { QuietRoom } from './room/quiet-room';
 import { parseViewerCommand, ViewerInputs, type ViewerInput } from './room/viewer-commands';
 import { VoteBox, type VoteView } from './room/vote-box';
@@ -58,6 +60,7 @@ import type {
   ActivePiece,
   Board,
   BoardView,
+  Cell,
   GiftBatchResult,
   Matrix,
   Phase,
@@ -239,6 +242,9 @@ export class GameEngine {
   private readonly likes = new LikeMeter();
   private readonly quiet = new QuietRoom();
   private readonly viewers = new ViewerInputs();
+  private readonly mvpBoard = new MvpBoard();
+  /** Names printed on board rows (垃圾行), keyed by the row itself so they move with it. */
+  private rowNames = new WeakMap<readonly Cell[], string>();
   private readonly delayed = new DelayedInputs();
   /** What holds play, the current one first. */
   private holds: Hold[] = [];
@@ -479,7 +485,13 @@ export class GameEngine {
       timeMs: this.playMs,
       swap: this.swap,
       drops: this.drops,
+      rowLabels: this.board.map((row) => this.rowNames.get(row) ?? null),
     };
+  }
+
+  /** The viewers whose curses fired this game, most points first. */
+  get mvp(): readonly MvpEntry[] {
+    return this.mvpBoard.standings;
   }
 
   // ---------------------------------------------------------------- phases
@@ -518,6 +530,8 @@ export class GameEngine {
     this.logState('restart');
     this.phase = 'ready';
     this.board = this.startingBoard();
+    this.rowNames = new WeakMap();
+    this.mvpBoard.reset();
     this.active = null;
     this.twin = null;
     this.hold = null;
@@ -921,18 +935,19 @@ export class GameEngine {
     return true;
   }
 
-  /** How late the player's commands act while a curse delays them (延迟); 0 when none does. */
-  get inputDelayMs(): number {
-    return Math.max(0, ...this.activeCurses.map(({ def }) => def.inputDelayMs ?? 0));
+  /** At most how late the player's commands act while a curse delays them (延迟); 0 when none does. */
+  get maxInputDelayMs(): number {
+    return Math.max(0, ...this.activeCurses.map(({ def }) => def.maxInputDelayMs ?? 0));
   }
 
   /**
-   * While a curse delays input, queues `run` to act `inputDelayMs` of play time from now and says
-   * so; the caller then does nothing yet. Not when it is that queued command acting at last.
+   * While a curse delays input, queues `run` to act a random 0 to `maxInputDelayMs` of play time
+   * from now and says so; the caller then does nothing yet. Not when it is that queued command
+   * acting at last.
    */
   private deferred(run: () => void): boolean {
-    const ms = this.inputDelayMs;
-    return ms > 0 && this.delayed.defer(run, this.playMs + ms);
+    const max = this.maxInputDelayMs;
+    return max > 0 && this.delayed.defer(run, this.playMs + this.curseRng.next() * max);
   }
 
   /** Advance the cutscene, the vote, or gravity and lock delay, by `dtMs` of foreground play time. */
@@ -1112,6 +1127,8 @@ export class GameEngine {
       return;
     }
 
+    // 延迟: presses still waiting were meant for the piece that just landed; they go with it.
+    this.delayed.clear();
     tickTimedEffects(this.effects);
     this.lockedPieceCount += 1;
     this.canHold = true;
@@ -1192,16 +1209,21 @@ export class GameEngine {
     const senders = new Map<EffectType, Sender | null>();
     let gameOver: string | undefined;
     for (const type of settleTeam(this.team, this.pool, this.queueOf)) {
-      senders.set(type, takeSender(this.team, type));
+      const sender = takeSender(this.team, type);
+      senders.set(type, sender);
       const def = this.curseByType[type]!;
+      this.mvpBoard.credit(sender, def.rarity);
       // A lasting curse is (re)activated first, so apply sees the state it keeps.
       const state =
         durationOf(def) === undefined ? def.initState?.() : activate(this.effects, type, def).state;
-      const outcome = def.apply?.(this.curseContext(), state) ?? {};
+      const outcome = def.apply?.(this.curseContext(sender), state) ?? {};
       dropped.push(...(outcome.dropped ?? []));
       report.executed.push({ type, outcome });
       gameOver = outcome.gameOver;
-      if (gameOver) break;
+      if (gameOver) {
+        this.mvpBoard.finalBlow(sender);
+        break;
+      }
     }
     this.drops = dropped.length ? { cells: dropped, atMs: this.playMs } : null;
     this.lastSettlement = report;
@@ -1223,8 +1245,8 @@ export class GameEngine {
     }
   }
 
-  /** What curses get to see and do: never the engine itself. */
-  private curseContext(): CurseContext {
+  /** What curses get to see and do: never the engine itself. `sender` sent the one firing. */
+  private curseContext(sender: Sender | null = null): CurseContext {
     return {
       board: this.board,
       active: this.active,
@@ -1238,6 +1260,10 @@ export class GameEngine {
         if (!Number.isInteger(index) || index < 0 || index >= this.upcoming.length) return false;
         this.upcoming[index] = type;
         return true;
+      },
+      signRow: (y) => {
+        const row = this.board[y];
+        if (row && sender && sender.id !== SYSTEM_SENDER.id) this.rowNames.set(row, sender.name);
       },
     };
   }

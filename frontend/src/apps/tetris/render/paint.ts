@@ -20,6 +20,7 @@ export const PIECE_COLORS: Record<PieceType | 'G', string> = {
 
 const BG = '#0b1120';
 const FLASH = '#ffffff';
+const LABEL = '#f1f5f9';
 
 /** 落石: how long a stone takes to fall, then how long its landing puff shows. */
 const DROP_MS = 380;
@@ -67,6 +68,7 @@ export function paintBoard(ctx: Canvas2D, view: BoardView, w: number, h: number)
     }),
   );
   if (view.drops) paintDrops(ctx, view.board, view.drops.cells, dropAge, size);
+  if (view.rowLabels) paintRowLabels(ctx, view.board, view.rowLabels, size);
 
   const { active: piece, ghostY } = view;
   const tint = tintFor(view.activeCurses ?? []);
@@ -136,6 +138,51 @@ function paintFalling(
     if (y >= 0) paintCell(ctx, x, y, size, color);
   }
   if (tint) paintTintMark(ctx, piece, size, tint, timeMs);
+}
+
+/**
+ * The names printed on rows (垃圾行), each centred on the row's longest run of filled cells so the
+ * hole stays clear, and cut short with … if it doesn't fit.
+ */
+function paintRowLabels(
+  ctx: Canvas2D,
+  board: BoardView['board'],
+  labels: readonly (string | null)[],
+  size: number,
+): void {
+  ctx.save();
+  ctx.font = `bold ${Math.round(size * 0.75)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = LABEL;
+  labels.forEach((label, y) => {
+    if (!label) return;
+    const [from, to] = longestRun(board[y] ?? []);
+    if (to === from) return;
+    const text = fitText(ctx, label, (to - from) * size - 4);
+    if (text) ctx.fillText(text, ((from + to) / 2) * size, (y + 0.5) * size + 0.5);
+  });
+  ctx.restore();
+}
+
+/** The longest run of filled cells in a row, as [first column, column after the last]. */
+function longestRun(row: readonly Cell[]): [number, number] {
+  let best: [number, number] = [0, 0];
+  let start = 0;
+  for (let x = 0; x <= row.length; x += 1) {
+    if (x < row.length && row[x]) continue;
+    if (x - start > best[1] - best[0]) best = [start, x];
+    start = x + 1;
+  }
+  return best;
+}
+
+/** `text`, or as much of it as fits in `width` followed by …; empty if not even that fits. */
+function fitText(ctx: Canvas2D, text: string, width: number): string {
+  if (ctx.measureText(text).width <= width) return text;
+  const chars = [...text];
+  while (chars.length > 0 && ctx.measureText(`${chars.join('')}…`).width > width) chars.pop();
+  return chars.length > 0 ? `${chars.join('')}…` : '';
 }
 
 /** Stones falling from above the board to their cells, then a puff where each lands. */
