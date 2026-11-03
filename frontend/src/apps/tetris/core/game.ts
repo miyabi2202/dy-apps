@@ -22,6 +22,7 @@ import {
 } from './curses/state';
 import {
   drawCurse,
+  drawableCurses,
   isValidBatchCount,
   isValidProbability,
   processGiftBatch,
@@ -750,7 +751,7 @@ export class GameEngine {
     if (this.phase === 'ready' || this.phase === 'gameOver') return false;
     if (!Number.isInteger(count) || count <= 0) return false;
     for (const { threshold, top } of this.likes.add(sender, count, this.playMs)) {
-      const type = drawCurse(this.likeRng, rarityBands(this.curses));
+      const type = drawCurse(this.likeRng, rarityBands(drawableCurses(this.curses, this.team)));
       const head = `点赞满 ${threshold}：${top.sender.name}（${top.likes} 赞）`;
       if (this.openVote(type, top.sender)) {
         this.team.likeCount += 1;
@@ -1280,7 +1281,7 @@ export class GameEngine {
   /** After enough settlements in a row with nothing pending, the game draws a curse itself. */
   private wakeQuietRoom(): void {
     if (!this.quiet.afterSettlement(pendingTotal(this.team))) return;
-    const type = drawCurse(this.quietRng, rarityBands(this.curses));
+    const type = drawCurse(this.quietRng, rarityBands(drawableCurses(this.curses, this.team)));
     addSystemCurse(this.team, type);
     this.pushNotice({ kind: 'quiet', type });
     this.pushLog('system', `直播间太安静，系统送出 ${this.curseByType[type]!.name}。`);

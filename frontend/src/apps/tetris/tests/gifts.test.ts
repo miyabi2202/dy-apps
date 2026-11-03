@@ -2,6 +2,7 @@ import { CONFIG } from '../core/config';
 import { CURSES } from '../core/curses';
 import { GameEngine } from '../core/game';
 import { processGiftBatch, rarityBands } from '../core/gifts';
+import { forceEffectRng } from './helpers';
 import { createTeam, isConserved, pendingTotal } from '../core/interventions';
 import { constantRng, mulberry32, sequenceRng } from '../core/random';
 import type { GiftBatchResult } from '../core/types';
@@ -65,6 +66,23 @@ describe('drawing curses', () => {
       const r = processGiftBatch(createTeam(), 'foo', 1, 1, sequenceRng([0, rarity, index]));
       expect(Object.keys(r.effects)).toEqual([expected]);
     }
+  });
+
+  it('never draws a unique curse while one is pending, even later in the same batch', () => {
+    const team = createTeam();
+    // Every diamond hits and aims at 假死; only the first can get it.
+    const r = processGiftBatch(team, 'foo', 3, 1, forceEffectRng('fakeDeath'));
+    expect(r.hits).toBe(3);
+    expect(r.effects.fakeDeath).toBe(1);
+    expect(team.pending.fakeDeath).toBe(1);
+    expect(processGiftBatch(team, 'foo', 1, 1, forceEffectRng('fakeDeath')).effects.fakeDeath).toBe(
+      undefined,
+    );
+    // Once it has fired (or been cancelled), it can be drawn again.
+    team.pending.fakeDeath = 0;
+    expect(processGiftBatch(team, 'foo', 1, 1, forceEffectRng('fakeDeath')).effects.fakeDeath).toBe(
+      1,
+    );
   });
 
   it('weights are scaled over the rarities in play', () => {

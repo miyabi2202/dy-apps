@@ -16,6 +16,7 @@ export const fakeDeath = defineCurse({
   rarity: 'uncommon',
   queue: 'a',
   disguise: 'garbage',
+  unique: true,
   ready: (ctx) =>
     stackHeight(ctx.board) >= Math.round(ctx.board.length * CONFIG.fakeDeath.fromHeight),
   apply: () => ({ fakeGameOver: '垃圾行将方块挤出顶部' }),

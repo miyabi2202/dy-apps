@@ -84,6 +84,8 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
    * A curse type; a plain string so the registry's types don't depend on themselves.
    */
   disguise?: string;
+  /** At most one pending at a time: while one waits, draws (gifts, likes, a quiet room) skip it. */
+  unique?: boolean;
   /** At settlement: false keeps it pending until a settlement where it is true. */
   ready?(ctx: CurseContext): boolean;
   /** Fresh state when the curse becomes active. */

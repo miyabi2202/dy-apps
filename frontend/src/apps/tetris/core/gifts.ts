@@ -48,6 +48,18 @@ export function rarityBands(curses: readonly CurseDef<unknown>[]): RarityBand[] 
   });
 }
 
+/**
+ * The curses a draw can pick now: all but a `unique` one that is already pending. If that leaves
+ * none (only unique curses in play), all of them.
+ */
+export function drawableCurses(
+  curses: readonly CurseDef<unknown>[],
+  team: TeamState,
+): readonly CurseDef<unknown>[] {
+  const left = curses.filter((def) => !(def.unique && team.pending[def.type] > 0));
+  return left.length > 0 ? left : curses;
+}
+
 /** Two draws: a rarity by weight, then one of its curses evenly. */
 export function drawCurse(rng: Rng, bands: readonly RarityBand[]): EffectType {
   const u = rng.next();
@@ -72,7 +84,6 @@ export function processGiftBatch(
 ): GiftBatchResult {
   if (curses.length === 0) throw new RangeError('No curses to draw from');
   const sender = typeof from === 'string' ? { id: from, name: from } : from;
-  const bands = rarityBands(curses);
   if (!isValidBatchCount(count)) throw new RangeError(`Invalid gift count: ${String(count)}`);
   const result: GiftBatchResult = {
     sender: sender.name,
@@ -91,7 +102,8 @@ export function processGiftBatch(
       result.misses += 1;
       continue;
     }
-    const type = drawCurse(rng, bands);
+    // Drawn afresh each hit: a `unique` curse drawn earlier in the batch is out now.
+    const type = drawCurse(rng, rarityBands(drawableCurses(curses, team)));
     team.hitCount += 1;
     result.hits += 1;
     if (voteOn(type, sender)) {
