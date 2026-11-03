@@ -28,6 +28,7 @@ export const testIds = {
   preview: 'preview',
   previewFog: 'preview-fog',
   speed: 'speed',
+  theft: 'theft',
   stats: 'stats',
   vote: 'vote',
   voteOption: (i: number) => `vote-option-${i}`,

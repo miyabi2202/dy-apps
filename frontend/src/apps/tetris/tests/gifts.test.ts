@@ -45,7 +45,10 @@ describe('drawing curses', () => {
     const bands = rarityBands(Object.values(CURSES));
     expect(bands.map((b) => [b.rarity, b.types])).toEqual([
       ['common', ['fog', 'seal', 'swap', 'hasty']],
-      ['uncommon', ['haste', 'snakes', 'rockfall', 'slip', 'mirror', 'drunk', 'lag', 'fakeDeath']],
+      [
+        'uncommon',
+        ['haste', 'snakes', 'rockfall', 'slip', 'mirror', 'drunk', 'lag', 'fakeDeath', 'theft'],
+      ],
       ['rare', ['garbage', 'noRotate', 'spin', 'twin', 'giant', 'possess']],
     ]);
     expect(bands[0]!.to).toBeCloseTo(commonTo);
@@ -58,7 +61,7 @@ describe('drawing curses', () => {
       [commonTo - 0.01, 0.99, 'hasty'],
       [commonTo + 0.01, 0, 'haste'],
       [uncommonTo - 0.01, 0.5, 'mirror'],
-      [uncommonTo - 0.01, 0.99, 'fakeDeath'],
+      [uncommonTo - 0.01, 0.99, 'theft'],
       [uncommonTo + 0.01, 0, 'garbage'],
       [0.99, 0.99, 'possess'],
     ];

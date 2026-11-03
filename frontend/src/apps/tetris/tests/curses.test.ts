@@ -1,9 +1,11 @@
 import { createBoard } from '../core/board';
 import { CONFIG } from '../core/config';
+import { CURSES, type CurseContext } from '../core/curses';
 import { scaleMatrix } from '../core/curses/giant';
 import type { GameEngine } from '../core/game';
 import { createPiece, pieceCells } from '../core/pieces';
 import { constantRng, sequenceRng } from '../core/random';
+import type { Board } from '../core/types';
 import { boardWithRows, dropOnEmpty, setActive, startedEngine } from './helpers';
 
 const { rows, cols } = CONFIG.board;
@@ -505,5 +507,45 @@ describe('夺舍', () => {
     expect(engine.possession).toBeNull();
     expect(ms).toBeLessThan(10 * stepMs);
     expect(engine.move(1)).toBe(true);
+  });
+});
+
+describe('小偷', () => {
+  const a = { id: 'a', name: '阿杰' };
+  const { sneakMs, grabMs, fleeMs } = CONFIG.theft;
+
+  it('waits, pending, while the board is empty', () => {
+    const ctx = (board: Board) => ({ board }) as CurseContext;
+    expect(CURSES.theft.ready!(ctx(createBoard()))).toBe(false);
+    expect(CURSES.theft.ready!(ctx(boardWithRows([rows - 1], [0])))).toBe(true);
+  });
+
+  it('holds play while it sneaks in, takes a cell from the fullest row, then plays on', () => {
+    const engine = startedEngine({ curseRng: constantRng(0) });
+    engine.addCurse('theft', a);
+    dropOnEmpty(engine, ROUND - 1);
+    // The bottom row is the fullest, with column 0 open; the O lands on top at columns 4 and 5.
+    engine.board = boardWithRows([rows - 1], [0]);
+    engine.board[rows - 2]![3] = 'T';
+    setActive(engine, 'O');
+    engine.hardDrop();
+
+    expect(engine.theft).toMatchObject({ stage: 'sneak', sender: a, x: 1, y: rows - 1, cell: 'G' });
+    expect(engine.active).toBeNull();
+    // Still on the board while the thief sneaks up to it.
+    expect(engine.board[rows - 1]![1]).toBe('G');
+    engine.move(1);
+    expect(engine.active).toBeNull();
+
+    engine.tick(sneakMs);
+    expect(engine.theft?.stage).toBe('grab');
+    expect(engine.board[rows - 1]![1]).toBeNull();
+    expect(engine.board[rows - 1]!.filter(Boolean)).toHaveLength(cols - 2);
+
+    engine.tick(grabMs);
+    expect(engine.theft?.stage).toBe('flee');
+    engine.tick(fleeMs);
+    expect(engine.theft).toBeNull();
+    expect(engine.active).not.toBeNull();
   });
 });

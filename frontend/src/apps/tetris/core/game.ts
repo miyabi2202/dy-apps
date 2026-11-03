@@ -58,6 +58,7 @@ import { LikeMeter, type LikeMeterView } from './room/like-meter';
 import { MvpBoard, type MvpEntry } from './room/mvp-board';
 import { Possession, type PossessView } from './room/possession';
 import { QuietRoom } from './room/quiet-room';
+import { TheftClock, type TheftView } from './theft-clock';
 import { VoteBox, type VoteView } from './room/vote-box';
 import type {
   ActivePiece,
@@ -177,6 +178,7 @@ type Hold =
   | { kind: 'cutscene'; clock: CutsceneClock }
   | { kind: 'vote' }
   | { kind: 'fakeDeath'; clock: FakeDeathClock }
+  | { kind: 'theft'; clock: TheftClock }
   | { kind: 'possess'; possession: Possession };
 
 export type LogKind = 'gift' | 'miss' | 'settle' | 'system';
@@ -428,6 +430,12 @@ export class GameEngine {
     if (hold?.kind !== 'fakeDeath' || hold.clock.view.stage === 'reveal') return;
     hold.clock.reveal();
     this.emit();
+  }
+
+  /** A 小偷 holding play, while one does. */
+  get theft(): TheftView | null {
+    const hold = this.holds[0];
+    return hold?.kind === 'theft' ? hold.clock.view : null;
   }
 
   /** The vote holding play, while one does. */
@@ -1073,6 +1081,10 @@ export class GameEngine {
       this.advancePossession(hold.possession, dtMs);
       return;
     }
+    if (hold?.kind === 'theft') {
+      this.advanceTheft(hold.clock, dtMs);
+      return;
+    }
     if (!this.canControl) return;
     this.playMs += dtMs;
     if (this.likes.idle(this.playMs)) {
@@ -1385,6 +1397,24 @@ export class GameEngine {
     }
   }
 
+  /**
+   * The thief sneaking in, lifting its cell off the board as it grabs, then running off. The next
+   * piece spawns once it is gone, unless a cutscene waits to spawn it.
+   */
+  private advanceTheft(clock: TheftClock, dtMs: number): void {
+    const step = clock.advance(dtMs);
+    if (step === 'done') {
+      this.holds.shift();
+      this.logState('theft over');
+      if (this.holds[0]?.kind !== 'cutscene') this.spawnNext();
+      this.emit();
+    } else if (step === 'changed') {
+      const { stage, x, y } = clock.view;
+      if (stage === 'grab') this.board[y]![x] = null;
+      this.emit();
+    }
+  }
+
   /** The names, then READY, then GO; the next piece spawns when GO is over. */
   private advanceCutscene(clock: CutsceneClock, dtMs: number): void {
     const step = clock.advance(dtMs);
@@ -1411,6 +1441,7 @@ export class GameEngine {
     const senders = new Map<EffectType, Sender | null>();
     let gameOver: string | undefined;
     let fake: { reason: string; sender: Sender | null } | null = null;
+    let theft: { at: [number, number]; sender: Sender | null } | null = null;
     const possessedBy: (Sender | null)[] = [];
     for (const type of settleTeam(this.team, this.pool, this.queueOf, this.readyNow)) {
       const sender = takeSender(this.team, type);
@@ -1425,6 +1456,7 @@ export class GameEngine {
       report.executed.push({ type, outcome });
       if (outcome.fakeGameOver) fake = { reason: outcome.fakeGameOver, sender };
       if (outcome.possess) possessedBy.push(sender);
+      if (outcome.steal) theft = { at: outcome.steal, sender };
       gameOver = outcome.gameOver;
       if (gameOver) {
         this.mvpBoard.finalBlow(sender);
@@ -1453,7 +1485,14 @@ export class GameEngine {
         shown.map(({ type }) => senders.get(type) ?? null),
       );
     }
-    // Ahead of any cutscene, so the fake death plays first and the cutscene after it.
+    if (theft) {
+      const [x, y] = theft.at;
+      const clock = new TheftClock(theft.sender, x, y, this.board[y]![x]!);
+      this.holds.unshift({ kind: 'theft', clock });
+      this.pushLog('system', `有小偷！${theft.sender?.name ?? ''} 偷走了一格。`);
+      this.logState(`theft by ${theft.sender?.name ?? 'nobody'} at ${x},${y}`);
+    }
+    // Ahead of any cutscene or 小偷, so the fake death plays first and the cutscene after it.
     if (fake) this.startFakeDeath(fake.reason, fake.sender);
   }
 

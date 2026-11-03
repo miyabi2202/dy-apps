@@ -24,6 +24,8 @@ export interface CurseOutcome {
   fakeGameOver?: string;
   /** Hand the next piece to chat (夺舍): play holds while viewers queue its moves. */
   possess?: boolean;
+  /** A thief takes board cell [x, y] (小偷): play holds while it sneaks in and runs off with it. */
+  steal?: [number, number];
 }
 
 /**

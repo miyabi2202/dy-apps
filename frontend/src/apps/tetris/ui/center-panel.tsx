@@ -18,6 +18,7 @@ import { Cutscene } from './cutscene';
 import { FakeDeathReveal } from './fake-death-reveal';
 import { PossessMagazine } from './possess-magazine';
 import { PossessPanel } from './possess-panel';
+import { TheftScene } from './theft';
 
 interface Props {
   engine: GameEngine;
@@ -330,6 +331,7 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
   }
   if (fake?.stage === 'reveal') return <FakeDeathReveal sender={fake.sender} />;
   if (engine.phase === 'playing') {
+    if (engine.theft) return <TheftScene engine={engine} theft={engine.theft} />;
     if (engine.cutscene) return <Cutscene cutscene={engine.cutscene} />;
     if (engine.possession?.stage === 'program') {
       return <PossessPanel possession={engine.possession} />;

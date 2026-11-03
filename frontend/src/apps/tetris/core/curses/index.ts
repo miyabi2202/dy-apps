@@ -15,6 +15,7 @@ import { slip } from './slip';
 import { snakes } from './snakes';
 import { spin } from './spin';
 import { swap } from './swap';
+import { theft } from './theft';
 import { twin } from './twin';
 import type { CurseDef } from './types';
 
@@ -42,6 +43,7 @@ const registry = {
   lag,
   possess,
   fakeDeath,
+  theft,
 } satisfies Record<string, CurseDef<unknown, string>>;
 
 export type EffectType = keyof typeof registry;

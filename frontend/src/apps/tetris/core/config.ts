@@ -130,6 +130,11 @@ export const CONFIG = {
     stunGravity: 0.25,
   },
   /**
+   * 小偷: play holds while the thief sneaks in from the side farther from its cell over
+   * `sneakMs`, lifts the cell out over `grabMs`, and runs out the nearer side over `fleeMs`.
+   */
+  theft: { sneakMs: 2200, grabMs: 600, fleeMs: 700 },
+  /**
    * 夺舍: play holds `programMs` while chat queues 左/右/转 for the next piece, at most `perChat`
    * from one chat and `maxSteps` in all; then the piece falls as usual running one every
    * `stepMs`, and soft-drops after the last (at the soft drop's repeat rate).
