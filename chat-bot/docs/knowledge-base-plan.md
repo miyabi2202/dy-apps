@@ -104,7 +104,7 @@ A batch job like `pnpm remember`, never during a live room. Code does the readin
 
 Modes: `pnpm learn` (the daily run), `pnpm learn <term> …` (named terms), `pnpm learn --topic games/zzz --update` (after a new version), `pnpm learn --from-transcripts`.
 
-It runs `claude -p` with `WebSearch` and `WebFetch` allowed and a small MCP server of its own (`known(term)`, `propose(entry)`), with no `Write` or `Edit`, so `propose` is the only way anything reaches disk, and it refuses an entry with no source. Drafts go to `data/knowledge/pending/<topic>/<date>.md`. An automatic review (`pnpm browse --review`, a separate web-enabled Claude pass whose verdict code checks) moves the high-confidence ones into `data/knowledge/<topic>/` or drops them; the rest wait, with its note, for a person. The bot states things confidently, so a wrong meaning is worse than none.
+It runs `claude -p` with `WebSearch` and `WebFetch` allowed and a small MCP server of its own (`known(term)`, `propose(entry)`), with no `Write` or `Edit`, so `propose` is the only way anything reaches disk, and it refuses an entry with no source. Drafts go to `data/knowledge/pending/<topic>/<date>.md`. An automatic review (`pnpm browse --review`, which every browse also ends with: a separate web-enabled Claude pass, its prompt `prompts/knowledge-review.md`) moves what it accepts into `data/knowledge/<topic>/`, merging a draft into the entry it repeats, and drops the rest; no person reviews after it. The bot states things confidently, so a wrong meaning is worse than none.
 
 ### Sources that work
 

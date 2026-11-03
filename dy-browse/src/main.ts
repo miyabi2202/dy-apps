@@ -91,7 +91,9 @@ async function main(): Promise<number> {
   const ask = claudeCli({ model: options.model });
   // Looking unknowns up on the web: only WebSearch and WebFetch.
   const askWeb = claudeCli({ model: options.model, tools: 'WebSearch,WebFetch' });
-  // Her persona and life guide, read when she reflects (chat-bot's prompts, read-only).
+  // chat-bot's prompts, read-only: the review's prompt, and her persona and life guide, read when
+  // she reflects.
+  const prompts = new FileDataStore(join(REPO_DIR, 'chat-bot', 'prompts'));
   const personas = new FileDataStore(join(REPO_DIR, 'chat-bot', 'prompts', 'personas'));
   // The to-learn list (the chat bot's browse/to-learn.md): her questions go on it, --todo learns it.
   const toLearn = new ToLearnList(bot);
@@ -177,9 +179,17 @@ async function main(): Promise<number> {
   };
 
   // The automatic review of the drafts: a web-enabled Claude of its own (Sonnet by default,
-  // --review-model), a pass apart from the one that drafted. No browser.
+  // --review-model), a pass apart from the one that drafted, with chat-bot's
+  // prompts/knowledge-review.md as its prompt. No browser.
   const reviewAsk = claudeCli({ model: options.reviewModel, tools: 'WebSearch,WebFetch' });
-  const review = new DraftReview({ bot, data, ask: reviewAsk, log, now });
+  const review = new DraftReview({
+    bot,
+    data,
+    ask: reviewAsk,
+    template: () => prompts.read('knowledge-review.md'),
+    log,
+    now,
+  });
 
   const steps: Step[] = [];
   // Once: her pending questions from the old questions.json move onto the to-learn list.
@@ -301,9 +311,16 @@ async function main(): Promise<number> {
       },
     });
   }
-  // After the browsing, so this run's drafts are reviewed too.
-  if (options.review) {
-    const folder = options.review.folder;
+  const browsed =
+    options.feed ||
+    !!options.streamer ||
+    options.topics.length > 0 ||
+    !!options.todo ||
+    !!options.knowledge;
+  // After the browsing, so this run's drafts are reviewed too: every run that browsed reviews every
+  // folder, as --review alone does.
+  if (options.review || browsed) {
+    const folder = options.review?.folder ?? null;
     steps.push({
       name: `审核草稿${folder ? ` ${folder}` : ''}`,
       run: async () => void (await review.run(folder)),
@@ -311,12 +328,6 @@ async function main(): Promise<number> {
   }
   // Last: her reflection on what the run read, when it read enough (only when it browsed). A failed
   // one is only logged.
-  const browsed =
-    options.feed ||
-    !!options.streamer ||
-    options.topics.length > 0 ||
-    !!options.todo ||
-    !!options.knowledge;
   if (browsed)
     steps.push({
       name: '感想',
