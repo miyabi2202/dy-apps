@@ -18,6 +18,8 @@ import { Cutscene } from './cutscene';
 import { FakeDeathReveal } from './fake-death-reveal';
 import { PossessMagazine } from './possess-magazine';
 import { PossessPanel } from './possess-panel';
+import { ShoveScene } from './shove-scene';
+import { Squatters } from './squatters';
 import { TheftScene } from './theft';
 
 interface Props {
@@ -182,6 +184,7 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
             role="img"
             {...stylex.props(styles.board, styles.boardShape(CONFIG.board.cols, CONFIG.board.rows))}
           />
+          <Squatters squatters={engine.boardView.squatters ?? []} />
           <Overlay engine={engine} onRestart={onRestart} />
           {engine.possession && engine.possession.stage !== 'program' && (
             <PossessMagazine possession={engine.possession} />
@@ -332,6 +335,7 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
   if (fake?.stage === 'reveal') return <FakeDeathReveal sender={fake.sender} />;
   if (engine.phase === 'playing') {
     if (engine.theft) return <TheftScene engine={engine} theft={engine.theft} />;
+    if (engine.shoving) return <ShoveScene engine={engine} shove={engine.shoving} />;
     if (engine.cutscene) return <Cutscene cutscene={engine.cutscene} />;
     if (engine.possession?.stage === 'program') {
       return <PossessPanel possession={engine.possession} />;

@@ -53,6 +53,10 @@ export interface BoardView {
   readonly callout?: CalloutView | null;
   /** Per board row, the name printed on it (a viewer's 垃圾行), or null. */
   readonly rowLabels?: readonly (string | null)[];
+  /** The board passes itself off as a spreadsheet (摸鱼). */
+  readonly excel?: boolean;
+  /** Cells held by 钉子户, drawn over the board with their faces. */
+  readonly squatters?: readonly SquatterView[];
 }
 
 /** The stack is in danger: `level` from 0 (just in) to 1 (at the top), last beat at `beatAtMs`. */
@@ -77,6 +81,19 @@ export interface NudgeView {
   readonly by: EffectType;
   readonly dx: -1 | 1;
   readonly atMs: number;
+}
+
+/**
+ * A 钉子户 where the board shows it, with the sender's face. Its cell blocks pieces, and its row
+ * never clears while it is there.
+ */
+export interface SquatterView {
+  readonly id: number;
+  readonly x: number;
+  readonly y: number;
+  readonly sender: Sender | null;
+  /** Cells stacked straight on top of it so far; it leaves at `nailBuryDepth`. */
+  readonly buried: number;
 }
 
 export interface SwapView {

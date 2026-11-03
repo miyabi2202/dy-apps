@@ -41,6 +41,17 @@ const SWAP_FLASH_MS = 280;
 /** 醉酒/打滑 moving the piece by itself: how long its afterimage and speed lines last, then its sign. */
 const NUDGE_MS = 450;
 const NUDGE_ICON_MS = 900;
+/** 摸鱼's spreadsheet: the sheet, its grid and headers, filled cells and the selected piece. */
+const SHEET = {
+  bg: '#ffffff',
+  grid: '#d4d4d4',
+  header: '#f3f3f3',
+  headerText: '#6b7280',
+  cell: '#f1f5f9',
+  text: '#1f2937',
+  select: '#217346',
+  selectFill: 'rgba(33, 115, 70, 0.16)',
+};
 /** Danger: the red glow's colour, and how long it flares after each heartbeat. */
 const DANGER = '#ef4444';
 const BEAT_MS = 450;
@@ -66,6 +77,12 @@ function paintCell(ctx: Canvas2D, x: number, y: number, size: number, color: str
 /** The board, its locked cells, the ghost and the active piece, in a `w` × `h` area. */
 export function paintBoard(ctx: Canvas2D, view: BoardView, w: number, h: number): void {
   const size = Math.min(w / cols, h / rows);
+  const timeMs = view.timeMs ?? 0;
+  if (view.excel) {
+    paintSheet(ctx, view, w, h, size);
+    if (view.callout) paintCallout(ctx, view.callout, timeMs - view.callout.atMs, size);
+    return;
+  }
 
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, w, h);
@@ -84,7 +101,6 @@ export function paintBoard(ctx: Canvas2D, view: BoardView, w: number, h: number)
     ctx.stroke();
   }
 
-  const timeMs = view.timeMs ?? 0;
   const dropAge = view.drops ? timeMs - view.drops.atMs : Infinity;
   const falling = new Set(dropAge < DROP_MS ? view.drops!.cells.map(([x, y]) => `${x},${y}`) : []);
   view.board.forEach((row, y) =>
@@ -98,7 +114,7 @@ export function paintBoard(ctx: Canvas2D, view: BoardView, w: number, h: number)
   const { active: piece, ghostY } = view;
   const tint = tintFor(view.activeCurses ?? []);
   const swapAge = view.swap ? timeMs - view.swap.atMs : Infinity;
-  if (piece && ghostY !== null) {
+  if (piece) {
     paintSwappable(ctx, piece, ghostY, view.swap?.from, swapAge, size, tint, timeMs);
   }
   if (piece && view.nudge) paintNudge(ctx, piece, view.nudge, timeMs - view.nudge.atMs, size);
@@ -192,7 +208,7 @@ function paintCallout(ctx: Canvas2D, callout: CalloutView, ageMs: number, size: 
 function paintSwappable(
   ctx: Canvas2D,
   piece: ActivePiece,
-  ghostY: number,
+  ghostY: number | null,
   from: PieceType | undefined,
   swapAge: number,
   size: number,
@@ -212,23 +228,28 @@ function paintSwappable(
   }
 }
 
-/** A falling piece: its ghost where it would land, then the piece, marked if a curse tints it. */
+/**
+ * A falling piece: its ghost where it would land (none while something else moves it, 热心), then
+ * the piece, marked if a curse tints it.
+ */
 function paintFalling(
   ctx: Canvas2D,
   piece: ActivePiece,
-  ghostY: number,
+  ghostY: number | null,
   size: number,
   tint: PieceTint | undefined,
   timeMs: number,
 ): void {
   const color = tint?.color ?? PIECE_COLORS[piece.type];
-  ctx.strokeStyle = color;
-  ctx.globalAlpha = 0.55;
-  ctx.lineWidth = 2;
-  for (const [x, y] of pieceCells(piece.matrix, piece.x, ghostY)) {
-    if (y >= 0) ctx.strokeRect(x * size + 2, y * size + 2, size - 4, size - 4);
+  if (ghostY !== null) {
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 2;
+    for (const [x, y] of pieceCells(piece.matrix, piece.x, ghostY)) {
+      if (y >= 0) ctx.strokeRect(x * size + 2, y * size + 2, size - 4, size - 4);
+    }
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
   for (const [x, y] of pieceCells(piece.matrix, piece.x, piece.y)) {
     if (y >= 0) paintCell(ctx, x, y, size, color);
   }
@@ -393,6 +414,66 @@ function paintNudge(
       ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * size,
       Math.max(size, top * size - size * 0.6 * k),
     );
+  }
+  ctx.restore();
+}
+
+/**
+ * 摸鱼: the board as a spreadsheet. Column letters across the top row, filled cells as plain
+ * cells with numbers in them, the falling pieces as the selection; no colours, no ghost.
+ */
+function paintSheet(ctx: Canvas2D, view: BoardView, w: number, h: number, size: number): void {
+  ctx.save();
+  ctx.fillStyle = SHEET.bg;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = SHEET.header;
+  ctx.fillRect(0, 0, cols * size, size);
+  ctx.strokeStyle = SHEET.grid;
+  ctx.lineWidth = 1;
+  for (let c = 1; c < cols; c += 1) {
+    ctx.beginPath();
+    ctx.moveTo(c * size + 0.5, 0);
+    ctx.lineTo(c * size + 0.5, rows * size);
+    ctx.stroke();
+  }
+  for (let r = 1; r < rows; r += 1) {
+    ctx.beginPath();
+    ctx.moveTo(0, r * size + 0.5);
+    ctx.lineTo(cols * size, r * size + 0.5);
+    ctx.stroke();
+  }
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `${Math.round(size * 0.5)}px system-ui, sans-serif`;
+  ctx.fillStyle = SHEET.headerText;
+  for (let c = 0; c < cols; c += 1) {
+    ctx.fillText(String.fromCharCode(65 + c), (c + 0.5) * size, size / 2);
+  }
+  ctx.font = `${Math.round(size * 0.42)}px ui-monospace, monospace`;
+  view.board.forEach((row, y) =>
+    row.forEach((cell, x) => {
+      if (!cell) return;
+      ctx.fillStyle = SHEET.cell;
+      ctx.fillRect(x * size + 1, y * size + 1, size - 1, size - 1);
+      ctx.fillStyle = SHEET.text;
+      // Any number will do, as long as it stays put.
+      ctx.fillText(
+        String((((x + 3) * 37 + (y + 5) * 53) % 90) + 10),
+        (x + 0.5) * size,
+        (y + 0.5) * size,
+      );
+    }),
+  );
+  ctx.lineWidth = 2;
+  for (const piece of [view.active, view.twin]) {
+    if (!piece) continue;
+    for (const [x, y] of pieceCells(piece.matrix, piece.x, piece.y)) {
+      if (y < 0) continue;
+      ctx.fillStyle = SHEET.selectFill;
+      ctx.fillRect(x * size, y * size, size, size);
+      ctx.strokeStyle = SHEET.select;
+      ctx.strokeRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    }
   }
   ctx.restore();
 }

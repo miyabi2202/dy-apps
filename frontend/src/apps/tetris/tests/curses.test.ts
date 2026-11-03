@@ -549,3 +549,133 @@ describe('小偷', () => {
     expect(engine.active).not.toBeNull();
   });
 });
+
+/** Plays out a cutscene that holds the next piece. */
+const skipCutscene = (engine: GameEngine) => {
+  const { introMs, readyMs, goMs } = CONFIG.cutscene;
+  engine.tick(introMs + readyMs + goMs);
+};
+
+/** Hard-drops an O with its left column at `x`. */
+const dropO = (engine: GameEngine, x: number) => {
+  setActive(engine, 'O');
+  engine.active!.x = x;
+  engine.hardDrop();
+};
+
+describe('钉子户', () => {
+  const a = { id: 'a', name: '阿杰' };
+
+  it('lands on a column; its row never clears until cells stack on it, then it moves out', () => {
+    const engine = startedEngine({ curseRng: constantRng(0) });
+    engine.addCurse('nail', a);
+    dropOnEmpty(engine, ROUND - 1);
+    engine.board = createBoard();
+    dropO(engine, 4);
+    expect(engine.cutscene?.curses.map((def) => def.type)).toEqual(['nail']);
+    expect(engine.boardView.squatters).toEqual([
+      { id: 1, x: 0, y: rows - 1, sender: a, buried: 0 },
+    ]);
+    expect(engine.board[rows - 1]![0]).toBe('G');
+    skipCutscene(engine);
+
+    // The bottom row fills up, nail and all, and stays.
+    for (let x = 1; x < 4; x += 1) engine.board[rows - 1]![x] = 'G';
+    for (let x = 6; x < 8; x += 1) engine.board[rows - 1]![x] = 'G';
+    dropO(engine, 8);
+    expect(engine.board[rows - 1]!.every(Boolean)).toBe(true);
+    expect(engine.lines).toBe(0);
+
+    // Two cells on it, then an O: buried three deep, it moves out and the row clears.
+    engine.board[rows - 2]![0] = 'G';
+    engine.board[rows - 3]![0] = 'G';
+    expect(engine.boardView.squatters?.[0]?.buried).toBe(2);
+    dropO(engine, 0);
+    expect(engine.boardView.squatters).toEqual([]);
+    expect(engine.lines).toBe(1);
+    expect(engine.notices.at(-1)).toMatchObject({ kind: 'reveal', type: 'nail', sender: a });
+  });
+});
+
+describe('画饼', () => {
+  const a = { id: 'a', name: '阿杰' };
+
+  it('shows I in the preview after the next piece, and each spawns as its real S or Z', () => {
+    const engine = startedEngine();
+    engine.addCurse('pie', a);
+    dropOnEmpty(engine, ROUND);
+    const { piePieces } = CONFIG.effects;
+    expect(engine.preview.slice(0, piePieces)).toEqual(Array(piePieces).fill('I'));
+    const real = engine.upcoming.slice(0, piePieces);
+    expect(real.every((type) => type === 'S' || type === 'Z')).toBe(true);
+
+    dropOnEmpty(engine, 1);
+    expect(engine.active!.type).toBe(real[0]);
+    expect(engine.boardView.swap).toMatchObject({ from: 'I' });
+    expect(engine.notices.at(-1)).toMatchObject({ kind: 'reveal', type: 'pie', sender: a });
+    expect(engine.preview.slice(0, piePieces - 1)).toEqual(Array(piePieces - 1).fill('I'));
+
+    dropOnEmpty(engine, piePieces);
+    expect(engine.preview[0]).toBe(engine.upcoming[0]);
+  });
+});
+
+describe('热心', () => {
+  const { enterMs, pushMs, dropMs, thanksMs } = CONFIG.shove;
+  /** Plays the helper's whole shove; the piece locks at the end. */
+  const playShove = (engine: GameEngine) => engine.tick(enterMs + pushMs + dropMs + thanksMs);
+
+  it('holds play while it shoves the locking piece a column over, the other way when blocked', () => {
+    const engine = startedEngine({ curses: { active: ['helper'] }, curseRng: constantRng(0) });
+    dropO(engine, 0);
+    // Left is the wall, so it goes right; nothing has locked yet.
+    expect(engine.shoving).toMatchObject({ stage: 'enter', from: { x: 0 }, to: { x: 1 } });
+    expect(engine.board[rows - 1]!.every((cell) => cell === null)).toBe(true);
+    expect(engine.notices.at(-1)).toMatchObject({ kind: 'reveal', type: 'helper' });
+    expect(engine.move(1)).toBe(false);
+    expect(engine.boardView.ghostY).toBeNull();
+
+    engine.tick(enterMs + pushMs / 2);
+    expect(engine.shoving?.stage).toBe('push');
+    expect(engine.boardView.active!.x).toBeCloseTo(0.5);
+
+    playShove(engine);
+    expect(engine.shoving).toBeNull();
+    expect(engine.board[rows - 1]!.slice(0, 3)).toEqual([null, 'O', 'O']);
+    expect(engine.lockedPieceCount).toBe(1);
+    expect(engine.active).not.toBeNull();
+  });
+
+  it('lifts a piece snug in a gap out of it, and shoves it over', () => {
+    const engine = startedEngine({ curses: { active: ['helper'] }, curseRng: constantRng(0) });
+    engine.board = boardWithRows([rows - 2, rows - 1], [4, 5]);
+    dropO(engine, 4);
+    expect(engine.shoving).toMatchObject({ liftY: rows - 4, to: { x: 3, y: rows - 4 } });
+    playShove(engine);
+    // Lifted out of its slot and shoved left, it lands on the stack beside it.
+    expect(engine.board[rows - 1]![4]).toBeNull();
+    expect(engine.board[rows - 3]!.slice(3, 5)).toEqual(['O', 'O']);
+    expect(engine.board[rows - 4]!.slice(3, 5)).toEqual(['O', 'O']);
+  });
+
+  it('drops a shoved piece to rest', () => {
+    const engine = startedEngine({ curses: { active: ['helper'] }, curseRng: constantRng(0) });
+    engine.board[rows - 1]![5] = 'G';
+    dropO(engine, 4);
+    playShove(engine);
+    // It sat on the cell at column 5; shoved left, off it, it falls to the floor.
+    expect(engine.board[rows - 1]!.slice(3, 6)).toEqual(['O', 'O', 'G']);
+    expect(engine.board[rows - 2]!.slice(3, 5)).toEqual(['O', 'O']);
+  });
+});
+
+describe('摸鱼', () => {
+  it('shows the board as a spreadsheet for a round', () => {
+    const engine = startedEngine({ curses: { active: ['slack'] } });
+    expect(engine.boardView.excel).toBe(true);
+    dropOnEmpty(engine, ROUND - 1);
+    expect(engine.boardView.excel).toBe(true);
+    dropOnEmpty(engine, 1);
+    expect(engine.boardView.excel).toBe(false);
+  });
+});

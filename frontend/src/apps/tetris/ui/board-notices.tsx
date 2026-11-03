@@ -23,8 +23,8 @@ const strike = stylex.keyframes({
 
 /**
  * Short notices over the top of the board that don't stop play: a curse the player cancelled
- * by clearing lines or with a combo, one the game drew because the room was quiet, or one the
- * full like meter drew. Each animates once, when it is new. During a cutscene they move to the bottom, clear of
+ * by clearing lines or with a combo, one the game drew because the room was quiet, one the
+ * full like meter drew, or one showing itself mid-play (画饼, 热心, a 钉子户 moving out). Each animates once, when it is new. During a cutscene they move to the bottom, clear of
  * the banner.
  */
 export function BoardNotices({
@@ -53,7 +53,9 @@ function Notice({ notice, def }: { notice: BoardNotice; def: CurseDef<unknown> }
     combo: { headline: `连击 ×${notice.combo}！`, lead: '抵消 ', look: styles.combo },
     quiet: { headline: '太安静了…', lead: '系统送出 ', look: styles.quiet },
     likes: { headline: `点赞满 ${notice.likes}！`, lead: '', look: styles.likes },
+    reveal: { headline: `${def.name}！`, lead: '', look: styles.reveal },
   }[notice.kind];
+  const reveal = notice.kind === 'reveal';
   return (
     <div {...stylex.props(styles.notice, look)} data-testid={testIds.notice(notice.kind)}>
       <span {...stylex.props(styles.headline)}>{headline}</span>
@@ -64,13 +66,17 @@ function Notice({ notice, def }: { notice: BoardNotice; def: CurseDef<unknown> }
           xstyle={styles.sender}
         />
       )}
-      <span>
-        {lead}
-        <span {...stylex.props(styles.name)}>
-          <CurseName def={def} />
-          {cancelled && <span aria-hidden {...stylex.props(styles.strike)} />}
+      {reveal ? (
+        <span {...stylex.props(styles.text)}>{notice.text ?? def.tagline}</span>
+      ) : (
+        <span>
+          {lead}
+          <span {...stylex.props(styles.name)}>
+            <CurseName def={def} />
+            {cancelled && <span aria-hidden {...stylex.props(styles.strike)} />}
+          </span>
         </span>
-      </span>
+      )}
     </div>
   );
 }
@@ -122,6 +128,15 @@ const styles = stylex.create({
     borderColor: '#ff5fa2',
     backgroundColor: `color-mix(in srgb, #ff5fa2 22%, ${colors.bg})`,
     boxShadow: '0 0 16px color-mix(in srgb, #ff5fa2 60%, transparent)',
+  },
+  /** A curse showing itself mid-play: it got you. */
+  reveal: {
+    borderColor: colors.danger,
+    backgroundColor: `color-mix(in srgb, ${colors.danger} 22%, ${colors.bg})`,
+    boxShadow: `0 0 16px color-mix(in srgb, ${colors.danger} 60%, transparent)`,
+  },
+  text: {
+    fontWeight: 700,
   },
   quiet: {
     borderColor: colors.warn,

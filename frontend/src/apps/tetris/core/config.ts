@@ -48,6 +48,7 @@ export const CONFIG = {
     mirrorRounds: 2,
     drunkRounds: 1,
     lagRounds: 1,
+    slackRounds: 1,
     /** Locked pieces one firing lasts, for the curses with a cutscene. */
     noRotateLocks: 1,
     spinLocks: 1,
@@ -73,6 +74,12 @@ export const CONFIG = {
     slipIntervalMs: 700,
     /** Upcoming pieces 烂牌 turns into S or Z. */
     snakesPieces: 3,
+    /** Upcoming pieces 画饼 shows as I in the preview while they are really S or Z. */
+    piePieces: 3,
+    /** Locked pieces 热心 shoves. */
+    helperLocks: 1,
+    /** Cells stacked straight on top of a 钉子户 before it takes the money and moves out. */
+    nailBuryDepth: 3,
     /** Stones one 落石 drops: from 1 to this many. */
     rockfallMax: 2,
   },
@@ -134,6 +141,12 @@ export const CONFIG = {
    * `sneakMs`, lifts the cell out over `grabMs`, and runs out the nearer side over `fleeMs`.
    */
   theft: { sneakMs: 2200, grabMs: 600, fleeMs: 700 },
+  /**
+   * 热心: play holds while the helper pops up beside the piece over `enterMs`, pushes it a column
+   * over (out of its gap first, if it was snug) over `pushMs`, it drops over `dropMs`, and the
+   * helper gives a thumbs up for `thanksMs`.
+   */
+  shove: { enterMs: 450, pushMs: 700, dropMs: 300, thanksMs: 1000 },
   /**
    * 夺舍: play holds `programMs` while chat queues 左/右/转 for the next piece, at most `perChat`
    * from one chat and `maxSteps` in all; then the piece falls as usual running one every

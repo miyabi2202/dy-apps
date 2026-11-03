@@ -58,6 +58,7 @@ import { LikeMeter, type LikeMeterView } from './room/like-meter';
 import { MvpBoard, type MvpEntry } from './room/mvp-board';
 import { Possession, type PossessView } from './room/possession';
 import { QuietRoom } from './room/quiet-room';
+import { ShoveClock, shovedAt, type ShoveView } from './shove-clock';
 import { TheftClock, type TheftView } from './theft-clock';
 import { VoteBox, type VoteView } from './room/vote-box';
 import type {
@@ -74,6 +75,7 @@ import type {
   PieceShape,
   PieceType,
   Sender,
+  SquatterView,
   SwapView,
   TeamState,
 } from './types';
@@ -143,12 +145,14 @@ export interface ActiveCurseView {
 
 /**
  * Something the board shows briefly over play: a pending curse the player cancelled by clearing
- * lines or with a combo, one the game drew because the room was quiet, or one the full like
- * meter drew.
+ * lines or with a combo, one the game drew because the room was quiet, one the full like meter
+ * drew, or one showing itself mid-play (画饼, 热心, a 钉子户 moving out).
  */
 export interface BoardNotice {
   id: number;
-  kind: 'cancelled' | 'combo' | 'quiet' | 'likes';
+  kind: 'cancelled' | 'combo' | 'quiet' | 'likes' | 'reveal';
+  /** What a 'reveal' says under the curse's name; its tagline if unset. */
+  text?: string;
   type: EffectType;
   /** Lines cleared at once, for 'cancelled'. */
   lines?: number;
@@ -179,6 +183,7 @@ type Hold =
   | { kind: 'vote' }
   | { kind: 'fakeDeath'; clock: FakeDeathClock }
   | { kind: 'theft'; clock: TheftClock }
+  | { kind: 'shove'; clock: ShoveClock; piece: ActivePiece }
   | { kind: 'possess'; possession: Possession };
 
 export type LogKind = 'gift' | 'miss' | 'settle' | 'system';
@@ -201,6 +206,14 @@ export type GiftHistoryEntry = GiftBatchResult & { id: number };
 export type GiftResponse = { ok: true; result: GiftBatchResult } | { ok: false; error: string };
 
 type Listener = () => void;
+
+/** A 钉子户 holding a board cell; their row is the row itself, so they move with it. */
+interface Squatter {
+  id: number;
+  row: Cell[];
+  x: number;
+  sender: Sender | null;
+}
 
 /** The lowest row a piece has a cell in. */
 function bottomOf(p: ActivePiece): number {
@@ -288,6 +301,24 @@ export class GameEngine {
   private danger: DangerView | null = null;
   /** The last line clear worth shouting about, for the board to show. */
   private callout: CalloutView | null = null;
+  /** Who holds board cells (钉子户). */
+  private squatters: Squatter[] = [];
+  private squatterId = 0;
+  /**
+   * 画饼: the preview shows `count` pieces from upcoming index `from` on as `shown`, whatever they
+   * really are.
+   */
+  private promise: {
+    shown: PieceType;
+    from: number;
+    count: number;
+    sender: Sender | null;
+    told: boolean;
+  } | null = null;
+  /** The piece 热心 has shoved, so it locks the next time without another. */
+  private shoved: ActivePiece | null = null;
+  /** Who sent each curse that fired last, for lasting ones that show themselves later (热心). */
+  private readonly firedBy = new Map<EffectType, Sender | null>();
   private lockMs = 0;
   private lockResets = 0;
   private logId = 0;
@@ -432,6 +463,12 @@ export class GameEngine {
     this.emit();
   }
 
+  /** 热心 holding play as it shoves a piece, while it does. */
+  get shoving(): ShoveView | null {
+    const hold = this.holds[0];
+    return hold?.kind === 'shove' ? hold.clock.view : null;
+  }
+
   /** A 小偷 holding play, while one does. */
   get theft(): TheftView | null {
     const hold = this.holds[0];
@@ -487,8 +524,14 @@ export class GameEngine {
     return CONFIG.gravity.baseMs / this.gravityIntervalMs;
   }
 
+  /** What the preview shows: the queue, with any pieces 画饼 promises as something else. */
   get preview(): PieceType[] {
-    return this.upcoming.slice(0, CONFIG.sequence.visiblePreview);
+    const { promise } = this;
+    return this.upcoming
+      .slice(0, CONFIG.sequence.visiblePreview)
+      .map((type, i) =>
+        promise && i >= promise.from && i < promise.from + promise.count ? promise.shown : type,
+      );
   }
 
   /** Active curses in the order of `curses`. */
@@ -536,8 +579,9 @@ export class GameEngine {
   get boardView(): BoardView {
     return {
       board: this.board,
-      active: this.active,
-      ghostY: this.ghostY,
+      // While 热心 pushes it, the piece is where the push has got to, with nowhere to aim.
+      active: this.shoving ? { ...this.active!, ...shovedAt(this.shoving) } : this.active,
+      ghostY: this.shoving ? null : this.ghostY,
       twin: this.twin,
       twinGhostY: this.twin && this.twin.y + this.dropDistance(this.twin),
       activeCurses: this.activeCurses.map((a) => a.type),
@@ -548,8 +592,21 @@ export class GameEngine {
       danger: this.danger,
       callout: this.callout,
       rowLabels: this.board.map((row) => this.rowNames.get(row) ?? null),
+      excel: this.activeCurses.some(({ def }) => def.boardEffect === 'excel'),
       ...this.fakeBoard,
+      squatters: this.squattersOn(this.fakeBoard?.board ?? this.board),
     };
+  }
+
+  /** The squatters where `board` shows their rows. */
+  private squattersOn(board: Board): SquatterView[] {
+    return this.squatters.flatMap(({ id, row, x, sender }) => {
+      const y = board.indexOf(row);
+      if (y === -1) return [];
+      let buried = 0;
+      while (buried < y && board[y - buried - 1]![x] !== null) buried += 1;
+      return [{ id, x, y, sender, buried }];
+    });
   }
 
   /** The viewers whose curses fired this game, most points first. */
@@ -657,6 +714,10 @@ export class GameEngine {
     this.swap = null;
     this.drops = null;
     this.nudge = null;
+    this.shoved = null;
+    this.squatters = [];
+    this.promise = null;
+    this.firedBy.clear();
     this.heartbeat.reset();
     this.stunned = false;
     this.possessing = null;
@@ -1010,7 +1071,7 @@ export class GameEngine {
     const pair = this.twin !== null;
     if (pair && bottomOf(this.twin!) > bottomOf(this.active!)) this.swapTwin();
     this.dropAndLock();
-    if (pair && this.phase === 'playing') this.dropAndLock();
+    if (pair && this.phase === 'playing' && this.holds.length === 0) this.dropAndLock();
   }
 
   private dropAndLock(): void {
@@ -1085,6 +1146,10 @@ export class GameEngine {
       this.advanceTheft(hold.clock, dtMs);
       return;
     }
+    if (hold?.kind === 'shove') {
+      this.advanceShove(hold, dtMs);
+      return;
+    }
     if (!this.canControl) return;
     this.playMs += dtMs;
     if (this.likes.idle(this.playMs)) {
@@ -1124,7 +1189,10 @@ export class GameEngine {
     }
     const pair = this.twin !== null;
     this.lockPiece();
-    if (pair && this.phase === 'playing' && this.restsOnBoard(this.active!)) this.lockPiece();
+    // Not while 热心 holds the first: the pair goes on once it has locked.
+    if (pair && this.phase === 'playing' && this.holds.length === 0) {
+      if (this.restsOnBoard(this.active!)) this.lockPiece();
+    }
   }
 
   // ---------------------------------------------------------------- spawning & locking
@@ -1161,7 +1229,7 @@ export class GameEngine {
 
   /** The next piece from the queue, through the curses' onSpawn hooks; two side by side while a curse spawns pairs. */
   private spawnNext(): void {
-    const type = this.upcoming[0]!;
+    const type = this.preview[0] ?? this.upcoming[0]!;
     const piece = this.takeFromQueue();
     const from = piece.type === type ? undefined : type;
     this.swap = from ? { from, atMs: this.playMs } : null;
@@ -1169,7 +1237,7 @@ export class GameEngine {
       this.place(piece);
       return;
     }
-    const twinType = this.upcoming[0]!;
+    const twinType = this.preview[0] ?? this.upcoming[0]!;
     const twin = this.takeFromQueue();
     if (twin.type !== twinType) this.swap = { from, twinFrom: twinType, atMs: this.playMs };
     const middle = CONFIG.board.cols / 2;
@@ -1181,6 +1249,7 @@ export class GameEngine {
   private takeFromQueue(): ActivePiece {
     const type = this.upcoming.shift()!;
     this.fillUpcoming();
+    this.keepPromise(type);
     let piece = createPiece(shapeOf(type));
     for (const { type: curse, def } of this.activeCurses) {
       if (def.onSpawn) {
@@ -1188,6 +1257,27 @@ export class GameEngine {
       }
     }
     return piece;
+  }
+
+  /** 画饼: a promised piece leaves the queue; the first that isn't what was promised gives it away. */
+  private keepPromise(type: PieceType): void {
+    const promise = this.promise;
+    if (!promise) return;
+    if (promise.from > 0) {
+      promise.from -= 1;
+      return;
+    }
+    promise.count -= 1;
+    if (promise.count === 0) this.promise = null;
+    if (type === promise.shown || promise.told) return;
+    promise.told = true;
+    this.pushNotice({
+      kind: 'reveal',
+      type: 'pie',
+      sender: promise.sender,
+      text: `${this.curseByType.pie?.tagline ?? ''}（仅供参考）`,
+    });
+    this.logState(`pie revealed: ${type}`);
   }
 
   /** A hold swap or a scenario's first piece: spawned unrotated, and no curse sees it. */
@@ -1216,10 +1306,10 @@ export class GameEngine {
   private lockPiece(): void {
     const piece = this.active;
     if (!piece || this.phase !== 'playing') return;
+    if (this.startShove(piece)) return;
     this.active = null;
     const twin = this.twin;
     this.twin = null;
-
     const cells = pieceCells(piece.matrix, piece.x, piece.y);
     if (cells.some(([, y]) => y < 0)) {
       this.endGame('方块锁定在可见区域顶部之外');
@@ -1227,9 +1317,12 @@ export class GameEngine {
       return;
     }
     for (const [x, y] of cells) this.board[y]![x] = piece.type;
+    this.moveOutBuriedNails();
 
-    const full = this.board.flatMap((row, y) => (row.every(Boolean) ? [y] : []));
-    const cleared = clearFullLines(this.board);
+    const held = new Set(this.squatters.map(({ row }) => row));
+    const stays = (row: readonly Cell[]) => held.has(row as Cell[]);
+    const full = this.board.flatMap((row, y) => (row.every(Boolean) && !stays(row) ? [y] : []));
+    const cleared = clearFullLines(this.board, stays);
     this.combo = cleared > 0 ? this.combo + 1 : 0;
     if (cleared > 0) {
       this.shout(cleared, full);
@@ -1273,6 +1366,104 @@ export class GameEngine {
     }
     this.spawnNext();
     this.emit();
+  }
+
+  /**
+   * 热心: holds play to shove the piece about to lock, if a curse wants it shoved and it can go. It
+   * locks where it lands once the helper is done (`advanceShove`).
+   */
+  private startShove(piece: ActivePiece): boolean {
+    if (this.shoved === piece) return false;
+    for (const { type, def } of this.activeCurses) {
+      const dx = def.beforeLock?.(this.curseContext(), this.effects.active[type]!.state);
+      const plan = dx && this.planShove(piece, dx);
+      if (!plan) continue;
+      this.shoved = piece;
+      const sender = this.firedBy.get(type) ?? null;
+      this.holds.unshift({
+        kind: 'shove',
+        piece,
+        clock: new ShoveClock({ ...plan, by: type, sender }),
+      });
+      this.pushNotice({ kind: 'reveal', type, sender });
+      this.logState(`${type} shoves the piece ${plan.to.x > plan.from.x ? 'right' : 'left'}`);
+      this.emit();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Where a shove takes `piece`: `dx` columns over, or the other way if that is blocked, then down
+   * to rest. A piece snug in a gap is lifted back up its way in until a step fits, so landing
+   * neatly is no escape. Null only if its way up is shut before either step fits.
+   */
+  private planShove(
+    piece: ActivePiece,
+    dx: -1 | 1,
+  ): Pick<ShoveView, 'from' | 'liftY' | 'to' | 'box'> | null {
+    const { matrix } = piece;
+    // Once it is above the board, only the walls are in the way.
+    for (let y = piece.y; y >= -matrix.length; y -= 1) {
+      if (collides(this.board, matrix, piece.x, y)) return null;
+      const step = [dx, -dx].find((d) => !collides(this.board, matrix, piece.x + d, y));
+      if (step === undefined) continue;
+      const pushed = { ...piece, x: piece.x + step, y };
+      const cells = pieceCells(matrix, 0, 0);
+      return {
+        from: { x: piece.x, y: piece.y },
+        liftY: y,
+        to: { x: pushed.x, y: y + this.dropDistance(pushed) },
+        box: {
+          left: Math.min(...cells.map(([cx]) => cx)),
+          right: Math.max(...cells.map(([cx]) => cx)),
+          top: Math.min(...cells.map(([, cy]) => cy)),
+          bottom: Math.max(...cells.map(([, cy]) => cy)),
+        },
+      };
+    }
+    return null;
+  }
+
+  /** The helper's clock; when it is done the piece locks where it was pushed to. */
+  private advanceShove(hold: { clock: ShoveClock; piece: ActivePiece }, dtMs: number): void {
+    const step = hold.clock.advance(dtMs);
+    if (step === 'done') {
+      this.holds.shift();
+      Object.assign(hold.piece, hold.clock.view.to);
+      this.logState('shove over');
+      this.lockPiece();
+      this.emit();
+    } else if (step === 'changed') {
+      this.emit();
+    }
+  }
+
+  /** 钉子户 with enough cells stacked on top take the money and go, leaving an ordinary cell. */
+  private moveOutBuriedNails(): void {
+    const depth = CONFIG.effects.nailBuryDepth;
+    for (const view of this.squattersOn(this.board)) {
+      if (view.buried < depth) continue;
+      this.squatters = this.squatters.filter(({ id }) => id !== view.id);
+      this.pushNotice({
+        kind: 'reveal',
+        type: 'nail',
+        sender: view.sender,
+        text: '拆迁款到手，搬走了 💰',
+      });
+      this.pushLog('system', `钉子户 ${view.sender?.name ?? ''} 拿钱搬走了。`);
+      this.logState(`nail at ${view.x},${view.y} moved out`);
+    }
+  }
+
+  /** A 钉子户 takes empty cell [x, y]: it blocks pieces, and its row stays until they go. */
+  private squat([x, y]: [number, number], sender: Sender | null): void {
+    const row = this.board[y];
+    if (!row || row[x] !== null) return;
+    row[x] = 'G';
+    this.squatterId += 1;
+    this.squatters.push({ id: this.squatterId, row, x, sender });
+    this.logState(`nail by ${sender?.name ?? 'nobody'} at ${x},${y}`);
   }
 
   /** A big enough line clear, or a combo, cancels one pending curse, rarest first. */
@@ -1410,7 +1601,12 @@ export class GameEngine {
       this.emit();
     } else if (step === 'changed') {
       const { stage, x, y } = clock.view;
-      if (stage === 'grab') this.board[y]![x] = null;
+      if (stage === 'grab') {
+        const row = this.board[y]!;
+        row[x] = null;
+        // A squatter in that cell goes with it.
+        this.squatters = this.squatters.filter((sq) => sq.row !== row || sq.x !== x);
+      }
       this.emit();
     }
   }
@@ -1446,6 +1642,7 @@ export class GameEngine {
     for (const type of settleTeam(this.team, this.pool, this.queueOf, this.readyNow)) {
       const sender = takeSender(this.team, type);
       senders.set(type, sender);
+      this.firedBy.set(type, sender);
       const def = this.curseByType[type]!;
       this.mvpBoard.credit(sender, def.rarity);
       // A lasting curse is (re)activated first, so apply sees the state it keeps.
@@ -1457,6 +1654,8 @@ export class GameEngine {
       if (outcome.fakeGameOver) fake = { reason: outcome.fakeGameOver, sender };
       if (outcome.possess) possessedBy.push(sender);
       if (outcome.steal) theft = { at: outcome.steal, sender };
+      if (outcome.squat) this.squat(outcome.squat, sender);
+      if (outcome.promise) this.promise = { ...outcome.promise, sender, told: false };
       gameOver = outcome.gameOver;
       if (gameOver) {
         this.mvpBoard.finalBlow(sender);

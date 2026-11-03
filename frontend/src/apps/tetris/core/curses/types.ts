@@ -26,6 +26,13 @@ export interface CurseOutcome {
   possess?: boolean;
   /** A thief takes board cell [x, y] (小偷): play holds while it sneaks in and runs off with it. */
   steal?: [number, number];
+  /** A 钉子户 takes empty board cell [x, y]: it blocks pieces and its row never clears. */
+  squat?: [number, number];
+  /**
+   * The preview shows `count` pieces from upcoming index `from` on as `shown`, whatever they really
+   * are (画饼).
+   */
+  promise?: { shown: PieceType; from: number; count: number };
 }
 
 /**
@@ -66,8 +73,11 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   maxInputDelayMs?: number;
   /** While active, with `maxInputDelayMs`: the chance each delayed command is lost and never acts. */
   inputLossChance?: number;
-  /** While active: the board itself moves, so the room sees it at a glance. */
-  boardEffect?: 'sway';
+  /**
+   * While active: the board itself changes, so the room sees it at a glance: it sways, or passes
+   * itself off as a spreadsheet.
+   */
+  boardEffect?: 'sway' | 'excel';
   /**
    * While active: each fresh piece spawns with the next one from the queue beside it. They move
    * and fall together; one that lands locks and the other plays on. The pair counts as one lock.
@@ -101,6 +111,11 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   onTick?(ctx: CurseContext, dtMs: number, state: S): void;
   /** Only for pieces fresh from the queue, never for a hold swap. Returns the piece to spawn. */
   onSpawn?(ctx: CurseContext, piece: ActivePiece, state: S): ActivePiece;
+  /**
+   * Just as a falling piece locks: a column to shove it first. The engine tries the other way if
+   * that is blocked, lifting a piece snug in a gap back up until a step fits, then drops it to rest.
+   */
+  beforeLock?(ctx: CurseContext, state: S): -1 | 1 | void;
   /** Each player move left (-1) or right (1), after any mirroring: returns the step to take. */
   onMove?(ctx: CurseContext, dx: -1 | 1, state: S): -1 | 1;
 }

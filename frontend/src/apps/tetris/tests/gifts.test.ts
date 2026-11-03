@@ -44,12 +44,12 @@ describe('drawing curses', () => {
     const uncommonTo = (w.common + w.uncommon) / total;
     const bands = rarityBands(Object.values(CURSES));
     expect(bands.map((b) => [b.rarity, b.types])).toEqual([
-      ['common', ['fog', 'seal', 'swap', 'hasty']],
+      ['common', ['fog', 'seal', 'swap', 'hasty', 'slack', 'pie']],
       [
         'uncommon',
         ['haste', 'snakes', 'rockfall', 'slip', 'mirror', 'drunk', 'lag', 'fakeDeath', 'theft'],
       ],
-      ['rare', ['garbage', 'noRotate', 'spin', 'twin', 'giant', 'possess']],
+      ['rare', ['garbage', 'noRotate', 'spin', 'twin', 'giant', 'possess', 'nail', 'helper']],
     ]);
     expect(bands[0]!.to).toBeCloseTo(commonTo);
     expect(bands[1]!.from).toBeCloseTo(commonTo);
@@ -58,12 +58,12 @@ describe('drawing curses', () => {
     expect(bands[2]!.to).toBe(1);
     const draws: [number, number, string][] = [
       [0, 0, 'fog'],
-      [commonTo - 0.01, 0.99, 'hasty'],
+      [commonTo - 0.01, 0.99, 'pie'],
       [commonTo + 0.01, 0, 'haste'],
       [uncommonTo - 0.01, 0.5, 'mirror'],
       [uncommonTo - 0.01, 0.99, 'theft'],
       [uncommonTo + 0.01, 0, 'garbage'],
-      [0.99, 0.99, 'possess'],
+      [0.99, 0.99, 'helper'],
     ];
     for (const [rarity, index, expected] of draws) {
       const r = processGiftBatch(createTeam(), 'foo', 1, 1, sequenceRng([0, rarity, index]));

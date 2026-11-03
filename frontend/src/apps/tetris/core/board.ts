@@ -22,11 +22,17 @@ export function collides(board: Board, matrix: Matrix, x: number, y: number): bo
   return false;
 }
 
-/** Remove complete rows, add empty rows on top. Returns the number cleared. */
-export function clearFullLines(board: Board): number {
+/**
+ * Remove complete rows, except those `stays` keeps, and add empty rows on top. Returns the number
+ * cleared.
+ */
+export function clearFullLines(
+  board: Board,
+  stays: (row: readonly Cell[]) => boolean = () => false,
+): number {
   let cleared = 0;
   for (let r = rows - 1; r >= 0; r -= 1) {
-    if (board[r]!.every((cell) => cell !== null)) {
+    if (board[r]!.every((cell) => cell !== null) && !stays(board[r]!)) {
       board.splice(r, 1);
       cleared += 1;
     }

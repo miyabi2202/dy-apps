@@ -5,12 +5,16 @@ import { garbage } from './garbage';
 import { giant } from './giant';
 import { haste } from './haste';
 import { hasty } from './hasty';
+import { helper } from './helper';
 import { lag } from './lag';
 import { mirror } from './mirror';
+import { nail } from './nail';
 import { noRotate } from './no-rotate';
+import { pie } from './pie';
 import { possess } from './possess';
 import { rockfall } from './rockfall';
 import { seal } from './seal';
+import { slack } from './slack';
 import { slip } from './slip';
 import { snakes } from './snakes';
 import { spin } from './spin';
@@ -44,6 +48,10 @@ const registry = {
   possess,
   fakeDeath,
   theft,
+  nail,
+  slack,
+  pie,
+  helper,
 } satisfies Record<string, CurseDef<unknown, string>>;
 
 export type EffectType = keyof typeof registry;
