@@ -942,12 +942,15 @@ export class GameEngine {
 
   /**
    * While a curse delays input, queues `run` to act a random 0 to `maxInputDelayMs` of play time
-   * from now and says so; the caller then does nothing yet. Not when it is that queued command
-   * acting at last.
+   * from now, or loses it at the curse's `inputLossChance`, and says so; the caller then does
+   * nothing yet. Not when it is that queued command acting at last.
    */
   private deferred(run: () => void): boolean {
     const max = this.maxInputDelayMs;
-    return max > 0 && this.delayed.defer(run, this.playMs + this.curseRng.next() * max);
+    if (max <= 0 || this.delayed.running) return false;
+    const loss = Math.max(0, ...this.activeCurses.map(({ def }) => def.inputLossChance ?? 0));
+    if (this.curseRng.next() < loss) return true;
+    return this.delayed.defer(run, this.playMs + this.curseRng.next() * max);
   }
 
   /** Advance the cutscene, the vote, or gravity and lock delay, by `dtMs` of foreground play time. */

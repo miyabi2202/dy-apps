@@ -4,11 +4,16 @@
  */
 export class DelayedInputs {
   private queue: { atMs: number; run: () => void }[] = [];
-  private running = false;
+  private runningNow = false;
+
+  /** Whether a queued command is the one running now: it acts at once, not delayed again. */
+  get running(): boolean {
+    return this.runningNow;
+  }
 
   /** Queues `run` for `atMs`; false while a queued command is the one running, so it acts now. */
   defer(run: () => void, atMs: number): boolean {
-    if (this.running) return false;
+    if (this.runningNow) return false;
     // After any due at the same time, so those keep the order they were given in.
     const at = this.queue.findIndex((queued) => queued.atMs > atMs);
     this.queue.splice(at === -1 ? this.queue.length : at, 0, { atMs, run });
@@ -19,11 +24,11 @@ export class DelayedInputs {
   runDue(nowMs: number): void {
     while (this.queue.length > 0 && this.queue[0]!.atMs <= nowMs) {
       const { run } = this.queue.shift()!;
-      this.running = true;
+      this.runningNow = true;
       try {
         run();
       } finally {
-        this.running = false;
+        this.runningNow = false;
       }
     }
   }

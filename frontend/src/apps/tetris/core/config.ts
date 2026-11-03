@@ -70,6 +70,8 @@ export const CONFIG = {
     drunkWrongChance: 0.3,
     /** While 延迟, each command acts a random 0 to this many ms late, so presses can land out of order. */
     lagMaxMs: 1000,
+    /** While 延迟, the chance each command is lost and never acts. */
+    lagLossChance: 0.25,
     /** How often 自转 turns the piece. */
     spinIntervalMs: 500,
     /** How often 打滑 pushes the piece a column. */

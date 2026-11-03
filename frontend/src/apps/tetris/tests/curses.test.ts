@@ -317,13 +317,15 @@ describe('醉酒', () => {
 });
 
 describe('延迟', () => {
-  const { lagMaxMs } = CONFIG.effects;
+  const { lagMaxMs, lagLossChance } = CONFIG.effects;
+  /** A loss roll that keeps the press; each kept press then rolls its delay. */
+  const KEEP = 0.99;
 
   it('acts on each command a random 0 to lagMaxMs later, so a later press can act first', () => {
-    // Left waits 90% of the most, the rotation 10%, the second left half.
+    // Each press is kept; left waits 90% of the most, the rotation 10%, the second left half.
     const engine = startedEngine({
       curses: { active: ['lag'] },
-      curseRng: sequenceRng([0.9, 0.1, 0.5]),
+      curseRng: sequenceRng([KEEP, 0.9, KEEP, 0.1, KEEP, 0.5]),
     });
     const x = engine.active!.x;
     const matrix = engine.active!.matrix;
@@ -343,7 +345,7 @@ describe('延迟', () => {
   it('a late hard drop still lands, and presses still waiting when it does are dropped', () => {
     const engine = startedEngine({
       curses: { active: ['lag'] },
-      curseRng: sequenceRng([0.2, 0.8]),
+      curseRng: sequenceRng([KEEP, 0.2, KEEP, 0.8]),
     });
     engine.hardDrop();
     engine.move(-1);
@@ -353,5 +355,17 @@ describe('延迟', () => {
     expect(engine.active!.x).toBe(x);
     engine.tick(lagMaxMs);
     expect(engine.active!.x).toBe(x);
+  });
+
+  it('loses a press at lagLossChance: it never acts', () => {
+    const engine = startedEngine({
+      curses: { active: ['lag'] },
+      curseRng: sequenceRng([lagLossChance / 2, KEEP, 0]),
+    });
+    const x = engine.active!.x;
+    expect(engine.move(-1)).toBe(true);
+    expect(engine.move(1)).toBe(true);
+    engine.tick(lagMaxMs);
+    expect(engine.active!.x).toBe(x + 1);
   });
 });

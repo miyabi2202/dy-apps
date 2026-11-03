@@ -57,6 +57,8 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
    * piece locks are dropped.
    */
   maxInputDelayMs?: number;
+  /** While active, with `maxInputDelayMs`: the chance each delayed command is lost and never acts. */
+  inputLossChance?: number;
   /** While active: the board itself moves, so the room sees it at a glance. */
   boardEffect?: 'sway';
   /**
