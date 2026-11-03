@@ -49,17 +49,22 @@ import {
   shapeOf,
 } from './pieces';
 import { CutsceneClock, type CutsceneView } from './cutscene-clock';
+import { dangerLevel, Heartbeat } from './danger';
 import { DelayedInputs } from './delayed-inputs';
+import { FakeDeathClock, type FakeDeathView } from './fake-death-clock';
 import { deriveSeed, mulberry32, type Rng } from './random';
 import { LikeMeter, type LikeMeterView } from './room/like-meter';
 import { MvpBoard, type MvpEntry } from './room/mvp-board';
+import { Possession, type PossessView } from './room/possession';
 import { QuietRoom } from './room/quiet-room';
 import { VoteBox, type VoteView } from './room/vote-box';
 import type {
   ActivePiece,
   Board,
   BoardView,
+  CalloutView,
   Cell,
+  DangerView,
   GiftBatchResult,
   Matrix,
   NudgeView,
@@ -167,7 +172,11 @@ export interface PendingCurse {
  * What holds play with no piece under control, in turn: a cutscene before the next piece, or a
  * vote. Play goes on when the queue is empty.
  */
-type Hold = { kind: 'cutscene'; clock: CutsceneClock } | { kind: 'vote' };
+type Hold =
+  | { kind: 'cutscene'; clock: CutsceneClock }
+  | { kind: 'vote' }
+  | { kind: 'fakeDeath'; clock: FakeDeathClock }
+  | { kind: 'possess'; possession: Possession };
 
 export type LogKind = 'gift' | 'miss' | 'settle' | 'system';
 
@@ -267,6 +276,15 @@ export class GameEngine {
   private drops: { cells: [number, number][]; atMs: number } | null = null;
   /** The falling piece's last move a curse made on its own (醉酒, 打滑), for the board to animate. */
   private nudge: NudgeView | null = null;
+  private readonly heartbeat = new Heartbeat();
+  /** 夺舍 playing out after its countdown, until the piece locks; the streamer can't touch it. */
+  private possessing: Possession | null = null;
+  /** After a 假死, the piece falls faster until the streamer presses a direction or it locks. */
+  private stunned = false;
+  /** The stack's danger, updated each frame, for the board's red pulse. */
+  private danger: DangerView | null = null;
+  /** The last line clear worth shouting about, for the board to show. */
+  private callout: CalloutView | null = null;
   private lockMs = 0;
   private lockResets = 0;
   private logId = 0;
@@ -349,20 +367,66 @@ export class GameEngine {
 
   /** The curses waiting to settle, in settlement order, with how many of each. */
   get pendingCurses(): PendingCurse[] {
-    return this.curses
-      .filter((def) => this.team.pending[def.type] > 0)
-      .map((def) => ({ def, count: this.team.pending[def.type] }));
+    const counts = new Map<EffectType, number>();
+    for (const def of this.curses) {
+      const shown = this.shownAs(def.type);
+      counts.set(shown, (counts.get(shown) ?? 0) + this.team.pending[def.type]);
+    }
+    return [...counts]
+      .filter(([, count]) => count > 0)
+      .map(([type, count]) => ({ def: this.curseOf(type), count }));
+  }
+
+  /** The curse `type` shows as to the streamer: its disguise, if it has one in play. */
+  shownAs(type: EffectType): EffectType {
+    const disguise = this.curseByType[type]!.disguise as EffectType | undefined;
+    return disguise && this.curseByType[disguise] ? disguise : type;
   }
 
   /** What the next settlement would fire as things stand: one per queue. */
   get nextSettlement(): CurseDef<unknown>[] {
-    return previewSettlement(this.team, this.pool, this.queueOf).map((t) => this.curseByType[t]!);
+    return previewSettlement(this.team, this.pool, this.queueOf, this.readyNow).map(
+      (t) => this.curseByType[this.shownAs(t)]!,
+    );
   }
 
   /** The cutscene holding play, while one does; no piece is active then. */
   get cutscene(): CutsceneView | null {
     const hold = this.holds[0];
     return hold?.kind === 'cutscene' ? hold.clock.view : null;
+  }
+
+  /** 夺舍, from its countdown until its piece locks: chat's queued moves and the time left. */
+  get possession(): PossessView | null {
+    const hold = this.holds[0];
+    if (hold?.kind === 'possess') return hold.possession.view;
+    return this.possessing?.view ?? null;
+  }
+
+  /**
+   * A viewer's chat while 夺舍 is taking moves: 左, 右 and 转, as many as it spells (see
+   * `parsePossess`). Not while paused. Returns whether any were queued.
+   */
+  possessInput(sender: Sender, text: string): boolean {
+    const hold = this.holds[0];
+    if (this.phase !== 'playing' || hold?.kind !== 'possess') return false;
+    if (!hold.possession.add(sender, text)) return false;
+    this.emit();
+    return true;
+  }
+
+  /** A 假死 holding play, while one does. */
+  get fakeDeath(): FakeDeathView | null {
+    const hold = this.holds[0];
+    return hold?.kind === 'fakeDeath' ? hold.clock.view : null;
+  }
+
+  /** On the fake game-over screen, 重新开始 only brings the reveal on sooner. */
+  revealFakeDeath(): void {
+    const hold = this.holds[0];
+    if (hold?.kind !== 'fakeDeath' || hold.clock.view.stage === 'reveal') return;
+    hold.clock.reveal();
+    this.emit();
   }
 
   /** The vote holding play, while one does. */
@@ -390,7 +454,8 @@ export class GameEngine {
 
   /** The scenario's base multiplier times every active curse instance's. */
   private get gravityMultiplier(): number {
-    return this.effects.gravityMultiplier * this.curseMultiplier('gravityMultiplier');
+    const stun = this.stunned ? CONFIG.fakeDeath.stunGravity : 1;
+    return this.effects.gravityMultiplier * this.curseMultiplier('gravityMultiplier') * stun;
   }
 
   /** How long a grounded piece waits before it locks. */
@@ -471,13 +536,51 @@ export class GameEngine {
       swap: this.swap,
       drops: this.drops,
       nudge: this.nudge,
+      danger: this.danger,
+      callout: this.callout,
       rowLabels: this.board.map((row) => this.rowNames.get(row) ?? null),
+      ...this.fakeBoard,
     };
   }
 
   /** The viewers whose curses fired this game, most points first. */
   get mvp(): readonly MvpEntry[] {
     return this.mvpBoard.standings;
+  }
+
+  /** The MVP board as the fake game-over screen shows it: the 假死's sender dealt the final blow. */
+  get fakeMvp(): readonly MvpEntry[] {
+    return this.mvpBoard.standingsWithFinalBlow(this.fakeDeath?.sender ?? null);
+  }
+
+  /**
+   * While 假死 plays, the board as it pretends: its garbage rows pushed in from the bottom one at
+   * a time, the stack shoved up and off the top, then sliding back out. The real board is untouched.
+   */
+  private get fakeBoard(): Pick<BoardView, 'board' | 'rowLabels'> | null {
+    const fake = this.fakeDeath;
+    if (!fake) return null;
+    const { stage, progress, sender, rows: n } = fake;
+    const shown =
+      stage === 'rise'
+        ? Math.ceil(progress * n)
+        : stage === 'dead'
+          ? n
+          : Math.ceil(n * Math.max(0, 1 - progress / CONFIG.fakeDeath.retractShare));
+    const name = sender && sender.id !== SYSTEM_SENDER.id ? sender.name : null;
+    const { cols } = CONFIG.board;
+    const garbage: Cell[][] = Array.from({ length: shown }, (_, i) =>
+      Array.from({ length: cols }, (_, x) =>
+        x === (i * 7 + this.settlementCount * 3) % cols ? null : 'G',
+      ),
+    );
+    return {
+      board: [...this.board.slice(shown), ...garbage],
+      rowLabels: [
+        ...this.board.slice(shown).map((row) => this.rowNames.get(row) ?? null),
+        ...garbage.map(() => name),
+      ],
+    };
   }
 
   // ---------------------------------------------------------------- phases
@@ -545,6 +648,11 @@ export class GameEngine {
     this.swap = null;
     this.drops = null;
     this.nudge = null;
+    this.heartbeat.reset();
+    this.stunned = false;
+    this.possessing = null;
+    this.danger = null;
+    this.callout = null;
     this.playMs = 0;
     this.resetPieceTimers();
     this.pushLog('system', '已重新开始，触发概率保持不变。');
@@ -566,6 +674,7 @@ export class GameEngine {
     this.phase = 'gameOver';
     this.active = null;
     this.gameOverReason = reason;
+    this.danger = null;
     this.pushLog('system', `游戏结束：${reason}`);
     this.logState(`game over (${reason})`);
   }
@@ -668,7 +777,9 @@ export class GameEngine {
 
   /** Opens a vote between two curses of `rarity` and holds play for it, after any cutscene. */
   private startVote(sender: Sender, rarity: Rarity): boolean {
-    const types = this.pool.filter((t) => this.curseByType[t]!.rarity === rarity);
+    const types = this.pool.filter(
+      (t) => this.curseByType[t]!.rarity === rarity && !this.curseByType[t]!.disguise,
+    );
     if (!this.votes.open(sender, rarity, types)) return false;
     this.holds.push({ kind: 'vote' });
     this.team.votingCount += 1;
@@ -751,6 +862,11 @@ export class GameEngine {
     return this.phase === 'playing' && this.active !== null && this.holds.length === 0;
   }
 
+  /** The streamer's keys work: the piece is in play and isn't chat's (夺舍). */
+  private get playerControl(): boolean {
+    return this.canControl && this.possessing === null;
+  }
+
   /** The falling pieces: the active one, and its twin while there is one. */
   private get falling(): ActivePiece[] {
     return this.twin ? [this.active!, this.twin] : [this.active!];
@@ -795,7 +911,8 @@ export class GameEngine {
 
   /** The player's move, of both pieces of a pair or neither, after the curses' onMove hooks. */
   move(dx: number): boolean {
-    if (!this.canControl) return false;
+    if (!this.playerControl) return false;
+    this.stunned = false;
     if (this.deferred(() => this.move(dx))) return true;
     if (this.blockedBy('move')) return false;
     let step: -1 | 1 = dx < 0 ? -1 : 1;
@@ -806,12 +923,13 @@ export class GameEngine {
     return this.moveFalling(step);
   }
 
-  private moveFalling(step: number): boolean {
+  /** Only the player's moves may reset the lock timer, not chat's (夺舍). */
+  private moveFalling(step: number, mayResetLock = true): boolean {
     // Both shift by the same step, so only the board can stop them.
     if (this.falling.some((p) => collides(this.board, p.matrix, p.x + step, p.y))) return false;
     const wasGrounded = this.isGrounded();
     for (const p of this.falling) p.x += step;
-    this.afterManipulation(wasGrounded);
+    if (mayResetLock) this.afterManipulation(wasGrounded);
     return true;
   }
 
@@ -825,15 +943,16 @@ export class GameEngine {
 
   /** Rotates each falling piece in place, each with its own kicks. */
   rotate(dir: 1 | -1): boolean {
-    if (!this.canControl) return false;
+    if (!this.playerControl) return false;
+    this.stunned = false;
     if (this.deferred(() => this.rotate(dir))) return true;
     if (this.blockedBy('rotate')) return false;
     return this.rotateFalling(dir);
   }
 
-  private rotateFalling(dir: 1 | -1): boolean {
+  private rotateFalling(dir: 1 | -1, mayResetLock = true): boolean {
     let turned = false;
-    for (const p of this.falling) turned = this.rotateWithKicks(p, dir, true) || turned;
+    for (const p of this.falling) turned = this.rotateWithKicks(p, dir, mayResetLock) || turned;
     return turned;
   }
 
@@ -854,9 +973,15 @@ export class GameEngine {
   }
 
   softDrop(): boolean {
-    if (!this.canControl) return false;
+    if (!this.playerControl) return false;
+    this.stunned = false;
     if (this.deferred(() => this.softDrop())) return true;
-    if (this.isGrounded() || this.blockedBy('softDrop')) return false;
+    if (this.blockedBy('softDrop')) return false;
+    return this.softDropFalling();
+  }
+
+  private softDropFalling(): boolean {
+    if (this.isGrounded()) return false;
     for (const p of this.falling) p.y += 1;
     this.score += CONFIG.score.softDropPerCell;
     this.gravityMs = 0;
@@ -865,14 +990,18 @@ export class GameEngine {
 
   /** Drops and locks each falling piece, the lower first so the upper lands on it. */
   hardDrop(): boolean {
-    if (!this.canControl) return false;
+    if (!this.playerControl) return false;
     if (this.deferred(() => this.hardDrop())) return true;
     if (this.blockedBy('hardDrop')) return false;
+    this.dropFalling();
+    return true;
+  }
+
+  private dropFalling(): void {
     const pair = this.twin !== null;
     if (pair && bottomOf(this.twin!) > bottomOf(this.active!)) this.swapTwin();
     this.dropAndLock();
     if (pair && this.phase === 'playing') this.dropAndLock();
-    return true;
   }
 
   private dropAndLock(): void {
@@ -888,7 +1017,7 @@ export class GameEngine {
   }
 
   holdPiece(): boolean {
-    if (!this.canControl) return false;
+    if (!this.playerControl) return false;
     if (this.deferred(() => this.holdPiece())) return true;
     if (!this.canHold || this.blockedBy('hold')) return false;
     const current = this.active!.shape;
@@ -935,6 +1064,14 @@ export class GameEngine {
       this.advanceVote(dtMs);
       return;
     }
+    if (hold?.kind === 'fakeDeath') {
+      this.advanceFakeDeath(hold.clock, dtMs);
+      return;
+    }
+    if (hold?.kind === 'possess') {
+      this.advancePossession(hold.possession, dtMs);
+      return;
+    }
     if (!this.canControl) return;
     this.playMs += dtMs;
     if (this.likes.idle(this.playMs)) {
@@ -943,6 +1080,8 @@ export class GameEngine {
     }
     this.delayed.runDue(this.playMs);
     if (!this.canControl) return;
+    this.beatHeart(dtMs);
+    if (this.possessing) this.playPossessed(this.possessing, dtMs);
     for (const { type, def } of this.activeCurses) {
       def.onTick?.(this.curseContext(null, type), dtMs, this.effects.active[type]!.state);
     }
@@ -1076,9 +1215,11 @@ export class GameEngine {
     }
     for (const [x, y] of cells) this.board[y]![x] = piece.type;
 
+    const full = this.board.flatMap((row, y) => (row.every(Boolean) ? [y] : []));
     const cleared = clearFullLines(this.board);
     this.combo = cleared > 0 ? this.combo + 1 : 0;
     if (cleared > 0) {
+      this.shout(cleared, full);
       this.score += CONFIG.score.lineClear[cleared] ?? 0;
       this.lines += cleared;
       this.logState(`cleared ${cleared} line${cleared > 1 ? 's' : ''}`);
@@ -1102,6 +1243,9 @@ export class GameEngine {
 
     // 延迟: presses still waiting were meant for the piece that just landed; they go with it.
     this.delayed.clear();
+    this.stunned = false;
+    // 夺舍: moves still queued go with the piece that landed.
+    this.possessing = null;
     tickTimedEffects(this.effects);
     this.lockedPieceCount += 1;
     this.canHold = true;
@@ -1122,11 +1266,12 @@ export class GameEngine {
   private cancelPending(
     why: { kind: 'cancelled'; lines: number } | { kind: 'combo'; combo: number },
   ): void {
-    const type = cancelOne(this.team, this.pool, (t) => this.curseByType[t]!.rarity);
+    const type = cancelOne(this.team, this.pool, (t) => this.curseByType[this.shownAs(t)]!.rarity);
     if (type === null) return;
-    this.pushNotice({ ...why, type, sender: takeSender(this.team, type) });
+    const shown = this.shownAs(type);
+    this.pushNotice({ ...why, type: shown, sender: takeSender(this.team, type) });
     const what = why.kind === 'combo' ? `连击 ×${why.combo}` : `消 ${why.lines} 行`;
-    this.pushLog('system', `${what}，抵消 ${this.curseByType[type]!.name}。`);
+    this.pushLog('system', `${what}，抵消 ${this.curseByType[shown]!.name}。`);
     this.logState(
       `${why.kind === 'combo' ? `combo ${why.combo}` : `${why.lines} lines`}: cancelled ${type}`,
     );
@@ -1142,6 +1287,26 @@ export class GameEngine {
     this.logState(`quiet room drew ${type}`);
   }
 
+  /** A line clear's callout, when it is 2 lines or more, or a combo. */
+  private shout(cleared: number, rows: readonly number[]): void {
+    const combo = this.combo >= 2 ? this.combo : 0;
+    if (cleared < 2 && !combo) return;
+    const row = rows.reduce((sum, y) => sum + y, 0) / rows.length;
+    this.callout = { atMs: this.playMs, combo, lines: cleared, row };
+  }
+
+  /** The danger the board pulses red with, a beat at a time, while the stack is high. */
+  private beatHeart(dtMs: number): void {
+    const level = dangerLevel(this.board);
+    if (this.heartbeat.advance(dtMs, level)) {
+      this.danger = { beatAtMs: this.playMs, level: level! };
+    } else if (level === null) {
+      this.danger = null;
+    } else if (this.danger) {
+      this.danger = { ...this.danger, level };
+    }
+  }
+
   private pushNotice(notice: Omit<BoardNotice, 'id'>): void {
     this.noticeId += 1;
     this.notices = [...this.notices, { ...notice, id: this.noticeId }].slice(-3);
@@ -1154,6 +1319,69 @@ export class GameEngine {
   ): void {
     this.holds.unshift({ kind: 'cutscene', clock: new CutsceneClock(curses, senders) });
     this.logState(`cutscene for ${curses.map((def) => def.type).join(',')}`);
+  }
+
+  /**
+   * 夺舍's countdown: the piece spawns and waits while chat queues moves. When time is up play
+   * goes on, and the piece plays them out as it falls (see `playPossessed`).
+   */
+  private advancePossession(possession: Possession, dtMs: number): void {
+    if (!this.active) {
+      this.spawnNext();
+      if (this.phase !== 'playing') return;
+      this.emit();
+    }
+    const { changed, over } = possession.countdown(dtMs);
+    if (over) {
+      this.holds.shift();
+      this.possessing = possession;
+      this.logState(`possession plays ${possession.view.steps.length} moves`);
+    }
+    if (changed) this.emit();
+  }
+
+  /**
+   * The possessed piece falling: chat's moves one a step, then a soft drop until it lands. Its
+   * moves never hold off the lock, so once it lands the rest are soon lost.
+   */
+  private playPossessed(possession: Possession, dtMs: number): void {
+    const { commands, drops, changed } = possession.play(dtMs);
+    for (const command of commands) {
+      if (command === 'rotate') this.rotateFalling(1, false);
+      else this.moveFalling(command === 'left' ? -1 : 1, false);
+    }
+    for (let i = 0; i < drops && this.softDropFalling(); i += 1) {
+      /* a row at a time */
+    }
+    if (changed) this.emit();
+  }
+
+  /** Whether a pending curse may fire at this settlement (see `CurseDef.ready`). */
+  private readonly readyNow = (type: EffectType): boolean =>
+    this.curseByType[type]!.ready?.(this.curseContext()) ?? true;
+
+  private startFakeDeath(reason: string, sender: Sender | null): void {
+    // Just enough rows to push the top of the stack off the board.
+    const top = this.board.findIndex((row) => row.some(Boolean));
+    const rows = Math.max(1, top + 1);
+    this.holds.unshift({ kind: 'fakeDeath', clock: new FakeDeathClock(reason, sender, rows) });
+    this.pushLog('system', `游戏结束：${reason}`);
+    this.logState(`fake death by ${sender?.name ?? 'nobody'}`);
+  }
+
+  /** The wall, the fake game-over screen, then 骗你的; play goes on stunned after it. */
+  private advanceFakeDeath(clock: FakeDeathClock, dtMs: number): void {
+    const step = clock.advance(dtMs);
+    if (step === 'done') {
+      this.holds.shift();
+      this.pushLog('system', `骗你的！${clock.view.sender?.name ?? ''} 送的是假死。`);
+      this.logState('fake death over');
+      if (this.holds.length === 0) this.spawnNext();
+      this.stunned = true;
+      this.emit();
+    } else if (step === 'changed') {
+      this.emit();
+    }
   }
 
   /** The names, then READY, then GO; the next piece spawns when GO is over. */
@@ -1181,7 +1409,9 @@ export class GameEngine {
     const report: SettlementReport = { index: this.settlementCount, executed: [] };
     const senders = new Map<EffectType, Sender | null>();
     let gameOver: string | undefined;
-    for (const type of settleTeam(this.team, this.pool, this.queueOf)) {
+    let fake: { reason: string; sender: Sender | null } | null = null;
+    const possessedBy: (Sender | null)[] = [];
+    for (const type of settleTeam(this.team, this.pool, this.queueOf, this.readyNow)) {
       const sender = takeSender(this.team, type);
       senders.set(type, sender);
       const def = this.curseByType[type]!;
@@ -1192,6 +1422,8 @@ export class GameEngine {
       const outcome = def.apply?.(this.curseContext(sender), state) ?? {};
       dropped.push(...(outcome.dropped ?? []));
       report.executed.push({ type, outcome });
+      if (outcome.fakeGameOver) fake = { reason: outcome.fakeGameOver, sender };
+      if (outcome.possess) possessedBy.push(sender);
       gameOver = outcome.gameOver;
       if (gameOver) {
         this.mvpBoard.finalBlow(sender);
@@ -1209,6 +1441,10 @@ export class GameEngine {
       this.endGame(gameOver);
       return;
     }
+    // Behind any cutscene or 假死: chat takes the piece that spawns after them.
+    for (const sender of possessedBy) {
+      this.holds.push({ kind: 'possess', possession: new Possession(sender) });
+    }
     const shown = report.executed.filter(({ type }) => this.curseByType[type]!.cutscene);
     if (shown.length > 0) {
       this.startCutscene(
@@ -1216,6 +1452,8 @@ export class GameEngine {
         shown.map(({ type }) => senders.get(type) ?? null),
       );
     }
+    // Ahead of any cutscene, so the fake death plays first and the cutscene after it.
+    if (fake) this.startFakeDeath(fake.reason, fake.sender);
   }
 
   /**

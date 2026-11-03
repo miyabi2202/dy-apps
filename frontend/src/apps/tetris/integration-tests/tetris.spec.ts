@@ -18,6 +18,8 @@ interface LabWindow {
       settlementCount: number;
       team: { giftCount: number };
       cutscene: unknown;
+      fakeDeath: unknown;
+      possession: unknown;
       vote: unknown;
       blockedBy(cmd: string): unknown;
       tick(dtMs: number): void;
@@ -155,11 +157,13 @@ test('start, pause with P, resume; restart after game over empties the wall', as
 
   for (let i = 0; i < 40 && (await engineState(page)).phase !== 'gameOver'; i += 1) {
     await page.keyboard.press('Space');
-    // A cutscene or a vote may be holding play, or a curse blocking hard drop (自转); play the
-    // cutscene or the vote out, or let gravity land and lock the piece instead.
+    // A cutscene, a 假死, 夺舍 or a vote may be holding play, or a curse blocking hard drop (自转);
+    // play it out, or let gravity land and lock the piece instead.
     await page.evaluate(() => {
       const e = (window as unknown as LabWindow).__blockLab.engine;
       if (e.phase === 'playing' && e.cutscene) e.tick(60_000);
+      if (e.phase === 'playing' && e.fakeDeath) e.tick(60_000);
+      if (e.phase === 'playing' && e.possession) e.tick(60_000);
       // Once to count the votes, once more to show the winner and go on.
       if (e.phase === 'playing' && e.vote) {
         e.tick(60_000);

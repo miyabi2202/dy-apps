@@ -4,7 +4,7 @@ import { scaleMatrix } from '../core/curses/giant';
 import type { GameEngine } from '../core/game';
 import { createPiece, pieceCells } from '../core/pieces';
 import { constantRng, sequenceRng } from '../core/random';
-import { dropOnEmpty, setActive, startedEngine } from './helpers';
+import { boardWithRows, dropOnEmpty, setActive, startedEngine } from './helpers';
 
 const { rows, cols } = CONFIG.board;
 const ROUND = CONFIG.settlement.everyLocks;
@@ -313,5 +313,197 @@ describe('延迟', () => {
     expect(engine.move(1)).toBe(true);
     engine.tick(lagMaxMs);
     expect(engine.active!.x).toBe(x + 1);
+  });
+});
+
+describe('假死', () => {
+  const a = { id: 'a', name: '阿杰' };
+  const { riseMs, deadMs, revealMs, stunGravity } = CONFIG.fakeDeath;
+  /** A stack just tall enough for 假死, with column 0 open so nothing clears. */
+  const tall = () =>
+    boardWithRows(
+      Array.from(
+        { length: Math.round(rows * CONFIG.fakeDeath.fromHeight) },
+        (_, i) => rows - 1 - i,
+      ),
+      [0],
+    );
+  /** Plays out a round; its last piece lands on a tall stack, so the settlement is in danger. */
+  const settleOnTall = (engine: GameEngine) => {
+    dropOnEmpty(engine, ROUND - 1);
+    engine.board = tall();
+    setActive(engine, 'O');
+    engine.hardDrop();
+  };
+  const pendingShown = (engine: GameEngine) =>
+    engine.pendingCurses.map(({ def, count }) => [def.type, count]);
+
+  it('passes for 垃圾行 and waits, pending, until the stack is in danger', () => {
+    const engine = startedEngine({ garbageRng: constantRng(0) });
+    engine.addCurse('fakeDeath', a);
+    expect(pendingShown(engine)).toEqual([['garbage', 1]]);
+    engine.addCurse('garbage', a);
+    expect(pendingShown(engine)).toEqual([['garbage', 2]]);
+    expect(engine.nextSettlement.map((def) => def.type)).toEqual(['garbage']);
+    // Low stack: the real 垃圾行 fires, 假死 keeps waiting.
+    dropOnEmpty(engine, ROUND);
+    expect(engine.team.pending).toMatchObject({ garbage: 0, fakeDeath: 1 });
+    expect(engine.fakeDeath).toBeNull();
+    expect(engine.nextSettlement).toEqual([]);
+  });
+
+  it('waits through danger until the stack is fromHeight tall', () => {
+    const engine = startedEngine();
+    engine.addCurse('fakeDeath', a);
+    dropOnEmpty(engine, ROUND - 1);
+    // An O lands on top: in danger after it, but one row short of 假死.
+    const target = Math.round(rows * CONFIG.fakeDeath.fromHeight) - 1;
+    expect(target).toBeGreaterThanOrEqual(Math.round(rows * CONFIG.danger.fromHeight));
+    engine.board = boardWithRows(
+      Array.from({ length: target - 2 }, (_, i) => rows - 1 - i),
+      [0],
+    );
+    setActive(engine, 'O');
+    engine.hardDrop();
+    expect(engine.fakeDeath).toBeNull();
+    expect(engine.team.pending.fakeDeath).toBe(1);
+  });
+
+  it('fakes a game over in danger, leaves the board as it was, then plays on stunned', () => {
+    const engine = startedEngine();
+    const normal = engine.gravityIntervalMs;
+    engine.addCurse('fakeDeath', a);
+    settleOnTall(engine);
+    const board = engine.board.map((row) => [...row]);
+    expect(engine.fakeDeath).toMatchObject({
+      stage: 'rise',
+      sender: a,
+      reason: '垃圾行将方块挤出顶部',
+    });
+    expect(engine.phase).toBe('playing');
+    expect(engine.active).toBeNull();
+
+    engine.tick(riseMs);
+    expect(engine.fakeDeath?.stage).toBe('dead');
+    // Garbage rows pushed in under the stack, enough to shove its top off the board.
+    const top = board.findIndex((row) => row.some(Boolean));
+    const shown = engine.boardView;
+    expect(shown.board.slice(0, rows - top - 1)).toEqual(board.slice(top + 1));
+    expect(
+      shown.board.slice(rows - top - 1).every((row) => row.filter(Boolean).length === cols - 1),
+    ).toBe(true);
+    expect(shown.rowLabels!.slice(rows - top - 1).every((name) => name === '阿杰')).toBe(true);
+    expect(engine.fakeMvp[0]).toMatchObject({ sender: a, finalBlow: true });
+    expect(engine.mvp[0]).toMatchObject({ sender: a, finalBlow: false });
+
+    engine.tick(deadMs);
+    expect(engine.fakeDeath?.stage).toBe('reveal');
+    engine.tick(revealMs);
+    expect(engine.fakeDeath).toBeNull();
+    expect(engine.boardView.board).toBe(engine.board);
+    expect(engine.board).toEqual(board);
+    expect(engine.active).not.toBeNull();
+    // Twice as fast until a direction is pressed.
+    expect(engine.gravityIntervalMs).toBeCloseTo(normal * stunGravity);
+    engine.move(1);
+    expect(engine.gravityIntervalMs).toBe(normal);
+  });
+
+  it('重新开始 on the fake screen only brings 骗你的 on sooner', () => {
+    const engine = startedEngine();
+    engine.addCurse('fakeDeath', a);
+    settleOnTall(engine);
+    engine.tick(riseMs);
+    engine.revealFakeDeath();
+    expect(engine.fakeDeath?.stage).toBe('reveal');
+    expect(engine.phase).toBe('playing');
+  });
+
+  it('is cancelled as 垃圾行, and never put up for a vote', () => {
+    const engine = startedEngine();
+    engine.addCurse('fakeDeath', a);
+    engine.board = boardWithRows([rows - 2, rows - 1], [4, 5]);
+    setActive(engine, 'O');
+    engine.hardDrop();
+    expect(engine.team.pending.fakeDeath).toBe(0);
+    expect(engine.notices.at(-1)).toMatchObject({ kind: 'cancelled', type: 'garbage' });
+
+    for (const r of [0, 0.3, 0.6, 0.99]) {
+      const voting = startedEngine({ voteRng: constantRng(r) });
+      voting.forceVote(a, 'rare');
+      expect(voting.vote?.options).not.toContain('fakeDeath');
+    }
+  });
+});
+
+describe('夺舍', () => {
+  const a = { id: 'a', name: '阿杰' };
+  const { programMs, stepMs } = CONFIG.possess;
+
+  /** A game where 夺舍 just fired at the end of a round. */
+  function possessed() {
+    const engine = startedEngine();
+    engine.addCurse('possess', a);
+    dropOnEmpty(engine, ROUND);
+    return engine;
+  }
+
+  it('holds play with the next piece in view while chat queues moves; the streamer has no say', () => {
+    const engine = possessed();
+    expect(engine.possession).toMatchObject({ stage: 'program', sender: a, steps: [] });
+    engine.tick(16);
+    expect(engine.active).not.toBeNull();
+    const { x, y } = engine.active!;
+    expect(engine.move(1)).toBe(false);
+    expect(engine.hardDrop()).toBe(false);
+    engine.tick(programMs / 2);
+    expect(engine.active).toMatchObject({ x, y });
+    expect(engine.possessInput(a, '右右')).toBe(true);
+    expect(engine.possessInput(a, '主播加油')).toBe(false);
+    expect(engine.possession!.steps).toHaveLength(2);
+  });
+
+  it('then the piece falls as usual, playing the moves a step at a time, then soft-drops', () => {
+    const engine = possessed();
+    engine.tick(16);
+    engine.possessInput(a, '左左左');
+    const x = engine.active!.x;
+    engine.tick(programMs);
+    expect(engine.possession?.stage).toBe('play');
+    // Play is on again, but the streamer still can't touch it.
+    expect(engine.move(1)).toBe(false);
+    engine.tick(stepMs);
+    expect(engine.active!.x).toBe(x - 1);
+    engine.tick(stepMs * 2);
+    expect(engine.active!.x).toBe(x - 3);
+    expect(engine.possession?.stage).toBe('drop');
+    const y = engine.active!.y;
+    engine.tick(CONFIG.input.softDropRepeatMs * 3);
+    expect(engine.active!.y).toBe(y + 3);
+    // Landed and locked: the next piece is the streamer's again.
+    const locked = engine.lockedPieceCount;
+    for (let i = 0; i < 200 && engine.lockedPieceCount === locked; i += 1) engine.tick(50);
+    expect(engine.lockedPieceCount).toBe(locked + 1);
+    expect(engine.possession).toBeNull();
+    expect(engine.board[rows - 1]![x - 3]).not.toBeNull();
+    expect(engine.move(1)).toBe(true);
+  });
+
+  it('drops the moves still queued when the piece lands first', () => {
+    const engine = possessed();
+    engine.tick(16);
+    engine.possessInput(a, '左'.repeat(10));
+    engine.tick(programMs);
+    // Down on an empty floor: it locks after the lock delay, long before ten moves are done.
+    engine.board = createBoard();
+    engine.active!.y = engine.ghostY!;
+    let ms = 0;
+    while (engine.possession && ms < 10 * stepMs) {
+      engine.tick(16);
+      ms += 16;
+    }
+    expect(engine.possession).toBeNull();
+    expect(ms).toBeLessThan(10 * stepMs);
+    expect(engine.move(1)).toBe(true);
   });
 });

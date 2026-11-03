@@ -17,6 +17,13 @@ export interface CurseOutcome {
   gameOver?: string;
   /** Board cells [x, y] that just dropped into place, so the board can animate their fall. */
   dropped?: [number, number][];
+  /**
+   * Pretend the game ended for this reason: play holds for a fake game over, then goes on as if
+   * nothing happened (假死).
+   */
+  fakeGameOver?: string;
+  /** Hand the next piece to chat (夺舍): play holds while viewers queue its moves. */
+  possess?: boolean;
 }
 
 /**
@@ -71,6 +78,14 @@ export interface CurseDef<S = undefined, T extends string = EffectType> {
   cutscene?: boolean;
   /** A playful line under the name in its cutscene, like 冻住不许转. */
   tagline?: string;
+  /**
+   * Passes itself off as this curse wherever the streamer can see it: the pending list, the next
+   * settlement and the cancel notices. Votes never put it up. Gifts still show its own name.
+   * A curse type; a plain string so the registry's types don't depend on themselves.
+   */
+  disguise?: string;
+  /** At settlement: false keeps it pending until a settlement where it is true. */
+  ready?(ctx: CurseContext): boolean;
   /** Fresh state when the curse becomes active. */
   initState?(): S;
   /** At settlement, every time it fires. */

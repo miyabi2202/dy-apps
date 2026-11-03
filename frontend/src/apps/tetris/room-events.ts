@@ -6,7 +6,7 @@ import { log as appLog } from './log';
 
 /**
  * Where the live room's events go into the game: gifts through the gift wall (which keeps a
- * card for each), chat as a vote, likes towards the like meter. The one
+ * card for each), chat as a vote or 夺舍's moves, likes towards the like meter. The one
  * place that knows which game feature a chat line is for.
  */
 export class RoomEvents {
@@ -24,9 +24,12 @@ export class RoomEvents {
     return this.gifts.send(message);
   }
 
-  /** A viewer's chat line: a vote, while one is open. Returns whether the game took it. */
+  /**
+   * A viewer's chat line: a vote while one is open, or moves while 夺舍 takes them. Returns
+   * whether the game took it.
+   */
   comment(user: Sender, text: string): boolean {
-    const taken = this.engine.castVote(user, text);
+    const taken = this.engine.castVote(user, text) || this.engine.possessInput(user, text);
     if (taken) this.logger.debug(`viewer ${user.name}: ${text.trim()}`);
     return taken;
   }

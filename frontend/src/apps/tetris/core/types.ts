@@ -47,8 +47,29 @@ export interface BoardView {
   readonly drops?: { readonly cells: readonly [number, number][]; readonly atMs: number } | null;
   /** The falling piece's last move a curse made on its own (醉酒, 打滑), so viewers see it wasn't the player. */
   readonly nudge?: NudgeView | null;
+  /** While the stack is in danger: how deep, and when the last heartbeat was, for the red pulse. */
+  readonly danger?: DangerView | null;
+  /** The last big line clear or combo, shouted over the board. */
+  readonly callout?: CalloutView | null;
   /** Per board row, the name printed on it (a viewer's 垃圾行), or null. */
   readonly rowLabels?: readonly (string | null)[];
+}
+
+/** The stack is in danger: `level` from 0 (just in) to 1 (at the top), last beat at `beatAtMs`. */
+export interface DangerView {
+  readonly level: number;
+  readonly beatAtMs: number;
+}
+
+/**
+ * A clear worth shouting about at `atMs` of play time: `lines` at once (2 or more) and/or the
+ * `combo`th clear in a row (2 or more, else 0), centred on board row `row`.
+ */
+export interface CalloutView {
+  readonly lines: number;
+  readonly combo: number;
+  readonly row: number;
+  readonly atMs: number;
 }
 
 /** A curse moved the falling piece `dx` columns by itself at `atMs` of play time. */

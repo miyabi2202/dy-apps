@@ -5,6 +5,7 @@ import type React from 'react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { CONFIG } from '../core/config';
 import type { GameEngine } from '../core/game';
+import type { MvpEntry } from '../core/room/mvp-board';
 import { shapeOf } from '../core/pieces';
 import type { PieceShape } from '../core/types';
 import { labels, testIds } from '../messages';
@@ -14,6 +15,9 @@ import { VotePanel } from './vote-panel';
 import { CurseName } from './curse-name';
 import { MvpList } from './mvp-list';
 import { Cutscene } from './cutscene';
+import { FakeDeathReveal } from './fake-death-reveal';
+import { PossessMagazine } from './possess-magazine';
+import { PossessPanel } from './possess-panel';
 
 interface Props {
   engine: GameEngine;
@@ -178,6 +182,9 @@ export function CenterPanel({ engine, boardRef, onRestart, viewer = false }: Pro
             {...stylex.props(styles.board, styles.boardShape(CONFIG.board.cols, CONFIG.board.rows))}
           />
           <Overlay engine={engine} onRestart={onRestart} />
+          {engine.possession && engine.possession.stage !== 'program' && (
+            <PossessMagazine possession={engine.possession} />
+          )}
           {/* After the overlay, so a quiet room's notice shows over the cutscene it starts. */}
           <BoardNotices
             notices={engine.notices}
@@ -307,8 +314,26 @@ function MiniPiece({
 }
 
 function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => void }) {
+  const fake = engine.phase === 'playing' ? engine.fakeDeath : null;
+  if (fake?.stage === 'dead') {
+    // The real game-over screen to the letter; 重新开始 only brings 骗你的 on sooner.
+    return (
+      <div {...stylex.props(styles.overlay)} data-testid={testIds.overlay('gameOver')}>
+        <GameOver
+          engine={engine}
+          reason={fake.reason}
+          mvp={engine.fakeMvp}
+          onRestart={() => engine.revealFakeDeath()}
+        />
+      </div>
+    );
+  }
+  if (fake?.stage === 'reveal') return <FakeDeathReveal sender={fake.sender} />;
   if (engine.phase === 'playing') {
     if (engine.cutscene) return <Cutscene cutscene={engine.cutscene} />;
+    if (engine.possession?.stage === 'program') {
+      return <PossessPanel possession={engine.possession} />;
+    }
     return (
       engine.vote && (
         <VotePanel
@@ -340,24 +365,46 @@ function Overlay({ engine, onRestart }: { engine: GameEngine; onRestart: () => v
         </>
       )}
       {engine.phase === 'gameOver' && (
-        <>
-          <strong {...stylex.props(styles.overlayTitle)}>游戏结束</strong>
-          <span>{engine.gameOverReason}</span>
-          <dl {...stylex.props(styles.summaryList)} data-testid={testIds.gameOverSummary}>
-            <dt>分数</dt>
-            <dd>{engine.score}</dd>
-            <dt>消行</dt>
-            <dd>{engine.lines}</dd>
-            <dt>结算</dt>
-            <dd>{engine.settlementCount}</dd>
-          </dl>
-          <MvpList entries={engine.mvp} />
-          <Button variant="primary" onClick={onRestart}>
-            {labels.restart}
-          </Button>
-        </>
+        <GameOver
+          engine={engine}
+          reason={engine.gameOverReason}
+          mvp={engine.mvp}
+          onRestart={onRestart}
+        />
       )}
     </div>
+  );
+}
+
+/** The game-over screen's contents; 假死 shows it too, with its own reason and MVP board. */
+function GameOver({
+  engine,
+  reason,
+  mvp,
+  onRestart,
+}: {
+  engine: GameEngine;
+  reason: string | null;
+  mvp: readonly MvpEntry[];
+  onRestart: () => void;
+}) {
+  return (
+    <>
+      <strong {...stylex.props(styles.overlayTitle)}>游戏结束</strong>
+      <span>{reason}</span>
+      <dl {...stylex.props(styles.summaryList)} data-testid={testIds.gameOverSummary}>
+        <dt>分数</dt>
+        <dd>{engine.score}</dd>
+        <dt>消行</dt>
+        <dd>{engine.lines}</dd>
+        <dt>结算</dt>
+        <dd>{engine.settlementCount}</dd>
+      </dl>
+      <MvpList entries={mvp} />
+      <Button variant="primary" onClick={onRestart}>
+        {labels.restart}
+      </Button>
+    </>
   );
 }
 

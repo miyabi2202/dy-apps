@@ -5,6 +5,7 @@ export interface Canvas2D {
   globalAlpha: number;
   lineWidth: number;
   lineDashOffset: number;
+  lineJoin: CanvasLineJoin;
   font: string;
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;
@@ -20,6 +21,7 @@ export interface Canvas2D {
   restore(): void;
   translate(x: number, y: number): void;
   fillText(text: string, x: number, y: number): void;
+  strokeText(text: string, x: number, y: number): void;
   measureText(text: string): { width: number };
 }
 

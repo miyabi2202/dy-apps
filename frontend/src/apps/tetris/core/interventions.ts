@@ -85,8 +85,9 @@ export function settleTeam(
   team: TeamState,
   pool: readonly EffectType[] = EFFECT_POOL,
   queueOf: (type: EffectType) => string = (type) => type,
+  ready: (type: EffectType) => boolean = () => true,
 ): EffectType[] {
-  const fired = previewSettlement(team, pool, queueOf);
+  const fired = previewSettlement(team, pool, queueOf, ready);
   for (const type of fired) {
     team.pending[type] -= 1;
     team.lastFired[queueOf(type)] = type;
@@ -95,11 +96,15 @@ export function settleTeam(
   return fired;
 }
 
-/** What `settleTeam` would fire now, in pool order, without changing anything. */
+/**
+ * What `settleTeam` would fire now, in pool order, without changing anything. A type that isn't
+ * `ready` is passed over and stays pending.
+ */
 export function previewSettlement(
   team: TeamState,
   pool: readonly EffectType[] = EFFECT_POOL,
   queueOf: (type: EffectType) => string = (type) => type,
+  ready: (type: EffectType) => boolean = () => true,
 ): EffectType[] {
   const byQueue = new Map<string, EffectType[]>();
   for (const type of pool) {
@@ -111,7 +116,7 @@ export function previewSettlement(
     const last = team.lastFired[queue];
     const start = last === undefined ? 0 : types.indexOf(last) + 1;
     const next = [...types.slice(start), ...types.slice(0, start)].find(
-      (type) => team.pending[type] > 0,
+      (type) => team.pending[type] > 0 && ready(type),
     );
     if (next !== undefined) chosen.add(next);
   }

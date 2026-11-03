@@ -37,6 +37,7 @@ function recorder(): Canvas2D & { calls: Call[]; texts: [string, number, number]
     globalAlpha: 1,
     lineWidth: 1,
     lineDashOffset: 0,
+    lineJoin: 'miter',
     fillText: (text: string, x: number, y: number) => texts.push([text, x, y]),
     measureText: (text: string) => ({ width: [...text].length * CHAR_WIDTH }),
   } as unknown as Canvas2D & { calls: Call[]; texts: [string, number, number][] };
@@ -52,6 +53,7 @@ function recorder(): Canvas2D & { calls: Call[]; texts: [string, number, number]
     'save',
     'restore',
     'translate',
+    'strokeText',
   ] as const;
   for (const op of ops) {
     (ctx as unknown as Record<string, unknown>)[op] = (...args: (number | number[])[]) => {
@@ -145,6 +147,29 @@ describe('paintBoard', () => {
     paintBoard(later, view({ active, ghostY: rows - 2, nudge, timeMs: 3000 }), W, H);
     expect(filledCells(later.calls, '#ffffff')).toEqual([]);
     expect(later.texts).toEqual([]);
+  });
+
+  it('shouts a big clear and its combo, then lets it go', () => {
+    const callout = { atMs: 1000, combo: 3, lines: 4, row: rows - 3 };
+    const ctx = recorder();
+    paintBoard(ctx, view({ callout, timeMs: 1500 }), W, H);
+    expect(ctx.texts.map(([text]) => text)).toEqual(['TETRIS!', 'COMBO ×3']);
+    const later = recorder();
+    paintBoard(later, view({ callout, timeMs: 5000 }), W, H);
+    expect(later.texts).toEqual([]);
+  });
+
+  it('glows red inside the edges while in danger, brighter on the beat', () => {
+    const glow = (timeMs: number) => {
+      const ctx = recorder();
+      paintBoard(ctx, view({ danger: { beatAtMs: 1000, level: 0.5 }, timeMs }), W, H);
+      return ctx.calls.filter((c) => c.op === 'strokeRect' && c.strokeStyle === '#ef4444');
+    };
+    expect(glow(1000)).toHaveLength(4);
+    expect(glow(1000)[0]!.globalAlpha).toBeGreaterThan(glow(3000)[0]!.globalAlpha);
+    const safe = recorder();
+    paintBoard(safe, view({}), W, H);
+    expect(safe.calls.some((c) => c.strokeStyle === '#ef4444')).toBe(false);
   });
 
   it('skips cells above the visible top', () => {

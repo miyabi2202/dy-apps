@@ -733,3 +733,44 @@ describe('votes', () => {
     expect(engine.move(1)).toBe(false);
   });
 });
+
+describe('danger and callouts', () => {
+  it('four lines at once is a tetris, shouted where they cleared', () => {
+    const engine = startedEngine();
+    engine.board = boardWithRows([rows - 4, rows - 3, rows - 2, rows - 1], [0]);
+    setActive(engine, 'I');
+    engine.rotate(1);
+    while (engine.move(-1)) {
+      /* to column 0 */
+    }
+    engine.hardDrop();
+    expect(engine.boardView.callout).toMatchObject({ lines: 4, combo: 0, row: rows - 2.5 });
+  });
+
+  it('a single line has no callout; a second clear in a row is a combo', () => {
+    const engine = startedEngine();
+    const clearOne = () => {
+      engine.board = boardWithRows([rows - 1], [4, 5]);
+      setActive(engine, 'O');
+      engine.hardDrop();
+    };
+    clearOne();
+    expect(engine.boardView.callout).toBeNull();
+    clearOne();
+    expect(engine.boardView.callout).toMatchObject({ lines: 1, combo: 2 });
+  });
+
+  it('a tall stack shows danger, beating at once, and a low one none', () => {
+    const height = Math.round(rows * CONFIG.danger.fromHeight);
+    const board = boardWithRows(
+      Array.from({ length: height }, (_, i) => rows - 1 - i),
+      [0],
+    );
+    const engine = startedEngine({ board });
+    engine.tick(16);
+    expect(engine.boardView.danger).toEqual({ beatAtMs: 16, level: 0 });
+    engine.board = boardWithRows([rows - 1], [0]);
+    engine.tick(16);
+    expect(engine.boardView.danger).toBeNull();
+  });
+});

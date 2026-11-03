@@ -109,6 +109,32 @@ export const CONFIG = {
    * (rounded), and the top `shown` of them.
    */
   mvp: { shown: 5 },
+  /**
+   * Danger: once the stack is `fromHeight` of the board tall, the board glows red, pulsing on a
+   * heartbeat every `beatSlowMs` at first and closer to `beatFastMs` as it nears the top.
+   */
+  danger: { fromHeight: 0.7, beatSlowMs: 900, beatFastMs: 420 },
+  /**
+   * 假死: it waits until the stack is `fromHeight` of the board tall. Then garbage rows push in
+   * from the bottom over `riseMs`, just enough to shove the stack off the top; the game-over
+   * screen shows for `deadMs`; then 骗你的 flashes for `revealMs`, the rows sliding back out over
+   * its first `retractShare`. The next piece falls `stunGravity` times the usual interval (not
+   * below `gravity.minMs`) until the streamer presses a direction.
+   */
+  fakeDeath: {
+    fromHeight: 0.8,
+    riseMs: 700,
+    deadMs: 2800,
+    revealMs: 100,
+    retractShare: 0.35,
+    stunGravity: 0.25,
+  },
+  /**
+   * 夺舍: play holds `programMs` while chat queues 左/右/转 for the next piece, at most `perChat`
+   * from one chat and `maxSteps` in all; then the piece falls as usual running one every
+   * `stepMs`, and soft-drops after the last (at the soft drop's repeat rate).
+   */
+  possess: { programMs: 30_000, stepMs: 100, perChat: 10, maxSteps: 60 },
   /** Pending curse types the side panel lists; any more show as one … row. */
   pendingShown: 5,
   log: { maxEntries: 10 },

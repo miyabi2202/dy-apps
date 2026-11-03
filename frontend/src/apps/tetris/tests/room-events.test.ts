@@ -23,6 +23,18 @@ describe('RoomEvents', () => {
     expect(engine.vote!.ballots).toEqual([{ voter: mei, choice: 1 }]);
   });
 
+  it('sends 左/右/转 chat to 夺舍 while it takes moves', () => {
+    const { engine, events } = room();
+    expect(events.comment(mei, '左右')).toBe(false);
+    engine.addCurse('possess');
+    for (let i = 0; i < 5; i += 1) {
+      engine.board = engine.board.map((row) => row.map(() => null));
+      engine.hardDrop();
+    }
+    expect(events.comment(mei, '左右')).toBe(true);
+    expect(engine.possession!.steps).toHaveLength(2);
+  });
+
   it('ignores other chat, and sends likes to the meter', () => {
     const { engine, events } = room();
     expect(events.comment(mei, '主播加油')).toBe(false);

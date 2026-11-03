@@ -84,6 +84,21 @@ export function DebugPanel({ engine }: { engine: GameEngine }) {
           ))}
         </Row>
       </section>
+      <section {...stylex.props(styles.group)}>
+        <h4 {...stylex.props(text.muted, styles.rarity)}>夺舍弹幕</h4>
+        <Row gap="xs">
+          {['左', '右', '转', '左右左右'].map((command) => (
+            <Button
+              key={command}
+              disabled={engine.possession?.stage !== 'program'}
+              onClick={() => engine.possessInput(fakeSender(), command)}
+              data-testid={testIds.debugPossess(command)}
+            >
+              {command}
+            </Button>
+          ))}
+        </Row>
+      </section>
     </Disclosure>
   );
 }

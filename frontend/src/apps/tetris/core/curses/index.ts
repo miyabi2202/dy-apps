@@ -1,4 +1,5 @@
 import { drunk } from './drunk';
+import { fakeDeath } from './fake-death';
 import { fog } from './fog';
 import { garbage } from './garbage';
 import { giant } from './giant';
@@ -7,6 +8,7 @@ import { hasty } from './hasty';
 import { lag } from './lag';
 import { mirror } from './mirror';
 import { noRotate } from './no-rotate';
+import { possess } from './possess';
 import { rockfall } from './rockfall';
 import { seal } from './seal';
 import { slip } from './slip';
@@ -38,6 +40,8 @@ const registry = {
   giant,
   drunk,
   lag,
+  possess,
+  fakeDeath,
 } satisfies Record<string, CurseDef<unknown, string>>;
 
 export type EffectType = keyof typeof registry;

@@ -46,6 +46,13 @@ export class MvpBoard {
     return [...this.entries.values()].sort((a, b) => b.points - a.points || b.curses - a.curses);
   }
 
+  /** The standings as if `sender`'s curse had ended the game (假死), without recording it. */
+  standingsWithFinalBlow(sender: Sender | null): readonly MvpEntry[] {
+    return this.standings.map((entry) =>
+      entry.sender.id === sender?.id ? { ...entry, finalBlow: true } : entry,
+    );
+  }
+
   reset(): void {
     this.entries.clear();
   }

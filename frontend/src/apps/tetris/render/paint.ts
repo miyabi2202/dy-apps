@@ -4,7 +4,9 @@ import { createPiece, pieceCells, shapeOf } from '../core/pieces';
 import type {
   ActivePiece,
   BoardView,
+  CalloutView,
   Cell,
+  DangerView,
   Matrix,
   NudgeView,
   PieceShape,
@@ -39,6 +41,18 @@ const SWAP_FLASH_MS = 280;
 /** 醉酒/打滑 moving the piece by itself: how long its afterimage and speed lines last, then its sign. */
 const NUDGE_MS = 450;
 const NUDGE_ICON_MS = 900;
+/** Danger: the red glow's colour, and how long it flares after each heartbeat. */
+const DANGER = '#ef4444';
+const BEAT_MS = 450;
+/** A big clear or combo: how long its callout shows, and how long it takes to pop in. */
+const CALLOUT_MS = 1200;
+const CALLOUT_POP_MS = 140;
+const CALLOUT_LINES: Record<number, { text: string; color: string }> = {
+  2: { text: 'DOUBLE', color: '#38bdf8' },
+  3: { text: 'TRIPLE', color: '#c084fc' },
+  4: { text: 'TETRIS!', color: '#facc15' },
+};
+const COMBO_COLOR = '#f472b6';
 const GRID = 'rgba(148, 163, 184, 0.10)';
 const HIGHLIGHT = 'rgba(255,255,255,0.18)';
 
@@ -100,6 +114,75 @@ export function paintBoard(ctx: Canvas2D, view: BoardView, w: number, h: number)
       timeMs,
     );
   }
+  if (view.danger) paintDanger(ctx, view.danger, timeMs, size);
+  if (view.callout) paintCallout(ctx, view.callout, timeMs - view.callout.atMs, size);
+}
+
+/**
+ * Danger: a red glow inside the board's edges, flaring with each heartbeat and stronger the
+ * nearer the stack is to the top.
+ */
+function paintDanger(ctx: Canvas2D, danger: DangerView, timeMs: number, size: number): void {
+  const beat = Math.max(0, 1 - (timeMs - danger.beatAtMs) / BEAT_MS);
+  const strength = (0.35 + 0.65 * danger.level) * (0.45 + 0.55 * beat);
+  const w = cols * size;
+  const h = rows * size;
+  const band = size * 0.3;
+  ctx.save();
+  ctx.strokeStyle = DANGER;
+  ctx.lineWidth = band;
+  for (let i = 0; i < 4; i += 1) {
+    ctx.globalAlpha = strength * (0.8 - i * 0.2);
+    const inset = band * (i + 0.5);
+    ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+  }
+  ctx.restore();
+}
+
+/**
+ * A big clear or combo shouted over the board where the lines went: DOUBLE, TRIPLE or TETRIS!,
+ * and COMBO ×n under it. It pops in big, holds, then rises and fades.
+ */
+function paintCallout(ctx: Canvas2D, callout: CalloutView, ageMs: number, size: number): void {
+  if (ageMs < 0 || ageMs >= CALLOUT_MS) return;
+  const k = ageMs / CALLOUT_MS;
+  const pop = ageMs < CALLOUT_POP_MS ? 1.6 - 0.6 * (ageMs / CALLOUT_POP_MS) : 1;
+  const lines = CALLOUT_LINES[Math.min(callout.lines, 4)];
+  const shouts = [
+    ...(lines ? [{ ...lines, scale: 1.7 }] : []),
+    ...(callout.combo ? [{ text: `COMBO ×${callout.combo}`, color: COMBO_COLOR, scale: 1.1 }] : []),
+  ];
+  const w = cols * size;
+  ctx.save();
+  ctx.globalAlpha = k < 0.7 ? 1 : (1 - k) / 0.3;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = BG;
+  // Each shout's font size, shrunk to fit the board's width.
+  const sized = shouts.map((shout) => {
+    let px = Math.round(size * shout.scale * pop);
+    ctx.font = `900 ${px}px system-ui, sans-serif`;
+    const width = ctx.measureText(shout.text).width;
+    if (width > w - 8) px = Math.floor((px * (w - 8)) / width);
+    return { ...shout, px };
+  });
+  // Centred on the cleared rows, but kept whole on the board.
+  const total = sized.reduce((sum, { px }) => sum + px * 1.05, 0);
+  const rise = k > 0.7 ? ((k - 0.7) / 0.3) * size : 0;
+  const centre = (callout.row + 0.5) * size;
+  let top = Math.min(rows * size - total - size * 0.3, Math.max(size * 0.5, centre - total / 2));
+  top -= rise;
+  for (const { text, color, px } of sized) {
+    ctx.font = `900 ${px}px system-ui, sans-serif`;
+    ctx.lineWidth = Math.max(3, px * 0.18);
+    ctx.fillStyle = color;
+    const y = top + (px * 1.05) / 2;
+    ctx.strokeText(text, w / 2, y);
+    ctx.fillText(text, w / 2, y);
+    top += px * 1.05;
+  }
+  ctx.restore();
 }
 
 /**
