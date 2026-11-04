@@ -114,6 +114,23 @@ describe('TodoRun', () => {
     expect(bot.read(TO_LEARN_FILE)).toBe(LIST);
   });
 
+  it('leaves an item open when its own search was skipped and nothing settled its question', async () => {
+    const { bot, run, logs } = setup({
+      星守护: result({ searches: 0, found: 0 }),
+      宇宙之心: result({
+        searches: 0,
+        found: 0,
+        carried: { status: 'resolved', answer: '一个大礼物', source: 'web' },
+      }),
+    });
+    await run.run({ count: 2, folder: 'topics' });
+    const text = bot.read(TO_LEARN_FILE)!;
+    expect(text).toContain('- [ ] 星守护 — 星守护有什么用？（手写 2026-11-01）\n');
+    expect(logs).toContain('todo left open {term: 星守护, why: its search did not run}');
+    // Settled on the web before the search, it's learnt all the same.
+    expect(text).toContain('- [x] 宇宙之心');
+  });
+
   it('says so, learning nothing, when every item is done', async () => {
     const bot = new MemoryStore({ [TO_LEARN_FILE]: '- [x] 甲 — 甲？（x）→ 学到\n' });
     const logs: string[] = [];

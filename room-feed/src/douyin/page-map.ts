@@ -65,7 +65,8 @@ export const NOTICE_OK_TEXT = '我知道了';
  * it's the only view in a wrapper right under the popup's container. The popup is gone from the
  * page once closed.
  */
-export const FANS_LEVEL_UP_CLOSE = '.starlight-treasure-mask-upgrade-container > lynx-wrapper > x-view';
+export const FANS_LEVEL_UP_CLOSE =
+  '.starlight-treasure-mask-upgrade-container > lynx-wrapper > x-view';
 
 /** The panel on the right, where the 粉丝团 and others open: its close icon's svg. */
 export const RIGHT_PANEL_CLOSE_SVG = '#__living_right_panel_id svg';
@@ -87,12 +88,6 @@ export const FANS_JOIN_BUTTON = /^加入粉丝团$/;
 
 /** The panel's line once today's 灯牌 is sent: 「今日第7位送灯牌，连续3天」. */
 export const FANS_LAMP_SENT = /今日第\d+位送灯牌/;
-
-/**
- * The × of Douyin's 「下载电脑客户端」 popup: the svg beside its download container. The popup is in
- * the page all along, at 0×0 until it shows.
- */
-export const DOWNLOAD_GUIDE_CLOSE = ':has(> [data-e2e="download-container"]) > svg';
 
 /**
  * The card of a streamer in a PK, opened by a click on their tile: a Semi popover (its class names

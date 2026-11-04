@@ -1,5 +1,4 @@
-import type { Pace } from '@dy-apps/douyin-chrome';
-import { closeDownloadGuide, type DownloadGuide } from './download-guide';
+import { closeDownloadGuide, type DownloadGuide, type Pace } from '@dy-apps/douyin-chrome';
 
 /**
  * The card of a streamer in a PK (avatar, 「去TA直播间」, 粉丝团), which opens when a click on the

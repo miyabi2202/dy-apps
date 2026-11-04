@@ -1,10 +1,12 @@
 import type { KnowledgeIndex } from '../core/knowledge';
 import {
   douyinJudgePrompt,
+  gapOf,
   kbJudgePrompt,
+  knownEnough,
   parseResolution,
-  settled,
   webPrompt,
+  type Gap,
   type Resolution,
 } from '../core/resolve';
 import type { ReadItem } from '../core/types';
@@ -26,28 +28,45 @@ export interface UnknownResolverOptions {
  * Looks an unknown up in stages, each recorded with how far it supports the answer (Self-RAG's
  * labels): the knowledge base first (only when it has an entry about the term), then the web. What
  * neither settles in full is searched on Douyin by the topic learner, and judged here on what that
- * search read. A stage that fails is recorded as `none`, never a failed run.
+ * search read. A stage that answers in part says what's missing, and the next looks up only that.
+ * An unknown a search raised (not a carried question) stops at the knowledge base when what it's
+ * missing doesn't matter. A stage that fails is recorded as `none`, never a failed run.
  */
 export class UnknownResolver {
   constructor(private readonly options: UnknownResolverOptions) {}
 
-  /** The knowledge base, then the web, stopping at the first that settles it. */
-  async offline(unknown: Unknown): Promise<Resolution[]> {
+  /**
+   * The knowledge base, then the web for what it's missing, stopping at the first that settles it
+   * (or, for an unknown a search raised, at a knowledge base whose gap doesn't matter).
+   */
+  async offline(
+    unknown: Unknown,
+    { carried = false }: { carried?: boolean } = {},
+  ): Promise<Resolution[]> {
     const { ask, askWeb, index, today } = this.options;
     const resolutions: Resolution[] = [];
     const entries = index.lookup(unknown.term);
     resolutions.push(
       entries.length
-        ? await this.stage('kb', unknown, () => ask(kbJudgePrompt(unknown, entries)))
+        ? await this.stage('kb', unknown, () =>
+            ask(kbJudgePrompt(unknown, entries, { side: !carried })),
+          )
         : { source: 'kb', supports: 'none', answer: '知识库里没有' },
     );
-    if (settled(resolutions) || !askWeb) return resolutions;
-    resolutions.push(await this.stage('web', unknown, () => askWeb(webPrompt(unknown, today()))));
+    if (knownEnough(resolutions, carried) || !askWeb) return resolutions;
+    const gap = gapOf(resolutions);
+    resolutions.push(
+      await this.stage('web', unknown, () => askWeb(webPrompt(unknown, today(), gap))),
+    );
     return resolutions;
   }
 
-  /** Judged on what a Douyin search for it read. */
-  onDouyin(unknown: Unknown, items: readonly ReadItem[]): Promise<Resolution> {
+  /** Judged on what a Douyin search for it read, for `gap` alone when an earlier stage left one. */
+  onDouyin(
+    unknown: Unknown,
+    items: readonly ReadItem[],
+    gap: Gap | null = null,
+  ): Promise<Resolution> {
     if (!items.length) {
       return Promise.resolve({
         source: 'douyin',
@@ -59,7 +78,7 @@ export class UnknownResolver {
     return this.stage(
       'douyin',
       unknown,
-      () => this.options.ask(douyinJudgePrompt(unknown, items)),
+      () => this.options.ask(douyinJudgePrompt(unknown, items, gap)),
       refsOf(items),
     );
   }
@@ -73,7 +92,7 @@ export class UnknownResolver {
     try {
       const resolution = parseResolution(await asking(), source, unknown, known);
       this.options.log(
-        `unknown looked up {term: ${unknown.term}, source: ${source}, supports: ${resolution.supports}}`,
+        `unknown looked up {term: ${unknown.term}, source: ${source}, supports: ${resolution.supports}${resolution.missing ? `, missing: ${resolution.missing}` : ''}${resolution.gapMatters === false ? ', gapMatters: false' : ''}}`,
       );
       return resolution;
     } catch (e) {

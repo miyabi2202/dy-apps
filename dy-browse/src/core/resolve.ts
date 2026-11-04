@@ -18,6 +18,19 @@ export interface Resolution {
   urls?: string[];
   /** Posts, comments and replies it rests on (Douyin only). */
   refs?: string[];
+  /** What of the question is still unanswered, when it's partial. */
+  missing?: string;
+  /**
+   * Whether that gap matters for what the term was looked up for (the knowledge base, for an
+   * unknown a search raised): false lets a term the knowledge base already explains stop there.
+   */
+  gapMatters?: boolean;
+}
+
+/** What's known so far, and what's still missing, for the next stage to look up only that. */
+export interface Gap {
+  known: string;
+  missing: string;
 }
 
 /** Whether the stages so far settled it: the last one supports the answer in full. */
@@ -25,27 +38,66 @@ export function settled(resolutions: readonly Resolution[]): boolean {
   return resolutions.at(-1)?.supports === 'full';
 }
 
+/**
+ * Whether it's known well enough to stop looking: settled, or (for an unknown a search raised, not
+ * a carried question) the knowledge base answered it in part and what it's missing doesn't matter.
+ */
+export function knownEnough(resolutions: readonly Resolution[], carried = false): boolean {
+  if (settled(resolutions)) return true;
+  const last = resolutions.at(-1);
+  return (
+    !carried && last?.source === 'kb' && last.supports === 'partial' && last.gapMatters === false
+  );
+}
+
+/** The latest partial answer with what it's missing, for the next stage; null when there's none. */
+export function gapOf(resolutions: readonly Resolution[]): Gap | null {
+  const last = [...resolutions].reverse().find((r) => r.supports === 'partial' && r.missing);
+  return last ? { known: last.answer, missing: last.missing! } : null;
+}
+
 const ANSWER_FORMAT =
-  '只输出一个 JSON 对象：{"supports": "full | partial | none", "answer": "答案，一两句话"';
+  '只输出一个 JSON 对象：{"supports": "full | partial | none", "answer": "答案，一两句话", "missing": "partial 时还缺什么，一句话；full 或 none 时空字符串"';
+
+/** What the web and Douyin stages are told when an earlier stage answered part of it. */
+function gapLines(gap: Gap | null | undefined): string[] {
+  if (!gap) return [];
+  return [
+    `前面已经查到：${gap.known}`,
+    `只缺这一部分：${gap.missing}`,
+    '只查缺的这部分，前面查到的不用再查；answer 写合起来的完整答案；full 是缺的这部分也查实了。',
+  ];
+}
 
 /** The prompt asking whether the knowledge base's entries answer an unknown. */
-export function kbJudgePrompt(unknown: Unknown, entries: readonly { text: string }[]): string {
+export function kbJudgePrompt(
+  unknown: Unknown,
+  entries: readonly { text: string }[],
+  { side = true }: { side?: boolean } = {},
+): string {
   return [
     `问题：${unknown.question}`,
     '下面是我们知识库里可能相关的条目（人工审过的）。只根据它们判断能不能回答这个问题：',
     '- full：条目明确回答了；partial：只答了一部分，或只是沾边；none：没有回答。',
+    '- missing：partial 时，问题里条目没答到的是哪一部分。',
+    ...(side
+      ? [
+          `- gapMatters：这个词是读抖音时冒出来的，我们查它是因为：${unknown.why || '没说'}。缺的那部分要不要紧：要弄懂它在这里是什么意思、读懂那些作品，非知道不可就是 true；条目已经够用、缺的只是细节（具体数字、规则细节、来历）就是 false。`,
+        ]
+      : []),
     '不要用你自己的记忆补。',
-    `${ANSWER_FORMAT}}。`,
+    `${ANSWER_FORMAT}${side ? ', "gapMatters": true' : ''}}。`,
     '',
     ...entries.map((e) => e.text),
   ].join('\n');
 }
 
 /** The prompt for looking an unknown up on the web (the asker has only WebSearch and WebFetch). */
-export function webPrompt(unknown: Unknown, today: string): string {
+export function webPrompt(unknown: Unknown, today: string, gap?: Gap | null): string {
   return [
     `今天是 ${today}。请上网查这个问题：${unknown.question}`,
     `（「${unknown.term}」是在抖音上看到的，类型大概是：${unknown.kind}。我们拿不准的原因：${unknown.why || '没说'}。）`,
+    ...gapLines(gap),
     '可以先查：小鸡词典、萌娘百科、百度百科，以及新闻报道。',
     '规则：',
     '- 小鸡词典这类用户自己写的词典，一条只算一票，要看它写于什么时候；几个来源说法一致才算 full。',
@@ -58,9 +110,14 @@ export function webPrompt(unknown: Unknown, today: string): string {
 }
 
 /** The prompt asking whether what a search on Douyin found answers an unknown. */
-export function douyinJudgePrompt(unknown: Unknown, items: readonly ReadItem[]): string {
+export function douyinJudgePrompt(
+  unknown: Unknown,
+  items: readonly ReadItem[],
+  gap?: Gap | null,
+): string {
   return [
     `问题：${unknown.question}`,
+    ...gapLines(gap),
     `我们为了这个问题在抖音上搜了「${unknown.term}」，下面是读到的作品、评论和回复（[作品id#序号] 是引用编号，回复是 [作品id#序号.序号]）。`,
     '只根据这些材料判断能不能回答，不要用你自己的记忆补：',
     '- full：材料清楚地回答了（梗的出处必须有作品或回复为证）；partial：只答了一部分，或说法不一；none：没有回答。',
@@ -95,6 +152,11 @@ export function parseResolution(
     ? (json!.supports as Support)
     : 'none';
   if (!answer) supports = 'none';
+  const missing =
+    supports === 'partial' && typeof json?.missing === 'string'
+      ? json.missing.replace(/\s+/g, ' ').trim()
+      : '';
+  const gap = missing ? { missing } : {};
   if (source === 'web') {
     const urls = Array.isArray(json?.urls)
       ? [
@@ -106,14 +168,16 @@ export function parseResolution(
         ]
       : [];
     if (!urls.length || unknown.kind === '梗') supports = atMostPartial(supports);
-    return { source, supports, answer, urls };
+    return { source, supports, answer, urls, ...gap };
   }
   if (source === 'douyin') {
     const refs = knownRefs(json?.refs, known);
     const evidence =
       unknown.kind === '梗' ? refs.filter((r) => !r.includes('#') || isReplyRef(r)) : refs;
     if (!evidence.length) supports = atMostPartial(supports);
-    return { source, supports, answer, refs };
+    return { source, supports, answer, refs, ...gap };
   }
-  return { source, supports, answer };
+  // A gap is taken to matter unless the knowledge base's judge said it doesn't.
+  const matters = supports === 'partial' && json?.gapMatters === false ? { gapMatters: false } : {};
+  return { source, supports, answer, ...gap, ...matters };
 }

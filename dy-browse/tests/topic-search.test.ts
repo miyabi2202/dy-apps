@@ -19,6 +19,7 @@ function setup({
   opens = 'comments',
   shown = [] as string[],
   single = false,
+  popup = false,
 }: {
   hot?: string[];
   newest?: string[];
@@ -32,6 +33,8 @@ function setup({
   shown?: string[];
   /** Whether the results show in one column, with no grid, until 多列 is clicked. */
   single?: boolean;
+  /** Whether the 「下载电脑客户端」 popup shows, until its × is clicked. */
+  popup?: boolean;
 } = {}) {
   const log: string[] = [];
   const tap = new FakeTap();
@@ -96,6 +99,12 @@ function setup({
     pressEscape: () => Promise.resolve(void log.push('press Escape')),
     waitForReplies: (i) => Promise.resolve(void log.push(`wait for replies ${i}`)),
     clickReplies: (i) => Promise.resolve(void log.push(`click replies ${i}`)),
+    guideShown: () => Promise.resolve(popup),
+    clickGuideClose: () => {
+      popup = false;
+      log.push('click popup ×');
+      return Promise.resolve();
+    },
   };
   const pace = new Pace({ wait: logWait(log), random: () => 0 });
   return { search: new TopicSearch(surface, tap, pace, max), log, tap };
@@ -150,6 +159,20 @@ describe('TopicSearch', () => {
       'wait 500',
       'click close',
     ]);
+  });
+
+  it('closes the 「下载电脑客户端」 popup as a step before hovering 筛选 under it, and only while it shows', async () => {
+    const { search, log } = setup({ hot: ['h1'], newest: ['n1'], max: 1, popup: true });
+    await search.search('鸣潮');
+    const at = log.indexOf('click popup ×');
+    expect(log.slice(at - 1, at + 3)).toEqual([
+      'wait 500',
+      'click popup ×',
+      'wait for 筛选',
+      'wait 500',
+    ]);
+    expect(log.indexOf('hover 筛选')).toBeGreaterThan(at);
+    expect(log.filter((l) => l === 'click popup ×')).toHaveLength(1);
   });
 
   it('clicks 我知道了 on the guide as a step the first time it shows, and opens the comments by their button as a step', async () => {

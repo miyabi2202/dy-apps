@@ -25,6 +25,8 @@ export const PAGE_WAIT = {
   guide: 1500,
   /** A comment's 展开回复 button: short, since most comments have none. */
   replies: 3000,
+  /** The × of the 「下载电脑客户端」 popup, seen before it's clicked. */
+  close: 3000,
   /** Settling after a page loads, before the first action. */
   settle: 2500,
 };

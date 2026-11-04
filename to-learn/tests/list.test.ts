@@ -3,6 +3,7 @@ import {
   formatItem,
   itemsToAdd,
   markDone,
+  markOpen,
   openItems,
   parseToLearn,
   sameTerm,
@@ -187,5 +188,17 @@ describe('terms', () => {
     expect(termKey(' **「Ab 鸣潮」** ')).toBe('ab鸣潮');
     expect(sameTerm('鸣潮', '鸣潮 卡池')).toBe(true);
     expect(sameTerm('鸣', '鸣潮')).toBe(false);
+  });
+});
+
+describe('markOpen', () => {
+  it('opens a done item again, dropping its outcome, changing no other line', () => {
+    const done = markDone(FILE, '星守护', '2026-11-02 没查到，见 searches/x.json');
+    const text = markOpen(done, '星守护');
+    expect(text).toBe(FILE);
+    expect(parseToLearn(text).items[0]).toMatchObject({ done: false, from: '手写 2026-11-01' });
+    // An open item, or an unknown term, changes nothing.
+    expect(markOpen(FILE, '星守护')).toBe(FILE);
+    expect(markOpen(done, '没有的词')).toBe(done);
   });
 });

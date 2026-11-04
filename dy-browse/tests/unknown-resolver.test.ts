@@ -73,6 +73,23 @@ describe('UnknownResolver', () => {
     expect(asked.some((a) => a.startsWith('web'))).toBe(false);
   });
 
+  it('a carried question is never stopped by an unimportant gap, and its gap still goes to the web', async () => {
+    const { resolver, asked, logs } = setup({
+      knowledge: '## 星守护\n\n守护身份。',
+      kb: { supports: 'partial', answer: '守护身份', missing: '每月多少钱', gapMatters: false },
+      web: { supports: 'partial', answer: '守护身份，价格不一', missing: '每月多少钱' },
+    });
+    const found = await resolver.offline(unknown('星守护'), { carried: true });
+    expect(found.map((r) => [r.source, r.supports])).toEqual([
+      ['kb', 'partial'],
+      ['web', 'partial'],
+    ]);
+    // Asked of a carried question, the knowledge base isn't asked whether the gap matters.
+    expect(asked[0]).not.toContain('gapMatters');
+    expect(asked[1]).toContain('只缺这一部分：每月多少钱');
+    expect(logs[0]).toContain('missing: 每月多少钱');
+  });
+
   it('records a failed web lookup as none, and skips the web when there is none', async () => {
     const failing = setup({ web: new Error('timed out') });
     const [, web] = await failing.resolver.offline(unknown('x词'));

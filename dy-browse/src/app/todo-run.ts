@@ -16,7 +16,8 @@ export interface TodoRunOptions {
 /**
  * `--todo [n]`: the first `n` open items of the to-learn list, each learnt like `--topic <term>`
  * with the item's question looked up first, then ticked off with what came of it. An item a run
- * stopped in (a captcha, a stream starting) stays open.
+ * stopped in (a captcha, a stream starting) stays open, and so does one whose own search was
+ * skipped (a step that timed out) without its question settled: nothing was read to learn from.
  */
 export class TodoRun {
   constructor(private readonly options: TodoRunOptions) {}
@@ -37,6 +38,10 @@ export class TodoRun {
         existing: existing(item.term),
         carry: { question: item.question || `「${item.term}」是什么？`, why },
       });
+      if (!result.searches && result.carried?.status !== 'resolved') {
+        log(`todo left open {term: ${item.term}, why: its search did not run}`);
+        continue;
+      }
       const outcome = todoOutcome(result, dateOf(now()));
       list.done(item.term, outcome);
       log(`todo done {term: ${item.term}, outcome: ${outcome}}`);

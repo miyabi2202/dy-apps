@@ -1,5 +1,5 @@
 import { readComments, readReplies } from '../douyin/answers';
-import { Pace } from '@dy-apps/douyin-chrome';
+import { closeDownloadGuide, Pace, type DownloadGuide } from '@dy-apps/douyin-chrome';
 import { markAsking, repliesToOpen } from '../core/comments';
 import { BlockedError } from '../core/errors';
 import type { Comment } from '../core/types';
@@ -17,8 +17,11 @@ export const MAX_REPLIES = 5;
 /** How long the page is given to fetch a comment's replies after 展开回复, in ms. */
 const REPLIES_SETTLE_MS = 1200;
 
-/** A grid of posts (a user's, a search's) where one can be opened to read its comments. */
-export interface PostGridSurface extends BlockSurface {
+/**
+ * A grid of posts (a user's, a search's) where one can be opened to read its comments. Douyin's
+ * 「下载电脑客户端」 popup may show over its top right, so a step closes it first.
+ */
+export interface PostGridSurface extends BlockSurface, DownloadGuide {
   /** Waits for the tile at `index` (the post `id`'s, where the grid names tiles by post); throws when it doesn't show in time. */
   waitForPost(index: number, id?: string): Promise<void>;
   clickPost(index: number, id?: string): Promise<void>;
@@ -76,6 +79,7 @@ export class PostComments {
   async read(index: number, id?: string): Promise<Comment[]> {
     const { surface, pace, tap } = this;
     tap.drain('comments');
+    await closeDownloadGuide(surface, pace);
     await orBlocked(surface, () =>
       pace.step(
         () => surface.waitForPost(index, id),

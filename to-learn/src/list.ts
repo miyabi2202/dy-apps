@@ -189,3 +189,18 @@ export function markDone(text: string, term: string, outcome: string): string {
   lines[item.line] = withOutcome(lines[item.line]!.trimEnd().replace(/\[ \]/, '[x]'), outcome);
   return lines.join('\n');
 }
+
+/**
+ * The text with the first done item about `term` open again, its `→ outcome` dropped: for one ticked
+ * by mistake (a run whose search never ran). Unchanged when no done item has that term.
+ */
+export function markOpen(text: string, term: string): string {
+  const { lines, items } = parseToLearn(text);
+  const key = termKey(term);
+  const item = items.find((i) => i.done && termKey(i.term) === key);
+  if (!item) return text;
+  lines[item.line] = lines[item.line]!.trimEnd()
+    .replace(/\[[xX]\]/, '[ ]')
+    .replace(/\s*(?:→|->)\s*[^→]*$/, '');
+  return lines.join('\n');
+}

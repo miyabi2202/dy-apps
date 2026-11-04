@@ -23,7 +23,7 @@ import {
   searchQueryPrompt,
   type PromptNode,
 } from '../core/prompts';
-import { settled, type Resolution } from '../core/resolve';
+import { gapOf, knownEnough, type Resolution } from '../core/resolve';
 import { dateOf, jsonFrom } from '../core/text';
 import type { ReadItem } from '../core/types';
 import {
@@ -87,7 +87,8 @@ export interface TrackedUnknown {
   /** The search it was raised by; `to-learn.md` for the question a `--todo` item carried. */
   from: string;
   resolutions: Resolution[];
-  status: 'open' | 'resolved' | 'unresolved';
+  /** `known`: the knowledge base explains it, and what it's missing doesn't matter; not searched. */
+  status: 'open' | 'resolved' | 'unresolved' | 'known';
   note?: string;
   /** The question the caller carried in (a to-learn item's), not one a search raised. */
   carried?: boolean;
@@ -266,9 +267,12 @@ export class TopicLearner {
         for (const tracked of fresh) {
           // The carried question was looked up before the search.
           if (!tracked.resolutions.length) {
-            tracked.resolutions.push(...(await this.resolver.offline(tracked.unknown)));
+            tracked.resolutions.push(
+              ...(await this.resolver.offline(tracked.unknown, { carried: tracked.carried })),
+            );
           }
-          if (settled(tracked.resolutions)) tracked.status = 'resolved';
+          const status = this.statusOf(tracked);
+          if (status) tracked.status = status;
           else toSearch.push(tracked);
         }
         const room = Math.max(0, this.maxSearches - tree.length - queue.length);
@@ -418,8 +422,8 @@ export class TopicLearner {
    * resolved when that settles it. Gives what was found (settled or not), or null for nothing.
    */
   private async lookUpFirst(tracked: TrackedUnknown): Promise<string | null> {
-    tracked.resolutions.push(...(await this.resolver.offline(tracked.unknown)));
-    if (settled(tracked.resolutions)) tracked.status = 'resolved';
+    tracked.resolutions.push(...(await this.resolver.offline(tracked.unknown, { carried: true })));
+    tracked.status = this.statusOf(tracked) ?? tracked.status;
     return tracked.resolutions.filter((r) => r.supports !== 'none').at(-1)?.answer ?? null;
   }
 
@@ -455,10 +459,18 @@ export class TopicLearner {
     ).map((tracked) => ({ ...tracked, carried: true }));
   }
 
-  /** An unknown judged on what its Douyin search read: settled, or left unresolved. */
+  /** Where looking it up so far leaves it: resolved, known (a gap that doesn't matter), or undefined to go on. */
+  private statusOf(tracked: TrackedUnknown): 'resolved' | 'known' | undefined {
+    if (!knownEnough(tracked.resolutions, tracked.carried)) return undefined;
+    return tracked.resolutions.at(-1)?.supports === 'full' ? 'resolved' : 'known';
+  }
+
+  /** An unknown judged on what its Douyin search read, for what's still missing: settled, or left unresolved. */
   private async judge(tracked: TrackedUnknown, items: readonly ReadItem[]): Promise<void> {
-    tracked.resolutions.push(await this.resolver.onDouyin(tracked.unknown, items));
-    tracked.status = settled(tracked.resolutions) ? 'resolved' : 'unresolved';
+    tracked.resolutions.push(
+      await this.resolver.onDouyin(tracked.unknown, items, gapOf(tracked.resolutions)),
+    );
+    tracked.status = this.statusOf(tracked) === 'resolved' ? 'resolved' : 'unresolved';
   }
 
   /**

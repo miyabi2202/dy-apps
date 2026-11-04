@@ -27,7 +27,8 @@ export interface BrowseOptions {
   ocr: boolean;
   /** The pending folder `--topic` drafts go to. */
   into: string;
-  model: string | null;
+  /** The model of every other `claude -p` call (understanding, lookups, drafts, reflection): Sonnet by default. */
+  model: string;
   /** The model of `--review`'s check, which needs less than learning does: Sonnet by default. */
   reviewModel: string;
   headed: boolean;
@@ -37,6 +38,9 @@ export interface BrowseOptions {
   botDataDir: string | null;
   help: boolean;
 }
+
+/** The model learning uses: Sonnet, since Opus made a run's many web lookups slow and heavy on usage. */
+export const DEFAULT_MODEL = 'claude-sonnet-5-5';
 
 /** `--review`'s model: a relevance and plausibility check doesn't need Opus, at half the price. */
 export const DEFAULT_REVIEW_MODEL = 'claude-sonnet-5-5';
@@ -172,7 +176,7 @@ export function parseOptions(argv: readonly string[]): BrowseOptions {
     asr: !values['no-asr'],
     ocr: !values['no-ocr'],
     into: values.into ?? 'topics',
-    model: values.model ?? null,
+    model: values.model ?? DEFAULT_MODEL,
     reviewModel: values['review-model'] ?? DEFAULT_REVIEW_MODEL,
     headed: values.headed ?? false,
     chrome: values.chrome ?? null,

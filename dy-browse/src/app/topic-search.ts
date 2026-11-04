@@ -1,4 +1,4 @@
-import { Pace } from '@dy-apps/douyin-chrome';
+import { closeDownloadGuide, Pace } from '@dy-apps/douyin-chrome';
 import { RunStopped } from '../core/errors';
 import type { BrowseItem, Comment } from '../core/types';
 import { readRelated, readSearch } from '../douyin/answers';
@@ -52,7 +52,8 @@ const RESULTS_SETTLE_MS = 2000;
 /**
  * A topic searched as a person does, each a Pace step: the search box seen, a pause, a click; a
  * pause, the topic typed and Enter; then the page's own 最热 and 最新 sorts, each from the 筛选
- * menu (筛选 seen, a pause, a hover; the sort seen, a pause, a click), and the posts read from the
+ * menu (the 「下载电脑客户端」 popup closed if it shows over it; 筛选 seen, a pause, a hover; the sort
+ * seen, a pause, a click), and the posts read from the
  * JSON the page fetched; each post opened by its tile for its comments.
  */
 export class TopicSearch implements SearchPort {
@@ -104,6 +105,8 @@ export class TopicSearch implements SearchPort {
     const lists: Record<SearchFilter, BrowseItem[]> = { 最热: [], 最新: [] };
     for (const filter of ['最热', '最新'] as const) {
       tap.drain('search');
+      // The popup shows over 筛选 and takes the hover that opens its menu (a 团播 search, 2026-11-04).
+      await closeDownloadGuide(surface, pace);
       await orBlocked(surface, () =>
         pace.step(
           () => surface.waitForFilterMenu(),

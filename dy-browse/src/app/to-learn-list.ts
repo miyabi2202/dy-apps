@@ -2,6 +2,7 @@ import {
   addItems,
   itemsToAdd,
   markDone,
+  markOpen,
   openItems,
   type AddOptions,
   type NewItem,
@@ -54,6 +55,13 @@ export class ToLearnList {
   done(term: string, outcome: string): void {
     const text = this.text();
     const next = markDone(text, term, outcome);
+    if (next !== text) this.bot.write(TO_LEARN_FILE, next);
+  }
+
+  /** Opens the done item about `term` again, dropping what came of it. */
+  reopen(term: string): void {
+    const text = this.text();
+    const next = markOpen(text, term);
     if (next !== text) this.bot.write(TO_LEARN_FILE, next);
   }
 }

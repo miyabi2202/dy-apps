@@ -1,3 +1,4 @@
+import { DOWNLOAD_GUIDE_CLOSE } from '@dy-apps/douyin-chrome';
 import type { Page } from 'playwright-core';
 import {
   BLOCK_SELECTORS,
@@ -54,6 +55,19 @@ export function waitForRepliesButton(page: Page, index: number): Promise<void> {
 
 export async function clickRepliesButton(page: Page, index: number): Promise<void> {
   await repliesButton(page, index).click({ timeout: PAGE_WAIT.replies });
+}
+
+/** Whether the 「下载电脑客户端」 popup's × shows: the popup is in the page all along, hidden until it shows. */
+export function downloadGuideShown(page: Page): Promise<boolean> {
+  return page
+    .locator(DOWNLOAD_GUIDE_CLOSE)
+    .first()
+    .isVisible()
+    .catch(() => false);
+}
+
+export async function clickDownloadGuideClose(page: Page): Promise<void> {
+  await page.locator(DOWNLOAD_GUIDE_CLOSE).first().click({ timeout: PAGE_WAIT.close });
 }
 
 /** The 我知道了 of the guide over the first video opened. */

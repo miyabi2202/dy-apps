@@ -11,9 +11,11 @@ import {
 } from '../douyin/page-map';
 import {
   clickCloseOrEscape,
+  clickDownloadGuideClose,
   clickPostCommentButton,
   clickRepliesButton,
   dismissGuide,
+  downloadGuideShown,
   waitForCommentsOrButton,
   waitForGuide,
   pageBlocked,
@@ -77,6 +79,14 @@ export class PageUserSurface implements UserSurface {
 
   dismissGuide(): Promise<void> {
     return dismissGuide(this.page);
+  }
+
+  guideShown(): Promise<boolean> {
+    return downloadGuideShown(this.page);
+  }
+
+  clickGuideClose(): Promise<void> {
+    return clickDownloadGuideClose(this.page);
   }
 
   waitForCommentsOrButton(): Promise<'comments' | 'button'> {

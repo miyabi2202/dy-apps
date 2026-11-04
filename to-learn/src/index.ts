@@ -3,6 +3,7 @@ export {
   formatItem,
   itemsToAdd,
   markDone,
+  markOpen,
   openItems,
   parseToLearn,
   TO_LEARN_HEADING,

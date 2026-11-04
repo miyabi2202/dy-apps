@@ -1,9 +1,9 @@
+import { DOWNLOAD_GUIDE_CLOSE } from '@dy-apps/douyin-chrome';
 import type { Locator, Page } from 'playwright-core';
 import {
   ANCHOR_CARD,
   CLOSE_ICON,
   DIAMOND_BALANCE,
-  DOWNLOAD_GUIDE_CLOSE,
   PAGE_WAIT,
   RIGHT_PANEL_CLOSE_SVG,
 } from '../douyin/page-map';

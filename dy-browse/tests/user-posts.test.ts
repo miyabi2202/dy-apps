@@ -70,6 +70,8 @@ function setup({
     },
     waitForGuide: () => Promise.reject(new Error('timeout')),
     dismissGuide: () => Promise.resolve(void log.push('click 我知道了')),
+    guideShown: () => Promise.resolve(false),
+    clickGuideClose: () => Promise.resolve(void log.push('click popup ×')),
     waitForCommentsOrButton: () => {
       log.push('wait for comments');
       return Promise.resolve('comments');
