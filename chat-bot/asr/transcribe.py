@@ -60,7 +60,7 @@ turned off, and with both off the lines are as they were without them. BackingTi
 backing track a streamer sings over, and a sung sentence carries what it found,
 `"backing": {"title": "…", "artist": "…", "at": <when it looked, Unix s>}` (null for none), held
 like `played`; the vocals are then
-looked up only when the mix matched a title they weren't looked up for yet. BackingGaps
+looked up only when the mix matched a title they weren't found to be sung live on yet. BackingGaps
 (`--no-backing-gaps`): while a sentence was sung in the last minute, every 15 s it prints how loud
 the backing (the mix minus Demucs' vocals) was each second,
 `{"backing_level": {"from": 1792131000.1, "to": 1792131015.1, "db": [-26.1, …]}}`, as a backing
@@ -617,7 +617,9 @@ class Recordings:
     recording's vocals are its singer's, hers aren't). A match named as a backing track
     (BACKING_TRACK) still counts as singing. Looked up at most every PLAYED_CHECK_SECONDS while
     sentences are sung, from the latest audio. With `backing` (the BackingTitles add-on) the whole
-    mix is looked up first, and the vocals only for a title they weren't looked up for yet.
+    mix is looked up first, and the vocals only for a title they weren't found to be sung live on
+    yet: a recording is looked up again each time, as a backing track can open with its singer's
+    voice (a guide vocal) and drop it once the streamer sings over it.
     """
 
     def __init__(self, shazam: Shazam, separate, now=time.monotonic, backing: "BackingTitles | None" = None):
@@ -627,9 +629,10 @@ class Recordings:
         self.checked_at: float | None = None
         self.sung_at: float | None = None
         self.playing: dict | None = None
-        # With BackingTitles (an add-on): the mix is looked up first, and the vocals only for a new title.
+        # With BackingTitles (an add-on): the mix is looked up first, and the vocals only for a title
+        # they weren't found to be sung live on yet.
         self.backing = backing
-        self.vocals_for: tuple[str, dict | None] | None = None  # (the mix's title, what its vocals were)
+        self.sung_live: str | None = None  # the mix's title its vocals were last found to be sung live on
 
     def __call__(self, chunks: list[bytes]) -> dict | None:
         """The recording playing as a sentence was sung, `{"title", "artist"}`, or None."""
@@ -651,10 +654,11 @@ class Recordings:
             mix = self.backing.lookup(as_wav(chunks))
             if mix is None or BACKING_TRACK.search(mix["title"]):
                 return None  # nothing on the mix, so nothing on its vocals; or sung over a backing track
-            if self.vocals_for is not None and self.vocals_for[0] == bare_title(mix["title"]):
-                return self.vocals_for[1]  # this title's vocals were looked up already
+            title = bare_title(mix["title"])
+            if self.sung_live == title:
+                return None  # this title's vocals were found to be sung live already
             played = self.lookup_vocals(chunks)
-            self.vocals_for = (bare_title(mix["title"]), played)
+            self.sung_live = title if played is None else None
             return played
         return self.lookup_vocals(chunks)
 

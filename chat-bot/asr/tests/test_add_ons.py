@@ -56,16 +56,30 @@ def test_no_match_on_the_mix_looks_up_no_vocals():
 
 def test_the_mix_matches_then_the_vocals_tell_a_recording():
     shazam = FakeShazam({"title": "花", "subtitle": "夏川りみ"}, {"title": "花", "subtitle": "夏川りみ"},
-                        {"title": "花 (Live)", "subtitle": "夏川りみ"})
+                        {"title": "花 (Live)", "subtitle": "夏川りみ"}, {"title": "花", "subtitle": "夏川りみ"})
     recordings, backing, clock = recordings_with_backing(shazam)
     assert recordings(AUDIO) == {"title": "花", "artist": "夏川りみ"}  # the mix, then the vocals
     assert backing.track == {"title": "花", "artist": "夏川りみ", "at": 1000}
     assert len(shazam.wavs) == 2
     clock[0] = 21
-    # The same song on the mix (its version tag aside): the vocals aren't looked up again.
+    # The same song on the mix (its version tag aside): a recording's vocals are looked up again.
     assert recordings(AUDIO) == {"title": "花", "artist": "夏川りみ"}
     assert backing.track["title"] == "花 (Live)"
-    assert len(shazam.wavs) == 3
+    assert len(shazam.wavs) == 4
+
+
+def test_a_backing_track_that_opens_with_its_singer_is_then_sung_live():
+    # The backing track's guide vocal matches at first; once she sings over it, her vocals don't.
+    song = {"title": "Good Time", "subtitle": "Owl City & Carly Rae Jepsen"}
+    shazam = FakeShazam(song, song, song, None, song)
+    recordings, _, clock = recordings_with_backing(shazam)
+    assert recordings(AUDIO) == {"title": "Good Time", "artist": "Owl City & Carly Rae Jepsen"}
+    clock[0] = 21
+    assert recordings(AUDIO) is None  # the mix, then her vocals: sung live
+    assert len(shazam.wavs) == 4
+    clock[0] = 42
+    assert recordings(AUDIO) is None  # found sung live on this title: no vocals lookup
+    assert len(shazam.wavs) == 5
 
 
 def test_sung_over_a_backing_track():
