@@ -43,18 +43,20 @@ test('the prompt lists the settings that show there, in order, as they are', () 
       '直播间现在的设置（机器人管理员可以用指令修改）：',
       '- 自动回复：开（观众或主播说到你、跟你说话时，你会主动接一句；判断的阈值是 0.6，两次之间至少隔 60 秒）',
       '- 随机回复：关闭',
+      '- 主动说话：关闭',
       '- 自动谢礼：关闭',
       '- 自动识歌：关闭',
     ].join('\n'),
   );
 });
 
-test('the prompt says how each feature that is on works: thanks over a threshold, random replies by chance, song id', () => {
+test('the prompt says how each feature that is on works: thanks over a threshold, random replies by chance, proactive talk, song id', () => {
   expect(
     settingsText({
       ...SETTING_DEFAULTS,
       thanksThreshold: 100,
       randomReplyChance: 0.15,
+      proactiveTalkMinutes: 5,
       autoSongId: true,
     }),
   ).toBe(
@@ -62,6 +64,7 @@ test('the prompt says how each feature that is on works: thanks over a threshold
       '直播间现在的设置（机器人管理员可以用指令修改）：',
       '- 自动回复：关闭',
       '- 随机回复：开（每条弹幕有 15% 的机会交给你，没人跟你说话也可以接一句，不想接就不接）',
+      '- 主动说话：开（每 5 分钟你会想想此刻的念头，有值得说的才说一句）',
       '- 自动谢礼：5 分钟内送礼超过 100 钻的观众会收到感谢',
       '- 自动识歌：开（主播唱歌时，你会自己认出是什么歌并说出来）',
     ].join('\n'),

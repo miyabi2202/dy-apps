@@ -68,6 +68,7 @@ export function registerApp(container: Container): void {
           autoReplyThreshold: settings.autoReplyThreshold,
           autoReplyIntervalMs: settings.autoReplyIntervalSeconds * 1000,
           randomReplyChance: settings.randomReplyChance,
+          proactiveTalkMinutes: settings.proactiveTalkMinutes,
           thanksThreshold: settings.thanksThreshold,
           autoSongId: settings.autoSongId,
         });

@@ -15,6 +15,8 @@ export interface Settings {
   autoReplyIntervalSeconds: number;
   /** How likely any chat (not the bot's) is handed to Claude to join in on, or not; 0 never (`/随机回复`). */
   randomReplyChance: number;
+  /** Every this many minutes it thinks of something to say on its own, and says it if it scores enough; 0 never (`/主动说话`). */
+  proactiveTalkMinutes: number;
   /** Viewers whose gifts within 5 minutes pass this many diamonds are thanked (`/自动谢礼`). */
   thanksThreshold: number;
   /** Whether it names the songs the streamer sings without being asked (`/自动识歌`). */
@@ -168,6 +170,25 @@ export const SETTINGS: { [K in keyof Settings]: SettingSpec<Settings[K]> } = {
       },
     },
   ),
+  proactiveTalkMinutes: numberSetting(
+    0,
+    { integer: true, min: 0, describe: '分钟数；0 关闭' },
+    {
+      tool: {
+        name: 'set_proactive_talk_minutes',
+        command: '主动说话',
+        description:
+          '改主动说话的间隔：机器人每隔这么多分钟想一想此刻的念头，有值得说的才说一句（和上一轮想的是同一个话题就更不容易说，越久没人发弹幕就越容易说），0 关闭。有人要开、关主动说话或改间隔时调用（「每五分钟主动说点什么」填 5）。',
+        usage: '间隔要写成分钟数，0 表示关闭，用法：/主动说话 5',
+        arg: 'minutes',
+      },
+      prompt: {
+        order: 4,
+        line: ({ proactiveTalkMinutes }) =>
+          `- 主动说话：${proactiveTalkMinutes > 0 ? `开（每 ${proactiveTalkMinutes} 分钟你会想想此刻的念头，有值得说的才说一句）` : '关闭'}`,
+      },
+    },
+  ),
   thanksThreshold: numberSetting(
     THANKS_OFF_FROM,
     { integer: true, min: 0, describe: `钻石数；关掉自动谢礼填 ${THANKS_OFF_FROM}` },
@@ -182,7 +203,7 @@ export const SETTINGS: { [K in keyof Settings]: SettingSpec<Settings[K]> } = {
         extra: (diamonds: number) => ({ on: diamonds < THANKS_OFF_FROM }),
       },
       prompt: {
-        order: 4,
+        order: 5,
         line: ({ thanksThreshold }) =>
           `- 自动谢礼：${thanksThreshold >= THANKS_OFF_FROM ? '关闭' : `5 分钟内送礼超过 ${thanksThreshold} 钻的观众会收到感谢`}`,
       },
@@ -198,7 +219,7 @@ export const SETTINGS: { [K in keyof Settings]: SettingSpec<Settings[K]> } = {
       arg: 'on',
     },
     prompt: {
-      order: 5,
+      order: 6,
       line: ({ autoSongId }) =>
         `- 自动识歌：${autoSongId ? '开（主播唱歌时，你会自己认出是什么歌并说出来）' : '关闭'}`,
     },

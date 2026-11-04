@@ -4,22 +4,23 @@ A viewer runs a command by @ing the bot with a `/` first: `@默认关闭/自动�
 
 ## The commands
 
-| Command                | Tool                       | What it does                                                                                   | Admins only | Default     |
-| ---------------------- | -------------------------- | ---------------------------------------------------------------------------------------------- | ----------- | ----------- |
-| `/自动回复阈值 <0–1>`  | `set_auto_reply_threshold` | How sure it must be it's talked about to join in                                               | yes         | 1 (off)     |
-| `/自动回复间隔 <秒>`   | `set_auto_reply_interval`  | How long it keeps quiet after joining in                                                       | yes         | 60          |
-| `/随机回复 <0–1>`      | `set_random_reply_chance`  | How likely each chat is handed to Claude to join in on, about the bot or not                   | yes         | 0 (off)     |
-| `/最大回复条数 <1–10>` | `set_max_reply_parts`      | How many messages one @'s answer may take                                                      | yes         | 5           |
-| `/自动谢礼 <钻>`       | `set_thanks_threshold`     | Thank viewers who give more than this in 5 minutes                                             | yes         | 99999 (off) |
-| `/识歌 [提示]`         | `identify_song`            | Name the song the streamer sings, from its lyrics                                              | no          | –           |
-| `/识别背景音乐`        | `identify_bgm`             | Name the recording playing, from its sound                                                     | no          | –           |
-| `/点赞 [次数]`         | `press_like`               | Likes the room as the bot's account, 200 unless told, up to 200                                | yes         | –           |
-| `/灯牌`                | `send_fans_lamp`           | Sends the streamer today's 粉丝团灯牌 (2 diamonds), joining the 粉丝团 if need be              | yes         | –           |
-| `/小心心`              | `send_heart`               | Sends the streamer one 小心心 (1 diamond), at most one every 4 minutes; the only gift it sends | yes         | –           |
-| `/解题 [问题]`         | `ask_about_puzzle`         | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | no          | –           |
-| `/自动识歌 <0\|1>`     | `set_auto_song_id`         | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
-| `/识别恶意言论 <0\|1>` | `set_malice_watch`         | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
-| `/开心送心 <0\|1>`     | `set_happy_heart`          | Lets the bot send the streamer a 小心心 of its own accord when someone makes it happy          | yes         | 0           |
+| Command                | Tool                         | What it does                                                                                   | Admins only | Default     |
+| ---------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- | ----------- | ----------- |
+| `/自动回复阈值 <0–1>`  | `set_auto_reply_threshold`   | How sure it must be it's talked about to join in                                               | yes         | 1 (off)     |
+| `/自动回复间隔 <秒>`   | `set_auto_reply_interval`    | How long it keeps quiet after joining in                                                       | yes         | 60          |
+| `/随机回复 <0–1>`      | `set_random_reply_chance`    | How likely each chat is handed to Claude to join in on, about the bot or not                   | yes         | 0 (off)     |
+| `/主动说话 <分钟>`     | `set_proactive_talk_minutes` | Every this many minutes, think of something to say and say it if it scores enough              | yes         | 0 (off)     |
+| `/最大回复条数 <1–10>` | `set_max_reply_parts`        | How many messages one @'s answer may take                                                      | yes         | 5           |
+| `/自动谢礼 <钻>`       | `set_thanks_threshold`       | Thank viewers who give more than this in 5 minutes                                             | yes         | 99999 (off) |
+| `/识歌 [提示]`         | `identify_song`              | Name the song the streamer sings, from its lyrics                                              | no          | –           |
+| `/识别背景音乐`        | `identify_bgm`               | Name the recording playing, from its sound                                                     | no          | –           |
+| `/点赞 [次数]`         | `press_like`                 | Likes the room as the bot's account, 200 unless told, up to 200                                | yes         | –           |
+| `/灯牌`                | `send_fans_lamp`             | Sends the streamer today's 粉丝团灯牌 (2 diamonds), joining the 粉丝团 if need be              | yes         | –           |
+| `/小心心`              | `send_heart`                 | Sends the streamer one 小心心 (1 diamond), at most one every 4 minutes; the only gift it sends | yes         | –           |
+| `/解题 [问题]`         | `ask_about_puzzle`           | Answer a question about the puzzle on screen (the answer, a hint, where an attempt went wrong) | no          | –           |
+| `/自动识歌 <0\|1>`     | `set_auto_song_id`           | Name the songs the streamer sings, unasked                                                     | yes         | 0           |
+| `/识别恶意言论 <0\|1>` | `set_malice_watch`           | @ viewers who keep posting malicious chat                                                      | yes         | 0           |
+| `/开心送心 <0\|1>`     | `set_happy_heart`            | Lets the bot send the streamer a 小心心 of its own accord when someone makes it happy          | yes         | 0           |
 
 These tools are always on, as far as their feature is: `identify_song` and `set_auto_song_id` need speech and Codex, `identify_bgm` speech, `set_malice_watch` Jev and Codex. Admin-only commands are for admins and the streamer; the others are for anyone. A command that changes a setting writes it to the room's `data/<房间号>/room_config.json` (one field each, in the table below), so it stays after a restart, and the bot reads that file again whenever it changes: editing the field by hand does the same as the command, with no restart. A command-line option only seeds a room's setting the first time, when its `room_config.json` has no such field; after that the file wins, and an option that differs from it is a `setting from room_config, ignoring option` warning at start.
 
@@ -28,6 +29,7 @@ These tools are always on, as far as their feature is: `identify_song` and `set_
 | `/自动回复阈值 <0–1>`  | `autoReplyThreshold`       | `1`        |
 | `/自动回复间隔 <秒>`   | `autoReplyIntervalSeconds` | `60`       |
 | `/随机回复 <0–1>`      | `randomReplyChance`        | `0`        |
+| `/主动说话 <分钟>`     | `proactiveTalkMinutes`     | `0`        |
 | `/最大回复条数 <1–10>` | `maxReplyParts`            | `5`        |
 | `/自动谢礼 <钻>`       | `thanksThreshold`          | `99999`    |
 | `/自动识歌 <0\|1>`     | `autoSongId`               | `false`    |
@@ -54,7 +56,7 @@ How sure the bot must be that something said in the room is about it before it j
 
 ### /自动回复间隔
 
-How many seconds auto-reply keeps quiet after it answered someone unprompted: what's said meanwhile is looked at once it's over. It starts at `--auto-reply-interval` (60). `0` doesn't wait, for a busy room: it still looks only every 20 seconds (at once for a tool's listen trigger), and the outbox still sends one message every `--send-interval` seconds. @s are never held back by it.
+How many seconds auto-reply keeps quiet after it answered someone unprompted: what's said meanwhile is looked at once it's over. Each time it talks, the quiet time is that many seconds give or take up to 2 (rolled at random, `QUIET_JITTER_MS` in `src/app/replies/auto-reply.ts`), so it doesn't answer like clockwork. It starts at `--auto-reply-interval` (60). `0` doesn't wait, with no jitter, for a busy room: it still looks only every 20 seconds (at once for a tool's listen trigger), and the outbox still sends one message every `--send-interval` seconds. @s are never held back by it.
 
 ```text
 @默认关闭 /自动回复间隔 0
@@ -74,6 +76,24 @@ How likely each chat in the room is handed to Claude, from `0` (the default, off
 
 @默认关闭 /随机回复 0
 → 已处理随机回复请求
+```
+
+### /主动说话
+
+Every this many minutes the bot thinks of something to say on its own, from `0` (the default, off). The first time is one interval after it's turned on (or the bot starts with it on), and the next one interval after Claude answered. Claude reads the room with `prompts/proactive-talk.md` (room override `proactive_talk.md`), in the room's persona: what the streamer said, the chat, what the bot said lately, its memories, and its thoughts from the last round, said or not (`{{lastThoughts}}`, the one said marked, kept until the bot restarts). It writes 3 to 5 thoughts, each with:
+
+- a score from 0 to 1, how much it wants to say it;
+- `sameTopic`, whether it's on the same topic as one of the last round's thoughts;
+- the line it would send.
+
+The program then works out each one's final score (`finalScore` in `src/app/replies/proactive-talk.ts`, the numbers in `DEFAULT_SCORING`): its score, less 0.2 when `sameTopic`, plus 0.025 for each whole minute since anyone but the bot chatted (the streamer talking doesn't count), up to 0.3, kept within 0 and 1. The best one goes out, one message, if its final score is 0.6 or more; otherwise the bot says nothing. So a thought Claude scores 0.4 goes out after eight quiet minutes, and one it scores 0.8 on the same topic only after a quiet minute. It works with auto-reply on or off, and isn't held back by `/自动回复间隔`. The log has `claude asking {task: "proactive-talk"}`, then `proactive thoughts {quietMinutes, thoughts}` (each with `score`, `sameTopic` and `final`), and `proactive talk {text, final}` or `proactive talk: nothing worth saying {best, minScore}`.
+
+```text
+@默认关闭 /主动说话 5
+→ 已处理主动说话请求
+
+@默认关闭 /主动说话 0
+→ 已处理主动说话请求
 ```
 
 ### /最大回复条数
@@ -281,31 +301,32 @@ The changes are the tool's add / replace / remove, checked the same way (the lim
 
 Each tool is a `BotTool` in `src/app/tools/`; `src/wiring/mcp.ts` lists them, in the order the help shows them. The ones a room switches on are folders in `chat-bot/tools/`, built by `src/app/tools/declarative-tools.ts` and loaded by `src/adapters/files/tool-files.ts`.
 
-| Tool                       | Defined in                                                                                                           |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `set_auto_reply_threshold` | `settingTool`, from its entry in `SETTINGS`                                                                          |
-| `set_auto_reply_interval`  | `settingTool`, from its entry in `SETTINGS`                                                                          |
-| `set_random_reply_chance`  | `settingTool`, from its entry in `SETTINGS`                                                                          |
-| `set_max_reply_parts`      | `settingTool`, from its entry in `SETTINGS`                                                                          |
-| `set_thanks_threshold`     | `settingTool`, from its entry in `SETTINGS`                                                                          |
-| `update_memory`            | `src/app/tools/update-memory.ts`                                                                                     |
-| `look_at_screen`           | `src/app/tools/look-at-screen.ts`, which crops with `src/adapters/models/ffmpeg-crop.ts`                             |
-| `identify_song`            | `src/app/tools/identify-song.ts`                                                                                     |
-| `identify_bgm`             | `src/app/tools/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`                                            |
-| `press_like`               | `src/app/tools/press-like.ts`, which asks room-feed's `POST …/like`                                                  |
-| `send_fans_lamp`           | `src/app/tools/fans-lamp.ts`, which asks room-feed's `POST …/fans-lamp`                                              |
-| `send_heart`               | `src/app/tools/heart.ts`, through `HeartGate` (`src/app/tools/heart-gate.ts`), which asks room-feed's `POST …/heart` |
-| `send_happy_heart`         | `src/app/tools/happy-heart.ts`, through the same `HeartGate`                                                         |
-| `ask_about_puzzle`         | `src/app/tools/ask-about-puzzle.ts`                                                                                  |
-| `set_auto_song_id`         | `settingTool`, from its entry in `SETTINGS`                                                                          |
-| `set_malice_watch`         | `settingTool`, from its entry in `SETTINGS`                                                                          |
-| `set_happy_heart`          | `settingTool`, from its entry in `SETTINGS`                                                                          |
-| `can_sing`                 | `chat-bot/tools/can-sing/` (`tool.json`, `guidance.md`)                                                              |
-| `too_easy`                 | `chat-bot/tools/too-easy/` (`tool.json`, `guidance.md`)                                                              |
-| `wants_topic`              | `chat-bot/tools/wants-topic/` (`tool.json`)                                                                          |
-| `say_one`                  | `chat-bot/tools/say-one/` (`tool.json`)                                                                              |
-| `schedule`                 | `chat-bot/tools/schedule/` (`tool.json`, `guidance.md`)                                                              |
-| `wuwa_meme`                | `chat-bot/tools/wuwa-meme/` (`tool.json`, `guidance.md`)                                                             |
+| Tool                         | Defined in                                                                                                           |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `set_auto_reply_threshold`   | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_auto_reply_interval`    | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_random_reply_chance`    | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_proactive_talk_minutes` | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_max_reply_parts`        | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_thanks_threshold`       | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `update_memory`              | `src/app/tools/update-memory.ts`                                                                                     |
+| `look_at_screen`             | `src/app/tools/look-at-screen.ts`, which crops with `src/adapters/models/ffmpeg-crop.ts`                             |
+| `identify_song`              | `src/app/tools/identify-song.ts`                                                                                     |
+| `identify_bgm`               | `src/app/tools/identify-bgm.ts`, which asks `Transcriber.identifyMusic()`                                            |
+| `press_like`                 | `src/app/tools/press-like.ts`, which asks room-feed's `POST …/like`                                                  |
+| `send_fans_lamp`             | `src/app/tools/fans-lamp.ts`, which asks room-feed's `POST …/fans-lamp`                                              |
+| `send_heart`                 | `src/app/tools/heart.ts`, through `HeartGate` (`src/app/tools/heart-gate.ts`), which asks room-feed's `POST …/heart` |
+| `send_happy_heart`           | `src/app/tools/happy-heart.ts`, through the same `HeartGate`                                                         |
+| `ask_about_puzzle`           | `src/app/tools/ask-about-puzzle.ts`                                                                                  |
+| `set_auto_song_id`           | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_malice_watch`           | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `set_happy_heart`            | `settingTool`, from its entry in `SETTINGS`                                                                          |
+| `can_sing`                   | `chat-bot/tools/can-sing/` (`tool.json`, `guidance.md`)                                                              |
+| `too_easy`                   | `chat-bot/tools/too-easy/` (`tool.json`, `guidance.md`)                                                              |
+| `wants_topic`                | `chat-bot/tools/wants-topic/` (`tool.json`)                                                                          |
+| `say_one`                    | `chat-bot/tools/say-one/` (`tool.json`)                                                                              |
+| `schedule`                   | `chat-bot/tools/schedule/` (`tool.json`, `guidance.md`)                                                              |
+| `wuwa_meme`                  | `chat-bot/tools/wuwa-meme/` (`tool.json`, `guidance.md`)                                                             |
 
 ## Adding one
 

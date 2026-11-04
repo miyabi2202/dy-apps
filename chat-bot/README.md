@@ -5,6 +5,7 @@ A bot that sits in a Douyin live room as an ordinary viewer's account and talks 
 - **Answers whoever @s it**: questions about the stream, the songs, the streamer, or anything else (with web search).
 - **Joins in without an @** when people talk to or about it (`/自动回复阈值 0.6`; off by default).
 - **Joins in at random**: each chat (the streamer's too, not the bot's own) has `/随机回复 0.1`'s chance of going to Claude, which may answer or stay quiet (off by default).
+- **Speaks up on its own**: every `/主动说话 5` minutes it thinks a few thoughts in its persona, scored for how much it wants to say each, lower on a topic it already thought about last round and higher the longer no one has chatted, and says the best if it scores enough (off by default).
 - **Answers questions about the room**, such as 「主播会唱晴天吗」 or 「几点开播」, from the room's own files, like its song list and streaming times (tools the room switches on in its `room_config.json`). Viewers just ask in the chat.
 - **Names the songs the streamer sings** (`/识歌`, or every song with `/自动识歌 1`) and says something short about each.
 - **Thanks big givers** with a message about their gift (`/自动谢礼 499`), and **answers questions about the puzzle on screen** (`ask_about_puzzle`, `/解题`).

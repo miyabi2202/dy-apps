@@ -18,6 +18,7 @@ import type { EventBus } from '../app/event-bus';
 import type { Feature } from '../app/feature';
 import type { BackingGapBreaks } from '../app/songs/backing-gap-breaks';
 import type { GiftThanker } from '../app/replies/gift-thanker';
+import type { ProactiveTalk } from '../app/replies/proactive-talk';
 import type { MaliceWatch } from '../app/replies/malice-watch';
 import type { BotMcpServer } from '../adapters/mcp/server';
 import type { MentionAnswerer } from '../app/replies/mention-answerer';
@@ -174,6 +175,7 @@ export const FEED = token<RoomFeed>('feed');
 // auto-reply.ts: what the bot says unprompted.
 export const AUTO_REPLY = token<AutoReply>('autoReply');
 export const THANKER = token<GiftThanker>('thanker');
+export const PROACTIVE_TALK = token<ProactiveTalk>('proactiveTalk');
 
 // life.ts: the personas' own days.
 /** What happened to each shared persona on her own days, in data/lives/. */

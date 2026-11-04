@@ -985,3 +985,28 @@ test('at a randomReplyChance of 0 nothing is rolled; a chat picked at random is 
   ]);
   expect(ran.judged).toEqual(['(1) 00:00:20 [小红] 今晚吃火锅']);
 });
+
+test('the quiet time after talking varies by up to 2 s either way', async () => {
+  /** When, in seconds, it answers someone who asked 2 s after it answered the first, with `random` rolled. */
+  const secondAnswerAt = async (random: number) => {
+    const answeredAt: number[] = [];
+    const rounds: (() => void)[] = [
+      () => ran.chat('阿明', '机器人在吗', 'u-阿明'),
+      () => ran.chat('小蓝', '机器人你几岁', 'u-小蓝'),
+      ...Array.from({ length: 30 }, () => () => {}),
+    ];
+    const ran = setup(rounds, {
+      quietMs: 20_000,
+      checkMs: 1000,
+      random: () => random,
+      picker: () => Promise.resolve(JSON.stringify({ picks: [{ line: 1, confidence: 0.9 }] })),
+      reply: () => void answeredAt.push(32 - rounds.length),
+    });
+    await ran.autoReply.run();
+    expect(answeredAt).toHaveLength(2);
+    return answeredAt[1] - answeredAt[0];
+  };
+  expect(await secondAnswerAt(0)).toBe(18);
+  expect(await secondAnswerAt(0.5)).toBe(20);
+  expect(await secondAnswerAt(1)).toBe(22);
+});

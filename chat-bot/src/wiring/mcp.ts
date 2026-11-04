@@ -79,6 +79,7 @@ export function registerMcp(container: Container): void {
         setting('autoReplyThreshold'),
         setting('autoReplyIntervalSeconds'),
         setting('randomReplyChance'),
+        setting('proactiveTalkMinutes'),
         setting('maxReplyParts'),
         setting('thanksThreshold'),
         // What the bot remembers: the room's (admins) and the asker's own note (anyone).

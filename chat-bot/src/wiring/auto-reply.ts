@@ -1,5 +1,6 @@
 import { AutoReply } from '../app/replies/auto-reply';
 import { GiftThanker } from '../app/replies/gift-thanker';
+import { ProactiveTalk } from '../app/replies/proactive-talk';
 import { busFeature } from '../app/feature';
 import type { AskModel } from '../app/ports';
 import type { Container } from './container';
@@ -15,6 +16,7 @@ import {
   LOG,
   OPTIONS,
   OUTBOX,
+  PROACTIVE_TALK,
   PROMPT,
   ROOM,
   ROOM_CONFIG,
@@ -27,7 +29,7 @@ import {
 
 /**
  * What the bot says without being @ed: joining in when talked about, or on a chat picked at random
- * (randomReplyChance), and thanking big givers.
+ * (randomReplyChance), thanking big givers, and something of its own every proactiveTalkMinutes.
  */
 export function registerAutoReply(container: Container, features: FeatureRegistry): void {
   features
@@ -46,6 +48,22 @@ export function registerAutoReply(container: Container, features: FeatureRegistr
     .add('gift-thanks', (c) => {
       const thanker = c.resolve(THANKER);
       return busFeature('gift-thanks', c.resolve(BUS), { gift: (gift) => thanker.onGift(gift) });
+    })
+    .add('proactive-talk', (c) => {
+      const talk = c.resolve(PROACTIVE_TALK);
+      // The chat tells it how long the room has been quiet.
+      const heard = busFeature('proactive-talk', c.resolve(BUS), { chat: () => talk.heardChat() });
+      return {
+        name: 'proactive-talk',
+        start: () => {
+          heard.start();
+          void talk.loop();
+        },
+        stop: () => {
+          heard.stop();
+          talk.stop();
+        },
+      };
     });
   container
     // Joins in when Jev scores something said in the room as about the bot at
@@ -103,5 +121,20 @@ export function registerAutoReply(container: Container, features: FeatureRegistr
         log: c.resolve(LOG),
       });
       return thanker;
+    })
+    // Every proactiveTalkMinutes (/主动说话), Claude thinks a few thoughts in the persona, each
+    // scored; the score is lowered on a topic it already thought about last round and raised the
+    // longer no one has chatted, and the best is said if it scores enough.
+    .register(PROACTIVE_TALK, (c) => {
+      const options = c.resolve(OPTIONS);
+      return new ProactiveTalk({
+        ask: c.resolve(ASK_CLAUDE)('proactive-talk'),
+        outbox: c.resolve(OUTBOX),
+        promptTemplate: c.resolve(PROMPT)('proactiveTalk'),
+        settings: c.resolve(SETTINGS),
+        room: c.resolve(ROOM),
+        maxLength: options.maxReplyLength,
+        log: c.resolve(LOG),
+      });
     });
 }

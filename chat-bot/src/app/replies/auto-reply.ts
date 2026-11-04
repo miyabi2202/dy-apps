@@ -83,6 +83,9 @@ const STREAMER = '主播';
  */
 const SURE_ABOUT_BOT = 0.9;
 
+/** The quiet time after talking varies by up to this much either way, so it doesn't answer like clockwork. */
+const QUIET_JITTER_MS = 2000;
+
 /** At most this many lines go to the picker, the newest. */
 const PICK_LINES = 40;
 /** At most this many are answered at once. */
@@ -118,6 +121,8 @@ export class AutoReply {
   private seen: number;
   /** When it last talked, or started to. */
   private talkedAt = -Infinity;
+  /** Added to this quiet time, from -QUIET_JITTER_MS to QUIET_JITTER_MS, rolled each time it talks. */
+  private quietJitterMs = 0;
   /** When the bot last said something to each person, by user id (STREAMER for the streamer). */
   private readonly saidTo = new Map<string, number>();
   /**
@@ -329,7 +334,7 @@ export class AutoReply {
       return;
     }
     // While it keeps quiet, what's said waits to be looked at after.
-    if (now - this.talkedAt < this.settings.autoReplyIntervalSeconds * 1000) return;
+    if (now - this.talkedAt < this.quietMs()) return;
     const lines = roomLines(room.recentChat(), room.recentTranscript(), this.options.names.botName);
     // Since the last check began, so what was said while it picked and answered is looked at now.
     const since = this.seen;
@@ -381,7 +386,16 @@ export class AutoReply {
       why,
       topicsOf,
     );
-    if (answered + picked > 0) this.talkedAt = room.now();
+    if (answered + picked > 0) {
+      this.talkedAt = room.now();
+      this.quietJitterMs = ((this.options.random ?? Math.random)() * 2 - 1) * QUIET_JITTER_MS;
+    }
+  }
+
+  /** How long it keeps quiet after talking: autoReplyIntervalSeconds, give or take the jitter; 0 stays 0. */
+  private quietMs(): number {
+    const seconds = this.settings.autoReplyIntervalSeconds;
+    return seconds > 0 ? Math.max(0, seconds * 1000 + this.quietJitterMs) : 0;
   }
 
   /**
