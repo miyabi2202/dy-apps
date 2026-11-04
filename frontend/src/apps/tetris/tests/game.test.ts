@@ -747,6 +747,39 @@ describe('danger and callouts', () => {
     expect(engine.boardView.callout).toMatchObject({ lines: 4, combo: 0, row: rows - 2.5 });
   });
 
+  it('a tetris sweeps the lowest row with anything in it too', () => {
+    const engine = startedEngine();
+    engine.board = boardWithRows([rows - 5, rows - 4, rows - 3, rows - 2], [0]);
+    engine.board[rows - 1]![0] = 'G';
+    engine.board[rows - 1]![1] = 'G';
+    setActive(engine, 'I');
+    engine.rotate(1);
+    while (engine.move(-1)) {
+      /* to column 0 */
+    }
+    engine.hardDrop();
+    expect(engine.lines).toBe(5);
+    expect(engine.board.every((row) => row.every((cell) => cell === null))).toBe(true);
+    expect(engine.boardView.callout).toMatchObject({ lines: 4, swept: 1 });
+  });
+
+  it('two lines and two more in a row sweep the bottom once the combo reaches four', () => {
+    const engine = startedEngine();
+    const clearTwo = () => {
+      engine.board = boardWithRows([rows - 3, rows - 2], [4, 5]);
+      engine.board[rows - 1]![4] = 'G';
+      setActive(engine, 'O');
+      engine.hardDrop();
+    };
+    clearTwo();
+    expect(engine.board[rows - 1]![4]).toBe('G');
+    expect(engine.boardView.callout).toMatchObject({ swept: 0 });
+    clearTwo();
+    expect(engine.board[rows - 1]![4]).toBeNull();
+    expect(engine.boardView.callout).toMatchObject({ lines: 2, combo: 2, swept: 1 });
+    expect(engine.lines).toBe(5);
+  });
+
   it('a single line has no callout; a second clear in a row is a combo', () => {
     const engine = startedEngine();
     const clearOne = () => {

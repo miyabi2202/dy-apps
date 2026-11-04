@@ -64,6 +64,7 @@ const CALLOUT_LINES: Record<number, { text: string; color: string }> = {
   4: { text: 'TETRIS!', color: '#facc15' },
 };
 const COMBO_COLOR = '#f472b6';
+const SWEPT_COLOR = '#4ade80';
 const GRID = 'rgba(148, 163, 184, 0.10)';
 const HIGHLIGHT = 'rgba(255,255,255,0.18)';
 
@@ -157,7 +158,7 @@ function paintDanger(ctx: Canvas2D, danger: DangerView, timeMs: number, size: nu
 
 /**
  * A big clear or combo shouted over the board where the lines went: DOUBLE, TRIPLE or TETRIS!,
- * and COMBO ×n under it. It pops in big, holds, then rises and fades.
+ * then COMBO ×n and 清底 +n under it. It pops in big, holds, then rises and fades.
  */
 function paintCallout(ctx: Canvas2D, callout: CalloutView, ageMs: number, size: number): void {
   if (ageMs < 0 || ageMs >= CALLOUT_MS) return;
@@ -167,6 +168,7 @@ function paintCallout(ctx: Canvas2D, callout: CalloutView, ageMs: number, size: 
   const shouts = [
     ...(lines ? [{ ...lines, scale: 1.7 }] : []),
     ...(callout.combo ? [{ text: `COMBO ×${callout.combo}`, color: COMBO_COLOR, scale: 1.1 }] : []),
+    ...(callout.swept ? [{ text: `清底 +${callout.swept}`, color: SWEPT_COLOR, scale: 1.1 }] : []),
   ];
   const w = cols * size;
   ctx.save();

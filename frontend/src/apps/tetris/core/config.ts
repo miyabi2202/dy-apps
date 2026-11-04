@@ -109,6 +109,11 @@ export const CONFIG = {
    * `cancelFrom`th clear in a row on, each clear cancels one pending curse too.
    */
   combo: { cancelFrom: 2 },
+  /**
+   * 清底: every `every` lines one combo clears (a TETRIS! on its own, or 2 + 2 in a row), the
+   * lowest row with anything in it goes too.
+   */
+  sweep: { every: 4 },
   /** Before the piece of a curse with `cutscene`: its name, then READY, then GO. */
   cutscene: { introMs: 1500, readyMs: 500, goMs: 500 },
   /**

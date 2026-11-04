@@ -1,6 +1,6 @@
 import type { Logger } from '@dy-apps/services';
 import { log as appLog } from '../log';
-import { clearFullLines, collides, createBoard } from './board';
+import { clearFullLines, collides, createBoard, emptyRow } from './board';
 import { CONFIG } from './config';
 import {
   CURSE_LIST,
@@ -239,6 +239,8 @@ export class GameEngine {
   settlementCount = 0;
   /** Pieces in a row that cleared a line, this one included; 0 after one that cleared none. */
   combo = 0;
+  /** Lines cleared by this combo so far, for 清底. */
+  private comboLines = 0;
   team: TeamState;
   /** The curses in play, in settlement order. */
   readonly curses: readonly CurseDef<unknown>[];
@@ -699,6 +701,7 @@ export class GameEngine {
     this.lockedPieceCount = 0;
     this.settlementCount = 0;
     this.combo = 0;
+    this.comboLines = 0;
     this.team = this.startingTeam();
     this.effects = this.startingEffects();
     this.giftHistory = [];
@@ -1324,11 +1327,20 @@ export class GameEngine {
     const full = this.board.flatMap((row, y) => (row.every(Boolean) && !stays(row) ? [y] : []));
     const cleared = clearFullLines(this.board, stays);
     this.combo = cleared > 0 ? this.combo + 1 : 0;
+    const before = cleared > 0 ? this.comboLines : 0;
+    this.comboLines = before + cleared;
     if (cleared > 0) {
-      this.shout(cleared, full);
+      const { every } = CONFIG.sweep;
+      const swept = this.sweepBottom(
+        Math.floor(this.comboLines / every) - Math.floor(before / every),
+        stays,
+      );
+      this.shout(cleared, full, swept);
       this.score += CONFIG.score.lineClear[cleared] ?? 0;
-      this.lines += cleared;
-      this.logState(`cleared ${cleared} line${cleared > 1 ? 's' : ''}`);
+      this.lines += cleared + swept;
+      this.logState(
+        `cleared ${cleared} line${cleared > 1 ? 's' : ''}${swept ? `, swept ${swept}` : ''}`,
+      );
       if (cleared >= CONFIG.relief.minLines)
         this.cancelPending({ kind: 'cancelled', lines: cleared });
       if (this.combo >= CONFIG.combo.cancelFrom)
@@ -1491,12 +1503,30 @@ export class GameEngine {
     this.logState(`quiet room drew ${type}`);
   }
 
-  /** A line clear's callout, when it is 2 lines or more, or a combo. */
-  private shout(cleared: number, rows: readonly number[]): void {
+  /**
+   * 清底: removes up to `n` of the lowest rows with anything in them (never one a 钉子户 holds),
+   * adding empty rows on top. Returns how many went.
+   */
+  private sweepBottom(n: number, stays: (row: readonly Cell[]) => boolean): number {
+    let swept = 0;
+    for (let y = this.board.length - 1; y >= 0 && swept < n; y -= 1) {
+      const row = this.board[y]!;
+      if (!row.some(Boolean) || stays(row)) continue;
+      this.board.splice(y, 1);
+      swept += 1;
+      // Everything above moved down into this row; look at it again.
+      y += 1;
+    }
+    for (let i = 0; i < swept; i += 1) this.board.unshift(emptyRow());
+    return swept;
+  }
+
+  /** A line clear's callout, when it is 2 lines or more, a combo, or it swept the bottom. */
+  private shout(cleared: number, rows: readonly number[], swept: number): void {
     const combo = this.combo >= 2 ? this.combo : 0;
-    if (cleared < 2 && !combo) return;
+    if (cleared < 2 && !combo && !swept) return;
     const row = rows.reduce((sum, y) => sum + y, 0) / rows.length;
-    this.callout = { atMs: this.playMs, combo, lines: cleared, row };
+    this.callout = { atMs: this.playMs, combo, lines: cleared, swept, row };
   }
 
   /** The danger the board pulses red with, a beat at a time, while the stack is high. */

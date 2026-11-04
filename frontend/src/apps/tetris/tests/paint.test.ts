@@ -150,10 +150,10 @@ describe('paintBoard', () => {
   });
 
   it('shouts a big clear and its combo, then lets it go', () => {
-    const callout = { atMs: 1000, combo: 3, lines: 4, row: rows - 3 };
+    const callout = { atMs: 1000, combo: 3, lines: 4, swept: 1, row: rows - 3 };
     const ctx = recorder();
     paintBoard(ctx, view({ callout, timeMs: 1500 }), W, H);
-    expect(ctx.texts.map(([text]) => text)).toEqual(['TETRIS!', 'COMBO ×3']);
+    expect(ctx.texts.map(([text]) => text)).toEqual(['TETRIS!', 'COMBO ×3', '清底 +1']);
     const later = recorder();
     paintBoard(later, view({ callout, timeMs: 5000 }), W, H);
     expect(later.texts).toEqual([]);

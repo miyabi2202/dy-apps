@@ -67,11 +67,13 @@ export interface DangerView {
 
 /**
  * A clear worth shouting about at `atMs` of play time: `lines` at once (2 or more) and/or the
- * `combo`th clear in a row (2 or more, else 0), centred on board row `row`.
+ * `combo`th clear in a row (2 or more, else 0), and the bottom rows it `swept` (清底), centred on
+ * board row `row`.
  */
 export interface CalloutView {
   readonly lines: number;
   readonly combo: number;
+  readonly swept: number;
   readonly row: number;
   readonly atMs: number;
 }
