@@ -84,6 +84,24 @@ test('{{history}} shows the recent gifts among the chat, by time', () => {
   expect(prompt).toBe('阿明: 好听\n澳***: （送出 比心兔兔×1，299钻）\n小红: 谢一下这个礼物');
 });
 
+test('{{transcript}} marks what the streamer read out of the chat, and leaves out a sentence that was only reading', () => {
+  const at = new Date(2026, 10, 6, 20, 38, 46).getTime();
+  const prompt = buildPrompt('{{transcript}}', {
+    ...input,
+    history: [
+      { ts: at - 31_000, nickname: '禾音', content: '那个地址是我回家路上的快递站[奸笑]' },
+      { ts: at - 5_000, nickname: '阿明', content: '周五提前下班了' },
+      { ts: at - 200_000, nickname: '小红', content: '今天吃什么好呢' },
+    ],
+    transcript: [
+      { start: at - 3_000, end: at, text: '啊那个地址是我回家路上的快递站哎呀我真求你了' },
+      { start: at + 1_000, end: at + 3_000, text: '周五提前下班了' },
+      { start: at + 4_000, end: at + 6_000, text: '今天吃什么好呢' },
+    ],
+  });
+  expect(prompt).toBe('20:38:43 啊（念了禾音的弹幕）哎呀我真求你了\n20:38:50 今天吃什么好呢');
+});
+
 test('{{today}} is the date and the weekday', () => {
   const tuesday = new Date(2026, 9, 20, 9, 30).getTime();
   expect(buildPrompt('{{today}} {{now}}', { ...input, now: tuesday })).toBe(

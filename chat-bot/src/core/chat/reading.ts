@@ -6,6 +6,14 @@ export interface ReadableChat {
   content: string;
 }
 
+/** How far back a chat may be for the streamer to be reading it out. */
+const READ_WITHIN_MS = 120_000;
+
+/** The chats of `chat` the streamer may be reading out in a sentence that ended at `end`. */
+export function readableAt<T extends { ts: number }>(chat: readonly T[], end: number): T[] {
+  return chat.filter((c) => c.ts <= end && end - c.ts <= READ_WITHIN_MS);
+}
+
 /** The marker put where the streamer read out someone's chat. */
 export function readMark(nickname: string): string {
   return `（念了${nickname}的弹幕）`;

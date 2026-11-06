@@ -1,6 +1,7 @@
 import { clock, localDate, machineTimeZone, retimeLines, timeZoneName } from './local-time';
 import type { GiftLine } from '../chat/recent-gifts';
 import type { ChatLine } from '../chat/room-events';
+import { readableAt, unread } from '../chat/reading';
 import { fillTemplate } from './template';
 import { settingsText, type Settings } from '../commands/settings';
 import type { Wording } from './wording';
@@ -127,7 +128,8 @@ export type PromptInput = RoomPromptInput & PromptDetails;
  * Fills a prompt template: `{{history}}` becomes one `昵称: 内容` line per chat (and, among them
  * by time, `昵称: （送出 玫瑰×1，1钻）` per recent gift), `{{transcript}}`
  * one `HH:MM:SS 内容` line per sentence the streamer said (`HH:MM:SS （唱）内容` when sung, and
- * `（连线）` before it when someone they're linked up with said it), `{{asker}}` and `{{question}}` the
+ * `（连线）` before it when someone they're linked up with said it; what they read out of `history`
+ * marked `（念了昵称的弹幕）`, and a sentence that was nothing but reading left out, see unread), `{{asker}}` and `{{question}}` the
  * mention's sender and text, `{{asked}}` the two as a line saying they @ed the bot (or, when
  * `unprompted`, that it heard them talk to or about it or was handed their chat at random, and, for a line that matched a tool's listen, a line naming the tool as a hint; after what they said `earlier` while they waited, as one request), `{{singleLength}}` what fits in one message and `{{maxLength}}` the
  * most the answer may use over several, `{{now}}` the time, `{{today}}` the date and weekday
@@ -151,11 +153,15 @@ export function buildPrompt(template: string, input: PromptInput): string {
     history: historyText(history, input.gifts ?? []),
     transcript:
       transcript
-        .map((line) => {
+        .flatMap((line) => {
           const marks = isPlayed(line)
             ? '（放歌）'
             : `${isGuest(line) ? '（连线）' : ''}${isSung(line) ? '（唱）' : ''}`;
-          return `${clock(line.start, input.timeZone)} ${marks}${line.text}`;
+          const text =
+            isPlayed(line) || isSung(line)
+              ? line.text
+              : unread(line.text, readableAt(history, line.end));
+          return text === null ? [] : [`${clock(line.start, input.timeZone)} ${marks}${text}`];
         })
         .join('\n') || '（暂无）',
     asker,

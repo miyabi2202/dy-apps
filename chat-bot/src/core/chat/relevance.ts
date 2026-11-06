@@ -1,5 +1,5 @@
 import { clock } from '../prompts/local-time';
-import { readMark, unread } from './reading';
+import { readableAt, readMark, unread } from './reading';
 import type { ChatLine } from './room-events';
 import { isGuest, isPlayed, isSung, type TranscriptLine } from '../songs/transcript';
 import type { Wording } from '../prompts/wording';
@@ -40,9 +40,6 @@ export interface ListenTopic extends ToolListen {
   adminOnly?: boolean;
 }
 
-/** How far back a chat may be for the streamer to be reading it out. */
-const READ_WITHIN_MS = 120_000;
-
 /**
  * The room's chat and transcript as one list, oldest first, with what the streamer read out of the
  * chat (or the bot's replies) marked as such (see unread): the streamer reading chat aloud isn't
@@ -63,7 +60,7 @@ export function roomLines(
   const spoken = transcript.flatMap((line): RoomLine[] => {
     const sung = isSung(line);
     const played = isPlayed(line);
-    const read = chat.filter((c) => c.ts <= line.end && line.end - c.ts <= READ_WITHIN_MS);
+    const read = readableAt(chat, line.end);
     const text = sung || played ? line.text : unread(line.text, read);
     if (text === null) return [];
     return [
