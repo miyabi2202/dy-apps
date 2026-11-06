@@ -95,6 +95,8 @@ function build(
     web?: unknown;
     data?: MemoryStore;
     snapshot?: (name: string) => Promise<string | null>;
+    /** The context word; '' (none) unless a test is about it. */
+    context?: string;
   } = {},
 ) {
   const data = options.data ?? new MemoryStore();
@@ -115,6 +117,7 @@ function build(
     now: () => NOW,
     depth: options.depth,
     maxSearches: options.maxSearches,
+    context: options.context ?? '',
   });
   return { learner, data, searched, prompts, logs, webAsked: asked };
 }
@@ -619,6 +622,98 @@ describe('TopicLearner', () => {
       carry: { question: '「问题词」是什么？' },
     });
     expect(result.carried).toMatchObject({ status: 'unresolved' });
+  });
+
+  describe('the context word', () => {
+    it('adds 「直播」 to every search, the topic and the keywords below it', async () => {
+      const keywords = [{ keyword: '存票', reason: '旁边的说法' }];
+      const { learner, data, searched, logs } = build(
+        {
+          '存歌 直播': { hot: [tagged('a1', '存票'), tagged('a2', '存票')] },
+          '存票 直播': { hot: [tagged('b1')] },
+        },
+        { keywords },
+        { depth: 1, context: '直播' },
+      );
+      const result = await learner.learn('存歌', { folder: 'topics' });
+      expect(searched).toEqual(['存歌 直播', '存票 直播']);
+      expect(logs).toContain(
+        'topic searched {topic: 存歌, query: 存歌 直播, hot: 2, newest: 0, keywords: 1}',
+      );
+      const file = JSON.parse(data.read(result.searchFile)!) as {
+        tree: { term: string; query?: string }[];
+      };
+      expect(file.tree.map((n) => [n.term, n.query])).toEqual([
+        ['存歌', '存歌 直播'],
+        ['存票', '存票 直播'],
+      ]);
+    });
+
+    it('is 「直播」 by default, and leaves a search that has it already as it is', async () => {
+      const data = new MemoryStore();
+      const searched: string[] = [];
+      const learner = new TopicLearner({
+        search: {
+          search: (topic) => {
+            searched.push(topic);
+            return Promise.resolve({
+              topic,
+              hot: [tagged('a1')],
+              newest: [],
+              related: [],
+              comments: {},
+            });
+          },
+        },
+        ask: () => Promise.resolve('{"unknowns": [], "opinions": [], "claims": []}'),
+        askWeb: null,
+        data,
+        drafts: new DraftStore(data),
+        index: new KnowledgeIndex(parseKnowledge('')),
+        log: () => {},
+        now: () => NOW,
+        depth: 0,
+      });
+      await learner.learn('做数据', { folder: 'topics' });
+      await learner.learn('直播间', { folder: 'topics' });
+      expect(searched).toEqual(['做数据 直播', '直播间']);
+    });
+
+    it('searches without it when the search with it reads nothing', async () => {
+      const { learner, searched, logs } = build(
+        { '冷门词 直播': new EmptyReadError('作品', []), 冷门词: { hot: [tagged('a1')] } },
+        {},
+        { depth: 0, context: '直播' },
+      );
+      await learner.learn('冷门词', { folder: 'topics' });
+      expect(searched).toEqual(['冷门词 直播', '冷门词']);
+      expect(logs).toContain('search query found nothing {term: 冷门词, query: 冷门词 直播}');
+    });
+
+    it('goes from the aimed query to the term with it, then the bare term', async () => {
+      const { learner, searched } = build(
+        {
+          'PK 黑白配 直播': new EmptyReadError('作品', []),
+          '黑白配 直播': new EmptyReadError('作品', []),
+          黑白配: { hot: [tagged('q1')] },
+        },
+        { query: { query: 'PK 黑白配' } },
+        {
+          depth: 0,
+          context: '直播',
+          web: {
+            supports: 'partial',
+            answer: '四个主播连线 PK。',
+            urls: ['https://example.com/a'],
+          },
+        },
+      );
+      await learner.learn('黑白配', {
+        folder: 'topics',
+        carry: { question: '「黑白配」是什么？' },
+      });
+      expect(searched).toEqual(['PK 黑白配 直播', '黑白配 直播', '黑白配']);
+    });
   });
 
   describe('a carried question looked up before the search', () => {

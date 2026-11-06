@@ -63,6 +63,12 @@ export interface TopicLearnerOptions {
   maxUnknowns?: number;
   /** Tiers 1–2 for each post read; none to stop at the text and comments. */
   reader?: ItemReader | null;
+  /**
+   * Added to every search that doesn't have it already (default 「直播」), so a bare word
+   * (「存歌」, 「做数据」) finds what it means in a live room, not its everyday sense; '' for none.
+   * A search it reads nothing for is tried again without it.
+   */
+  context?: string;
 }
 
 /** One search of the walk, as kept in `searches/<date>/<topic>.json` and quoted in a draft's 来源. */
@@ -157,6 +163,7 @@ export class TopicLearner {
   private readonly maxSearches: number;
   private readonly maxKeywords: number;
   private readonly now: () => number;
+  private readonly context: string;
   private readonly resolver: UnknownResolver;
   /** Unknowns still allowed this run, and the terms already raised (so each is looked up once). */
   private unknownsLeft: number;
@@ -168,6 +175,7 @@ export class TopicLearner {
     this.maxSearches = options.maxSearches ?? 6;
     this.maxKeywords = options.maxKeywords ?? 4;
     this.now = options.now ?? Date.now;
+    this.context = options.context ?? '直播';
     this.unknownsLeft = options.maxUnknowns ?? 8;
     this.resolver = new UnknownResolver({
       ask: options.ask,
@@ -217,14 +225,15 @@ export class TopicLearner {
         continue;
       }
       searched.add(key);
-      const result = await this.searchOrSkip(next);
-      if (!result) {
+      const searchedAs = await this.searchOrSkip(next);
+      if (!searchedAs) {
         if (next.unknown) {
           next.unknown.status = 'unresolved';
           next.unknown.note = '抖音搜索没成功';
         }
         continue;
       }
+      const { result, typed } = searchedAs;
       const posts = uniqueById([...result.hot, ...result.newest]);
       const items: ReadItem[] = [];
       for (const item of posts) {
@@ -245,7 +254,7 @@ export class TopicLearner {
         newest: result.newest.map((p) => p.id),
         picked: [],
         ...(next.unknown ? { reason: `查证：${next.unknown.unknown.question}` } : {}),
-        ...(next.query ? { query: next.query } : {}),
+        ...(typed !== next.term ? { query: typed } : {}),
       };
       tree.push(node);
       nodes.push({ term: next.term, parent: next.parent, items });
@@ -305,7 +314,7 @@ export class TopicLearner {
         }
       }
       log(
-        `topic searched {topic: ${next.term}${next.query ? `, query: ${next.query}` : ''}, hot: ${result.hot.length}, newest: ${result.newest.length}, keywords: ${node.picked.length}${next.unknown ? `, for: ${next.unknown.unknown.term}` : ''}}`,
+        `topic searched {topic: ${next.term}${typed !== next.term ? `, query: ${typed}` : ''}, hot: ${result.hot.length}, newest: ${result.newest.length}, keywords: ${node.picked.length}${next.unknown ? `, for: ${next.unknown.unknown.term}` : ''}}`,
       );
     }
     for (const tracked of [...unknowns, ...carried]) {
@@ -473,20 +482,43 @@ export class TopicLearner {
     tracked.status = this.statusOf(tracked) === 'resolved' ? 'resolved' : 'unresolved';
   }
 
+  /** `query` with the context word after it, unless it has it already. */
+  private withContext(query: string): string {
+    return !this.context || query.includes(this.context) ? query : `${query} ${this.context}`;
+  }
+
   /**
-   * One search, or null when it failed for a reason of its own (a page that showed no grid, a
-   * follow-up search that read nothing): logged, and the walk goes on. A captcha or login wall, a
-   * stream starting, or the topic's own search reading nothing still stops the run.
+   * One search, with what was typed, or null when it failed for a reason of its own (a page that
+   * showed no grid, a follow-up search that read nothing): logged, and the walk goes on. A captcha
+   * or login wall, a stream starting, or the topic's own search reading nothing still stops the
+   * run. What's typed is the aimed query, then the term, each with the context word; then the bare
+   * term, each tried when the one before read nothing.
    */
-  private async searchOrSkip(next: Queued): Promise<SearchResult | null> {
+  private async searchOrSkip(
+    next: Queued,
+  ): Promise<{ result: SearchResult; typed: string } | null> {
+    const tries = [
+      ...new Set([
+        ...(next.query ? [this.withContext(next.query)] : []),
+        this.withContext(next.term),
+        next.term,
+      ]),
+    ];
+    return this.searchAs(next, tries);
+  }
+
+  private async searchAs(
+    next: Queued,
+    tries: readonly string[],
+  ): Promise<{ result: SearchResult; typed: string } | null> {
+    const [typed, ...rest] = tries;
     try {
-      return await this.options.search.search(next.query ?? next.term);
+      return { result: await this.options.search.search(typed!), typed: typed! };
     } catch (e) {
-      // An aimed query that finds nothing: the term on its own may still.
-      if (next.query && e instanceof EmptyReadError) {
-        this.options.log(`search query found nothing {term: ${next.term}, query: ${next.query}}`);
-        next.query = undefined;
-        return this.searchOrSkip(next);
+      // A query that finds nothing: a plainer one may still.
+      if (rest.length && e instanceof EmptyReadError) {
+        this.options.log(`search query found nothing {term: ${next.term}, query: ${typed}}`);
+        return this.searchAs(next, rest);
       }
       const skippable =
         !(e instanceof RunStopped) || (e instanceof EmptyReadError && next.level > 0);
