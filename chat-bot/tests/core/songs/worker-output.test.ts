@@ -43,3 +43,15 @@ test('a sentence keeps the recording the worker heard playing, but only a named 
   expect(played(null)).toBeUndefined();
   expect(played({ title: '' })).toBeUndefined();
 });
+
+test('a sentence keeps how close it was to its voice and to the streamer’s', () => {
+  const line = (json: object) => {
+    const output = parseWorkerOutput(JSON.stringify({ start: 1, end: 2, text: '花', ...json }));
+    return output?.kind === 'line' ? output.line : 'not a line';
+  };
+  expect(line({ speaker: 11, host: false, voice: 0.85, host_voice: 0.62 })).toMatchObject({
+    voice: 0.85,
+    hostVoice: 0.62,
+  });
+  expect(line({ voice: null, host_voice: null })).not.toHaveProperty('hostVoice');
+});

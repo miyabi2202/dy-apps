@@ -229,7 +229,18 @@ export class Transcriber {
         transcript.add(line);
         this.options.record?.add(speechRecord(line));
         if (isSung(line) || isPlayed(line)) this.options.singing?.add(singingRecord(line));
-        const { text: heard, lang, speech, music, speaker, host, voice, played, backing } = line;
+        const {
+          text: heard,
+          lang,
+          speech,
+          music,
+          speaker,
+          host,
+          voice,
+          hostVoice,
+          played,
+          backing,
+        } = line;
         log.info('heard', {
           text: heard,
           lang,
@@ -238,6 +249,7 @@ export class Transcriber {
           speaker,
           host,
           voice,
+          hostVoice,
           played,
           ...(backing && { backing: backing.title }),
         });

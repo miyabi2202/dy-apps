@@ -60,7 +60,7 @@ def heard(voices: Voices, sentences) -> dict[str, list[tuple[int, bool]]]:
     """Each labelled singer's sung sentences, as `voices` took them: (voice, whether the streamer's)."""
     out: dict[str, list[tuple[int, bool]]] = {"guest": [], "host": []}
     for beg, clip, speech in sentences:
-        speaker, host, _ = voices(clip, speech, None)
+        speaker, host, _, _ = voices(clip, speech, None)
         who = who_sang(beg)
         if who and speech < SUNG_BELOW_SPEECH and speaker is not None:
             out[who].append((speaker, host))

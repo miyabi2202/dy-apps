@@ -11,13 +11,14 @@ streamer from whoever they're linked up with (连线), and her singing from a re
 Each sentence is printed to stdout as one JSON line:
 
     {"start": 1792131000.1, "end": 1792131004.6, "text": "…", "lang": "zh", "speech": 0.93,
-     "music": 0.02, "speaker": 0, "host": true, "voice": 0.71}
+     "music": 0.02, "speaker": 0, "host": true, "voice": 0.71, "host_voice": 0.71}
 
 `start` and `end` are Unix times in seconds; `lang` is FireRedLID's language code ("zh", "en",
 "ja", "ko", …), null for a sentence under 2 s, which skips it and is taken for Mandarin (only a
 sentence LID is at least 0.8 sure is Japanese or Korean goes to SenseVoiceSmall); `speech` and `music` are AST's 0–1 scores. `speaker` numbers the voices heard so
-far, `host` says whether it's the streamer's (see Voices), and `voice` is how close it was to that
-voice (null for a new one); all three are null for a sentence too short for a voiceprint. Sung
+far, `host` says whether it's the streamer's (see Voices), `voice` is how close it was to that
+voice (null for a new one) and `host_voice` how close to the streamer's (null before there is one);
+all four are null for a sentence too short for a voiceprint. Sung
 sentences are sorted among the voices heard singing, apart from those heard talking (a singing
 voice doesn't match the same person's talking one), numbered with them. FireRedASR2-AED's text has no punctuation; SenseVoiceSmall's has. Logs go to
 stderr. Audio never touches the disk: only the sentence being spoken, and the last 15 s for
@@ -343,7 +344,8 @@ class VoiceSet:
     close enough (moving that voice's average towards it), or starts a new voice. The streamer is
     the first voice heard, until another has been heard for more than twice as long: a guest heard
     first is soon corrected, but an even back-and-forth doesn't keep swapping who's who. A voice
-    `pin`ned (a room's saved one) is the streamer's for good instead.
+    `pin`ned (a room's saved one) is the streamer's for good instead, and takes every line close
+    enough to it, even one closer to another voice.
     """
 
     def __init__(self, same_voice: float, new_id):
@@ -364,10 +366,19 @@ class VoiceSet:
         self.centroids, self.seconds, self.ids = [voiceprint], [seconds], [self.new_id()]
         self.host, self.pinned = 0, True
 
-    def add(self, voiceprint: np.ndarray, seconds: float) -> tuple[int, bool, float | None]:
-        """Which voice `voiceprint` is (its number), whether it's the streamer's, and how close."""
+    def add(self, voiceprint: np.ndarray, seconds: float) -> tuple[int, bool, float | None, float | None]:
+        """
+        Which voice `voiceprint` is (its number), whether it's the streamer's, how close it was to
+        that voice, and how close to the streamer's (None before any). A pinned voice that's close
+        enough takes it whatever else is closer: otherwise a voice that started with one of her
+        lines just under the mark, and grew on the lines like it, would go on taking lines that
+        match her saved voice.
+        """
         similarities = [float(c @ voiceprint) for c in self.centroids]
+        to_host = round(similarities[self.host], 2) if self.host is not None else None
         best = int(np.argmax(similarities)) if similarities else -1
+        if self.pinned and similarities[self.host] >= self.same_voice:
+            best = self.host
         if best < 0 or similarities[best] < self.same_voice:
             self.centroids.append(voiceprint)
             self.seconds.append(seconds)
@@ -382,7 +393,7 @@ class VoiceSet:
             voice, similarity = best, round(similarities[best], 2)
         if not self.pinned and (self.host is None or self.seconds[voice] > 2 * self.seconds[self.host]):
             self.host = voice
-        return self.ids[voice], voice == self.host, similarity
+        return self.ids[voice], voice == self.host, similarity, to_host
 
 
 class Voiceprints:
@@ -442,10 +453,10 @@ class Voices:
 
     def __call__(
         self, audio: np.ndarray, speech: float, lang: str | None
-    ) -> tuple[int | None, bool | None, float | None]:
+    ) -> tuple[int | None, bool | None, float | None, float | None]:
         seconds = len(audio) / RATE
         if seconds < MIN_VOICE_SECONDS:
-            return None, None, None
+            return None, None, None, None
         voiceprint = self.voiceprint(audio)
         return (self.singing if is_sung(speech, lang) else self.talking).add(voiceprint, seconds)
 
@@ -958,7 +969,7 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
         if not re.search(r"\w", text):
             return
         speech, music = voice(audio)
-        speaker, host, similarity = voices(audio, speech, lang)
+        speaker, host, similarity, to_host = voices(audio, speech, lang)
         played = recordings(list(recent)) if is_sung(speech, lang) else None
         now = time.time()
         duration = (end - beg) / 1000
@@ -972,6 +983,7 @@ def listen(url: str, models: tuple, recent: collections.deque, stream: Stream, r
             "speaker": speaker,
             "host": host,
             "voice": similarity,
+            "host_voice": to_host,
             "played": played,
         }
         extras.on_line(line, is_sung(speech, lang))

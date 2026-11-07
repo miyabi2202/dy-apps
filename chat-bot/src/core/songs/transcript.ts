@@ -24,6 +24,8 @@ export interface TranscriptLine {
   host?: boolean;
   /** How close its voiceprint was to that voice's, 0–1; unknown for a voice heard first. */
   voice?: number;
+  /** How close it was to the voice taken for the streamer's (a sung line: her saved one, if any), 0–1. */
+  hostVoice?: number;
   /**
    * The recording playing when it was sung, as Shazam found it: a song played to the room, not
    * sung by anyone there (see the worker's Recordings).
@@ -218,6 +220,7 @@ interface WorkerLine {
   speaker?: number | null;
   host?: boolean | null;
   voice?: number | null;
+  host_voice?: number | null;
   played?: { title?: unknown; artist?: unknown } | null;
   backing?: { title?: unknown; artist?: unknown; at?: unknown } | null;
 }
@@ -236,6 +239,7 @@ export function transcriptLineFrom(json: unknown): TranscriptLine | null {
     ...(typeof line.speaker === 'number' && { speaker: line.speaker }),
     ...(typeof line.host === 'boolean' && { host: line.host }),
     ...(typeof line.voice === 'number' && { voice: line.voice }),
+    ...(typeof line.host_voice === 'number' && { hostVoice: line.host_voice }),
     ...(typeof line.played?.title === 'string' &&
       line.played.title && {
         played: {

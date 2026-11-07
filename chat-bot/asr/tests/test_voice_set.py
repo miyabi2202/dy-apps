@@ -46,6 +46,28 @@ def test_lines_matching_a_saved_voice_dont_move_it():
     assert np.allclose(voices.centroids[0], HER)
 
 
+def test_a_line_close_enough_to_a_saved_voice_is_hers_even_when_another_voice_is_closer():
+    voices = voice_set()
+    voices.pin(HER, 60)
+    # One of her lines just under the mark starts a voice of its own…
+    high = unit(1, 1.8, 0)
+    assert voices.add(high, 5)[1] is False
+    # …which a line like it is closer to, but it's close enough to hers.
+    line = unit(1, 1.6, 0)
+    assert float(line @ high) > float(line @ HER) >= 0.5
+    speaker, host, voice, to_host = voices.add(line, 5)
+    assert (speaker, host) == (0, True)
+    assert voice == to_host == round(float(line @ HER), 2)
+
+
+def test_each_line_says_how_close_it_was_to_the_streamers_voice():
+    voices = voice_set()
+    assert voices.add(HER, 10)[3] is None
+    voices.pin(HER, 60)
+    speaker, host, voice, to_host = voices.add(RECORDING, 10)
+    assert host is False and voice is None and to_host == 0.0
+
+
 class FakeVad:
     """Cuts every clip into one 3 s sentence."""
 
