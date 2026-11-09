@@ -39,7 +39,7 @@ export function identifySongTool({
   return {
     name: 'identify_song',
     description:
-      '认主播现在唱的歌（按最近的歌词）。观众想知道现在唱的、放的是什么歌时调用：主播最近的话里有标（唱）的歌词、是主播自己在唱，用这个；放的是录音、伴奏、没人在唱，用 identify_bgm。hint 是观众给的提示（可空）。没给 artist 就只知道歌名，别自己猜原唱。othersSang 为 true 时，这段歌词大多不像主播的声音（可能是连线在唱、在放录音，也可能只是认错了声音），说的时候带一句问问，别说成主播在唱。message 是程序写好的一句，你可以不用。found 为 false（歌词太少、没认出来）时，只说现在还认不出、请对方过会儿再问，别说你会等着、过会儿自己报：你不会自己回头再认。',
+      '认主播现在唱的歌（按最近的歌词）。观众想知道现在唱的、放的是什么歌时调用：主播最近的话里有标（唱）的歌词、是主播自己在唱，用这个；放的是录音、伴奏、没人在唱，用 identify_bgm。hint 是观众给的提示（可空）。没给 artist 就只知道歌名，别自己猜原唱。othersSang 为 true 时，这段歌词大多不像主播的声音（可能是连线在唱、在放录音，也可能只是认错了声音），说的时候带一句问问，别说成主播在唱。singer 是按唱之前说的话和弹幕看出的谁在唱：streamer 主播自己，guest 连线的人（别说成主播在唱，这时不用管 othersSang），unsure 看不出来。message 是程序写好的一句，你可以不用。found 为 false（歌词太少、没认出来）时，只说现在还认不出、请对方过会儿再问，别说你会等着、过会儿自己报：你不会自己回头再认。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -58,8 +58,9 @@ export function identifySongTool({
       const hint = typeof args.hint === 'string' ? args.hint : '';
       const transcript = room.recentTranscript();
       const lines = currentSong(transcript, { spans: songSpans.of(transcript) });
+      // The whole recent transcript, for who is singing it (see AutoSongId's buildPrompt).
       const prompt = room.prompt(songId.prompt(), {
-        transcript: lines,
+        transcript,
         asker,
         question: hint,
         singleLength: maxLength,
@@ -105,6 +106,7 @@ export function identifySongTool({
           message: answer.message,
           by,
           ...(othersSang && { othersSang }),
+          ...(answer.singer && { singer: answer.singer }),
           lastTold,
         }),
       };

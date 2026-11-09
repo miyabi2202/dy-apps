@@ -147,13 +147,16 @@ export class SongId {
     const share = about ? othersShare(about.lines) : 0;
     const othersSang = share > OTHERS_SANG;
     // Marked as others' singing; the note goes after a message there is: an empty one (the same song as
-    // last time) stays empty.
+    // last time) stays empty. A model that made out who sang it already wrote the message for them,
+    // so it gets no note.
     const noted = (answer: SongAnswer): SongAnswer =>
       othersSang
         ? {
             ...answer,
             othersSang,
-            ...(othersNote && answer.message && { message: `${answer.message}${othersNote()}` }),
+            ...(othersNote &&
+              answer.message &&
+              !madeOut(answer) && { message: `${answer.message}${othersNote()}` }),
           }
         : answer;
     // A message to the room (not Claude's tool) may end with a hook: the dice are rolled here, as
@@ -174,7 +177,7 @@ export class SongId {
           sure: true,
         },
         { ...question, prompt: asked(question.prompt) },
-        toRoom && !othersSang,
+        toRoom,
         hook,
       );
       return this.identified(answer, 'shazam', start, noted, othersSang, {
@@ -223,7 +226,7 @@ export class SongId {
               sure: true,
             },
             { ...question, prompt: asked(question.prompt) },
-            toRoom && !othersSang,
+            toRoom,
             hook,
           );
           return this.identified(answer, 'lyrics-search', start, noted, othersSang);
@@ -272,7 +275,7 @@ export class SongId {
       const message = value?.message ?? '';
       const named = mentionsTitle(message, song.title);
       log.info('song message', { title: song.title, hook, message, named });
-      return named ? { ...song, message } : song;
+      return named ? { ...song, message, ...(value?.singer && { singer: value.singer }) } : song;
     } catch (err) {
       log.warn('could not write the song message', { title: song.title, error: errorMessage(err) });
       return song;
@@ -302,6 +305,7 @@ export class SongId {
       artist: answer.artist,
       ...before,
       sure: answer.sure,
+      singer: answer.singer,
       by,
       ms: this.now() - start,
       ...after,
@@ -388,6 +392,11 @@ export class SongId {
     this.named.set(normaliseTitle(song.title), { at, artist: foldArtist(song.artist) });
     this.last = { song, at };
   }
+}
+
+/** Whether the model made out who sang the song (the streamer or a 连线), from the talk and the chat. */
+function madeOut(answer: SongAnswer): boolean {
+  return answer.singer === 'streamer' || answer.singer === 'guest';
 }
 
 /** What's said when the lyrics search named the song, if the wiring gives no wording. */

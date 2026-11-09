@@ -26,7 +26,7 @@ test('asks for the song as JSON, and keeps an answer that is not JSON as the tex
     answer: null,
     text: '弹幕：没认出来',
   });
-  expect(schemas[0]).toMatchObject({ required: ['message', 'title', 'artist', 'sure'] });
+  expect(schemas[0]).toMatchObject({ required: ['message', 'title', 'artist', 'sure', 'singer'] });
 });
 
 test('with too little sung yet, it says so without asking; with enough, it asks and logs what about', async () => {
@@ -136,4 +136,45 @@ test("most of the song sung by another voice: it's still named, from all of it, 
       othersSang: false,
     });
   }
+});
+
+test('when the model made out who sang it, the voices add no note: its message already says so', async () => {
+  const sung = (s: number, text: string) => ({
+    start: s * 1000,
+    end: s * 1000 + 4000,
+    text,
+    speech: 0.05,
+    speaker: 22,
+    host: false,
+  });
+  const singer = { current: 'guest' };
+  const songId = new SongId({
+    prompt: () => '',
+    codex: () =>
+      Promise.resolve(
+        JSON.stringify({
+          message: '小夜这首《带我走》',
+          title: '带我走',
+          artist: '杨丞琳',
+          sure: true,
+          singer: singer.current,
+        }),
+      ),
+    othersNote: () => '（是别人在唱吗？）',
+    log: silentLog,
+  });
+  const lines = [sung(0, '这次你却说一起走'), sung(5, '像土壤抓紧花的迷惑')];
+  const named = () => songId.name({ prompt: '' }, { why: 'command', lines });
+
+  await expect(named()).resolves.toMatchObject({
+    answer: { message: '小夜这首《带我走》', singer: 'guest', othersSang: true },
+  });
+  singer.current = 'streamer';
+  await expect(named()).resolves.toMatchObject({
+    answer: { message: '小夜这首《带我走》', singer: 'streamer' },
+  });
+  singer.current = 'unsure';
+  await expect(named()).resolves.toMatchObject({
+    answer: { message: '小夜这首《带我走》（是别人在唱吗？）' },
+  });
 });

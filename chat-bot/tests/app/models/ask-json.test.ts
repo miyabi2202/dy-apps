@@ -30,7 +30,7 @@ test('asks for the schema and gives the parsed answer', async () => {
   const result = await askJson(ask, { prompt: 'p', why: 'song' }, answer, log);
 
   expect(result).toEqual({
-    value: { message: '好听', title: '晴天', artist: '', sure: true },
+    value: { message: '好听', title: '晴天', artist: '', sure: true, singer: 'unsure' },
     text: reply,
   });
   expect(asked).toEqual([{ prompt: 'p', why: 'song', schema: SONG_ANSWER_SCHEMA }]);

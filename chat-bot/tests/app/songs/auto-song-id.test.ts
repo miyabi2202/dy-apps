@@ -11,6 +11,7 @@ import { silentLog } from '../../support/fakes';
  * are the model's, one per try.
  */
 function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
+  const singers: [string | undefined, number][] = [];
   let now = 0;
   const settings = fakeSettings({ autoSongId: on });
   const transcript = new Transcript(Infinity, () => now);
@@ -43,6 +44,7 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
     outbox: { push: ({ text }) => sent.push(text) },
     log: silentLog,
     settings,
+    onSinger: (singer, songStart) => singers.push([singer, songStart]),
   });
   /** The streamer sings (or says) `text` at `at` seconds. */
   const line = async (at: number, text: string, sung = true) => {
@@ -52,7 +54,7 @@ function setup(answers: (Partial<SongAnswer> | null)[], on = true) {
     auto.hear(heard);
     await auto.idle();
   };
-  return { settings, line, sent, prompts };
+  return { settings, line, sent, prompts, singers };
 }
 
 test('names the song once the streamer has sung it a while, and says only what it is sure of', async () => {
@@ -148,6 +150,15 @@ test('a new song after talking is asked about on its own, not as a retry of the 
   for (let t = 60; t <= 120; t += 10) await line(t, `窗外的麻雀在电线杆上多嘴${t}`);
   expect(prompts).toHaveLength(2);
   expect(prompts[1]).toContain('窗外的麻雀');
-  expect(prompts[1]).not.toContain('刮风这天');
+  // The whole recent transcript, the talk before the song too: it tells who is singing.
+  expect(prompts[1]).toContain('下一首送给你们');
   expect(sent).toEqual(['这首是《七里香》']);
+});
+
+test('tells who the model made out to be singing each song it asked about, with when that song started', async () => {
+  const { line, singers } = setup([
+    { message: '小夜这首《晴天》', title: '晴天', singer: 'guest' },
+  ]);
+  for (let t = 0; t <= 30; t += 10) await line(t, `刮风这天我试过握着你手${t}`);
+  expect(singers).toEqual([['guest', -3000]]);
 });

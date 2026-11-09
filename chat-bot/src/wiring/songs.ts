@@ -119,6 +119,8 @@ export function registerSongs(container: Container, features: FeatureRegistry): 
               log: c.resolve(LOG),
               settings: c.resolve(SETTINGS),
               maxLength: options.maxReplyLength,
+              // Resolved when it's used: OnSing asks whether this one is on.
+              onSinger: (singer, songStart) => c.resolve(ON_SING).singer(singer, songStart),
             })
           : null;
       return autoSongId;
@@ -157,6 +159,8 @@ export function registerSongs(container: Container, features: FeatureRegistry): 
         songSpans: c.resolve(SONG_SPANS),
         outbox: c.resolve(OUTBOX),
         log: c.resolve(LOG),
+        // Its message waits for the song naming to say who is singing, while that's on.
+        awaitsSinger: () => !!c.resolve(AUTO_SONG_ID) && c.resolve(SETTINGS).get().autoSongId,
       });
       return onSing;
     })

@@ -1,6 +1,6 @@
 import { errorMessage } from '../../core/errors';
 import { DOUYIN_CHAT_LIMIT, plainMessages } from '../../core/replies/reply';
-import type { SongAnswer } from '../../core/songs/song-answer';
+import type { Singer, SongAnswer } from '../../core/songs/song-answer';
 import {
   isHandled,
   singingSong,
@@ -32,6 +32,11 @@ export interface AutoSongIdOptions {
   sameAgainMs?: number;
   /** A song named this recently isn't named again. */
   repeatMs?: number;
+  /**
+   * Told who the model made out to be singing each song asked about, with when that song started
+   * (undefined when no model said, or it failed): the on_sing message waits for it (see OnSing).
+   */
+  onSinger?: (singer: Singer | undefined, songStart: number) => void;
 }
 
 /**
@@ -64,6 +69,8 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
   /** Whether the last answer wasn't sure, so the same song may be asked about again. */
   private unsure = false;
   private busy = false;
+  /** When the song it last asked about started. */
+  private askedStart = -Infinity;
   private readonly work = new Pending();
 
   constructor(private readonly options: AutoSongIdOptions) {
@@ -89,6 +96,7 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
     if (!retry && isHandled(song, this.triedAt, line.end, this.waitMs ?? againMs)) return;
     this.asked = { chars, retries: retry ? this.asked.retries + 1 : 0 };
     this.triedAt = line.end;
+    this.askedStart = song.start;
     this.busy = true;
     this.work.track(
       this.nameSong(song.lines, retry ? 'retry' : 'auto').finally(() => (this.busy = false)),
@@ -127,10 +135,13 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
   /** Why it's asking now, for the log. */
   private why: 'auto' | 'retry' = 'auto';
 
-  protected buildPrompt(song: TranscriptLine[]): string {
+  /**
+   * The whole recent transcript, not only the song's lines: the 连线's lines and what was said
+   * before the song tell the model who is singing it.
+   */
+  protected buildPrompt(): string {
     const { songId, room, maxLength = DOUYIN_CHAT_LIMIT, repeatMs = 60 * 60_000 } = this.options;
     return room.prompt(songId.prompt(), {
-      transcript: song,
       asker: '直播间',
       question: this.question(repeatMs),
       singleLength: maxLength,
@@ -153,6 +164,7 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
       repeatMs = 60 * 60_000,
       sameAgainMs = 60_000,
     } = this.options;
+    this.options.onSinger?.(answer?.singer, this.askedStart);
     // Only a song it's sure of is said: a guess (「听着像…不太确定」) isn't.
     if (!answer?.title || !answer.sure) {
       this.unsure = true;
@@ -173,5 +185,6 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
 
   protected failed(_song: TranscriptLine[], err: unknown): void {
     this.options.log.warn('auto song id failed', { error: errorMessage(err) });
+    this.options.onSinger?.(undefined, this.askedStart);
   }
 }
