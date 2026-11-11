@@ -151,3 +151,14 @@ test('listens for 「这是什么歌」 in its forms, and not for asking what th
   // The trigger's look-behinds keep 「会唱什么歌」 and 「点什么歌」 out.
   for (const said of ['会唱什么歌', '点什么歌']) expect(listen?.trigger?.test(said)).toBe(false);
 });
+
+test("unasked (heard on the stream), it keeps the bot silent when it doesn't know, and answers when it does", async () => {
+  const unasked = { ...context, unasked: true };
+  const early = setup({ lyrics: 'sure', minChars: 500 });
+  expect(await early.tool.call({}, unasked)).toMatchObject({ silent: true });
+
+  const known = setup({ lyrics: 'sure' });
+  const result = await known.tool.call({}, unasked);
+  expect(result.silent).toBeUndefined();
+  expect(JSON.parse(result.text)).toMatchObject({ found: true, title: '晴天' });
+});

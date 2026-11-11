@@ -54,7 +54,7 @@ export function identifySongTool({
         say: (result) => (JSON.parse(result.text) as { message: string }).message,
       },
     ],
-    async call(args, { asker, direct }) {
+    async call(args, { asker, direct, unasked }) {
       const hint = typeof args.hint === 'string' ? args.hint : '';
       const transcript = room.recentTranscript();
       const lines = currentSong(transcript, { spans: songSpans.of(transcript) });
@@ -74,7 +74,14 @@ export function identifySongTool({
         minutesAgo: Math.round((room.now() - last.at) / 60_000),
       };
       const outcome = await songId.identifyLines({ prompt }, lines, direct ? 'command' : 'tool');
+      // Not asked, and it doesn't know (too little sung, nothing found, a guess): nothing to say
+      // (see ToolContext's `unasked`).
+      const silent = (found: object) => {
+        log.info('identify_song: not sure, unasked: silent');
+        return { text: JSON.stringify(found), silent: true as const };
+      };
       if (outcome.kind === 'early') {
+        if (unasked) return silent({ found: false });
         return {
           text: JSON.stringify({
             found: false,
@@ -85,6 +92,7 @@ export function identifySongTool({
         };
       }
       const { answer, by, othersSang } = outcome;
+      if (unasked && !answer?.sure) return silent({ found: false, by });
       if (!answer?.title) {
         log.info('identify_song found nothing', { by });
         return {

@@ -44,3 +44,11 @@ test('/识别背景音乐 says what is playing, or that nothing was found', asyn
   expect(await say({ title: 'Aimaimoko', artist: '' })).toBe('现在放的是《Aimaimoko》');
   expect(await say(null)).toBe('我找不到');
 });
+
+test("unasked (heard on the stream), nothing found keeps the bot silent; a song found doesn't", async () => {
+  const unasked = { ...context, unasked: true };
+  const none = identifyBgmTool(() => Promise.resolve(null), silentLog);
+  expect(await none.call({}, unasked)).toEqual({ text: '{"found":false}', silent: true });
+  const found = identifyBgmTool(() => Promise.resolve({ title: '晴天', artist: '' }), silentLog);
+  expect((await found.call({}, unasked)).silent).toBeUndefined();
+});

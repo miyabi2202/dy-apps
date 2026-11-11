@@ -28,9 +28,14 @@ export function identifyBgmTool(identify: () => Promise<MusicMatch | null>, log:
     description:
       '认直播间现在放的背景音乐（录音、伴奏，不是主播自己唱的）。观众想知道在放什么音乐时调用；主播自己在唱的用 identify_song。',
     inputSchema: { type: 'object', properties: {} },
-    async call() {
+    async call(_args, { unasked }) {
       try {
         const match = await identify();
+        // Not asked, and nothing found: nothing to say (see ToolContext's `unasked`).
+        if (!match && unasked) {
+          log.info('identify_bgm found nothing, unasked: silent');
+          return { text: JSON.stringify({ found: false }), silent: true };
+        }
         return {
           text: JSON.stringify(
             match ? { found: true, title: match.title, artist: match.artist } : { found: false },

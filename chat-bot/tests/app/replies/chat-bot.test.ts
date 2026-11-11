@@ -128,7 +128,9 @@ test('answers what someone said to it unprompted like a mention, saying it was n
   await settle();
 
   expect(prompts).toEqual([
-    '阿明 没有 @ 你，是在弹幕里说到了你或在跟你说话，要回的话就主动回 TA 一句：机器人几岁',
+    expect.stringMatching(
+      /^阿明 没有 @ 你，是在弹幕里说到了你或在跟你说话，.*TA 说的是：机器人几岁$/,
+    ),
   ]);
   expect(sent).toEqual(['@阿明 你好呀']);
 });
@@ -143,8 +145,10 @@ test('the streamer is answered, as said on the stream', async () => {
   });
   await settle();
 
-  expect(prompts[0]).toBe(
-    '主播 虾虾 没有 @ 你，是在直播里说到了你（语音识别，可能有错字），要回的话就主动回 TA 一句：机器人说两句',
+  expect(prompts[0]).toEqual(
+    expect.stringMatching(
+      /^主播 虾虾 没有 @ 你，是在直播里说到了你.*工具没查到.*TA 说的是：机器人说两句$/,
+    ),
   );
 });
 

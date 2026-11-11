@@ -211,6 +211,8 @@ export class MentionAnswerer {
         question: mention.question,
         admin: mention.userId !== undefined && !!this.options.admins?.has(mention.userId),
         viewer: mention.viewer,
+        // Heard on the stream or handed over at random: not said to the bot, as a chat line may be.
+        ...(mention.unprompted && mention.unprompted !== 'chat' && { unasked: true }),
       }) ?? null;
     try {
       const transcript = room.recentTranscript();

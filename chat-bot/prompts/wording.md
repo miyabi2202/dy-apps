@@ -36,11 +36,11 @@ The sentences the program says to the models (Jev, Codex, Claude) around what it
 
 ## asked-speech
 
-主播 {{asker}} 没有 @ 你，是在直播里说到了你（语音识别，可能有错字），要回的话就主动回 TA 一句：{{said}}
+主播 {{asker}} 没有 @ 你，是在直播里说到了你（语音识别，可能有错字），要回的话就主动回 TA 一句。这句不一定是在问你：只有你确实知道、答得上来才回；工具没查到、你也拿不准，就 `message` 和 `others` 都留空，什么都不发，不要说「没认出来」「我不知道」「过会儿再问我」。TA 说的是：{{said}}
 
 ## asked-chat
 
-{{asker}} 没有 @ 你，是在弹幕里说到了你或在跟你说话，要回的话就主动回 TA 一句：{{said}}
+{{asker}} 没有 @ 你，是在弹幕里说到了你或在跟你说话，要回的话就主动回 TA 一句。TA 不是直接在跟你说话（只是说到了你）时，只有你确实知道、答得上来才回；工具没查到、你也拿不准，就 `message` 和 `others` 都留空，什么都不发，不要说「没认出来」「我不知道」「过会儿再问我」。TA 说的是：{{said}}
 
 ## asked-random
 

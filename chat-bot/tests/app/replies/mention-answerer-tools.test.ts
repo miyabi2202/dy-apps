@@ -192,12 +192,14 @@ test('claude answered logs the tools Claude called with their times, and an unpr
   });
 });
 
-test('the session is opened knowing who the asker is', async () => {
+test('the session is opened knowing who the asker is, and whether nobody asked the bot', async () => {
   const { ask, opened } = setup();
   const viewer = { admin: false, badges: ['V年'], payLevel: 31 };
   await ask({ unprompted: 'speech', viewer });
+  // A chat line said to the bot without an @ may well be asking it.
+  await ask({ unprompted: 'chat', viewer });
+  await ask({ viewer });
 
-  expect(opened).toEqual([
-    { asker: '阿明', userId: undefined, question: '在吗', admin: false, viewer },
-  ]);
+  const asked = { asker: '阿明', userId: undefined, question: '在吗', admin: false, viewer };
+  expect(opened).toEqual([{ ...asked, unasked: true }, asked, asked]);
 });

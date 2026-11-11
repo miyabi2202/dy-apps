@@ -23,6 +23,13 @@ export interface ToolContext {
   direct?: boolean;
   /** Who the asker is (badges, fan club, wealth level), for a tool's `only` / `except`. */
   viewer?: Viewer;
+  /**
+   * Nobody asked the bot: it heard the streamer say it on the stream, or a chat line was handed to
+   * it at random (not one said to it without an @, which may well be asking it). A tool
+   * that finds nothing then keeps the bot silent (see ToolResult's `silent`): it wasn't asked, so
+   * there's no 「没认出来」 to say.
+   */
+  unasked?: boolean;
 }
 
 /** What a tool answers: text for Claude to read, and a picture to look at with it. */
