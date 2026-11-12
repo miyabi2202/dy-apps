@@ -11,6 +11,12 @@ describe('normaliseTitle', () => {
     expect(normaliseTitle('晴天 抖音版')).toBe(normaliseTitle('晴天'));
   });
 
+  it('keeps a waved subtitle that is not a version', () => {
+    expect(normaliseTitle('永遠語り～風ノ歌～')).not.toBe(normaliseTitle('永遠語り～光ノ歌～'));
+    expect(normaliseTitle('永遠語り～風ノ歌～')).not.toBe(normaliseTitle('永遠語り'));
+    expect(normaliseTitle('一番の宝物 ～TV size～')).toBe(normaliseTitle('一番の宝物'));
+  });
+
   it('ignores punctuation, case and width, and folds traditional into simplified', () => {
     expect(normaliseTitle('Let It Go!')).toBe(normaliseTitle('let it go'));
     expect(normaliseTitle('ＡＢＣ')).toBe('abc');
@@ -29,6 +35,7 @@ describe('displayTitle', () => {
     expect(displayTitle('一番の宝物 ～Yui final ver.～')).toBe('一番の宝物');
     expect(displayTitle('后来 - 抖音版')).toBe('后来');
     expect(displayTitle('知我 完整版')).toBe('知我');
+    expect(displayTitle('永遠語り～風ノ歌～')).toBe('永遠語り～風ノ歌～');
   });
 
   it('drops brackets inside brackets with them', () => {

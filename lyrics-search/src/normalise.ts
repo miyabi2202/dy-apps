@@ -19,7 +19,11 @@ export function cleanLine(line: string): string {
 
 // Innermost first, so a bracket inside another (「千古(电视剧《花千骨》片头曲)」) goes with it.
 const BRACKETED = /[（([【「《][^（([【「《）)\]】」》]*[）)\]】」》]/g;
-const WAVED = /[～~].*?[～~]/g;
+const WAVED = /[～~](.*?)[～~]/g;
+// A waved part that names a version (「～Yui final ver.～」) goes; one that doesn't is the song's own
+// subtitle and stays: 「永遠語り～風ノ歌～」 and 「永遠語り～光ノ歌～」 are two songs.
+const VERSION_NOTE =
+  /ver\b|version|edit|mix|size|live|acoustic|inst|karaoke|off vocal|cover|remaster|demo|版/i;
 const UNCLOSED = /[（([【].*$/;
 const DASHED = /\s*[-–—].*$/;
 const VERSION =
@@ -31,7 +35,7 @@ export function displayTitle(title: string): string {
   let bare = title;
   for (let last = ''; bare !== last;) [last, bare] = [bare, bare.replace(BRACKETED, '')];
   return bare
-    .replace(WAVED, '')
+    .replace(WAVED, (waved, inside: string) => (VERSION_NOTE.test(inside) ? '' : waved))
     .replace(UNCLOSED, '')
     .replace(DASHED, '')
     .trim()
