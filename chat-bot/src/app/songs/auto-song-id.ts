@@ -171,6 +171,11 @@ export class AutoSongId extends ModelFeature<TranscriptLine[], SongAnswer | null
       log.info('auto song id found nothing sure', { title: answer?.title });
       return;
     }
+    // A 连线's song isn't the streamer's: nobody asked, so it's left to them.
+    if (answer.singer === 'guest') {
+      log.info('auto song id: a guest is singing, not said', { title: answer.title });
+      return;
+    }
     const last = songId.namedAt(answer.title, answer.artist);
     const messages = plainMessages(answer.message, room.replyLimits(maxLength));
     if (!messages.length || (last !== undefined && room.now() - last < repeatMs)) {

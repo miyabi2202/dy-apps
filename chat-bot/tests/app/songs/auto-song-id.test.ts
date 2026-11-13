@@ -162,3 +162,11 @@ test('tells who the model made out to be singing each song it asked about, with 
   for (let t = 0; t <= 30; t += 10) await line(t, `刮风这天我试过握着你手${t}`);
   expect(singers).toEqual([['guest', -3000]]);
 });
+
+test("says nothing about a 连线's song", async () => {
+  const { line, sent } = setup([
+    { message: '连线这首《少女作妖日记》原唱是纳豆nado', title: '少女作妖日记', singer: 'guest' },
+  ]);
+  for (let t = 0; t <= 30; t += 10) await line(t, `讨厌红色的调调那家伙没信号${t}`);
+  expect(sent).toEqual([]);
+});
